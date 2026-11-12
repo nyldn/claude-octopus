@@ -4,6 +4,7 @@ import os
 import json
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -609,8 +610,10 @@ sys.exit(m.main())
         for generated in (False, True, 'codex'):
             for phase in ('define', 'develop', 'deliver', 'ink'):
                 with self.subTest(phase=phase, generated=generated):
-                    command = self.skill_command(phase, generated).replace(
-                        '${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}', str(loaded))
+                    command, replacements = re.subn(
+                        r'^OCTO_ROOT=.*$', lambda _: 'OCTO_ROOT=' + shlex.quote(str(loaded)),
+                        self.skill_command(phase, generated), count=1, flags=re.M)
+                    self.assertEqual(replacements, 1, 'missing root assignment for loaded-entry fixture')
                     self.env['FIXTURE_MODE'] = 'complete'
                     result = subprocess.run(['bash', '-c', command], env=self.env,
                                             cwd=self.home, text=True, capture_output=True, timeout=15)

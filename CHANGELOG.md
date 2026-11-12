@@ -11,6 +11,14 @@
 
 ### Fixed
 
+- Shipping reads canonical delivery state, reserves archives exclusively, and
+  verifies checkpoint creation against the reviewed source commit. Ignored
+  project state stays local, with its exclusion from the Git tag reported.
+
+- Documentation sync records its edit scope, preserves unrelated staged work,
+  resolves the actual base branch, and updates its managed PR summary through
+  the outbound-text safety gate. Removed TODOs require completion evidence.
+
 - Native skill guidance redacts credential-history evidence before tool capture,
   verifies authored skill roots against the loaded registration, and applies
   completion checks beyond test files. Shipping cues distinguish project

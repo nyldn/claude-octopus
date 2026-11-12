@@ -554,4 +554,22 @@ print('9 submodule transitions refused before checkpoint creation')
 PY_SUBMODULE
 then test_pass; else test_fail "rollback can report a complete snapshot with stale submodule worktrees"; fi
 
+
+test_case "doc-sync scopes commits and preserves existing PR body content"
+if python3 "$SCRIPT_DIR/../fixtures/native-skills/doc-sync-recipes.py" "$PROJECT_ROOT"; then
+    test_pass
+else
+    test_fail "doc-sync changed unowned work or failed its PR update contract"
+fi
+
+test_case "shipping requires completion evidence and a verified source checkpoint"
+ship_recipes_passed=true
+for native_tree in .claude/skills skills codex-skills; do
+    if ! python3 "$SCRIPT_DIR/../fixtures/native-skills/ship-recipes.py" "$PROJECT_ROOT" "$native_tree"; then
+        ship_recipes_passed=false
+        break
+    fi
+done
+if $ship_recipes_passed; then test_pass; else test_fail "shipping state or checkpoint contract failed"; fi
+
 test_summary

@@ -1,5 +1,5 @@
 interface:
   display_name: "Ship"
-  short_description: "Package and finalize an initialized project — invoke..."
+  short_description: "Package and finalize an initialized project after delivery is..."
 policy:
   allow_implicit_invocation: false

@@ -2,480 +2,229 @@
 name: skill-ship
 disable-model-invocation: true
 user-invocable: true
-description: "Package and finalize an initialized project — invoke manually when asked to ship, finalize, or deliver the project"
+description: "Package and finalize an initialized project after delivery is complete"
 trigger: |
-  EXPLICITLY USE when user asks to:
-  - "ship the project" or "ship this project"
-  - "finalize the project" or "finalize this project"
-  - "deliver the project" or "deliver this project"
-  - "mark the project as shipped"
+  EXPLICITLY USE when the user asks to ship, finalize, or deliver the project.
 ---
 
-# Ship Project - Multi-AI Delivery Validation
+# Ship project
 
-Finalize and deliver completed work with Multi-AI security audit, lessons capture, and archival.
+Run only after an explicit user request. Keep this skill manually invoked. It
+archives project state, records the shipped status, and creates a Git tag only
+after the delivered source has a reviewed commit. Use `flow-deliver` for phase
+validation; this skill finalizes an initialized project.
 
-**Core principle:** Verify ready -> Multi-AI audit -> Capture lessons -> Archive -> Ship.
+## 1. Check project state
 
----
+Require `.octo/STATE.md`. Read fields through the state script's API, and query
+phase 4 through `get_phase_status`. Markdown in `STATE.md` uses fields such as
+`**Status:**`; grepping for `status:` does not read the canonical state.
 
-## When to Use
-
-**Invoke this skill manually when the user asks to ship, finalize, or deliver an initialized project:**
-- "Ship the project" or "Ship this project"
-- "Finalize the project" or "Finalize this project"
-- "Deliver the project" or "Deliver this project"
-- "Mark the project as shipped"
-
-**Do NOT use for:**
-- Code review (use /octo:review or flow-deliver)
-- Implementation (use /octo:develop)
-- Research (use /octo:research)
-
----
-
-## The Process
-
-### Phase 1: Verify Project Ready to Ship
-
-#### Step 1: Check .octo/ Exists
+Use the installation that loaded this skill. In Claude Code, use
+`CLAUDE_PLUGIN_ROOT`; in Codex, use `CODEX_PLUGIN_ROOT`. If neither is set,
+use an explicitly verified `OCTO_ROOT` or validate the stable installed fallback.
+Do not select an installation from the project directory.
 
 ```bash
-if [[ ! -d ".octo" ]]; then
-    echo "No project initialized"
-    exit 1
+ship_check_readiness() {
+SHIP_OVERRIDE_ARGUMENT="${1:-}"
+SHIP_DELIVERY_OVERRIDE=0
+case "$SHIP_OVERRIDE_ARGUMENT" in ''|--user-approved-override) ;; *) return 1 ;; esac
+if [[ ! -d .octo || ! -f .octo/STATE.md ]]; then
+    echo "Cannot ship: no initialized .octo/STATE.md project."
+    return 1
 fi
-```
 
-**If .octo/ does not exist:**
-
-```markdown
-## Cannot Ship
-
-**Status:** No project initialized
-
-No Claude Octopus project found in this directory.
-
-Run `/octo:embrace [description]` to start a new project.
-```
-
-**STOP. Do not proceed.**
-
-#### Step 2: Read STATE.md Status
-
-```bash
-# Check if STATE.md exists and read status
-if [[ -f ".octo/STATE.md" ]]; then
-    # Read current status
-    STATUS=$(grep -E "^status:" .octo/STATE.md | cut -d':' -f2 | xargs || echo "unknown")
-    CURRENT_PHASE=$(grep -E "^current_phase:" .octo/STATE.md | cut -d':' -f2 | xargs || echo "unknown")
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${DROID_PLUGIN_ROOT:-${OCTO_ROOT:-${HOME}/.claude-octopus/plugin}}}}"
+OCTO_ROOT="$(cd -- "$OCTO_ROOT" && pwd -P)" || return 1
+for required in scripts/octo-state.sh scripts/orchestrate.sh scripts/helpers/workflow-result.sh; do
+    [[ -x "$OCTO_ROOT/$required" ]] || { echo "Cannot ship: installation is incomplete." >&2; return 1; }
+done
+STATE_TOOL="$OCTO_ROOT/scripts/octo-state.sh"
+STATE_OUTPUT=$("$STATE_TOOL" read_state) || return 1
+STATUS=$(printf '%s\n' "$STATE_OUTPUT" | sed -n 's/^status=//p')
+CURRENT_PHASE=$(printf '%s\n' "$STATE_OUTPUT" | sed -n 's/^current_phase=//p')
+DELIVER_STATUS=$("$STATE_TOOL" get_phase_status 4) || return 1
+printf 'Status: %s\nCurrent phase: %s\nDeliver phase: %s\n' \
+    "$STATUS" "$CURRENT_PHASE" "$DELIVER_STATUS"
+if [[ "$DELIVER_STATUS" != complete ]]; then
+    if [[ "$SHIP_OVERRIDE_ARGUMENT" != --user-approved-override ]]; then
+        echo "Cannot ship: Deliver phase lacks completion evidence. Ask the user whether to explicitly override this gate." >&2
+        return 1
+    fi
+    SHIP_DELIVERY_OVERRIDE=1
+    echo "Readiness override: user requested ship anyway; delivery completion is not established."
 else
-    STATUS="unknown"
-    CURRENT_PHASE="unknown"
+    echo "Delivery completion evidence: phase 4 is complete."
 fi
-
-echo "Status: $STATUS"
-echo "Current Phase: $CURRENT_PHASE"
+}
+ship_check_readiness || exit 1
 ```
 
-#### Step 3: Validate Ready State
+Shipping requires explicit delivery completion evidence:
+`get_phase_status 4` must return `complete`. A status of `complete`, phase 4
+being current, or history entries by themselves do not prove delivery passed.
+If delivery is `in_progress`, `blocked`, `unknown`, or anything other than
+`complete`, stop until the user completes `flow-deliver`.
 
-**Ship is allowed when:**
-- `status` = "complete" OR
-- `current_phase` = "4" (Deliver phase) OR
-- All four phases have entries in STATE.md history
+An inherited environment variable never authorizes an override. Only after the
+user explicitly approves shipping this incomplete run, repeat the readiness
+block with its final call changed to
+`ship_check_readiness --user-approved-override || exit 1`. Pass that literal
+argument for the approved run; do not derive it from an environment variable.
+Record the approval and readiness result in the run handoff. Describe delivery
+completion evidence as absent. This override does not waive the audit, review,
+clean-commit or tag checks below.
 
-**If not ready:**
+## 2. Run the delivery audit
 
-```markdown
-## Project Not Ready to Ship
-
-**Current Status:** {status}
-**Current Phase:** {current_phase}
-
-### To prepare for shipping:
-
-1. Complete remaining phases:
-   - [ ] Phase 1: Discover - Use `/octo:discover`
-   - [ ] Phase 2: Define - Use `/octo:define`
-   - [ ] Phase 3: Develop - Use `/octo:develop`
-   - [ ] Phase 4: Deliver - Use `/octo:deliver`
-
-2. Or override with: "ship anyway" (not recommended)
-```
-
-**STOP unless user says "ship anyway".**
-
----
-
-### Phase 2: Multi-AI Security Audit
-
-#### Step 1: Display Visual Indicators
+Use the installation root established above for execution and result
+validation. Run `orchestrate.sh ink` and require a fresh validated report with
+launcher status `COMPLETE`. Do not substitute a single-provider review or an
+older report. If critical issues remain, stop shipping until the user resolves
+them and reruns `flow-deliver`.
 
 ```bash
-# Check provider availability
-command -v codex &> /dev/null && codex_status="Available" || codex_status="Not installed"
-command -v agy &> /dev/null && agy_status="Available" || agy_status="Not installed"
-```
-
-**Output:**
-
-```markdown
-## Multi-AI Security Audit
-
-**Providers:**
-- Codex CLI: ${codex_status} - Code security analysis
-- Antigravity CLI: ${agy_status} - Additional external-model challenge
-- Claude: Available - Synthesis and final validation
-
-**Estimated Time:** 3-5 minutes
-**Estimated Cost:** 0.02-0.08 USD
-```
-
-#### Step 2: Execute orchestrate.sh Security Audit
-
-**You MUST execute this via Bash tool:**
-
-Use the installation that loaded this skill for both execution and validation.
-If `CLAUDE_PLUGIN_ROOT` is absent, replace the `OCTO_ROOT` fallback below with
-the absolute plugin root derived from this loaded skill's path. Do not infer it
-from the project directory or an existing stable link. The root helper refreshes
-installed copies while preserving another session's working root when called
-from an inferred development checkout.
-
-```bash
-# Run Multi-AI security audit for delivery
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+# Restore the loaded root when this step starts in a fresh shell.
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${DROID_PLUGIN_ROOT:-${OCTO_ROOT:-${HOME}/.claude-octopus/plugin}}}}"
 bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
 RUN_MARKER=$(mktemp) || exit 1
 RUN_STATUS=0
-OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "$OCTO_ROOT/scripts/orchestrate.sh" ink "Security audit for delivery - comprehensive review of all code changes for production readiness" || RUN_STATUS=$?
+OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" \
+    "$OCTO_ROOT/scripts/orchestrate.sh" ink \
+    "Security audit for delivery - comprehensive review of code changes for production readiness" || RUN_STATUS=$?
 REPORT_STATUS=0
-VALIDATION_FILE=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" ink "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
+VALIDATION_FILE=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" ink \
+    "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
 rm -f "$RUN_MARKER"
 [[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
 echo "AUDIT COMPLETE: $VALIDATION_FILE"
 ```
 
-## MANDATORY COMPLIANCE
+Read the validated report and summarize its result, quality score, critical
+issues, and warnings. Stop if it reports critical issues.
 
-**CRITICAL: You are PROHIBITED from:**
-- Skipping Multi-AI validation
-- Doing single-provider analysis instead
-- Claiming you're "simulating" the audit
-- Proceeding without running orchestrate.sh
+## 3. Capture lessons
 
-#### Step 3: Verify Audit Completed
-
-Step 2 must exit successfully and validate a fresh `delivery-*.md` report
-whose launcher status is `COMPLETE`. A report from a previous deliver run,
-a partial report, or a failed command cannot pass this audit.
-Use the exact validated path printed by Step 2 for the summary.
-
-#### Step 4: Display Audit Summary
-
-Read validation file and present:
-- Overall status (PASSED / PASSED WITH WARNINGS / FAILED)
-- Quality score
-- Critical issues (must fix before ship)
-- Warnings (should fix)
-
-**If FAILED with critical issues:**
-```markdown
-## Audit Failed - Cannot Ship
-
-Critical issues must be resolved before shipping:
-
-1. [Issue 1 from validation]
-2. [Issue 2 from validation]
-
-Resolve issues and run `/octo:ship` again.
-```
-
-**STOP if critical issues found.**
-
----
-
-### Phase 3: Capture Lessons Learned
-
-#### Step 1: Ask User for Lessons
-
-```markdown
-## Lessons Learned
-
-Before finalizing, let's capture what we learned from this project.
-
-**Please answer the following:**
-
-1. **What went well?** (What worked better than expected?)
-
-2. **What could improve?** (What would you do differently?)
-
-3. **Key learnings?** (What insights will you carry forward?)
-
-*Reply with your answers, or type "skip" to proceed without capturing lessons.*
-```
-
-**Wait for user response.**
-
-#### Step 2: Append to LESSONS.md
-
-If user provides lessons (not "skip"):
+Ask the user what went well, what should improve, and what they learned. They
+may answer "skip". Append supplied lessons to `.octo/LESSONS.md`; do not archive
+or delete that file. Count headings with one numeric result, including zero:
 
 ```bash
-# Generate timestamp
-TIMESTAMP=$(date '+%Y-%m-%d')
-
-# Ensure LESSONS.md exists
-touch .octo/LESSONS.md
-
-# Append lessons
-cat >> .octo/LESSONS.md << EOF
-
-## ${TIMESTAMP} - Project Delivery
-
-### What Went Well
-- ${USER_WHAT_WENT_WELL}
-
-### What Could Improve
-- ${USER_WHAT_COULD_IMPROVE}
-
-### Key Learnings
-- ${USER_KEY_LEARNINGS}
-
-EOF
+LESSON_COUNT=$(grep -c '^## ' .octo/LESSONS.md 2>/dev/null || true)
+LESSON_COUNT=${LESSON_COUNT:-0}
+echo "Lessons captured: $LESSON_COUNT"
 ```
 
-**Count total lessons:**
+## 4. Record shipped status and archive project state
+
+Use the validated installation's state writer to update the canonical status
+and append the shipping history entry. Keep the current phase. Do not edit
+`STATE.md` with `sed` or replace its history.
+
 ```bash
-LESSON_COUNT=$(grep -c "^## " .octo/LESSONS.md 2>/dev/null || echo "0")
-echo "Total lessons captured: $LESSON_COUNT"
+: "${STATE_TOOL:?Restore the verified state tool}"
+: "${VALIDATION_FILE:?Restore the validated delivery report}"
+mkdir -p .octo/archive || exit 1
+ARCHIVE="$(mktemp -d ".octo/archive/$(date -u '+%Y%m%d-%H%M%S').XXXXXX")" || exit 1
+ARCHIVE_TIMESTAMP="${ARCHIVE##*/}"
+"$STATE_TOOL" write_state --status shipped \
+    --history "Project shipped; archive: $ARCHIVE; audit: $VALIDATION_FILE" || exit 1
+for name in STATE.md PROJECT.md ROADMAP.md ISSUES.md; do
+    if [[ -f ".octo/$name" ]]; then
+        cp -- ".octo/$name" "$ARCHIVE/" || exit 1
+    fi
+done
+printf 'Archive: %s\n' "$ARCHIVE"
+ls -la -- "$ARCHIVE" || exit 1
 ```
 
----
+The archive is reserved exclusively, so a second run cannot overwrite it.
+`LESSONS.md` stays outside the archive. Preserve the run values and validated
+report in the task context and restore them when starting a new shell.
 
-### Phase 4: Archive Project State
+Now inspect `git status`, the full diff, the archive, and `STATE.md`. Preserve
+all unrelated user changes. Commit only the intended delivered source and
+eligible state after review and within the existing authorized file scope.
+If that scope is missing, stop before staging or committing. Preserve ignored state locally rather than adding it forcibly. If
+`.octo` state or archives are ignored, disclose that the Git checkpoint captures
+the committed source and excludes that local state. Preserve the local archive
+separately; do not advertise the tag as a complete state backup.
 
-#### Step 1: Create Archive Directory
+Record the reviewed source commit as `SHIP_REVIEWED_HEAD`. Resume at the
+checkpoint step with that commit clean and unchanged, while retaining the
+already checked delivery and audit evidence. Do not rerun the readiness gate
+against the now-shipped status. If the evidence was lost, stop and recover the
+recorded handoff; `shipped` alone does not prove delivery passed.
 
 ```bash
-# Generate timestamp for archive
-ARCHIVE_TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-ARCHIVE_DIR=".octo/archive/${ARCHIVE_TIMESTAMP}"
-
-# Create archive directory
-mkdir -p "$ARCHIVE_DIR"
+git status --short
+git diff -- .octo
+git diff --cached -- .octo
 ```
 
-#### Step 2: Copy State Files to Archive
+Once the reviewed delivered-state commit is clean and verified, create the
+checkpoint. Tagging is allowed only as part of the user's explicit shipping
+request. Check the command result and the tag object before reporting success.
 
 ```bash
-# Archive STATE.md if exists
-if [[ -f ".octo/STATE.md" ]]; then
-    cp .octo/STATE.md "$ARCHIVE_DIR/"
+: "${ARCHIVE:?Restore the recorded archive path}"
+: "${ARCHIVE_TIMESTAMP:?Restore the recorded archive timestamp}"
+: "${SHIP_REVIEWED_HEAD:?Restore the reviewed delivered-source commit}"
+[[ "$ARCHIVE" == ".octo/archive/$ARCHIVE_TIMESTAMP" && -d "$ARCHIVE" && -f "$ARCHIVE/STATE.md" ]] || { echo "Archive is incomplete." >&2; exit 1; }
+SHIP_CURRENT_HEAD="$(git rev-parse HEAD)" || exit 1
+SHIP_WORKTREE_STATUS="$(git status --porcelain)" || exit 1
+[[ "$SHIP_CURRENT_HEAD" == "$SHIP_REVIEWED_HEAD" && -z "$SHIP_WORKTREE_STATUS" ]] || {
+    echo "Cannot tag: preserve or commit intended changes, then review the current commit." >&2; exit 1;
+}
+SHIP_LOCAL_STATE=0
+for state_path in .octo/STATE.md "$ARCHIVE/STATE.md"; do
+    if git check-ignore -q -- "$state_path"; then
+        SHIP_LOCAL_STATE=1
+    else
+        IGNORE_STATUS=$?
+        [[ "$IGNORE_STATUS" == 1 ]] || exit "$IGNORE_STATUS"
+        git ls-files --error-unmatch -- "$state_path" >/dev/null 2>&1 || {
+            echo "Cannot tag: non-ignored state is absent from the reviewed commit." >&2; exit 1;
+        }
+    fi
+done
+SHIP_CURRENT_STATE="$("$STATE_TOOL" read_state)" || exit 1
+printf '%s\n' "$SHIP_CURRENT_STATE" | grep -qx 'status=shipped' || exit 1
+if [[ "$SHIP_LOCAL_STATE" == 1 ]]; then
+    echo "Checkpoint scope: committed source only; ignored state and archive remain local."
+else
+    SHIP_COMMITTED_STATE="$(git show HEAD:.octo/STATE.md)" || exit 1
+    printf '%s\n' "$SHIP_COMMITTED_STATE" | grep -qx '\*\*Status:\*\* shipped' || exit 1
 fi
-
-# Archive PROJECT.md if exists
-if [[ -f ".octo/PROJECT.md" ]]; then
-    cp .octo/PROJECT.md "$ARCHIVE_DIR/"
-fi
-
-# Archive ROADMAP.md if exists
-if [[ -f ".octo/ROADMAP.md" ]]; then
-    cp .octo/ROADMAP.md "$ARCHIVE_DIR/"
-fi
-
-# Archive ISSUES.md if exists
-if [[ -f ".octo/ISSUES.md" ]]; then
-    cp .octo/ISSUES.md "$ARCHIVE_DIR/"
-fi
-
-echo "Archived to: $ARCHIVE_DIR"
-```
-
-**IMPORTANT: NEVER archive LESSONS.md** - lessons are preserved across projects.
-
-#### Step 3: Verify Archive
-
-```bash
-# List archived files
-ls -la "$ARCHIVE_DIR"
-```
-
----
-
-### Phase 5: Create Delivery Summary
-
-#### Step 1: Update STATE.md
-
-```bash
-# Update status to shipped
-sed -i '' 's/^status:.*/status: shipped/' .octo/STATE.md 2>/dev/null || \
-    sed -i 's/^status:.*/status: shipped/' .octo/STATE.md
-
-# Append history entry
-cat >> .octo/STATE.md << EOF
-
-## History - $(date '+%Y-%m-%d %H:%M')
-
-- **Event:** Project shipped
-- **Archive:** .octo/archive/${ARCHIVE_TIMESTAMP}/
-- **Validation:** ${VALIDATION_FILE}
-
-EOF
-```
-
-#### Step 2: Create Shipped Checkpoint
-
-```bash
-# Create git checkpoint tag
 CHECKPOINT_TAG="octo-checkpoint-shipped-${ARCHIVE_TIMESTAMP}"
-
-git tag -a "$CHECKPOINT_TAG" -m "Project shipped - $(date '+%Y-%m-%d %H:%M:%S')"
-
+git tag -a "$CHECKPOINT_TAG" "$SHIP_REVIEWED_HEAD" -m "Project shipped - $(date '+%Y-%m-%d %H:%M:%S')" || exit 1
+SHIP_TAG_COMMIT="$(git rev-parse --verify "refs/tags/${CHECKPOINT_TAG}^{commit}")" || exit 1
+[[ "$SHIP_TAG_COMMIT" == "$SHIP_REVIEWED_HEAD" ]] || {
+    echo "Checkpoint tag verification failed: $CHECKPOINT_TAG" >&2; exit 1;
+}
 echo "Checkpoint created: $CHECKPOINT_TAG"
 ```
 
-#### Step 3: Count Metrics
+Count issue and lesson metrics once each:
 
 ```bash
-# Count resolved issues
-ISSUES_RESOLVED=$(grep -c "^\- \[x\]" .octo/ISSUES.md 2>/dev/null || echo "0")
-
-# Count total lessons
-LESSONS_COUNT=$(grep -c "^## " .octo/LESSONS.md 2>/dev/null || echo "0")
-
-echo "Issues resolved: $ISSUES_RESOLVED"
-echo "Lessons captured: $LESSONS_COUNT"
+ISSUES_RESOLVED=$(grep -c '^\- \[x\]' .octo/ISSUES.md 2>/dev/null || true)
+ISSUES_RESOLVED=${ISSUES_RESOLVED:-0}
+LESSON_COUNT=$(grep -c '^## ' .octo/LESSONS.md 2>/dev/null || true)
+LESSON_COUNT=${LESSON_COUNT:-0}
+printf 'Issues resolved: %s\nLessons captured: %s\n' "$ISSUES_RESOLVED" "$LESSON_COUNT"
 ```
 
----
+## 5. Report
 
-### Phase 6: Display Completion
+Report shipping only after the verified tag exists. Include delivery evidence
+or clearly identify the user's "ship anyway" override, the audit result,
+archive path, checkpoint coverage, metrics, and tag. If tag creation or verification fails, report
+that the project state was updated but the checkpoint was not created. Never
+claim checkpoint success on a failed tag command.
 
-Present final summary:
-
-```markdown
-## Project Shipped!
-
-**Delivered:** {timestamp}
-**Phases Completed:** 4/4
-**Issues Resolved:** {ISSUES_RESOLVED}
-**Lessons Captured:** {LESSONS_COUNT}
-
-### Multi-AI Audit Summary
-
-- **Security Score:** {score}/100
-- **Quality Score:** {score}/100
-- **Providers Used:** Claude plus available external providers
-
-### Archive
-
-Location: `.octo/archive/{ARCHIVE_TIMESTAMP}/`
-
-Contents:
-- STATE.md
-- PROJECT.md
-- ROADMAP.md
-- ISSUES.md
-
-### Checkpoint
-
-Tag: `{CHECKPOINT_TAG}`
-
-Restore with: `/octo:rollback {CHECKPOINT_TAG}`
-
----
-
-**To start a new project:** `/octo:embrace`
-
-*Multi-AI validation powered by Claude Octopus*
-*Providers: Codex | Antigravity | Claude*
-```
-
----
-
-## Error Handling
-
-| Error | Resolution |
-|-------|------------|
-| No .octo/ directory | Suggest `/octo:embrace` |
-| Project not ready | Show remaining phases |
-| orchestrate.sh fails | Show error logs, suggest retry |
-| Critical audit issues | Block ship, show issues |
-| Git tag fails | Warn but continue (non-blocking) |
-
----
-
-## Safety Measures
-
-| Measure | Implementation |
-|---------|----------------|
-| **Pre-ship audit** | orchestrate.sh Multi-AI validation required |
-| **Lessons preservation** | LESSONS.md never archived, always preserved |
-| **Archive before ship** | State files copied to archive directory |
-| **Git checkpoint** | Tag created for rollback capability |
-| **No file deletion** | Archive copies, doesn't delete source files |
-
----
-
-## Integration with Other Skills
-
-### With /octo:deliver
-
-```
-User runs /octo:deliver to validate
-→ Deliver phase complete
-→ User runs /octo:ship to finalize
-```
-
-### With /octo:rollback
-
-```
-User ships project
-→ Checkpoint created
-→ Later: /octo:rollback octo-checkpoint-shipped-*
-```
-
-### With /octo:status
-
-```
-After ship: status shows "shipped"
-→ Suggests /octo:embrace for new project
-```
-
----
-
-## Red Flags - Never Do
-
-| Action | Why It's Wrong |
-|--------|----------------|
-| Skip Multi-AI audit | Security vulnerabilities missed |
-| Archive LESSONS.md | Loses accumulated project knowledge |
-| Delete source files | Should copy, not move |
-| Ship without ready check | Incomplete work shipped |
-| Skip checkpoint creation | No rollback recovery path |
-
----
-
-## Quick Reference
-
-| Step | Command | Purpose |
-|------|---------|---------|
-| 1 | Check .octo/STATE.md | Verify ready to ship |
-| 2 | orchestrate.sh ink | Multi-AI security audit |
-| 3 | Ask user | Capture lessons learned |
-| 4 | mkdir + cp | Archive state files |
-| 5 | Update STATE.md | Mark as shipped |
-| 6 | git tag | Create shipped checkpoint |
-
----
-
-## The Bottom Line
-
-```
-Ship → Ready + Audit passed + Lessons captured + Archived + Checkpoint created
-Otherwise → Not shipped
-```
-
-**Verify ready. Run Multi-AI audit. Capture lessons. Archive state. Create checkpoint. Ship.**
+Claude Code entries are `/octo:skill-ship`, `/octo:embrace` and `/octo:deliver`.
+Codex users invoke `$skill-ship` and `$flow-deliver`. To initialize a project
+in Codex, use the verified installation's CLI entry
+`"$OCTO_ROOT/scripts/orchestrate.sh" embrace "<description>"`.
