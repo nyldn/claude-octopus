@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.22.2"
+    "version": "11.23.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.22.2 - Complete review verification, faster large prompt validation and corrected GPT-5.4 Mini usage estimates. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.22.2",
+      "description": "v11.23.0 - UberLLM seats, isolated presets and accurate run results. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.23.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
