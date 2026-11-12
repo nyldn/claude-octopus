@@ -131,6 +131,18 @@ test_cheaperinference_no_config_fails_closed() {
     fi
 }
 
+test_uberllm_no_config_fails_closed() {
+    test_case "uberllm fails closed with no config instead of guessing an OpenAI model"
+    local rc out
+    rc=0
+    out="$(_resolve_in_empty_home uberllm uberllm 2>/dev/null)" || rc=$?
+    if [[ "$rc" -ne 0 && "$out" != "$(codex_default_model)" ]]; then
+        test_pass
+    else
+        test_fail "expected uberllm resolution to fail closed with no config, got rc=$rc out='$out'"
+    fi
+}
+
 test_registry_providers_do_not_inherit_codex_default() {
     test_case "registry providers outside OpenAI never silently inherit codex's default model"
     local provider organization resolved bad=""
@@ -154,6 +166,7 @@ test_bare_orcarouter_no_config
 test_vibe_no_config
 test_atlascloud_no_config_fails_closed
 test_cheaperinference_no_config_fails_closed
+test_uberllm_no_config_fails_closed
 test_registry_providers_do_not_inherit_codex_default
 
 test_summary

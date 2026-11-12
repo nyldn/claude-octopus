@@ -14,6 +14,7 @@ fi
 source "${_providers_lib_dir}/provider-allowlist.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/provider-registry.sh" 2>/dev/null || true
 source "${_providers_lib_dir}/cheaperinference.sh" || return 1
+source "${_providers_lib_dir}/uberllm.sh" || return 1
 source "${_providers_lib_dir}/api-route.sh" || return 1
 source "${_providers_lib_dir}/litellm.sh" || return 1
 source "${_providers_lib_dir}/bounded-probe.sh" 2>/dev/null || true
@@ -931,6 +932,26 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        uberllm)
+            if [[ -z "${UBERLLM_API_KEY:-}" ]]; then
+                resolve_provider_env "UBERLLM_API_KEY" 2>/dev/null
+            fi
+            if [[ ! "${UBERLLM_API_KEY:-}" =~ [^[:space:]] ]]; then
+                echo "uberllm: UBERLLM_API_KEY not set" >&2
+                return 1
+            fi
+            local ull_health_model="$resolved_model"
+            if [[ -n "$resolved_model" ]]; then
+                ull_health_model="$(octo_uberllm_effective_model "$resolved_model" 2>/dev/null || true)"
+                [[ "$ull_health_model" == "$resolved_model" ]] || ull_health_model=""
+            else
+                ull_health_model="$(octo_uberllm_effective_model 2>/dev/null || true)"
+            fi
+            if [[ -z "$ull_health_model" ]]; then
+                echo "uberllm: set a valid UBERLLM_MODEL, OCTOPUS_UBERLLM_MODEL, or providers.json uberllm.default before dispatch" >&2
+                return 1
+            fi
+            ;;
         api-route)
             if [[ -z "${API_ROUTE_API_KEY:-}" ]]; then
                 resolve_provider_env "API_ROUTE_API_KEY" 2>/dev/null
@@ -1403,6 +1424,16 @@ detect_providers() {
         fi
     fi
 
+    # Detect UberLLM (OpenAI-compatible API key + explicit model)
+    if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed uberllm; }; then
+        if [[ -z "${UBERLLM_API_KEY:-}" ]]; then
+            resolve_provider_env "UBERLLM_API_KEY" 2>/dev/null
+        fi
+        if [[ "${UBERLLM_API_KEY:-}" =~ [^[:space:]] ]] && octo_uberllm_effective_model >/dev/null; then
+            result="${result}uberllm:api-key "
+        fi
+    fi
+
     # Detect API Route (OpenAI-compatible API key + explicit model)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed api-route; }; then
         if [[ -z "${API_ROUTE_API_KEY:-}" ]]; then
@@ -1546,6 +1577,7 @@ detect_providers() {
         log WARN "  - OrcaRouter: Set ORCAROUTER_API_KEY environment variable"
         log WARN "  - Atlas Cloud: Set ATLASCLOUD_API_KEY and ATLASCLOUD_MODEL"
         log WARN "  - Cheaper Inference: Set CHEAPER_INFERENCE_API_KEY and CHEAPER_INFERENCE_MODEL"
+        log WARN "  - UberLLM: Set UBERLLM_API_KEY and UBERLLM_MODEL"
         log WARN "  - API Route: Set API_ROUTE_API_KEY and API_ROUTE_MODEL"
         log WARN "  - LiteLLM: Set LITELLM_API_KEY, LITELLM_MODEL, and LITELLM_BASE_URL (self-hosted proxy)"
         log WARN "  - Copilot: brew install copilot-cli (zero additional cost)"

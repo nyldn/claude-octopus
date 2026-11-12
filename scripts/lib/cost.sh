@@ -855,6 +855,7 @@ get_model_pricing() {
         openai-compatible*|openai-tools) provider="openai-compatible-agent" ;;
         atlascloud*) provider="atlascloud" ;;
         cheaperinference*) provider="cheaperinference" ;;
+        uberllm*) provider="uberllm" ;;
         api-route*) provider="api-route" ;;
         litellm*) provider="litellm" ;;
         perplexity*) provider="perplexity" ;;

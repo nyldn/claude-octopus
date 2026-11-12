@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- UberLLM as an OpenAI-compatible agent provider. `uberllm-agent` uses the
+  shared tool-loop helper with `UBERLLM_API_KEY` and an explicit
+  `UBERLLM_MODEL`, `OCTOPUS_UBERLLM_MODEL` or `providers.uberllm.default`
+  model. It is excluded from Council, like the other gateway agents.
+  Readiness and fleet selection use the dispatched model and its allowlist
+  fallback. Exact seats keep their model pins, and MCP preserves model policy.
+  DeepSeek Flash estimates use its published peak, uncached fallback rates.
+
 ### Fixed
 
 - OpenCode admission applies bounded Tangle isolation before executing probes.
@@ -114,6 +124,9 @@
   Rejected explicit models also close the research seat and preserve the
   resolver's failure status, whether or not shell error-exit mode is enabled.
   Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
+
+- Unit shards include newer hosted macOS suite timings in their duration
+  weights. The full suite and 20-minute per-shard timeout remain in place.
 
 - Parallel cleanup finishes a stopped worker's durable execution contract as
   cancelled, so run status no longer reports that worker as still running.

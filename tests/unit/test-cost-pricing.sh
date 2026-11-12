@@ -79,4 +79,16 @@ else
   test_fail "qualified GPT-5.4 Mini was excluded from OpenCode vision or reasoning work"
 fi
 
+test_case "UberLLM DeepSeek Flash uses the shared peak uncached fallback estimate"
+flash_id="$(record_agent_start uberllm-agent deepseek/deepseek-v4-flash x pricing)"
+record_agent_call uberllm-agent deepseek/deepseek-v4-flash x pricing reviewer 0 "$flash_id"
+record_agent_complete "$flash_id" uberllm-agent deepseek/deepseek-v4-flash "" pricing 3000 0 1 1000 2000
+report="$(generate_usage_json)"
+if [[ "$(get_model_pricing deepseek/deepseek-v4-flash uberllm-agent)" == "0.30:1.20" ]] &&
+   jq -e --arg id "$flash_id" '.calls[] | select(.call_id == $id) | .cost_usd == 0.0027' >/dev/null <<< "$report"; then
+    test_pass
+else
+    test_fail "DeepSeek Flash retained the unrelated generic fallback rate"
+fi
+
 test_summary
