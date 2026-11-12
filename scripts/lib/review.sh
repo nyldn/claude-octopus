@@ -1781,7 +1781,7 @@ review_validate_verdicts() {
 # limit must not restrict the initial provider or clip its failed batch.
 review_verifier_fallback() (
     local inputs="$1" originals="$2" provider="$3" statuses="$4"
-    local dir budget batch response rows combined='[]'
+    local dir budget batch response rows combined='[]' failed=false
     budget=$(review_verifier_input_budget "$provider") || return 1
     umask 077
     dir=$(mktemp -d "$inputs/fallback.XXXXXX") || return 1
@@ -1805,12 +1805,14 @@ review_verifier_fallback() (
             review_append_provider_status "$statuses" "$provider" implementation-verifier ok "Round 2 fallback verification"
         else
             review_append_provider_status "$statuses" "$provider" implementation-verifier fallback "Round 2 fallback unavailable or invalid; preserving findings"
+            failed=true
             rows=$(jq '{findings:map(. + {verdict:"unverified"})}' "${batch%.prompt}.json")
         fi
         combined=$(printf '%s\n%s\n' "$combined" "$rows" | jq -s '.[0] + .[1].findings') || { rm -rf "$dir"; return 1; }
     done
     rm -rf "$dir"
     printf '{"findings":%s}\n' "$combined"
+    [[ "$failed" == false ]]
 )
 
 # Verify complete batches in a subshell so cleanup never replaces caller traps.

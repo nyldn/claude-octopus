@@ -512,4 +512,32 @@ if (
     printf '%s' "$result" | jq -e '.verification_status == "incomplete" and .findings == []' >/dev/null
 ); then test_pass; else test_fail "empty findings hid failed verifier admission"; fi
 
+test_case "failed fallback verification cannot complete an empty or populated review"
+if (
+    source "$ROOT/scripts/lib/review.sh"
+    log() { :; }
+    mkdir -p "$TEST_TMP_DIR"
+    unset OCTOPUS_REVIEW_SINGLE_PROVIDER OCTOPUS_REVIEW_VERIFIER_AGENT
+    review_verifier_input_budget() { echo 6000; }
+    review_run_agent_sync_progress() {
+        printf '%s\n' "$1" >> "$TEST_TMP_DIR/failed-fallback-calls"
+        if [[ "$failure" == malformed && "$1" == claude-sonnet ]]; then
+            printf '%s\n' '{"findings":"invalid"}'
+        else
+            return 75
+        fi
+    }
+    for failure in transport malformed; do
+        for originals in '[]' '[{"file":"app.py","line":1,"title":"bug"}]'; do
+            : > "$TEST_TMP_DIR/failed-fallback-calls"
+            result=$(review_verify_findings diff "$originals" context "$TEST_TMP_DIR/fallback-statuses") || exit 1
+            [[ "$(cat "$TEST_TMP_DIR/failed-fallback-calls")" == $'codex\nclaude-sonnet' ]] || exit 1
+            printf '%s' "$result" | jq -e --argjson originals "$originals" '
+                .verification_status == "incomplete" and
+                .findings == ($originals | map(. + {verdict:"unverified"}))
+            ' >/dev/null || exit 1
+        done
+    done
+); then test_pass; else test_fail "fallback failure was accepted as complete verification"; fi
+
 test_summary
