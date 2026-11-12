@@ -219,7 +219,7 @@ octo_quota_is_dead() {
     grep -qxF "$provider" "$f" 2>/dev/null
 }
 
-quota_watcher_has_match() {
+quota_watcher_match_line() {
     local temp_err="$1"
     local temp_out="$2"
     local _matches
@@ -231,9 +231,29 @@ quota_watcher_has_match() {
     # exit 143 and empty output. (issue #536)
     for f in "$temp_err" "$temp_out"; do
         _matches=$(grep -E "$OCTOPUS_QUOTA_PATTERN" "$f" 2>/dev/null | grep -vE "Retrying after") || true
-        [[ -n "$_matches" ]] && return 0
+        if [[ -n "$_matches" ]]; then
+            printf '%s\n' "$_matches" | tail -n 1
+            return 0
+        fi
     done
     return 1
+}
+
+quota_watcher_has_match() {
+    quota_watcher_match_line "$1" "$2" >/dev/null
+}
+
+octo_quota_reset_hint() {
+    local line="$1" hint=""
+    local try_again='[Tt]ry again (at|in) ([A-Za-z0-9:, ]+)'
+    local resets='[Rr]esets in ([0-9][0-9dhms]*)'
+    if [[ "$line" =~ $try_again ]]; then
+        hint="${BASH_REMATCH[1]} ${BASH_REMATCH[2]}"
+    elif [[ "$line" =~ $resets ]]; then
+        hint="in ${BASH_REMATCH[1]}"
+    fi
+    hint="${hint%"${hint##*[! ,]}"}"
+    [[ -z "$hint" ]] || printf '%s\n' "${hint:0:60}"
 }
 
 start_quota_watcher() {
@@ -243,24 +263,45 @@ start_quota_watcher() {
     local kill_callback="$4"
     local warning_message="${5:-Quota exhaustion detected - fast-failing}"
     local provider="${6:-}"   # optional: marked quota-dead for the session on match
+    local fired_file="${7:-}"
+    local target_identity="${8:-}" # registration snapshot for identity-bound callbacks
 
     : > "$temp_err"
     : > "$temp_out"
+    if [[ -n "$fired_file" ]]; then
+        rm -f "${fired_file}.stop" || return 1
+        rm -f "$fired_file"
+    fi
 
     (
         _consecutive=0
+        _kill_attempts=0
         while kill -0 "$target_pid" 2>/dev/null; do
             sleep 2
-            if quota_watcher_has_match "$temp_err" "$temp_out"; then
+            if [[ $_kill_attempts -gt 0 ]] || quota_watcher_has_match "$temp_err" "$temp_out"; then
                 _consecutive=$((_consecutive + 1))
                 # Require the pattern to persist across two polls (~4 s) before killing.
                 # This lets provider CLIs with their own backoff (e.g. Gemini free-tier
                 # burst 429s) complete their retry before we act on the first match.
                 if [[ $_consecutive -ge 2 ]]; then
-                    log "WARN" "$warning_message"
-                    octo_quota_mark_dead "$provider"
-                    "$kill_callback" "$target_pid"
-                    break
+                    if [[ $_kill_attempts -eq 0 ]]; then
+                        # Diagnostic persistence must not prevent the terminal stop.
+                        if [[ -n "$fired_file" ]]; then
+                            # Keep stop attribution independent of optional diagnostics.
+                            : > "${fired_file}.stop" 2>/dev/null || true
+                            quota_watcher_match_line "$temp_err" "$temp_out" > "$fired_file" 2>/dev/null || true
+                        fi
+                        log "WARN" "$warning_message"
+                        octo_quota_mark_dead "$provider"
+                    fi
+                    _kill_attempts=$((_kill_attempts + 1))
+                    if "$kill_callback" "$target_pid" "$target_identity"; then
+                        break
+                    fi
+                    if [[ $_kill_attempts -ge 5 ]]; then
+                        log "ERROR" "Quota cleanup refused after 5 attempts; provider may still be running" 2>/dev/null || true
+                        break
+                    fi
                 fi
             else
                 _consecutive=0

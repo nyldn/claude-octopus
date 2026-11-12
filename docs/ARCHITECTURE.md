@@ -68,7 +68,9 @@ Opus 5.5 requires Claude Code v2.1.280+; earlier hosts use Opus 5 (v2.1.219+), t
 
 **Opt-out:** `OCTOPUS_LEGACY_ROLES=1` restores the preserved pre-frontier mapping (GPT-5.5 for architect/reviewer/implementer, Sonnet 4.6 for synthesis, and Opus 4.6 for strategy).
 
-**Graceful fallback:** when the preferred CLI is unavailable (e.g. no Anthropic auth for architect), `lib/agents.sh` silently downshifts and logs a single notice instead of failing.
+**Fallback behavior:** Fallback depends on the entrypoint. For persona spawns, `resolve_persona_spawn_target()` in `scripts/lib/agents.sh` can select an available configured `fallback_cli`. If neither configured CLI is available, it returns the primary for normal dispatch to report the failure. If the availability helper is not loaded, it returns the primary without checking availability. For task routing, `get_tiered_agent()` delegates to `get_fallback_agent()` in `scripts/lib/model-resolver.sh`. That helper returns a verified available candidate, or reports an error and returns nonzero when none is available. Its fallback-selection debug notice requires verbose mode.
+
+Role-level fallback for the defaults above, notice logging across callers, and final workflow validation verdicts still need end-to-end verification against [PRODUCT.md's fail-loud dispatch requirement](../PRODUCT.md#design-principles). These helper behaviors alone do not establish that a requested multi-model dispatch executed or passed validation.
 
 ### What Each Provider Excels At
 
