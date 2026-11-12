@@ -6794,8 +6794,12 @@ ${obs_ctx}"
     # Set flag to skip individual phase cost prompts (already shown above)
     export OCTOPUS_SKIP_PHASE_COST_PROMPT="true"
 
-    # Pre-flight validation
-    if ! preflight_check false "" dispatch; then
+    # A fresh run selects its research fleet after admission, like probe_discover.
+    # Resumed later phases keep their existing selected-roster admission.
+    local preflight_context=dispatch
+    local _octo_opencode_research_ready=false
+    case "$resume_from" in ""|null) preflight_context=auto-dispatch ;; esac
+    if ! preflight_check false "" "$preflight_context"; then
         log ERROR "Pre-flight check failed. Aborting workflow."
         return 1
     fi

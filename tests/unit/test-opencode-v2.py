@@ -1302,6 +1302,53 @@ probe_discover fixture
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("preflight:false||auto-dispatch", result.stdout)
 
+    def test_embrace_confirms_unpinned_sqlite_login_before_research(self):
+        """Embrace must reach the same bounded admission as automatic research."""
+        self.env.update(CLI_VERSION="2.0.23", SUPPORTS_DISABLE_CRON_ENV="false",
+                        AUTONOMY_MODE="autonomous", LOOP_UNTIL_APPROVED="false",
+                        DRY_RUN="false", RESUME_SESSION="false")
+        (self.data / "opencode.db").touch()
+        script = r'''
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+source scripts/lib/workflows.sh
+log() { :; }
+cleanup_old_results() { :; }
+show_cost_estimate() { :; }
+cleanup_expired_checkpoints() { :; }
+reset_provider_lockouts() { :; }
+search_observations() { :; }
+embrace_normalize_debate_gates() { echo none; }
+init_session() { :; }
+check_resume_session() { return 0; }
+get_resume_phase() { printf '%s\n' "$RESUME_PHASE"; }
+display_workflow_cost_estimate() { return 0; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+WORKSPACE_DIR="$HOME"; PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+definition="$(declare -f preflight_check)"
+eval "${definition/preflight_check/_original_preflight_check}"
+preflight_check() {
+    _original_preflight_check "$@"
+    printf 'embrace-admission:%s\n' "$?"
+    return 77 # Stop before any model dispatch, after real login admission.
+}
+embrace_full_workflow fixture
+'''
+        for phase, connected, skip in product(("", "probe", "tangle"), (False, True), (False, True)):
+            with self.subTest(phase=phase, connected=connected, skip=skip):
+                self.env.update(RESUME_SESSION="true" if phase else "false", RESUME_PHASE=phase,
+                                OCTOPUS_SKIP_PROVIDER_PROBES="true" if skip else "false",
+                                AUTH_JSON=json.dumps([{"id": "openai", "connections": [
+                                    {"type": "credential"}]}] if connected else []))
+                self.marker.unlink(missing_ok=True)
+                result = self.shell(script)
+                expected = 0 if connected and not skip and not phase else 1
+                self.assertIn(f"embrace-admission:{expected}", result.stdout,
+                              result.stdout + result.stderr)
+                self.assertEqual(self.marker.exists(), not skip and not phase)
+
     def test_fixed_panel_confirms_only_dispatch_selected_opencode(self):
         """Static panel receipts never authorize a selected SQLite login."""
         auth_marker = self.base / "auth-called"
