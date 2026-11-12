@@ -197,6 +197,10 @@ grapple_debate() {
                 OCTOPUS_PREFLIGHT_PROVIDERS="${OCTOPUS_PREFLIGHT_PROVIDERS}${OCTOPUS_PREFLIGHT_PROVIDERS:+,}${_debate_provider}"
             fi
         done
+        if [[ "${OCTOPUS_CONSENSUS:-moderator}" != quorum &&
+              ",${OCTOPUS_PREFLIGHT_PROVIDERS}," != *",claude,"* ]]; then
+            OCTOPUS_PREFLIGHT_PROVIDERS="${OCTOPUS_PREFLIGHT_PROVIDERS},claude"
+        fi
     fi
     _debate_preflight_context=non-roster-dispatch
     preflight_check false "" "$_debate_preflight_context" || return 1
@@ -644,6 +648,11 @@ $quorum_result"
     # Final Round: Synthesis (Moderator Mode)
     # ═══════════════════════════════════════════════════════════════════════
     if [[ -z "$synthesis" ]]; then
+    # A successful quorum needs no moderator. Admit its fallback only when used.
+    if [[ "${OCTOPUS_CONSENSUS:-moderator}" == quorum ]]; then
+        local OCTOPUS_PREFLIGHT_PROVIDERS=claude
+        preflight_check false "" non-roster-dispatch || return 1
+    fi
     echo ""
     echo -e "${CYAN}[Round $rounds/$rounds] Final synthesis...${NC}"
     echo ""

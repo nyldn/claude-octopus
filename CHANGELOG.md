@@ -4,6 +4,13 @@
 
 ### Fixed
 
+- OpenCode debates admit the Claude moderator before proposals; successful
+  quorum debates need no moderator. Squeeze verifies its required providers
+  and stops on empty phases or failed fallbacks. Completed research resumes
+  return saved results without requiring live provider admission.
+- Command Code availability probes exclude the unrelated Mistral credential,
+  matching the existing health probe.
+
 - Fresh Embrace runs confirm an unpinned OpenCode login before rejecting
   readiness. Resumed workflows keep the existing admission
   path; skipped probes and provider exclusions remain enforced.

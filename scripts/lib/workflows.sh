@@ -963,23 +963,36 @@ probe_discover() {
         return 0
     fi
 
-    # Pre-flight validation
+    # Completed resumes return saved evidence without needing live providers.
+    local _research_resumed=false
+    if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-true}" == true &&
+          "${OCTOPUS_RESEARCH_RESUME:-false}" == true ]] \
+       && declare -F research_run_begin >/dev/null 2>&1; then
+        research_run_begin "$task_group" "$prompt" "$research_intensity" || return $?
+        _research_resumed=true
+        task_group="$RESEARCH_TASK_GROUP"
+        prompt="$RESEARCH_PROMPT"
+        research_intensity="$RESEARCH_INTENSITY"
+        local resumed_synthesis="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
+        if [[ -s "$resumed_synthesis" ]] \
+           && [[ "$(research_manifest_value "$RESEARCH_RUN_DIR/manifest.json" status)" == completed ]]; then
+            echo -e "${GREEN}✓${NC} Research run already complete: $resumed_synthesis"
+            return 0
+        fi
+    fi
+
+    # Fresh runs create evidence only after admission; unfinished resumes still dispatch.
     local _octo_opencode_research_ready=false
     preflight_check false "" auto-dispatch || return 1
 
     if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-true}" == "true" ]] \
        && declare -F research_run_begin >/dev/null 2>&1; then
-        research_run_begin "$task_group" "$prompt" "$research_intensity" || return $?
-        task_group="$RESEARCH_TASK_GROUP"
-        prompt="$RESEARCH_PROMPT"
-        research_intensity="$RESEARCH_INTENSITY"
-        if [[ "${OCTOPUS_RESEARCH_RESUME:-false}" == "true" ]]; then
-            local resumed_synthesis="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
-            if [[ -s "$resumed_synthesis" ]] \
-               && [[ "$(research_manifest_value "$RESEARCH_RUN_DIR/manifest.json" status)" == "completed" ]]; then
-                echo -e "${GREEN}✓${NC} Research run already complete: $resumed_synthesis"
-                return 0
-            fi
+        if [[ "$_research_resumed" != true ]]; then
+            research_run_begin "$task_group" "$prompt" "$research_intensity" || return $?
+            task_group="$RESEARCH_TASK_GROUP"
+            prompt="$RESEARCH_PROMPT"
+            research_intensity="$RESEARCH_INTENSITY"
+        else
             research_collect_sources "$task_group" || return 1
             synthesize_probe_results "$task_group" "$prompt" "0"
             return $?

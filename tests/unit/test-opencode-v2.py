@@ -710,7 +710,7 @@ DRY_RUN=false
         config.write_text(json.dumps({"routing": {"features": {"debate":
                               ["opencode", "opencode-fast", "opencode-research"]}}}))
         self.env.update(CLI_VERSION="2.0.23", OCTOPUS_COUNCIL_DEFAULT_PROVIDERS="codex",
-                        ENTRY_MARKER=str(self.base / "debate-entered"))
+                        ENTRY_MARKER=str(self.base / "debate-entered"), OCTOPUS_CONSENSUS="quorum")
         (self.data / "opencode.db").touch()
         script = self.production_inventory() + r'''
 source scripts/lib/preflight.sh
@@ -2120,6 +2120,199 @@ _octo_opencode_has_saved_login
         self.env["OCTO_ALLOWED_PROVIDERS"] = "claude"
         self.assertEqual(self.readiness("live")["reason_code"], "disabled")
         self.assertFalse(self.marker.exists())
+
+
+
+    def test_commandcode_availability_isolates_key_and_preserves_key_fast_path(self):
+        cli = self.bin / "command-code"
+        cli.write_text('#!/bin/sh\n[ "$*" = \'status --json\' ] || exit 70\n'
+                       '[ -z "${MISTRAL_API_KEY+x}" ] || exit 71\n'
+                       '[ "$UNRELATED_SETTING" = preserved ] || exit 72\n'
+                       'printf called >> "$PROBE_MARKER"\n')
+        cli.chmod(0o755)
+        self.env.update(MISTRAL_API_KEY="fixture", UNRELATED_SETTING="preserved")
+        for agent, api_key in product(("commandcode", "commandcode-fast", "commandcode-research"), (False, True)):
+            with self.subTest(agent=agent, api_key=api_key):
+                self.marker.unlink(missing_ok=True)
+                self.env["COMMAND_CODE_API_KEY"] = "fixture" if api_key else ""
+                result = self.shell('source scripts/lib/model-resolver.sh; '
+                                    'PROVIDERS_CONFIG_LOADED=true; is_claude_agent_type() { return 1; }; '
+                                    f'is_agent_available_v2 {agent}; rc=$?; '
+                                    '[[ "$MISTRAL_API_KEY" == fixture ]] || exit 73; exit "$rc"')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(self.marker.exists(), not api_key)
+
+    def test_debate_moderator_is_admitted_before_proposals_except_for_quorum(self):
+        config = Path(self.env["HOME"]) / ".claude-octopus/config/providers.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"routing": {"features": {"debate": ["opencode"] * 3}}}))
+        self.env.update(CLI_VERSION="2.0.23", OCTO_ALLOWED_PROVIDERS="opencode,claude")
+        (self.data / "opencode.db").touch()
+        script = self.production_inventory() + r"""
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+source scripts/lib/debate.sh
+source scripts/lib/routing.sh
+log() { :; }
+mkdir() {
+    if [[ "$*" == "-p $RESULTS_DIR $LOGS_DIR" ]]; then exit 77; fi
+    command mkdir "$@"
+}
+WORKSPACE_DIR="$HOME" RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs" DRY_RUN=false
+grapple_debate fixture
+"""
+        claude = self.bin / "claude"
+        for mode, installed in product(("moderator", "quorum"), (False, True)):
+            with self.subTest(mode=mode, installed=installed):
+                self.env["OCTOPUS_CONSENSUS"] = mode
+                claude.unlink(missing_ok=True)
+                if installed:
+                    claude.write_text('#!/bin/sh\nexit 0\n')
+                    claude.chmod(0o755)
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 77 if installed or mode == "quorum" else 1,
+                                 result.stdout + result.stderr)
+
+    def test_squeeze_requires_every_provider_before_any_phase(self):
+        self.env.update(OCTO_ALLOWED_PROVIDERS="opencode,codex,agy,claude", OPENAI_API_KEY="fixture",
+                        OPENROUTER_API_KEY="fixture", DRY_RUN="false")
+        script = r"""
+source scripts/lib/preflight.sh
+source scripts/lib/testing.sh
+log() { :; }
+check_codex_auth_freshness() { :; }
+_preflight_provider_candidates() { echo opencode; }
+detect_enterprise_backend() { :; }
+provider_smoke_test() { :; }
+run_agent_sync() { printf called > "$PROBE_MARKER"; exit 77; }
+WORKSPACE_DIR="$HOME" RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
+PREFLIGHT_CACHE_FILE="$HOME/preflight-cache"
+squeeze_test fixture
+"""
+        for missing in ("codex", "agy", "claude", ""):
+            with self.subTest(missing=missing):
+                self.marker.unlink(missing_ok=True)
+                for name in ("codex", "agy", "claude"):
+                    cli = self.bin / name
+                    cli.unlink(missing_ok=True)
+                    if name != missing:
+                        cli.write_text('#!/bin/sh\nexit 0\n')
+                        cli.chmod(0o755)
+                result = self.shell(script, timeout=15)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(self.marker.exists(), not missing, result.stdout + result.stderr)
+                self.assertNotIn("exercise complete", result.stdout)
+                self.assertFalse(list(Path(self.env["HOME"]).glob("results/squeeze-*.md")))
+
+    def test_squeeze_empty_or_failed_fallback_never_publishes_completion(self):
+        script = r"""
+source scripts/lib/testing.sh
+log() { :; }
+preflight_check() { return 0; }
+run_agent_sync() {
+    local calls=0
+    [[ ! -f "$PROBE_MARKER" ]] || read -r calls < "$PROBE_MARKER"
+    calls=$((calls + 1)); printf '%s\n' "$calls" > "$PROBE_MARKER"
+    if [[ "$5" == squeeze && "$4" == "$FAILED_ROLE" ]]; then
+        if [[ "$FAILURE_MODE" == error ]]; then echo diagnostic; return 1; fi
+        printf ' \t\n'; return 0
+    fi
+    printf 'fixture response\n'
+}
+DRY_RUN=false RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
+squeeze_test fixture
+"""
+        for role, failure in product(("backend-architect", "security-auditor", "implementer", "code-reviewer"),
+                                     ("empty", "error")):
+            with self.subTest(role=role, failure=failure):
+                self.env.update(FAILED_ROLE=role, FAILURE_MODE=failure)
+                self.marker.unlink(missing_ok=True)
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertNotIn("exercise complete", result.stdout)
+                self.assertFalse(list(Path(self.env["HOME"]).glob("results/squeeze-*.md")))
+
+    def test_completed_research_resume_returns_without_live_admission(self):
+        run = self.base / "research" / "saved"
+        run.mkdir(parents=True)
+        results = self.base / "results"
+        results.mkdir()
+        synthesis = results / "probe-synthesis-saved.md"
+        self.env.update(OCTOPUS_RESEARCH_ROOT=str(run.parent), OCTOPUS_RESEARCH_RUN_ID="saved",
+                        DRY_RUN="false", SAVED_RESULTS=str(results))
+        script = r"""
+source scripts/lib/research-evidence.sh
+source scripts/lib/workflows.sh
+log() { :; }
+octopus_phase_banner() { :; }
+preflight_check() { printf admission >> "$PROBE_MARKER"; return 1; }
+RESULTS_DIR="$SAVED_RESULTS"
+probe_discover fixture
+"""
+        for resume, completed, saved in ((True, True, True), (True, False, True),
+                                         (True, True, False), (False, True, True)):
+            with self.subTest(resume=resume, completed=completed, saved=saved):
+                self.marker.unlink(missing_ok=True)
+                synthesis.unlink(missing_ok=True)
+                if saved:
+                    synthesis.write_text("# Saved verified synthesis\n")
+                (run / "manifest.json").write_text(json.dumps({
+                    "task_group": "saved", "prompt": "saved question", "intensity": "standard",
+                    "provider_results_dir": str(results), "project_root": str(ROOT),
+                    "status": "completed" if completed else "running", "stage": "complete"
+                }, indent=2))
+                self.env["OCTOPUS_RESEARCH_RESUME"] = "true" if resume else "false"
+                result = self.shell(script)
+                returns_saved = resume and completed and saved
+                self.assertEqual(result.returncode, 0 if returns_saved else 1, result.stdout + result.stderr)
+                self.assertEqual(self.marker.exists(), not returns_saved)
+                self.assertEqual(synthesis.exists(), saved)
+                if returns_saved:
+                    self.assertIn(str(synthesis), result.stdout)
+        # A fresh, rejected run must not create durable evidence.
+        self.env.update(OCTOPUS_RESEARCH_RUN_ID="fresh", OCTOPUS_RESEARCH_RESUME="false")
+        result = self.shell(script)
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse((run.parent / "fresh").exists())
+
+
+
+    def test_quorum_only_admits_moderator_when_consensus_needs_fallback(self):
+        config = Path(self.env["HOME"]) / ".claude-octopus/config/providers.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"routing": {"features": {"debate": ["opencode"] * 3}}}))
+        self.env.update(OCTOPUS_CONSENSUS="quorum", DRY_RUN="false",
+                        ADMISSION_LOG=str(self.base / "admission"))
+        script = self.production_inventory() + r"""
+source scripts/lib/preflight.sh
+source scripts/lib/config-display.sh
+source scripts/lib/debate.sh
+source scripts/lib/routing.sh
+log() { :; }
+preflight_check() {
+    printf '%s\n' "$OCTOPUS_PREFLIGHT_PROVIDERS" >> "$ADMISSION_LOG"
+    [[ "$OCTOPUS_PREFLIGHT_PROVIDERS" != claude || "$MODERATOR_READY" == true ]]
+}
+run_agent_sync() { printf '%s\n' "$1" >> "$PROBE_MARKER"; echo 'fixture answer'; }
+apply_consensus() { printf '%s\n' "$QUORUM_RESULT"; }
+octopus_complete() { :; }
+record_agent_call() { :; }
+RESULTS_DIR="$HOME/results" LOGS_DIR="$HOME/logs"
+grapple_debate fixture general 3 blinded
+"""
+        for consensus, ready in product((True, False), (True, False)):
+            with self.subTest(consensus=consensus, ready=ready):
+                self.marker.unlink(missing_ok=True)
+                admission = Path(self.env["ADMISSION_LOG"])
+                admission.unlink(missing_ok=True)
+                self.env.update(QUORUM_RESULT="majority" if consensus else "MODERATOR_MODE",
+                                MODERATOR_READY="true" if ready else "false")
+                result = self.shell(script)
+                self.assertEqual(result.returncode, 0 if consensus or ready else 1,
+                                 result.stdout + result.stderr)
+                self.assertEqual(admission.read_text().splitlines(),
+                                 ["opencode"] if consensus else ["opencode", "claude"])
+                self.assertEqual("claude" in self.marker.read_text().splitlines(), not consensus and ready)
 
 
 if __name__ == "__main__":
