@@ -2,9 +2,12 @@
 
 ## Installation
 
+Use Node.js 20.19+ in the 20.x line, 22.12+ in the 22.x line, or 24 and later.
+
 ```bash
 cd scripts/token-extraction
-npm install
+npm install --ignore-scripts --engine-strict
+npm run extract -- --help
 ```
 
 ## Immediate Usage
@@ -13,10 +16,10 @@ npm install
 
 ```bash
 # From any project directory
-node /path/to/token-extraction/cli.ts
+npm --prefix /path/to/token-extraction run extract -- --project "$PWD"
 
 # Or if you're in the token-extraction directory
-node cli.ts --project /path/to/your/project
+npm run extract -- --project /path/to/your/project
 ```
 
 ### 2. Extract Tokens (Programmatic)
@@ -33,25 +36,25 @@ console.log(`Extracted ${result.tokens.length} tokens`);
 ### Extract Only Tailwind Tokens
 
 ```bash
-node cli.ts --include-sources tailwind.config
+npm run extract -- --include-sources tailwind.config --project /path/to/your/project
 ```
 
 ### Generate Only JSON Output
 
 ```bash
-node cli.ts --formats json
+npm run extract -- --formats json --project /path/to/your/project
 ```
 
 ### Custom Output Directory
 
 ```bash
-node cli.ts --output ./design-tokens
+npm run extract -- --output /path/to/your/project/design-tokens --project /path/to/your/project
 ```
 
 ### Handle Conflicts Manually
 
 ```bash
-node cli.ts --conflict-resolution manual
+npm run extract -- --conflict-resolution manual --project /path/to/your/project
 ```
 
 ## What Gets Extracted?
@@ -261,7 +264,7 @@ const result = await runTokenExtraction('./project', {
 ```json
 {
   "scripts": {
-    "tokens:extract": "node scripts/token-extraction/cli.ts",
+    "tokens:extract": "npm --prefix scripts/token-extraction run extract -- --project ../..",
     "tokens:watch": "nodemon --watch src --exec npm run tokens:extract"
   }
 }
@@ -272,7 +275,7 @@ const result = await runTokenExtraction('./project', {
 ```yaml
 - name: Extract Design Tokens
   run: |
-    node scripts/token-extraction/cli.ts
+    npm --prefix scripts/token-extraction run extract -- --project ../..
     git add design-tokens/
     git diff --staged --quiet || git commit -m "Update design tokens"
 ```
@@ -281,7 +284,7 @@ const result = await runTokenExtraction('./project', {
 
 ```bash
 #!/bin/bash
-node scripts/token-extraction/cli.ts
+npm --prefix scripts/token-extraction run extract -- --project ../..
 git add design-tokens/
 ```
 
@@ -324,29 +327,15 @@ scripts/token-extraction/
 - Look at `test-fixtures/` for real examples
 - Read `IMPLEMENTATION.md` for technical details
 
-## Quick Reference Card
+## Quick reference
 
-```
-┌─────────────────────────────────────────────────┐
-│         TOKEN EXTRACTION QUICK REF              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  EXTRACT ALL                                    │
-│  $ node cli.ts                                  │
-│                                                 │
-│  SPECIFIC SOURCES                               │
-│  $ node cli.ts --include-sources tailwind.config│
-│                                                 │
-│  JSON ONLY                                      │
-│  $ node cli.ts --formats json                   │
-│                                                 │
-│  CUSTOM OUTPUT                                  │
-│  $ node cli.ts --output ./my-tokens             │
-│                                                 │
-│  PROGRAMMATIC                                   │
-│  const result = await runTokenExtraction(path); │
-│                                                 │
-└─────────────────────────────────────────────────┘
+Run from `scripts/token-extraction`:
+
+```bash
+npm run extract -- --project /path/to/project
+npm run extract -- --project /path/to/project --include-sources tailwind.config
+npm run extract -- --project /path/to/project --formats json
+npm run extract -- --project /path/to/project --output /path/to/project/my-tokens
 ```
 
 ## Supported Token Types

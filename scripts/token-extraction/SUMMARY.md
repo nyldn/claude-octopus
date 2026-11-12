@@ -410,7 +410,7 @@ import { runTokenExtraction } from '@claude-octopus/token-extraction';
 ## Dependencies
 
 ### Runtime Dependencies
-- **glob**: ^10.3.10 (file pattern matching)
+- **glob**: ^14.0.3 (file pattern matching)
 
 ### Development Dependencies
 - **@types/node**: ^20.10.0
@@ -418,7 +418,7 @@ import { runTokenExtraction } from '@claude-octopus/token-extraction';
 - **typescript**: ^5.3.3
 
 ### Peer Dependencies
-None - designed to work in any Node.js environment
+None.
 
 ## Browser Compatibility
 
@@ -428,7 +428,7 @@ Output formats (JSON, CSS) are browser-compatible.
 
 ## Node.js Compatibility
 
-Requires Node.js >= 18.0.0
+Requires Node.js `^20.19.0 || ^22.12.0 || >=24.0.0`.
 
 Uses modern Node.js features:
 - ES modules
