@@ -360,7 +360,9 @@ _octo_build_provider_env_impl() {
                     OCTOPUS_AGY_NO_PTY_FALLBACK \
                     OCTOPUS_AGY_NO_RETRY \
                     OCTOPUS_AGY_SANDBOX \
-                    OCTOPUS_AGY_INCLUDE_DIRS; do
+                    OCTOPUS_AGY_INCLUDE_DIRS \
+                    OCTOPUS_AGY_FALLBACK_MODELS \
+                    _OCTOPUS_AGY_MODEL_USED_FILE; do
                     if [[ -n "${!_agy_adapter_var:-}" ]]; then
                         PROVIDER_ENV_ARRAY+=("${_agy_adapter_var}=${!_agy_adapter_var}")
                     fi

@@ -20,6 +20,10 @@
 #                                 "try again at" time. Anchored to the CLI's own
 #                                 error line so a transcript that greps a file
 #                                 quoting the message does not match.
+#   "You've hit your session limit · resets 7:10pm" — claude CLI on a plan whose
+#                                 session window is spent; printed alone on stdout.
+#                                 Accepted only as a complete failed CLI stdout
+#                                 status, after the process exits.
 OCTOPUS_QUOTA_PATTERN=${OCTOPUS_QUOTA_PATTERN:-'QUOTA_EXHAUSTED|TerminalQuotaError|exhausted your capacity|insufficient_quota|HTTP 401|Individual quota reached|IneligibleTierError|^ERROR: You.ve hit your usage limit'}
 
 # Session-scoped "this provider is quota/auth-dead" cache (oco-cbb). When a
@@ -219,6 +223,28 @@ octo_quota_is_dead() {
     grep -qxF "$provider" "$f" 2>/dev/null
 }
 
+octo_quota_session_limit_line() {
+    local file="$1" format="${2:-raw}"
+    # A terminal status before stderr is emitted only after stdout validation.
+    # Never interpret markers inside stderr or quoted stdout as writer metadata.
+    LC_ALL=C awk -v format="$format" '
+        BEGIN { body = format != "capture" }
+        !body {
+            if (!header && /^== /) { header = 1; next }
+            if ($0 == "-- terminal stdout status --") { body = 1; terminal = 1; next }
+            invalid = 1; exit 1
+        }
+        terminal && ($0 == "-- stderr --" || $0 == "-- stdout tail (stderr was empty) --") { trailing = 1; next }
+        trailing { next }
+        NF { count++; line = $0 }
+        END {
+            if (!invalid && body && count == 1 &&
+                line ~ /^You.ve hit your session limit([[:space:]]|$)/) print line
+            else exit 1
+        }
+    ' "$file" 2>/dev/null
+}
+
 quota_watcher_match_line() {
     local temp_err="$1"
     local temp_out="$2"
@@ -236,11 +262,16 @@ quota_watcher_match_line() {
             return 0
         fi
     done
+    # A model may quote this status while it is still producing its answer.
+    # Only completed stdout can establish that the CLI printed it alone.
+    if [[ "${3:-terminal}" != stream ]]; then
+        octo_quota_session_limit_line "$temp_out" && return 0
+    fi
     return 1
 }
 
 quota_watcher_has_match() {
-    quota_watcher_match_line "$1" "$2" >/dev/null
+    quota_watcher_match_line "$1" "$2" "${3:-terminal}" >/dev/null
 }
 
 octo_quota_reset_hint() {
@@ -278,7 +309,7 @@ start_quota_watcher() {
         _kill_attempts=0
         while kill -0 "$target_pid" 2>/dev/null; do
             sleep 2
-            if [[ $_kill_attempts -gt 0 ]] || quota_watcher_has_match "$temp_err" "$temp_out"; then
+            if [[ $_kill_attempts -gt 0 ]] || quota_watcher_has_match "$temp_err" "$temp_out" stream; then
                 _consecutive=$((_consecutive + 1))
                 # Require the pattern to persist across two polls (~4 s) before killing.
                 # This lets provider CLIs with their own backoff (e.g. Gemini free-tier
@@ -289,7 +320,7 @@ start_quota_watcher() {
                         if [[ -n "$fired_file" ]]; then
                             # Keep stop attribution independent of optional diagnostics.
                             : > "${fired_file}.stop" 2>/dev/null || true
-                            quota_watcher_match_line "$temp_err" "$temp_out" > "$fired_file" 2>/dev/null || true
+                            quota_watcher_match_line "$temp_err" "$temp_out" stream > "$fired_file" 2>/dev/null || true
                         fi
                         log "WARN" "$warning_message"
                         octo_quota_mark_dead "$provider"

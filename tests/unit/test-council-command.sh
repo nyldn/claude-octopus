@@ -1290,6 +1290,26 @@ test_council_cross_critique_prompt_includes_peer_responses() {
     fi
 }
 
+test_council_prompt_requires_exact_code_quotes() {
+    test_case "seat prompts require exact source lines in backticks and plain words for paraphrase (sail-cruisey #3423 C13)"
+    load_council_lib || return 1
+    COUNCIL_TASK="Review the plan."; COUNCIL_GOAL="g"; COUNCIL_DOMAIN="d"; COUNCIL_STYLE="balanced"
+    COUNCIL_DEPTH="standard"; COUNCIL_RESEARCH_FIRST="false"; COUNCIL_CONTEXT_FILES=()
+    local phase prompt missing="" synth
+    for phase in independent-advice cross-critique revision-after-critique; do
+        prompt="$(council_prompt_for_member "backend-architect" "$phase")"
+        grep -q "copy each source line exactly" <<< "$prompt" && grep -q "plain words, without backticks" <<< "$prompt" \
+            || missing="$missing $phase"
+    done
+    synth="$(council_prompt_for_member "strategy-analyst" "chair-synthesis")"
+    if [[ -z "$missing" ]] && ! grep -q "copy each source line exactly" <<< "$synth"; then
+        test_pass
+    else
+        test_fail "rule missing in:${missing:- none}; in synthesis: $(grep -c 'copy each source line exactly' <<< "$synth")"
+        return 1
+    fi
+}
+
 test_council_prompt_task_block_is_authoritative() {
     test_case "Council prompt trust boundary: task authoritative, artifact blocks untrusted, task format wins"
     load_council_lib || return 1
@@ -2082,6 +2102,116 @@ test_council_degenerate_chair_keeps_vote_and_flags_synthesis() {
     fi
 }
 
+test_council_records_agy_fallback_model() {
+    test_case "an agy seat that fell back after a no-capacity 503 records the model that answered"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-agy-fallback.XXXXXX")"; mkdir -p "$d/responses"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_DEPTH="standard"
+    COUNCIL_FIXTURE=""
+    COUNCIL_CHAIR_FALLBACK_USED="false"; COUNCIL_CHAIR_FALLBACK_PERSONA=""
+    COUNCIL_ROSTER_JSON='[
+      {"persona":"strategy-analyst","seat":"chair","provider":"claude","provider_org":"anthropic","model":"claude"},
+      {"persona":"security-auditor","seat":"member","provider":"codex","provider_org":"openai","model":"gpt"},
+      {"persona":"backend-architect","seat":"member","provider":"agy","provider_org":"google","model":"Gemini 3.8 Flash (High)"}
+    ]'
+    council_dispatch_member_detached() {
+        local mj="$1" out="$3"
+        if [[ "$(jq -r '.persona' <<< "$mj")" == "backend-architect" ]]; then
+            # agy-exec writes the model that answered, then the busy one.
+            mkdir -p "$(dirname "$_OCTOPUS_AGY_MODEL_USED_FILE")"
+            printf '%s\n%s\n' "Gemini 4 Carbon (High)" "gemini-3.8-flash-high" > "$_OCTOPUS_AGY_MODEL_USED_FILE"
+        fi
+        printf '## Review\n\nsrc/app.ts:42 correctly guards the nil case; tests cover it.\n\nVERDICT: APPROVE\n' > "$out"
+        return 0
+    }
+
+    COUNCIL_PROVIDER_STATUS_JSON='{"claude":"available","codex":"available","agy":"available"}' \
+        council_run_advice_phase >/dev/null 2>&1 || true
+    unset -f council_dispatch_member_detached
+
+    local seat roster other
+    seat="$(jq -c 'map(select(.persona == "backend-architect"))[0] | {model, model_family, model_fallback}' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
+    # summary.json must report the roster that was dispatched, not a rebuilt one.
+    ( COUNCIL_IMPLEMENTATION_HANDOFF_JSON=null COUNCIL_BENCHMARK_FRESHNESS=1 COUNCIL_MAX_COST=1 COUNCIL_RESOLVED_MEMBERS=3 COUNCIL_PROVIDER_STATUS_JSON='{"claude":"available","codex":"available","agy":"available"}' council_write_summary_json "complete" ) >/dev/null 2>"$d/summary.err" || true
+    roster="$(jq -c '.council | map(select(.persona == "backend-architect"))[0] | {model, model_used, model_fallback_from}' "$d/summary.json" 2>/dev/null)" || true
+    other="$(jq -c 'map(select(.persona == "security-auditor"))[0] | [.model, (.model_fallback // null)]' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
+    if [[ "$seat" == '{"model":"Gemini 4 Carbon (High)","model_family":"google","model_fallback":{"from":"gemini-3.8-flash-high","reason":"no-capacity-503"}}' \
+          && "$roster" == '{"model":"Gemini 3.8 Flash (High)","model_used":"Gemini 4 Carbon (High)","model_fallback_from":"gemini-3.8-flash-high"}' \
+          && "$other" == '["gpt",null]' ]]; then
+        test_pass
+    else
+        test_fail "seat=$seat roster=$roster other=$other err=$(tail -3 "$d/summary.err" 2>/dev/null)"
+        return 1
+    fi
+}
+
+test_council_phase_context_allowance() {
+    test_case "critique/chair prompts get an allowance for council-added peer context; advice gets none"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-allowance.XXXXXX")"; mkdir -p "$d/responses" "$d/critiques" "$d/revisions"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_TASK="Review the change"
+    COUNCIL_ROSTER_JSON='[{"persona":"strategy-analyst","seat":"chair","provider":"claude"},{"persona":"security-auditor","seat":"member","provider":"codex"}]'
+    printf '%s\n' "$(printf 'peer finding line %.0s' $(seq 1 400))" > "$d/responses/01-strategy-analyst.md"
+    printf '%s\n' "$(printf 'peer finding line %.0s' $(seq 1 400))" > "$d/responses/02-security-auditor.md"
+    source "$PROJECT_ROOT/scripts/lib/dispatch.sh" 2>/dev/null || true
+    local advice chair advice_prompt chair_prompt
+    advice_prompt="$(council_prompt_for_member security-auditor independent-advice)"
+    chair_prompt="$(council_prompt_for_member strategy-analyst chair-synthesis)"
+    advice="$(council_phase_context_allowance security-auditor independent-advice "$advice_prompt")"
+    chair="$(council_phase_context_allowance strategy-analyst chair-synthesis "$chair_prompt")"
+    # The chair prompt carries both ~7.2K-char responses (~3.6K tokens).
+    if [[ "$advice" == 0 && "$chair" =~ ^[0-9]+$ && "$chair" -ge 3000 ]]; then
+        test_pass
+    else
+        test_fail "advice=$advice chair=$chair"
+        return 1
+    fi
+}
+
+test_council_prompt_template_is_ascii() {
+    test_case "council phase prompts built from ASCII inputs stay ASCII, so admission counts 4 chars per token"
+    load_council_lib || return 1
+    source "$PROJECT_ROOT/scripts/lib/dispatch.sh" 2>/dev/null || true
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-ascii.XXXXXX")"; mkdir -p "$d/responses" "$d/critiques" "$d/revisions"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_TASK="Review the change"; COUNCIL_GOAL="review"; COUNCIL_DOMAIN="software"
+    COUNCIL_STYLE="balanced"; COUNCIL_DEPTH="standard"
+    printf 'diff --git a/app.ts b/app.ts\n+guard nil\n' > "$d/change.diff"
+    COUNCIL_CONTEXT_FILES=("$d/change.diff")
+    printf 'peer review\nVERDICT: APPROVE\n' > "$d/responses/01-strategy-analyst.md"
+    printf 'critique\n' > "$d/critiques/01-strategy-analyst.md"
+    printf 'revision\n' > "$d/revisions/01-strategy-analyst.md"
+    COUNCIL_ROSTER_JSON='[{"persona":"strategy-analyst","seat":"chair","provider":"claude"},{"persona":"security-auditor","seat":"member","provider":"codex"}]'
+    # Until the estimator summed ASCII and non-ASCII text separately, one em-dash
+    # in Octopus's own template made every council prompt count at 3 UTF-8 bytes
+    # per token, 3/4 of its budget (sail-cruisey #3011). Keep the template ASCII
+    # so the 4-chars-per-token figure the caller sizes against stays exact.
+    local phase prompt bad="" rendered="" LC_ALL=C
+    for phase in independent-advice cross-critique revision-after-critique chair-synthesis; do
+        prompt="$(council_prompt_for_member security-auditor "$phase")"
+        # Prove the context-file and peer-artifact wrappers were rendered too.
+        [[ "$prompt" == *"guard nil"* ]] && rendered="$rendered ctx"
+        [[ "$phase" == chair-synthesis && "$prompt" == *"peer review"* ]] && rendered="$rendered peers"
+        if [[ "$prompt" == *[$'\x80'-$'\xff']* ]]; then
+            local line first=""
+            while IFS= read -r line; do
+                [[ "$line" == *[$'\x80'-$'\xff']* ]] && { first="${line:0:80}"; break; }
+            done <<< "$prompt"
+            bad="$bad $phase:[$first]"
+        elif [[ "$(octo_estimate_prompt_tokens "$prompt")" != "$(( (${#prompt} + 3) / 4 ))" ]]; then
+            bad="$bad $phase:estimate-not-4-chars-per-token"
+        fi
+    done
+    if [[ -z "$bad" && "$rendered" == " ctx ctx ctx ctx peers" ]]; then
+        test_pass
+    else
+        test_fail "non-ASCII council template text:$bad (rendered:$rendered)"
+        return 1
+    fi
+}
+
 test_council_one_vote_per_vendor_opt_in() {
     test_case "OCTOPUS_COUNCIL_ONE_VOTE_PER_VENDOR=1 keeps one voting seat per model family; default leaves the roster intact"
     load_council_lib || return 1
@@ -2201,6 +2331,7 @@ test_council_failed_dispatched_synthesis_is_partial
 test_council_synthesis_warning_uses_logger_and_stays_capturable
 test_council_quorum_met_with_host_native_chair
 test_council_degenerate_chair_keeps_vote_and_flags_synthesis
+test_council_records_agy_fallback_model
 test_council_one_vote_per_vendor_opt_in
 test_council_defaults_are_depth_aware
 test_council_rejects_non_usd_budget
@@ -2253,6 +2384,7 @@ test_council_deep_fixture_writes_revision_artifacts
 test_council_cross_critique_prompt_includes_peer_responses
 test_council_revision_prompt_includes_prior_critiques
 test_council_prompt_task_block_is_authoritative
+test_council_prompt_requires_exact_code_quotes
 test_council_context_file_inlined_into_prompt
 test_council_context_file_parser_accepts_and_rejects
 test_council_context_file_delimiter_is_unforgeable
@@ -2326,6 +2458,25 @@ test_council_live_response_host_native_fails_for_synthesis() {
         test_fail "expected rc!=0 for host-native chair-synthesis, got rc=0"
         return 1
     fi
+}
+
+test_council_live_response_agy_print_timeout_follows_seat() {
+    test_case "an agy seat's print timeout follows the seat timeout, not agy's 5m default (sail-cruisey #3422)"
+    load_council_lib || return 1
+    local seen explicit
+    COUNCIL_PROVIDER_STATUS_JSON='{"agy":"available","codex":"available"}'
+    council_provider_is_available() { return 0; }
+    run_agent_sync_consultative() { printf '%s|%s' "${OCTOPUS_AGY_PRINT_TIMEOUT:-unset}" "$3"; }
+    seen="$(unset OCTOPUS_AGY_PRINT_TIMEOUT COUNCIL_RUN_START_EPOCH; OCTOPUS_COUNCIL_TIMEOUT_AGY=900 \
+        council_live_response agy code-reviewer "p" independent-advice)"
+    explicit="$(unset COUNCIL_RUN_START_EPOCH; OCTOPUS_AGY_PRINT_TIMEOUT=2m OCTOPUS_COUNCIL_TIMEOUT_AGY=900 \
+        council_live_response agy code-reviewer "p" independent-advice)"
+    if [[ "$seen" == "885s|900" && "$explicit" == "2m|900" ]]; then
+        test_pass
+    else
+        test_fail "derived='$seen' (want 885s|900) explicit='$explicit' (want 2m|900)"
+    fi
+    unset -f run_agent_sync_consultative council_provider_is_available
 }
 
 test_council_split_double_seat_fails_quorum() {
@@ -2530,6 +2681,69 @@ test_council_advice_marks_timed_out_seat() {
         test_pass
     else
         test_fail "expected timed-out status + watchdog provenance + printed knob hint; status='$status' provenance='$provenance' warns=[$warns] output=[$output]"
+        return 1
+    fi
+}
+
+test_council_advice_marks_quota_limited_seat() {
+    test_case "a seat that hits its provider session limit is quota-limited and retryable, and the chair fallback skips that provider"
+    load_council_lib || return 1
+    local d; d="$(mktemp -d "$TEST_TMP_DIR/council-quota.XXXXXX")"; mkdir -p "$d/responses" "$d/stderr"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_ROSTER_JSON='[{"persona":"code-reviewer","seat":"verifier","provider":"claude","provider_org":"anthropic","model":"sonnet"}]'
+    COUNCIL_PROVIDER_STATUS_JSON='{"claude":"available","codex":"available"}'
+    COUNCIL_FIXTURE=""
+    COUNCIL_TIMEOUT_WARNINGS=""
+    COUNCIL_QUOTA_LIMITED_SEATS=""
+    # The 2026-11-05 case: claude exits 1 and prints the limit on stdout.
+    council_dispatch_member_detached() {
+        printf '== 2026-11-05T20:48:18Z claude exited 1: Exit code 1\n-- terminal stdout status --\nYou%sve hit your session limit · resets 7:10pm (America/New_York)\n' "'" \
+            >> "$_OCTOPUS_SEAT_STDERR_FILE"
+        return 1
+    }
+    council_run_chair_fallback() { :; }
+    council_run_advice_phase >/dev/null 2>&1 || true
+    local status warns available="yes"
+    status="$(jq -r '.[0].status' <<< "$COUNCIL_SEAT_RECORDS_JSON" 2>/dev/null)"
+    warns="$COUNCIL_TIMEOUT_WARNINGS"
+    council_provider_is_available claude || available="no"
+    unset -f council_dispatch_member_detached council_run_chair_fallback
+    if [[ "$status" == "quota-limited" && "$available" == "no" && "$COUNCIL_QUOTA_LIMITED_SEATS" == "claude" ]] &&
+       [[ "$warns" == *"session limit"* && "$warns" == *"retry"* && "$warns" != *"exited 1"* ]]; then
+        test_pass
+    else
+        test_fail "status='$status' claude_available=$available quota_seats='$COUNCIL_QUOTA_LIMITED_SEATS' warns=[$warns]"
+        return 1
+    fi
+}
+
+test_council_chair_fallback_stops_on_quota_limited_provider() {
+    test_case "chair fallback stops dispatching a provider after it hits its session limit"
+    load_council_lib || return 1
+    local d calls rc=0; d="$(mktemp -d "$TEST_TMP_DIR/chair-quota.XXXXXX")"; mkdir -p "$d/responses" "$d/stderr"
+    COUNCIL_RUN_DIR="$d"
+    COUNCIL_SEAT_RECORDS_JSON='[]'
+    COUNCIL_PROVIDER_STATUS_JSON='{"claude":"available"}'
+    COUNCIL_TIMEOUT_WARNINGS=""
+    COUNCIL_QUOTA_LIMITED_SEATS=""
+    COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
+    printf '0' > "$d/calls"
+    council_pick_provider() { printf 'claude'; }
+    council_roster_entry_json() {
+        jq -cn --arg persona "$1" --arg provider "$2" '{persona:$persona,provider:$provider,provider_org:"anthropic",model:"sonnet",seat:"member"}'
+    }
+    council_dispatch_member_detached() {
+        printf '%s' "$(( $(cat "$COUNCIL_RUN_DIR/calls") + 1 ))" > "$COUNCIL_RUN_DIR/calls"
+        printf -- '-- terminal stdout status --\nYou%sve hit your session limit · resets 7:10pm (America/New_York)\n' "'" >> "$_OCTOPUS_SEAT_STDERR_FILE"
+        return 1
+    }
+    council_run_chair_fallback || rc=$?
+    calls="$(cat "$d/calls")"
+    unset -f council_pick_provider council_roster_entry_json council_dispatch_member_detached
+    if [[ $rc -ne 0 && "$calls" == 1 && "$COUNCIL_QUOTA_LIMITED_SEATS" == "claude" ]]; then
+        test_pass
+    else
+        test_fail "expected one claude dispatch then stop; calls=$calls rc=$rc quota_seats='$COUNCIL_QUOTA_LIMITED_SEATS'"
         return 1
     fi
 }
@@ -3711,6 +3925,7 @@ test_council_seats_array_makes_quorum_inspectable() {
 test_council_host_native_detection
 test_council_live_response_host_native_skips_subprocess
 test_council_live_response_host_native_fails_for_synthesis
+test_council_live_response_agy_print_timeout_follows_seat
 # Pure parser and approver-set contracts run in the fast contribution suite.
 test_council_split_double_seat_fails_quorum
 test_council_all_approve_meets_quorum
@@ -3724,6 +3939,8 @@ test_council_synthesis_timeout_overrides_seat_cap
 test_council_live_response_uses_synthesis_timeout_for_chair
 test_council_rc_is_timeout_requires_watchdog_provenance
 test_council_advice_marks_timed_out_seat
+test_council_advice_marks_quota_limited_seat
+test_council_chair_fallback_stops_on_quota_limited_provider
 test_council_advice_marks_blind_seat
 test_council_grounding_rejection_warning
 test_council_blind_fabricated_narrative

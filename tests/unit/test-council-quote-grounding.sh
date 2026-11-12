@@ -726,6 +726,21 @@ done
 
 # A fence partial on the removed side but exact on the added side is not
 # partial; the removed side still decides where it verified.
+# A fence partial in the cited file but complete in the reviewed diff is not
+# partial; the file match still decides the verified count.
+test_case "#3247: a fence partial in the file but complete in the diff is not partial"
+full_added="$TEST_TMP_DIR/full-added.diff"
+printf 'diff --git a/src/book.ts b/src/book.ts\n--- a/src/book.ts\n+++ b/src/book.ts\n@@ -0,0 +1,3 @@\n+%s\n+  %s\n+%s\n' \
+    'export function book(sailing, cabin) {' "$GUARD" '  return reserve(sailing, cabin);' > "$full_added"
+r="$(COUNCIL_CONTEXT_FILES=("$full_added"); _greport "$(_resp "src/book.ts:1 reads:
+\`\`\`ts
+export function book(sailing, cabin) {
+  $GUARD
+  return reserve(sailing, cabin);
+\`\`\`
+VERDICT: REVISE")")"
+if jq -e '.quotes_verified == 1 and .quotes_verified_in_diff_removed == 0 and .quotes_verified_in_diff_added == 0 and .quotes_partial == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "#3247: a fence exact on the added side is not partial"
 both_sides="$TEST_TMP_DIR/both-sides.diff"
 window='const refundWindow = sailing.refundWindowDays ?? 14;'
@@ -1452,6 +1467,34 @@ VERDICT: APPROVE")"
 r="$(_report "$pipe_prose")"
 if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
+# sail-cruisey #3425 G: a seat escaped "||" as "\|\|" in a list item, outside
+# any table. A doubled "\|\|" is the || operator, not a regular expression, so
+# it reads as "||"; a single "\|" outside a table stays literal (above).
+test_case "#3425: an escaped '\\|\\|' outside a table matches a source '||'"
+list_escaped="$(_resp "- src/tier-3125.ts:2 reads \`const tier = member.tier \\|\\| member.legacyTier \\|\\| DEFAULT_TIER;\`.
+VERDICT: APPROVE")"
+r="$(_report "$list_escaped")"
+if jq -e '.quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+for regex_source in '/alpha||beta/' '"alpha || beta"'; do
+    test_case "escaped double pipes preserve regex and string meaning: $regex_source"
+    printf 'export const pattern = %s;\n' "$regex_source" > "$ROOT/src/regex-double.ts"
+    if [[ "$regex_source" == /* ]]; then
+        pipe_quote='export const pattern = /alpha\|\|beta/;'
+    else
+        pipe_quote='export const pattern = "alpha \|\| beta";'
+    fi
+    r="$(_report "$(_resp "src/regex-double.ts:1 reads \`$pipe_quote\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "changed literal verified: $r"; fi
+done
+
+test_case "#3425 placebo: an escaped '\\|\\|' quote that differs from the file is still fabricated"
+list_fab="$(_resp "- src/tier-3125.ts:2 reads \`const tier = member.tier \\|\\| member.vipTier \\|\\| DEFAULT_TIER;\`.
+VERDICT: APPROVE")"
+r="$(_report "$list_fab")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
 test_case "#3125: a heading after a table ends the table"
 table_heading="$(_resp "| File | Note |
 |---|---|
@@ -1496,6 +1539,66 @@ r="$(_report "$even_backslash")"
 if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 ROOT="$table_previous_root"
+
+# codex writes a quoted line as a string literal inside the code span:
+# `"if (url.pathname.startsWith(\"//\")) continue;"` (sail-cruisey #3139, #3193,
+# #3234 flagged it blind on real lines every time).
+cat > "$ROOT/src/guard-3234.mjs" <<'SRC'
+export const LOOPBACK_HOST_RE = /localhost|127\.0\.0\.1|\[::1\]/i;
+for (const url of urls) {
+  if (url.pathname.startsWith("//")) continue;
+}
+SRC
+
+test_case "#3234: a real line written as a string literal verifies"
+lit="$(_resp 'src/pricing.ts:2 uses `"const base = cabin.basePrice ?? sailing.defaultPrice;"` as the fallback.
+VERDICT: APPROVE')"
+r="$(_report "$lit")"
+if jq -e '.quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3234: a string literal with \\\" escapes and a regex with \\. verify"
+esc="$(_resp 'src/guard-3234.mjs:3 contains `"if (url.pathname.startsWith(\"//\")) continue;"` and src/guard-3234.mjs:1 has `"export const LOOPBACK_HOST_RE = /localhost|127\.0\.0\.1|\[::1\]/i;"`.
+VERDICT: APPROVE')"
+r="$(_report "$esc")"
+if jq -e '.quotes_checked == 2 and .quotes_verified == 2 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3425: a real line wrapped in single quotes verifies"
+single_lit="$(_resp "src/pricing.ts:2 uses \`'const base = cabin.basePrice ?? sailing.defaultPrice;'\` as the fallback.
+VERDICT: APPROVE")"
+r="$(_report "$single_lit")"
+if jq -e '.quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3425: an invented line wrapped in single quotes is still fabricated"
+single_fake="$(_resp "src/pricing.ts:2 uses \`'const base = await fetchCabinPrice(cabin.id);'\` here.
+VERDICT: APPROVE")"
+r="$(_report "$single_fake")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3234: an invented line wrapped as a string literal is still fabricated"
+fake_lit="$(_resp 'src/pricing.ts:2 uses `"const base = await fetchCabinPrice(cabin.id, { cache: true });"` here.
+VERDICT: APPROVE')"
+r="$(_report "$fake_lit")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# The wrapper is the only encoding: backslashes inside stay literal, as codex
+# writes them (`\.` above). A JSON reading would halve "\\" and match a
+# different regex.
+test_case "#3234: a string literal's '\\\\' is not read as one backslash"
+halved="$(_resp 'src/guard-3234.mjs:1 has `"export const LOOPBACK_HOST_RE = /localhost|127\\.0\\.0\\.1|\\[::1\\]/i;"`.
+VERDICT: APPROVE')"
+r="$(_report "$halved")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3234: a fenced line that is a string literal is not unwrapped"
+fenced_lit="$(_resp 'src/pricing.ts:2 is:
+
+```ts
+"const base = cabin.basePrice ?? sailing.defaultPrice;"
+```
+
+VERDICT: APPROVE')"
+r="$(_report "$fenced_lit")"
+if jq -e '.quotes_verified == 0' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 
 test_case "no diff available: a quote the seat says was removed is unverifiable, not fabricated"
 claimed="$(_resp "At src/pricing.ts:2 the check \`if (cabin.soldOut) return { price: null };\` was deleted in this change.
@@ -2692,6 +2795,261 @@ for config_failure in unavailable oversized; do
         test_fail "unknown filter configuration allowed a diff or lost uncertainty: $r"
     fi
     rm -f "$ROOT/filter-config-failure"
+done
+
+# sail-cruisey #3386: a seat that ran the code quotes the error it threw. That
+# is runtime output, not file content.
+runtime_cases=(
+    '`src/pricing.ts:2` (`cabin.basePrice ?? sailing.defaultPrice`) throws `RangeError: Maximum call stack size exceeded` at 3,000,000 characters. I measured this in Node.'
+    'Calling priceFor with a cyclic cabin at src/pricing.ts:4 crashes with `TypeError: Converting circular structure to JSON`.'
+    'Loading src/pricing.ts:3 in the browser raised `Uncaught SyntaxError: Unexpected token }` before any assertion.'
+)
+for runtime in "${runtime_cases[@]}"; do
+    test_case "#3386: a quoted runtime error is not a fabricated quote: ${runtime:0:50}"
+    r="$(_report "$(_resp "$runtime
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+test_case "#3386: a runtime error attributed to a cited file is still checked"
+r="$(_report "$(_resp 'src/pricing.ts:3 reads `RangeError: invalid cabin price`.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "a runtime-error quote with an adjacent trailing citation is checked"
+r="$(_report "$(_resp '`ValueError: something went terribly wrong` (src/pricing.ts:2).
+VERDICT: APPROVE')")"
+if jq -e '.quotes_verified == 0 and .quotes_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "genuine source does not excuse a runtime error with a trailing citation"
+r="$(_report "$(_resp 'src/pricing.ts:2 reads `cabin.basePrice ?? sailing.defaultPrice`.
+`ValueError: something went terribly wrong` (src/pricing.ts:2).
+VERDICT: APPROVE')")"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "an unattributed plain-text runtime diagnostic is not a source quote"
+r="$(_report "$(_resp 'I exercised src/pricing.ts:2.
+
+The probe returned this diagnostic:
+
+```text
+ValueError: invalid response from fixture
+```
+
+VERDICT: REVISE')")"
+if jq -e '.quotes_unverified == 0 and .quotes_unverifiable_command == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "a plain-text runtime diagnostic attributed to source is still checked"
+r="$(_report "$(_resp 'src/pricing.ts:2 reads:
+```text
+ValueError: invalid response from fixture
+```
+VERDICT: APPROVE')")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3386: an example the seat makes up (\"a template like\") is not a fabricated quote"
+r="$(_report "$(_resp 'The new branch at src/pricing.ts:3 fires on any colon. So a template like `Request to https://api.example failed: %s` now ships whole as `[REDACTED]`.
+VERDICT: APPROVE')")"
+if jq -e '.quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3386: a single-backtick span cannot hold a backtick, so a seat
+# quoting `describe("... `map`", ...)` drops the inner ones.
+BROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-backtick.XXXXXX")"
+mkdir -p "$BROOT/src"
+printf '%s\n' 'import { describe, it } from "vitest";' 'describe("#3386 box 5: span links with a caller-controlled `map`", () => {' '  it("skips the own map", () => {});' '});' > "$BROOT/src/sentry.test.ts"
+test_case "#3386: a quote that drops the file's inner backticks verifies"
+r="$(council_response_quote_verification_json "$(_resp 'Approval at src/sentry.test.ts:2:
+  `describe("#3386 box 5: span links with a caller-controlled map", () => {`
+VERDICT: APPROVE')" "$BROOT")"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3386: dropping backticks does not let other words change"
+r="$(council_response_quote_verification_json "$(_resp 'Approval at src/sentry.test.ts:2:
+  `describe("#3386 box 5: span links with a caller-controlled filter", () => {`
+VERDICT: APPROVE')" "$BROOT")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+for template_tag in '' tag; do
+    test_case "template literal delimiters remain source evidence: ${template_tag:-untagged}"
+    printf 'const value = %s`literal`;\n' "$template_tag" > "$BROOT/src/template.ts"
+    r="$(council_response_quote_verification_json "$(_resp "src/template.ts:1 reads \`const value = ${template_tag}literal;\`.
+VERDICT: APPROVE")" "$BROOT")"
+    if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "template expression changed: $r"; fi
+done
+
+# sail-cruisey #3389: a seat writes `$n` for the numbered placeholder that
+# differs per call site, and elides an argument list as `(...)`.
+PROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-placeholder.XXXXXX")"
+mkdir -p "$PROOT/src"
+printf '%s\n' 'export async function update(id, ids) {' '  return query(`SELECT 1 FROM credits WHERE id = $1 AND household_id = ANY($3)`, [id, null, ids]);' '}' > "$PROOT/src/credits.ts"
+printf '%s\n' 'for (const row of rows) {' '  if (row.method !== "POST" || !row.path.endsWith("sync-royal")) {' '    expect(wrote()).toBe(true);' '  }' '}' > "$PROOT/src/rbac.test.ts"
+_preport() { council_response_quote_verification_json "$(_resp "$1
+VERDICT: APPROVE")" "$PROOT"; }
+test_case "#3389: \$n stands for a numbered SQL placeholder"
+r="$(_preport 'PUT still matches rows with `household_id = ANY($n)` (`src/credits.ts:2`). Keep it.')"
+if jq -e '.quotes_verified == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3389: \$n does not excuse other changed code"
+r="$(_preport 'PUT still matches rows with `household_id = ALL($n)` (`src/credits.ts:2`). Keep it.')"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3389: an elided quote marks its omitted qualifier and arguments"
+r="$(_preport '`src/rbac.test.ts:2`: `!== "POST" || ! ... endsWith(...)` reads awkwardly.')"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3389: an elided quote's tokens must be on one line, not spread across the file"
+r="$(_preport '`src/rbac.test.ts:2`: `row !== "POST" ... toBe(true)` reads awkwardly.')"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3389: an elided quote with a changed token is still fabricated"
+r="$(_preport '`src/rbac.test.ts:2`: `!== "GET" || ! ... endsWith(...)` reads awkwardly.')"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+for changed_token in 'POSTER|endsWith' 'POST|neverendsWith' 'POST|endsWithExtra' 'POST|$endsWith' 'POST|endsWithé'; do
+    test_case "an abbreviated quote cannot match part of a longer token: $changed_token"
+    printf 'if (row.method !== "%s" || !row.path.%s("sync")) {\n' \
+        "${changed_token%%|*}" "${changed_token#*|}" > "$PROOT/src/token-boundaries.ts"
+    r="$(_preport 'src/token-boundaries.ts:1 reads `!== "POST" || ! ... endsWith(...)`.')"
+    if jq -e '.quotes_verified == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+# sail-cruisey #3390: two files share a basename. A seat that cites one by its
+# full path and then by basename means that one, not "unresolved".
+AROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-ambiguous.XXXXXX")"
+mkdir -p "$AROOT/src/lib" "$AROOT/functions/_lib"
+printf '%s\n' 'export function scrub(v) {' '  return v.replace(BROWSER_TOKEN, "[x]");' '}' > "$AROOT/src/lib/sentry.ts"
+printf '%s\n' 'export function scrub(v) {' '  return v.replace(BACKEND_TOKEN, "[REDACTED]");' '}' > "$AROOT/functions/_lib/sentry.ts"
+_areport() { council_response_quote_verification_json "$(_resp "$1
+VERDICT: APPROVE")" "$AROOT"; }
+test_case "#3390: a basename resolves to the same-named file the seat cited by full path"
+r="$(_areport 'Reviewed functions/_lib/sentry.ts:1. The pass at sentry.ts:2 reads `return v.replace(BACKEND_TOKEN, "[REDACTED]");`.')"
+if jq -e '.citations == 2 and .citations_unresolved == 0 and .quotes_attributed_unverified == 0 and .quotes_verified == 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3390: a quote under the resolved basename is checked against that file"
+r="$(_areport 'Reviewed functions/_lib/sentry.ts:1. The pass at sentry.ts:2 reads `return v.replace(BROWSER_TOKEN, "[x]");`.')"
+if jq -e '.citations_unresolved == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3390: an ambiguous basename the seat never disambiguated stays unresolved"
+r="$(_areport 'The pass at sentry.ts:2 reads `return v.replace(BACKEND_TOKEN, "[REDACTED]");`.')"
+if jq -e '.citations == 0 and .citations_unresolved == 1' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "a basename stays unresolved when both same-named files are cited in full"
+r="$(_areport 'Reviewed functions/_lib/sentry.ts:1 and src/lib/sentry.ts:1. The pass at sentry.ts:2 reads `return v.replace(BACKEND_TOKEN, "[REDACTED]");`.')"
+if jq -e '.citations == 2 and .citations_unresolved == 1 and .quotes_verified == 0 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3390: a citation's sentence ends at its bullet. The next
+# bullet's span is not attributed to it.
+test_case "#3390: a span on the next bullet after a finished sentence is not attributed"
+r="$(_report "$(_resp "- \`$REAL_NEAR\` ships the fallback (\`src/pricing.ts:2\`).
+- \`GET https://h/p?q=a b=c\` ships \`b=c\` (I checked this one by running the snippet).
+VERDICT: APPROVE")")"
+if jq -e '.quotes_attributed_unverified == 0 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3390: a citation ending in a colon still attributes the bullet under it"
+r="$(_report "$(_resp "src/pricing.ts:2:
+- \`$FAKE\`
+VERDICT: APPROVE")")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3400: agy wraps each quoted line in a code span inside a
+# blockquote. The span's backticks are markdown, not part of the code.
+QROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-blockspan.XXXXXX")"
+mkdir -p "$QROOT/src"
+printf '%s\n' 'export function cut(key, credentialOnly) {' '  return key.startsWith("db.") ? credentialOnly : cutPieces(credentialOnly);' '}' 'test("labels", () => {' '  expect(out[field], `${JSON.stringify(input)} / ${field}`).toBe(' '    want,' '  );' '});' > "$QROOT/src/sentry.ts"
+_qreport() { council_response_quote_verification_json "$(_resp "$1
+VERDICT: APPROVE")" "$QROOT"; }
+test_case "#3400: a blockquoted code span verifies without its backticks"
+r="$(_qreport '1. **Cut** — `src/sentry.ts:2`
+   > `return key.startsWith("db.") ? credentialOnly : cutPieces(credentialOnly);`  ')"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3400: a blockquoted code span keeps the indentation and inner backticks it quotes"
+r="$(_qreport '1. **Labels** — `src/sentry.ts:5`
+   > `  expect(out[field], `${JSON.stringify(input)} / ${field}`).toBe(`')"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3400: an invented line in a blockquoted code span is still fabricated"
+r="$(_qreport '1. **Cut** — `src/sentry.ts:2`
+   > `return key.startsWith("sql.") ? credentialOnly : cutPieces(credentialOnly);`')"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3316: a seat joins a multi-line condition onto one line. The
+# tokens are the file's; only the whitespace around punctuation differs.
+WROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-joined.XXXXXX")"
+mkdir -p "$WROOT/src"
+printf '%s\n' 'export async function handle(request) {' '  // 3.5. Rate limiting' '  if (' \
+    '    request.method !== "OPTIONS" &&' '    !request.headers.get("x-nf-scheduled")' '  ) {' \
+    '    await limit(request);' '  }' '}' > "$WROOT/src/handler.ts"
+test_case "#3316: a multi-line condition joined onto one line verifies"
+r="$(council_response_quote_verification_json "$(_resp '`src/handler.ts:3-6` is `if (request.method !== "OPTIONS" && !request.headers.get("x-nf-scheduled"))`. It wraps the whole limiter.
+VERDICT: APPROVE')" "$WROOT")"
+if jq -e '.quotes_verified == 1 and .quotes_attributed_unverified == 0 and .quotes_near_line == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3316: joining words that the file separates does not verify"
+r="$(council_response_quote_verification_json "$(_resp '`src/handler.ts:3-6` is `!request.headers.get("x-nf-scheduled") ) { awaitlimit(request);`.
+VERDICT: APPROVE')" "$WROOT")"
+if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3338: a double-backtick span holds single backticks, and a seat
+# writes \` for a literal backtick. Neither may split into prose "quotes".
+XROOT="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/quote-blind.XXXXXX")"
+mkdir -p "$XROOT/scripts" "$XROOT/.githooks"
+printf '%s\n' 'import { run } from "./run.mjs";' 'if (import.meta.url === `file://${process.argv[1]}`) {' '  run(process.argv.slice(2));' '}' > "$XROOT/scripts/entry.mjs"
+printf '%s\n' '#!/bin/sh' 'hook="scripts/hooks/pii-guard.mjs"' '[ -f "$hook" ] || exit 0' 'node "$hook" --staged || exit 1' > "$XROOT/.githooks/pre-commit"
+_xreport() { council_response_quote_verification_json "$(_resp "$1
+VERDICT: APPROVE")" "$XROOT"; }
+test_case "#3338: a double-backtick span with inner backticks is one quote"
+r="$(_xreport '`scripts/entry.mjs:2` uses the fragile ``import.meta.url === `file://${process.argv[1]}` `` comparison. The decoded compare is the precedent the plan cites. Adding realpath is a strict improvement.')"
+if jq -e '.quotes_unverified == 0 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3338: an escaped backtick inside a span does not end it"
+r="$(_xreport 'The sibling hook uses a raw string compare at `scripts/entry.mjs:2` (`import.meta.url === \`file://${process.argv[1]}\``). The plan'"'"'s precedent for the decoded compare is correct at `scripts/entry.mjs:3`.')"
+if jq -e '.quotes_unverified == 0 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3338: a span holding only a backslash closes on the next backtick"
+r="$(_xreport 'A comment ending in `\` hides the next line. At `scripts/entry.mjs:2` the scanner joins `\`+newline lines before it strips comments.')"
+if jq -e '.quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3338: an unclosed backtick in link text does not pair with the next paragraph"
+r="$(_xreport '1. `PreToolUse` runs the guard ([`scripts/entry.mjs:2](file:///scripts/entry.mjs#L2)).
+2. `UserPromptSubmit` runs it too ([scripts/entry.mjs:3](file:///scripts/entry.mjs#L3)).
+  Using `import { run } from "./run.mjs";` keeps the entry stable across working directories.
+
+#### B. Limits
+- **Latency** caps the scan, which would otherwise fail the hook open.')"
+if jq -e '.quotes_unverified == 0 and .quotes_verified == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3338: a citation of a file with no extension binds its quote"
+r="$(_xreport 'The node check at `.githooks/pre-commit:4` sits after `[ -f "$hook" ] || exit 0` in `scripts/entry.mjs:2`.')"
+if jq -e '.citations == 2 and .quotes_verified == 1 and .quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3338: an invented quote under an extensionless citation is still fabricated"
+r="$(_xreport '`.githooks/pre-commit:3` reads `[ -x "$hook" ] && exec node "$hook" --all`.')"
+if jq -e '.citations == 1 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# sail-cruisey #3339: more shapes of a seat's own probe inputs.
+more_probes=(
+    'Wrapper options bypass detection. `command -- gh run rerun 123`, `env -i gh run rerun 123`, and `time -p gh run rerun 123` all return `[]`. References: scripts/entry.mjs:2.'
+    'Redirections still hide reruns. `gh >/dev/null run rerun 123` and `2>&1 gh run rerun 123` both execute with arguments `run rerun 123`. References: scripts/entry.mjs:2.'
+    'Likewise, `timeout --signal KILL 60 gh run rerun 123` misses detection, and `echo x\\ #; gh run rerun 123` executes the rerun. References: scripts/entry.mjs:2.'
+    'Long options are not consumed at scripts/entry.mjs:2. Bypasses: `timeout --kill-after 10 60 gh run rerun 9`, `timeout --signal KILL 60 gh run rerun 9` and `nice --adjustment 5 gh run rerun 9`.'
+)
+for probe in "${more_probes[@]}"; do
+    test_case "#3339: a seat's probe input is not a fabricated quote: ${probe:0:50}"
+    r="$(_xreport "$probe")"
+    if jq -e '.quotes_unverified == 0 and .quotes_unverifiable_proposed >= 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+test_case "#3339: the input column of a probe table is the seat's own input"
+r="$(_xreport 'I ran the scanner on both versions; the branch order at scripts/entry.mjs:2 decides it.
+
+| Input | Real code | Broken copy |
+|---|---|---|
+| `echo '"'"'a \⏎'"'"' ; gh run rerun 113` (row below it) | `[{run,113}]` | `[{run,113}]` |
+| `# note \⏎gh run rerun 111` | `[{run,111}]` | `[{run,111}]` |')"
+if jq -e '.quotes_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "#3338: a quote the seat says the code avoids is not a fabricated quote"
+r="$(_xreport 'The new hook at scripts/entry.mjs:3 asks the user. Crucially, it avoids returning `{ permissionDecision: "allow" }`, preserving the approval gate.')"
+if jq -e '.quotes_unverified == 0 and .quotes_unverifiable_proposed == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+test_case "#3338: a negated quote the citation reads is still checked"
+r="$(_xreport '`scripts/entry.mjs:3` reads `run(process.argv.slice(2), { permissionDecision: "allow" });` and never asks.')"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+# The seat's own input needs the seat as the subject of "built as": another
+# first-person word in the clause does not make a teammate's code the seat's.
+for owner_case in "reads what my teammate built as" "reads code I reviewed that my teammate built as" "shows our helper, which the author built as"; do
+    test_case "an invented quote another author built is still checked: $owner_case"
+    r="$(_report "$(_resp "src/pricing.ts:2 $owner_case \`$FAKE\`.
+VERDICT: APPROVE")")"
+    if jq -e '.quotes_unverifiable_proposed == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
 done
 
 test_case "a chair-fallback seat record carries grounding like an advice seat"
@@ -4052,5 +4410,96 @@ if jq -e '.verification_failed == false and .quotes_verified == 0
 else
     test_fail "colon replacement was rejected without a genuine comparison quote: $r"
 fi
+
+test_case "an unresolved extensionless citation cannot reuse earlier source attribution"
+r="$(_xreport 'scripts/entry.mjs:2 reads:
+missing/path:1 reads `return fetch_user(user_id) + 1`.
+VERDICT: REVISE')"
+if jq -e '.citations == 1 and .citations_unresolved == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "a bare hostname and port do not become an extensionless file citation"
+r="$(_xreport 'The endpoint host/path:80 is unavailable. VERDICT: REVISE')"
+if jq -e '.citations == 0 and .citations_unresolved == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "result wording alone does not turn current implementation into a probe input"
+r="$(_xreport 'The current implementation `return fetch_user(user_id) + 1` returns an invalid value (scripts/entry.mjs:2).')"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+test_case "an explicitly supplied input retains its result wording"
+r="$(_xreport 'I tested input `return fetch_user(user_id) + 1` returns an invalid value. References: scripts/entry.mjs:2.')"
+if jq -e '.quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+
+review_root="$(mktemp -d "$TEST_TMP_DIR/review-quotes.XXXXXX")"
+mkdir -p "$review_root/src"
+for literal_case in double single template regex; do
+    case "$literal_case" in
+        double) real='export const label = "price: $5";'; changed='export const label = "price:$5";' ;;
+        single) real="export const label = 'price: 5';"; changed="export const label = 'price:5';" ;;
+        template) real='export const label = `price: $5`;'; changed='export const label = `price:$5`;' ;;
+        regex) real='export const label = /price: 5/;'; changed='export const label = /price:5/;' ;;
+    esac
+    printf '%s\n' "$real" > "$review_root/src/literal.ts"
+    test_case "layout normalization preserves $literal_case literal whitespace"
+    quote_response="$(_resp "src/literal.ts:1 reads:
+~~~ts
+$changed
+~~~")"
+    r="$(council_response_quote_verification_json "$quote_response" "$review_root")"
+    if jq -e '.quotes_verified == 0 and .quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "literal changed: $r"; fi
+done
+printf '%s\n' 'if (!isAuthorized && isValid) { acceptRequest(); }' > "$review_root/src/auth.ts"
+for abbreviation_case in unmarked-negation unmarked-operator explicit-gap; do
+    want_verified=0
+    case "$abbreviation_case" in
+        unmarked-negation) quote='if (isAuthorized && ... isValid)' ;;
+        unmarked-operator) quote='if (!isAuthorized ... isValid) { acceptRequest() }' ;;
+        explicit-gap) quote='if (... isAuthorized && isValid) { acceptRequest(); }'; want_verified=1 ;;
+    esac
+    test_case "abbreviation gaps occur only at explicit markers: $abbreviation_case"
+    quote_response="$(_resp "src/auth.ts:1 reads:
+~~~ts
+$quote
+~~~")"
+    r="$(council_response_quote_verification_json "$quote_response" "$review_root")"
+    if jq -e --argjson v "$want_verified" '.quotes_verified == $v and .fabricated == ($v == 0)' <<< "$r" >/dev/null; then test_pass; else test_fail "unmarked omission: $r"; fi
+done
+for bullet_prefix in '-' '1.'; do
+    test_case "an unpunctuated citation cannot own the next $bullet_prefix list item"
+    printf -v quote_response '%s\n%s %s' '- `src/pricing.ts:3` shows the retry loop' "$bullet_prefix" '`npm install --ignore-scripts --dry-run`'
+    r="$(_report "$(_resp "$quote_response")")"
+    if jq -e '.quotes_unverifiable_command == 1 and .quotes_attributed_unverified == 0 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "list attribution leaked: $r"; fi
+done
+test_case "a citation ending in a colon still attributes its following bullet"
+printf -v quote_response 'src/pricing.ts:3 shows:\n- `%s`' "$FAKE"
+r="$(_report "$(_resp "$quote_response")")"
+if jq -e '.quotes_attributed_unverified == 1 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "colon lost attribution: $r"; fi
+
+# Punctuation-adjacent spaces can change a command argument or operator token.
+printf '%s\n' 'npm run build - prod target' > "$ROOT/src/command-layout.sh"
+printf '%s\n' 'const result = value + ++offset;' > "$ROOT/src/operator-layout.ts"
+for spacing_case in command operator; do
+    if [[ "$spacing_case" == command ]]; then
+        spacing_file=command-layout.sh
+        spacing_quote='npm run build-prod target'
+    else
+        spacing_file=operator-layout.ts
+        spacing_quote='const result = value+++offset;'
+    fi
+    test_case "layout normalization preserves $spacing_case semantics"
+    r="$(_report "$(_resp "src/$spacing_file:1 reads \`$spacing_quote\`.")")"
+    if jq -e '.quotes_verified == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for presentation in 'Here is an example like' 'Here  is an example like' 'There is a template like'; do
+    test_case "presentational wording keeps an example reviewer-owned: $presentation"
+    r="$(_report "$(_resp "src/pricing.ts:2: $presentation \`$FAKE\`.")")"
+    if jq -e '.quotes_attributed_unverified == 0 and .quotes_unverifiable_proposed == 1 and .fabricated == false' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
+
+for source_phrase in 'shows a condition like' 'contains an expression like'; do
+    test_case "an explicit source claim stays attributed before '$source_phrase'"
+    r="$(_report "$(_resp "src/pricing.ts:2 $source_phrase \`$FAKE\`.")")"
+    if jq -e '.quotes_attributed_unverified == 1 and .quotes_unverifiable_proposed == 0 and .fabricated == true' <<< "$r" >/dev/null; then test_pass; else test_fail "report: $r"; fi
+done
 
 test_summary

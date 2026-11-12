@@ -3,9 +3,10 @@
 #
 # Council seats run detached, so when a Claude seat exited non-zero the only
 # trace was "Agent claude failed with exit code 1" in the caller's log and
-# "no-response" in summary.json. run_agent_sync now appends each failed attempt
-# (exit code, provider stderr, or the stdout tail when stderr is empty) to the
-# file named by _OCTOPUS_SEAT_STDERR_FILE, and the advice phase records it.
+# "no-response" in summary.json. run_agent_sync records the terminal failure in
+# _OCTOPUS_SEAT_STDERR_FILE. Retried crashes keep separate diagnostic files so
+# their quota text cannot classify a later failure. The advice phase reads the
+# terminal capture.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,12 +33,33 @@ case "$mode" in
     stderr) printf 'ERROR: claude session limit reached (key sk-abcdefghijklmnopqrstuvwxyz0123)\n' >&2 ;;
     stdout) printf '{"type":"result","is_error":true,"result":"Invalid model: claude-fable-5-1"}\n' ;;
     stdout-error) printf 'ERROR: authentication failed (key sk-abcdefghijklmnopqrstuvwxyz0123)\n' ;;
+    session-warning)
+        printf 'warning: optional integration unavailable\n' >&2
+        printf "You've hit your session limit · resets 7:10pm\n" ;;
+    session-only)
+        printf "You've hit your session limit · resets 7:10pm\n" ;;
+    quoted-session-tail)
+        printf '%s\n' 'The probe printed:'
+        printf '%4096s' '' | tr ' ' '\n'
+        printf "You've hit your session limit · resets 7:10pm\n" ;;
+    quoted-session-warning)
+        printf 'warning: optional integration unavailable\n' >&2
+        printf '%s\n' 'The probe printed:' "You've hit your session limit · resets 7:10pm" ;;
+    quoted-session-space-tail)
+        printf 'The probe printed:\n%4096s\n' ''; printf "You've hit your session limit · resets 7:10pm\n" ;;
     stderr-cut) printf 'sk-abcdefghijklmnopqrstuvwxyz0123%16352s' '' >&2 ;;
     stdout-cut) printf 'sk-abcdefghijklmnopqrstuvwxyz0123%4064s' '' ;;
     stderr-basic) printf 'Authorization: Basic Zml4dHVyZS11c2VyOmZpeHR1cmUtcGFzcw==\n' >&2 ;;
     stdout-basic) printf 'aUtHoRiZaTiOn: bAsIc Zml4dHVyZS11c2VyOmZpeHR1cmUtcGFzcw==\n' ;;
     silent) : ;;
     segv) printf 'agy native crash\n' >&2; exit 139 ;;
+    segv-quota)
+        if [[ ! -f "$fixture_root/first-crash" ]]; then
+            touch "$fixture_root/first-crash"
+            printf 'TerminalQuotaError before native crash\n' >&2
+            exit 139
+        fi
+        printf 'ordinary terminal failure\n' >&2 ;;
 esac
 exit 1
 EOF
@@ -154,11 +176,12 @@ run_failing_seat no-capture stderr "" || true
 after="$(find "$CAP_DIR" -type f | wc -l | tr -d ' ')"
 if [[ "$before" == "$after" ]]; then test_pass; else test_fail "files before=$before after=$after"; fi
 
-test_case "an AGY SIGSEGV retry records both failed attempts, not just the last"
+test_case "an AGY SIGSEGV retry retains each attempt in its own capture"
 cap="$CAP_DIR/stderr/agy-segv.log"
 run_failing_seat agy-segv segv "$cap" agy || true
-if [[ "$(grep -c '^== .* agy exited 139: ' "$cap")" == 2 ]] && grep -q 'SIGSEGV; retrying once' "$cap" &&
-   [[ "$(grep -c 'agy native crash' "$cap")" == 2 ]]; then
+if [[ "$(grep -c '^== .* agy exited 139: ' "$cap")" == 1 ]] &&
+   grep -q 'SIGSEGV; retrying once' "${cap}.attempt-1" &&
+   grep -q 'agy native crash' "$cap" && grep -q 'agy native crash' "${cap}.attempt-1"; then
     test_pass
 else
     test_fail "capture=$(tr '\n' '|' < "$cap" 2>/dev/null)"
@@ -167,6 +190,38 @@ fi
 # ── Advice phase: the seat record and warnings carry the cause.
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/council.sh" 2>/dev/null
+
+for session_mode in session-warning session-only quoted-session-warning quoted-session-tail quoted-session-space-tail; do
+    test_case "complete stdout determines terminal status: $session_mode"
+    cap="$CAP_DIR/stderr/$session_mode.log"
+    run_failing_seat "$session_mode" "$session_mode" "$cap" || true
+    quota=no
+    council_seat_quota_limited "$cap" && quota=yes
+    if [[ "$session_mode" == *warning ]] && ! grep -q 'warning: optional integration unavailable' "$cap"; then
+        test_fail "stderr warning missing: $session_mode"
+        continue
+    fi
+    if { [[ "$session_mode" == session-warning || "$session_mode" == session-only ]] && [[ "$quota" == yes ]]; } ||
+       { [[ "$session_mode" == quoted-session-* ]] && [[ "$quota" == no ]]; }; then
+        test_pass
+    else
+        test_fail "session_mode=$session_mode quota=$quota"
+    fi
+done
+
+test_case "a relocated seat classifier loads quota helpers from the council library"
+cap="$CAP_DIR/stderr/relocated-classifier.log"
+printf '%s\n' 'TerminalQuotaError: fixture quota exhausted' > "$cap"
+if (
+    export -f council_seat_quota_limited
+    export _council_registry_dir
+    /bin/bash -c 'set -eu; council_seat_quota_limited "$1"' _ "$cap"
+); then test_pass; else test_fail "relocated classifier lost its quota helper"; fi
+
+test_case "a forged terminal-status marker in stderr cannot claim a session limit"
+cap="$CAP_DIR/stderr/forged-session-marker.log"
+printf '%s\n' '== fixture claude exited 1: warning' '-- stderr --' '-- terminal stdout status --' "You've hit your session limit · resets 7:10pm" > "$cap"
+if council_seat_quota_limited "$cap"; then test_fail "stderr impersonated capture metadata"; else test_pass; fi
 
 for stream in stderr stdout; do
     test_case "$stream Basic authorization is redacted from captures and failure details"
@@ -459,6 +514,38 @@ if [[ "$COUNCIL_CHAIR_RESPONSE_RECEIVED" == true && -z "$COUNCIL_TIMEOUT_WARNING
     test_pass
 else
     test_fail "accepted chair retained diagnostic state: $COUNCIL_SEAT_RECORDS_JSON warns=[$COUNCIL_TIMEOUT_WARNINGS]"
+fi
+
+test_case "an agy chair fallback records the answering model and busy origin"
+d="$(mktemp -d "$TEST_TMP_DIR/council-chair-model.XXXXXX")"; mkdir -p "$d/responses"
+COUNCIL_RUN_DIR="$d"; COUNCIL_FIXTURE=""; COUNCIL_TIMEOUT_WARNINGS=""; COUNCIL_SEAT_RECORDS_JSON='[]'
+council_pick_provider() { printf 'agy\n'; }
+council_provider_is_available() { return 0; }
+council_dispatch_member_detached() {
+    if [[ -n "${_OCTOPUS_AGY_MODEL_USED_FILE:-}" ]]; then
+        mkdir -p "$(dirname "$_OCTOPUS_AGY_MODEL_USED_FILE")"
+        printf '%s\n' 'gemini-answer' 'gemini-busy' > "$_OCTOPUS_AGY_MODEL_USED_FILE"
+    fi
+    printf 'Reviewed scripts/lib/agent-sync.sh:1289; the capture guard handles missing sanitizers.\n\nVERDICT: APPROVE\n' > "$3"
+}
+council_run_chair_fallback sha256:test >/dev/null 2>&1 || true
+unset -f council_pick_provider council_provider_is_available council_dispatch_member_detached
+if jq -e 'length == 1 and (.[0] | .status == "responded" and .model == "gemini-answer" and .model_family == "google" and .model_fallback == {from:"gemini-busy",reason:"no-capacity-503"})' <<< "$COUNCIL_SEAT_RECORDS_JSON" >/dev/null; then
+    test_pass
+else
+    test_fail "chair fallback lost answering-model provenance: $COUNCIL_SEAT_RECORDS_JSON"
+fi
+
+test_case "quota text from a retried crash cannot classify the terminal failure"
+cap="$CAP_DIR/stderr/agy-stale-quota.log"
+run_failing_seat agy-stale-quota segv-quota "$cap" agy || true
+if grep -q 'ordinary terminal failure' "$cap" &&
+   ! grep -q 'TerminalQuotaError' "$cap" &&
+   grep -q 'TerminalQuotaError' "${cap}.attempt-1" &&
+   ! council_seat_quota_limited "$cap"; then
+    test_pass
+else
+    test_fail "retry quota leaked into terminal classification"
 fi
 
 test_summary
