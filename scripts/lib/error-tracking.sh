@@ -422,6 +422,25 @@ classify_agent_output() {
     echo "ok:"
 }
 
+# A provider can hold several seats in one run: probe gives each perspective
+# its own. Keeping the latest row per agent name let one seat's timeout
+# replace another seat's success. A row names its seat by seat_id, else by
+# its result file, which is unique per task; older rows with neither stay
+# keyed by agent name.
+_OCTO_AGENT_STATUS_LATEST_PER_SEAT='def latest_per_seat:
+    group_by(if (.seat_id // "") != "" then "seat:" + .seat_id
+             elif (.output_file // "") != "" then "file:" + .output_file
+             else "agent:" + .agent end)
+    | map(.[-1])
+    | sort_by(.agent);
+ def in_scope($filter; $task_scope):
+    ((($filter == "") or ((.output_file // "") | contains($filter)) or
+      ((.seat_id // "") | contains($filter)))) and
+    ($task_scope == null or (. as $row | any($task_scope[];
+        . as $task | ($row.seat_id == ("spawn-" + $task.id) and
+            (($row.output_file // "") == "" or
+             $row.output_file == $task.output_file)))));'
+
 write_agent_run_snapshot() {
     command -v jq >/dev/null 2>&1 || return 0
 
@@ -436,8 +455,8 @@ write_agent_run_snapshot() {
         --arg run_id "$run_id" \
         --arg command "${OCTOPUS_COMMAND:-${COMMAND:-unknown}}" \
         --arg args "${OCTOPUS_COMMAND_ARGS:-}" \
-        'group_by(.agent)
-         | map(.[-1])
+        "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+         latest_per_seat
          | {
              run_id: $run_id,
              command: $command,
@@ -558,26 +577,35 @@ record_oversize_event() {
 }
 
 agent_status_output_files() {
-    local filter="${1:-}"
+    local filter="${1:-}" task_scope="${2:-null}"
+    local eligibility="${3:-ledger}"
     local dir jsonl
     dir=$(octo_run_dir)
     jsonl="$dir/agents.jsonl"
     [[ -s "$jsonl" ]] || return 0
     command -v jq >/dev/null 2>&1 || return 0
 
-    jq -rs --arg filter "$filter" '
-        group_by(.agent)
-        | map(.[-1])
+    jq -rs --arg filter "$filter" --slurpfile task_scope /dev/stdin "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+        (if ($task_scope | length) == 1 then $task_scope[0] else error("invalid task scope") end) as $task_scope |
+        latest_per_seat
         | .[]
+        | select(in_scope($filter; $task_scope))
         | [
             .status,
             (.contribution // ""),
             (.output_file // "")
           ]
         | @tsv
-    ' "$jsonl" 2>/dev/null | while IFS=$'\t' read -r status contribution file; do
+    ' "$jsonl" <<< "$task_scope" | while IFS=$'\t' read -r status contribution file; do
         [[ -n "$file" && -f "$file" ]] || continue
-        [[ -z "$filter" || "$file" == *"$filter"* ]] || continue
+        if [[ "$eligibility" == probe ]]; then
+            probe_result_file_is_usable "$file" || continue
+            if type octo_seat_was_rejected >/dev/null 2>&1 && octo_seat_was_rejected "$file"; then
+                continue
+            fi
+            printf '%s\n' "$file"
+            continue
+        fi
         if [[ "$status" == "ok" && "$contribution" == "eligible" ]] && \
            _octo_run_output_usable_file "$file"; then
             printf '%s\n' "$file"
@@ -590,7 +618,12 @@ agent_status_output_files() {
     done
 }
 
+# The ledger spans every command in a session, so a filter limits the table to
+# seats whose result file contains it, as agent_status_output_files does. One
+# probe then does not count the seats of an earlier probe in the same session.
 render_agent_summary() {
+    local filter="${1:-}" task_scope="${2:-null}"
+    local eligibility="${3:-ledger}"
     local dir jsonl
     dir=$(octo_run_dir)
     jsonl="$dir/agents.jsonl"
@@ -601,7 +634,31 @@ render_agent_summary() {
         return 0
     }
 
-    local rows ok degraded failed timeout total
+    local rows ok degraded failed timeout cancelled total selected_rows
+    # Process substitutions hide jq's exit status from the loop. Parse first
+    # so a damaged ledger cannot turn a required failed seat into an empty table.
+    if ! selected_rows=$(jq -rs --arg filter "$filter" --slurpfile task_scope /dev/stdin "${_OCTO_AGENT_STATUS_LATEST_PER_SEAT}"'
+        (if ($task_scope | length) == 1 then $task_scope[0] else error("invalid task scope") end) as $task_scope |
+        latest_per_seat
+        | .[]
+        | select(in_scope($filter; $task_scope))
+        | [
+            .agent,
+            .status,
+            ((.tokens_out // 0) | tostring),
+            (((.duration_ms // 0) / 1000) | floor | tostring),
+            (if ((.reason // "") | length) > 0 then .reason else "-" end),
+            (.output_file // "")
+          ]
+        | @tsv
+    ' "$jsonl" <<< "$task_scope"); then
+        printf 'Warning: cannot read agent status ledger: %s\n' "$jsonl"
+        if [[ "${OCTOPUS_REQUIRE_ALL:-false}" == true ]]; then
+            echo "Aborting: OCTOPUS_REQUIRE_ALL=true."
+            return 78
+        fi
+        return 0
+    fi
     local reconciled_rows=""
     while IFS=$'\t' read -r agent status tokens_out seconds reason output_file; do
         [[ -z "$agent" ]] && continue
@@ -638,27 +695,15 @@ render_agent_summary() {
         fi
 
         reconciled_rows+="${agent}"$'\t'"${status}"$'\t'"${tokens_out}"$'\t'"${seconds}"$'\t'"${reason}"$'\n'
-    done < <(jq -rs '
-        group_by(.agent)
-        | map(.[-1])
-        | .[]
-        | [
-            .agent,
-            .status,
-            ((.tokens_out // 0) | tostring),
-            (((.duration_ms // 0) / 1000) | floor | tostring),
-            (if ((.reason // "") | length) > 0 then .reason else "-" end),
-            (.output_file // "")
-          ]
-        | @tsv
-    ' "$jsonl" 2>/dev/null) || return 0
+    done <<< "$selected_rows"
     rows="$reconciled_rows"
 
     ok=$(awk -F '\t' '$2 == "ok" { n++ } END { print n + 0 }' <<< "$rows")
     degraded=$(awk -F '\t' '$2 == "degraded" { n++ } END { print n + 0 }' <<< "$rows")
     failed=$(awk -F '\t' '$2 == "failed" { n++ } END { print n + 0 }' <<< "$rows")
     timeout=$(awk -F '\t' '$2 == "timeout" { n++ } END { print n + 0 }' <<< "$rows")
-    total=$((ok + degraded + failed + timeout))
+    cancelled=$(awk -F '\t' '$2 == "cancelled" { n++ } END { print n + 0 }' <<< "$rows")
+    total=$((ok + degraded + failed + timeout + cancelled))
 
     echo ""
     echo "Agent run summary"
@@ -673,6 +718,7 @@ render_agent_summary() {
             degraded) glyph="⚠" ;;
             failed) glyph="✗" ;;
             timeout) glyph="⏱" ;;
+            cancelled) glyph="⊘" ;;
             running) glyph="…" ;;
             *) glyph="?" ;;
         esac
@@ -681,9 +727,13 @@ render_agent_summary() {
     done <<< "$rows"
     echo ""
 
-    if [[ $failed -gt 0 || $timeout -gt 0 ]]; then
-        printf '⚠ %d of %d agents failed or timed out — synthesis should use %d available outputs. Details: %s\n' \
-            "$((failed + timeout))" "$total" "$((ok + degraded + timeout))" "$dir"
+    local available_outputs
+    available_outputs=$(agent_status_output_files "$filter" "$task_scope" "$eligibility" | awk 'END {print NR+0}') || available_outputs=0
+    if [[ $failed -gt 0 || $timeout -gt 0 || $cancelled -gt 0 ]]; then
+        local failure_summary='failed or timed out'
+        [[ $cancelled -eq 0 ]] || failure_summary='failed, timed out or were cancelled'
+        printf '⚠ %d of %d agents %s — synthesis should use %d available outputs. Details: %s\n' \
+            "$((failed + timeout + cancelled))" "$total" "$failure_summary" "$available_outputs" "$dir"
         if [[ "${OCTOPUS_REQUIRE_ALL:-false}" == "true" ]]; then
             echo "Aborting: OCTOPUS_REQUIRE_ALL=true."
             return 78
