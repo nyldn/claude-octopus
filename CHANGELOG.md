@@ -14,6 +14,10 @@
 
 ### Fixed
 
+- Parallel work packages use a bounded coordinator with separate branches and
+  worktrees. Dependents receive prerequisite commits, and failed or expired
+  runs retain evidence and stop later waves.
+
 - Factory honors a declined run, snapshots inline specifications, and passes a
   selected satisfaction target to the pipeline. Reports and scores belong to
   one unique run. Scenario coverage review occurs after generation and before
@@ -64,6 +68,11 @@
   the selected checkpoint would overwrite. Release validation accepts
   the same scalar, leaf and container skill registrations as assembly validation.
   Fixes #1214.
+- Named OpenAI-compatible presets no longer inherit `OPENAI_COMPAT_MODEL`
+  from another vendor. Set the preset-specific model variable or provider
+  default instead. Atlas Cloud admission and dispatch share configured defaults
+  and explicit model pins. The generic slot keeps working.
+
 - Named OpenAI-compatible presets keep their own endpoint and credential
   selection when the generic provider slot is configured. Direct helper calls
   no longer inherit that slot's URL or credential name. Explicit flags still
