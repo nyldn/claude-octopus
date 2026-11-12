@@ -280,6 +280,13 @@ for inherited in absent populated; do
     ); then test_pass; else test_fail "empty scopes bypassed coverage or changed caller state"; fi
 done
 
+test_case "comma-separated read inputs stay outside the output obligations"
+if missing=$(check_explicit_file_coverage 'Read ./SPEC.md, ./DESIGN.md, then update src/main.ts.' 'Updated src/main.ts') && [[ -z "$missing" ]]; then
+    test_pass
+else
+    test_fail "read-only list became required output: [$missing]"
+fi
+
 test_case "managed coverage uses files rather than textual echoes"
 mkdir -p "$TEST_TMP_DIR/repo/src"
 printf 'implementation\n' > "$TEST_TMP_DIR/repo/src/main.ts"
