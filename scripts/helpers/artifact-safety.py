@@ -7,7 +7,7 @@ import sys
 MAX_BYTES = 1048576
 PROVIDER = re.compile(r"(?:pplx-|sk-(?:ant-|proj-)?|sk_live_|rk_live_|gh[pousr]_|github_pat_|glpat-|xox[baprs]-|hf_|AIza)[A-Za-z0-9._-]{16,}|(?:AKIA|ASIA)[0-9A-Z]{16}")
 PRIVATE_KEY = re.compile(r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----.*?-----END (?:[A-Z0-9 ]+ )?PRIVATE KEY-----", re.S)
-BEARER = re.compile(r"\b(?:Bearer|Basic)[ \t]+([A-Za-z0-9._~+/-]+={0,2})", re.I)
+BEARER = re.compile(r"\b(?:Bearer|Basic)\s+([A-Za-z0-9._~+/-]+={0,2})", re.I)
 JWT = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
 URL_AUTH = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s@/:]*:[^\s@/]+@")
 AUTH_HEADER = re.compile(r"Authorization[\"']?\s*:\s*[\"']?(?:Bearer|Basic)\s+[A-Za-z0-9._~+/-]+={0,2}", re.I)

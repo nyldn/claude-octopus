@@ -101,6 +101,30 @@ class Fixture(unittest.TestCase):
 
 
 class Choices(Fixture):
+    def test_authorized_staged_deletion_commits_without_unrelated_index_work(self):
+        for tree in TREES:
+            with self.subTest(tree=tree):
+                text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
+                section = text.split('### Prepare an explicitly authorized commit', 1)[1].split('### Step 1:', 1)[0]
+                block = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+                selected = self.feature / '[delete me].txt'
+                selected.write_text('authorized deletion\n')
+                self.git('--literal-pathspecs', 'add', '--', selected.name, cwd=self.feature)
+                self.git('commit', '-qm', 'before deletion', cwd=self.feature)
+                self.git('--literal-pathspecs', 'rm', '--', selected.name, cwd=self.feature)
+                unrelated = self.feature / 'unrelated.txt'
+                unrelated.write_text('preserve staged work\n')
+                self.git('add', unrelated.name, cwd=self.feature)
+                result = subprocess.run([BASH, '-u', '-c',
+                    'COMMIT_PATHS=("[delete me].txt"); COMMIT_MESSAGE="Authorized deletion"\n' + block],
+                    cwd=self.feature, env=self.env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.git('diff-tree', '--no-commit-id', '--name-status', '-r', 'HEAD', cwd=self.feature),
+                                 'D\t[delete me].txt')
+                self.assertEqual(self.git('diff', '--cached', '--name-only', cwd=self.feature), unrelated.name)
+                self.git('reset', '--hard', self.head, cwd=self.feature)
+                unrelated.unlink(missing_ok=True)
+
     def test_authorized_commit_excludes_unrelated_staged_paths(self):
         for tree in TREES:
             text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()

@@ -137,7 +137,8 @@ prior_state=$("${OCTO_ROOT:?}/scripts/state-manager.sh" read_state) || exit 1
 prior_context=$(printf '%s' "$prior_state" | jq -c '.context') || exit 1
 
 # Check locally before exposing saved context or decisions to the host.
-for prior_payload in "$prior_decisions" "$prior_context"; do
+prior_decisions_display=$(printf '%s' "$prior_decisions" | jq -r '.[]? | "  - \(.decision) (\(.phase)): \(.rationale)"') || exit 1
+for prior_payload in "$prior_decisions" "$prior_decisions_display" "$prior_context"; do
   if ! printf '%s' "$prior_payload" | python3 -I "$OCTO_ROOT/scripts/helpers/artifact-safety.py"; then
     echo "Saved context did not pass the artifact check; stop before displaying or dispatching it." >&2
     exit 1
@@ -150,7 +151,7 @@ fi
 # Display what you found (if any)
 if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
   echo "📋 Building on prior decisions:"
-  echo "$prior_decisions" | jq -r '.[] | "  - \(.decision) (\(.phase)): \(.rationale)"'
+  printf '%s\n' "$prior_decisions_display"
 fi
 ```
 

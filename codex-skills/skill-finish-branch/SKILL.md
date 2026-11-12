@@ -45,7 +45,19 @@ if ! declare -p COMMIT_PATHS >/dev/null 2>&1 || [[ ${#COMMIT_PATHS[@]} -eq 0 ]];
   echo "Restore the reviewed list of authorized commit paths." >&2
   return 1 2>/dev/null || exit 1
 fi
-git --literal-pathspecs add -- "${COMMIT_PATHS[@]}" || exit 1
+for commit_path in "${COMMIT_PATHS[@]}"; do
+  if [[ ! -e "$commit_path" && ! -L "$commit_path" ]]; then
+    deletion_status=0
+    git --literal-pathspecs diff --cached --quiet --diff-filter=D -- "$commit_path" || deletion_status=$?
+    if [[ "$deletion_status" == 1 ]]; then
+      continue  # The authorized deletion is already staged.
+    elif [[ "$deletion_status" != 0 ]]; then
+      echo "Could not inspect the selected deletion; no commit was created." >&2
+      exit "$deletion_status"
+    fi
+  fi
+  git --literal-pathspecs add -- "$commit_path" || exit 1
+done
 git --literal-pathspecs commit --only -m "$COMMIT_MESSAGE" -- "${COMMIT_PATHS[@]}" || exit 1
 ```
 

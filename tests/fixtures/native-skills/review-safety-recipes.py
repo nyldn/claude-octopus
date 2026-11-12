@@ -1,5 +1,6 @@
 """Execute review and planning guards against disposable local data."""
 from decimal import Decimal
+import json
 import os
 from pathlib import Path
 import re
@@ -109,6 +110,38 @@ class Guards(unittest.TestCase):
                     self.assertEqual(result.returncode == 0, not secret, (tree, result.stderr))
                     self.assertEqual('PRESERVE_CONTEXT_SENTINEL' in result.stdout, not secret)
                     self.assertNotIn('private-value-not-for-capture', result.stdout + result.stderr)
+
+    def test_decoded_decisions_are_checked_before_display(self):
+        with tempfile.TemporaryDirectory() as directory:
+            plugin = Path(directory)
+            (plugin / 'scripts/helpers').mkdir(parents=True)
+            (plugin / 'scripts/helpers/artifact-safety.py').write_bytes((ROOT / 'scripts/helpers/artifact-safety.py').read_bytes())
+            manager = plugin / 'scripts/state-manager.sh'
+            manager.write_text('#!/bin/bash\ncase "$1" in get_decisions) printf "%s" "$SAVED_DECISIONS";; '
+                               'read_state) printf \'{"context":{}}\';; esac\n')
+            manager.chmod(0o755)
+            for tree in ('skills', 'codex-skills'):
+                text = (ROOT / tree / 'flow-discover/references/prepare.md').read_text()
+                section = text.split('### STEP 3:', 1)[1].split('### STEP 3.5:', 1)[0]
+                block = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+                for field in ('decision', 'phase', 'rationale'):
+                    for scheme, token in (('Bearer', 'fixture-token-123456789'), ('Basic', 'ZmFrZTpmYWtl')):
+                        for separator in ('\t', '\r', '\n'):
+                            with self.subTest(tree=tree, field=field, scheme=scheme, separator=repr(separator)):
+                                decision = {'decision': 'safe choice', 'phase': 'discover', 'rationale': 'safe reason'}
+                                decision[field] = scheme + separator + token
+                                result = subprocess.run(['bash', '-u', '-c', block],
+                                    env=dict(os.environ, OCTO_ROOT=str(plugin), SAVED_DECISIONS=json.dumps([decision])),
+                                    capture_output=True, text=True)
+                                self.assertNotEqual(result.returncode, 0)
+                                self.assertIn('Saved context did not pass the artifact check', result.stderr)
+                                self.assertNotIn(token, result.stdout + result.stderr)
+                safe = [{'decision': 'safe\nmultiline choice', 'phase': 'discover', 'rationale': 'saved reason'}]
+                result = subprocess.run(['bash', '-u', '-c', block],
+                    env=dict(os.environ, OCTO_ROOT=str(plugin), SAVED_DECISIONS=json.dumps(safe)),
+                    capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('safe\nmultiline choice (discover): saved reason', result.stdout)
 
     def test_projection_never_falls_below_spend(self):
         for tree in TREES:
