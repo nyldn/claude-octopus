@@ -22,7 +22,7 @@ ID = re.compile(r"WP-[0-9]+\Z")
 
 
 sys.path.insert(0, str(PLUGIN))
-from shared.process_supervisor import run_bounded_process
+from shared.process_supervisor import run_bounded_process, run_bounded_process_separate
 
 _GIT_ENV = None
 _GIT_DEADLINE = None
@@ -48,8 +48,8 @@ def git(project, *args, check=True):
         env = dict(os.environ)
         for name in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE'):
             env.pop(name, None)
-        code, output = run_bounded_process(['git', 'rev-parse', '--local-env-vars'], PLUGIN, 3,
-                                           shell=False, output_limit=16384, env=env)
+        code, output, diagnostics = run_bounded_process_separate(['git', 'rev-parse', '--local-env-vars'], PLUGIN, 3,
+                                                                 shell=False, output_limit=16384, env=env, strict_output=True)
         if code:
             raise ValueError('Cannot identify repository-local Git environment')
         for name in output.splitlines():
@@ -58,9 +58,9 @@ def git(project, *args, check=True):
         _GIT_ENV = env
     command = ['git', '-C', str(project), *args]
     timeout = 30 if _GIT_DEADLINE is None else min(30, max(.01, _GIT_DEADLINE - time.monotonic()))
-    code, output = run_bounded_process(command, PLUGIN, timeout, shell=False,
-                                       output_limit=1024 * 1024, env=_GIT_ENV, strict_output=True)
-    result = subprocess.CompletedProcess(command, code, output, output if code else '')
+    code, output, diagnostics = run_bounded_process_separate(command, PLUGIN, timeout, shell=False,
+                                                               output_limit=1024 * 1024, env=_GIT_ENV, strict_output=True)
+    result = subprocess.CompletedProcess(command, code, output, diagnostics)
     if check:
         result.check_returncode()
     return result
@@ -390,10 +390,10 @@ def finish_worker(run, state, name, worker, code, reason=None):
                 code, reason = 65, 'uncommitted-work'
             else:
                 commit = git(worktree, 'rev-parse', '--verify', 'HEAD^{commit}').stdout.strip()
-                if commit == result['input_commit'] or not git(worktree, 'diff', '--name-only', result['input_commit'], commit).stdout:
+                if commit == result['input_commit'] or not git(worktree, 'diff', '--no-renames', '--name-only', result['input_commit'], commit).stdout:
                     code, reason = 66, 'no-committed-result'
                 else:
-                    changed = git(worktree, 'diff', '--name-only', '-z', result['input_commit'], commit).stdout.split('\0')
+                    changed = git(worktree, 'diff', '--no-renames', '--name-only', '-z', result['input_commit'], commit).stdout.split('\0')
                     outputs = [Path(value).as_posix().rstrip('/') for value in worker['package']['expected_outputs']]
                     if any(path and not any(path == allowed or path.startswith(allowed + '/') for allowed in outputs) for path in changed):
                         code, reason = 67, 'out-of-scope-commit'

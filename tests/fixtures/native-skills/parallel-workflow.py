@@ -2,6 +2,8 @@
 """Exercise the parallel coordinator with private repositories and inert workers."""
 import json
 import fcntl
+import gc
+import warnings
 import os
 from pathlib import Path
 import signal
@@ -11,8 +13,13 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 
 ROOT = Path(sys.argv.pop(1)).resolve()
+sys.path.insert(0, str(ROOT))
+from shared import process_supervisor as supervisor
+
 HELPER = ROOT / 'scripts/helpers/parallel-workflow.py'
 STUB = r"""import json, os, signal, subprocess, sys, time
 from pathlib import Path
@@ -41,6 +48,11 @@ if plan.get('await_peer'):
         if time.monotonic() >= deadline: raise SystemExit(93)
         time.sleep(.02)
 if plan.get('action') == 'fail': raise SystemExit(42)
+if plan.get('action') == 'rename':
+    subprocess.run(['git', 'mv', 'base.txt', name + '.txt'], check=True)
+    subprocess.run(['git', 'commit', '-qm', 'rename'], check=True)
+    print('completed rename')
+    raise SystemExit(0)
 if plan.get('action') == 'emptycommit':
     subprocess.run(['git', 'commit', '--allow-empty', '-qm', 'empty'], check=True)
     print('empty commit')
@@ -134,6 +146,9 @@ class ParallelWorkflow(unittest.TestCase):
 
     def test_success_loads_plugin_and_preserves_the_canonical_worktree(self):
         run = self.prepare()
+        pending = self.call('status', '--run-dir', run, check=False)
+        self.assertNotEqual(pending.returncode, 0)
+        self.assertEqual(json.loads(pending.stdout)['status'], 'prepared')
         result, state = self.run_workers(run)
         package = state['packages']['WP-1']
         self.assertEqual(state['status'], 'success')
@@ -142,6 +157,8 @@ class ParallelWorkflow(unittest.TestCase):
         self.assertFalse(Path(package['worktree']).exists())
         self.assertEqual(run.stat().st_mode & 0o777, 0o700)
         self.assertEqual((run / 'context.json').stat().st_mode & 0o777, 0o600)
+        completed = self.call('status', '--run-dir', run)
+        self.assertEqual(json.loads(completed.stdout)['status'], 'success')
         self.assert_canonical_preserved()
 
     def test_dependent_package_receives_both_prerequisite_commits(self):
@@ -169,6 +186,31 @@ class ParallelWorkflow(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(state['packages']['WP-1']['exit_code'], 67)
         self.assertTrue(Path(state['packages']['WP-1']['worktree']).exists())
+
+    def test_git_diagnostics_do_not_corrupt_metadata(self):
+        real_git = shutil.which('git', path=self.env['PATH'])
+        self.assertTrue(real_git)
+        shim = self.bin / 'git'
+        shim.write_text('#!' + sys.executable + '\nimport os,sys\n'
+                        'os.write(2, b"warning: fixture Git diagnostic\\n")\n'
+                        'os.execv(' + repr(real_git) + ', [' + repr(real_git) + ', *sys.argv[1:]])\n')
+        shim.chmod(0o755)
+        run = self.prepare()
+        result, state = self.run_workers(run)
+        self.assertEqual(state['status'], 'success')
+        self.assertEqual(state['base'], self.original)
+        self.assert_canonical_preserved()
+
+    def test_rename_cannot_delete_an_out_of_scope_source(self):
+        self.git('config', 'diff.renames', 'true')
+        run = self.prepare()
+        result, state = self.run_workers(run, {'WP-1': {'action': 'rename'}}, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        package = state['packages']['WP-1']
+        self.assertEqual(package['exit_code'], 67)
+        self.assertTrue(Path(package['worktree']).exists())
+        self.assertTrue((self.repo / 'base.txt').exists())
+        self.assert_canonical_preserved()
 
     def test_failed_prerequisite_prevents_dependent_launch(self):
         run = self.prepare(self.proposal(('WP-1', 'WP-2'), {'WP-2': ['WP-1']}))
@@ -250,6 +292,9 @@ class ParallelWorkflow(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(state['reason'], 'wave-timeout')
         self.assertEqual(state['packages']['WP-2']['status'], 'not-started')
+        failed = self.call('status', '--run-dir', run, check=False)
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertEqual(json.loads(failed.stdout)['status'], 'failed')
         self.assert_children_stopped()
 
     def test_failure_cancels_a_running_peer_and_preserves_its_evidence(self):
@@ -273,6 +318,9 @@ class ParallelWorkflow(unittest.TestCase):
                 self.stop_controller(process)
                 self.fail('Inert worker did not reach its ready handshake')
             time.sleep(.02)
+        pending = self.call('status', '--run-dir', run, check=False)
+        self.assertNotEqual(pending.returncode, 0)
+        self.assertEqual(json.loads(pending.stdout)['status'], 'running')
         return process
 
     def stop_controller(self, process):
@@ -454,6 +502,67 @@ class ParallelWorkflow(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertLessEqual((run / 'WP-1/output.md').stat().st_size, 16 * 1024 * 1024)
         self.assertEqual(state['status'], 'failed')
+
+
+class SupervisorStreams(unittest.TestCase):
+    def collect(self, code, **options):
+        return supervisor.run_bounded_process_separate(
+            [sys.executable, '-c', code], ROOT, options.pop('timeout', 3),
+            shell=False, output_limit=options.pop('output_limit', 1024),
+            kill_grace=.1, **options)
+
+    def test_default_capture_still_merges_output(self):
+        code, output = supervisor.run_bounded_process(
+            [sys.executable, '-c', "import os; os.write(1,b'out'); os.write(2,b'err')"],
+            ROOT, 3, shell=False, output_limit=128)
+        self.assertEqual((code, output), (0, 'outerr'))
+
+    def test_separate_capture_keeps_exit_and_unicode_streams(self):
+        code, output, errors = self.collect("import os; os.write(1, 'value \\u03b1'.encode()); os.write(2, 'warning \\u03b2'.encode()); raise SystemExit(17)")
+        self.assertEqual(code, 17)
+        self.assertEqual(output, 'value \u03b1')
+        self.assertEqual(errors, 'warning \u03b2')
+
+    def test_strict_limit_counts_both_streams(self):
+        with self.assertRaises(supervisor.OutputLimitExceeded) as caught:
+            self.collect("import os; os.write(1,b'o'*900); os.write(2,b'e'*900)", strict_output=True)
+        error = caught.exception
+        self.assertLessEqual(len(error.output.encode()) + len(error.stderr.encode()), 1024)
+
+    def test_non_strict_stderr_retains_a_bounded_tail(self):
+        code, output, errors = self.collect("import os; os.write(2,b'x'*4096+b'TAIL')", output_limit=16)
+        self.assertEqual((code, output), (0, ''))
+        self.assertEqual(errors, 'x' * 12 + 'TAIL')
+
+    def test_timeout_keeps_both_streams(self):
+        with self.assertRaises(subprocess.TimeoutExpired) as caught:
+            self.collect("import os,time; os.write(1,b'output'); os.write(2,b'diagnostic'); time.sleep(20)", timeout=2)
+        self.assertEqual(caught.exception.output, 'output')
+        self.assertEqual(caught.exception.stderr, 'diagnostic')
+
+    def test_strict_capture_rejects_invalid_stderr_without_losing_stdout(self):
+        with self.assertRaises(UnicodeDecodeError) as caught:
+            self.collect("import os; os.write(1,b'metadata'); os.write(2,b'\\xff')", strict_output=True)
+        self.assertEqual(caught.exception.output, 'metadata')
+        self.assertEqual(caught.exception.stderr, '\ufffd')
+
+    def test_stderr_pipe_holders_do_not_hide_incomplete_output(self):
+        child = "import time; time.sleep(20)"
+        code = "import subprocess,sys; subprocess.Popen([sys.executable,'-c',%r], stdout=subprocess.DEVNULL); print('value',flush=True)" % child
+        with self.assertRaises(supervisor.IncompleteOutput):
+            self.collect(code, strict_output=True)
+
+    def test_threaded_collector_keeps_separate_streams_and_combined_limit(self):
+        with warnings.catch_warnings(record=True) as emitted:
+            warnings.simplefilter('always', ResourceWarning)
+            with patch.object(supervisor, 'os', SimpleNamespace(name='threaded')):
+                self.assertEqual(self.collect("import os; os.write(1,b'out'); os.write(2,b'err')"), (0, 'out', 'err'))
+                with self.assertRaises(supervisor.OutputLimitExceeded) as caught:
+                    self.collect("import os; os.write(1,b'o'*900); os.write(2,b'e'*900)", strict_output=True)
+                self.assertLessEqual(len(caught.exception.output.encode()) + len(caught.exception.stderr.encode()), 1024)
+                del caught
+            gc.collect()
+            self.assertFalse([item for item in emitted if issubclass(item.category, ResourceWarning)])
 
 
 if __name__ == '__main__':

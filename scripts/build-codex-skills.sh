@@ -300,10 +300,11 @@ EOF
 
 adapt_shared_paths_for_codex() {
     # Keep .claude/skills source paths intact while routing loaded entries and
-    # phase resources to this host's generated tree.
+    # phase resources to this host's generated tree. Bare inline directory
+    # names describe source roots rather than a file to load.
     sed -E \
-        -e 's@(^|[^[:alnum:]_.:/-])skills/@\1codex-skills/@g' \
-        -e 's@(\$\{?OCTO_ROOT\}?)/skills/@\1/codex-skills/@g'
+        -e 's@(^|[^[:alnum:]_.:/-])skills/([^`]|$)@\1codex-skills/\2@g' \
+        -e 's@(\$\{?OCTO_ROOT\}?)/skills/([^`]|$)@\1/codex-skills/\2@g'
 }
 
 # Translate only commands with an installed skill equivalent. Keep unknown

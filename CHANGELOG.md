@@ -16,7 +16,9 @@
 
 - Parallel work packages use a bounded coordinator with separate branches and
   worktrees. Dependents receive prerequisite commits, and failed or expired
-  runs retain evidence and stop later waves.
+  runs retain evidence and stop later waves. Git warnings stay separate from
+  metadata, and scope checks include files deleted by renames. Host guidance
+  waits for terminal results when a run needs a background command session.
 
 - Factory honors a declined run, snapshots inline specifications, and passes a
   selected satisfaction target to the pipeline. Reports and scores belong to

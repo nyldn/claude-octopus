@@ -170,6 +170,19 @@ edit the saved context by hand.
 
 ### STEP 6: Execute bounded dependency waves
 
+The `run` command blocks until its dependency waves finish. Before launch,
+choose a foreground tool timeout that covers the full multi-wave budget,
+including setup, verification and cleanup. A 600-second budget for each of
+several waves does not fit a 600-second foreground tool limit. If the total
+cannot fit, use the active host's supported background execution or persistent
+command session. Save its handle and the exact run directory.
+
+A background launch or yielded tool session is not a completed run. Await the
+owned session and poll `status` until the saved state is `success` or `failed`.
+Intermediate `prepared` and `running` states return nonzero and mean incomplete.
+Do not restart `run` after a tool yield, and do not apply the completion gate
+until the controller has stopped and the saved state is terminal.
+
 Use `--approve` only when the user's authorization covers the selected workers.
 Reuse a supplied concurrency limit and time budget. Defaults are at most three
 workers, a 600-second budget per wave, and a 12-second launch stagger. An

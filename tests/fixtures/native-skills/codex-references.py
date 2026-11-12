@@ -19,6 +19,19 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_source_directory_names_stay_distinct_from_loaded_resource_paths(self):
+        source = ('Enumerate `.claude/skills/`, `skills/`, and `codex-skills/`.\n'
+                  'Read `skills/blocks/evidence.md` and `$OCTO_ROOT/skills/$SKILL/SKILL.md`.\n'
+                  'Read "${OCTO_ROOT}/skills/flow-parallel/SKILL.md".\n')
+        expected = ('Enumerate `.claude/skills/`, `skills/`, and `codex-skills/`.\n'
+                    'Read `codex-skills/blocks/evidence.md` and `$OCTO_ROOT/codex-skills/$SKILL/SKILL.md`.\n'
+                    'Read "${OCTO_ROOT}/codex-skills/flow-parallel/SKILL.md".\n')
+        result = subprocess.check_output([
+            '/bin/bash', '-eu', '-c',
+            'source "$1"; adapt_shared_paths_for_codex', 'fixture', str(GENERATOR)
+        ], input=source, text=True)
+        self.assertEqual(result, expected)
+
     def test_user_routes_reach_installed_skills(self):
         routes = {
             "parallel": "flow-parallel", "quick": "octopus-quick",
