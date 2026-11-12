@@ -56,8 +56,9 @@ else
     test_fail "dry-run reported provider failures: $out"
 fi
 
-test_case "dry-run code-review leaves no proof packet, findings or fallback record"
-records="$(find "$workspace" \( -path '*/runs/*' -o -name 'review-*findings-*.json' -o -name 'provider-fallbacks.log' \) \
+test_case "dry-run code-review leaves no proof packet, findings, fallback record or run-id reservation"
+records="$(find "$workspace" \( -path '*/runs/*' -o -name 'review-*findings-*.json' -o -name 'provider-fallbacks.log' \
+    -o -path '*/.octo/task-ids/*' \) \
     -type f 2>/dev/null | tr '\n' ' ' || true)"
 if [[ -z "$records" ]]; then
     test_pass

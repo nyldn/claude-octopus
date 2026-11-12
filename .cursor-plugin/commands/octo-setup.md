@@ -30,7 +30,7 @@ made a choice.
 ```bash
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
 if [[ ! -r "$OCTO_ROOT/scripts/helpers/preflight.sh" ]]; then
-  OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+  OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 fi
 if [[ ! -r "$OCTO_ROOT/scripts/helpers/preflight.sh" ]]; then
   OCTO_ROOT="$(find "${HOME}/.claude/plugins/cache" "${HOME}/Library/Application Support/Claude" "${LOCALAPPDATA:-/dev/null}/Claude" "${XDG_DATA_HOME:-${HOME}/.local/share}/Claude" -maxdepth 8 -path '*/nyldn-plugins/octo/*/scripts/helpers/preflight.sh' -exec test -r '{}' \; -print -quit 2>/dev/null | sed 's#/scripts/helpers/preflight.sh$##')"
@@ -151,6 +151,11 @@ setup_invalidate_existing() {
 
 setup_readiness_capture() {
   set -o pipefail
+  local _octo_vibe_check_context=automatic
+  if [[ "${SETUP_FLOW:-}" == one-provider && "${SETUP_PROVIDER:-}" == vibe ]]; then
+    _octo_vibe_check_context=selected
+  fi
+  _octo_vibe_check_context="$_octo_vibe_check_context" \
   bash "${OCTO_ROOT}/scripts/helpers/preflight.sh" --json 2>/dev/null |
     python3 "$READINESS_CONTRACT_HELPER" --input -
 }
@@ -162,6 +167,8 @@ Run one static, local-only readiness check. This is the same Provider Registry
 2.0 contract used by Doctor, `detect-providers`, and workflow admission.
 
 ```bash
+SETUP_FLOW="$(jq -r '.record.flow // ""' <<<"$SETUP_RECEIPT")"
+SETUP_PROVIDER="$(jq -r '.record.provider // ""' <<<"$SETUP_RECEIPT")"
 if ! READINESS_JSON="$(setup_readiness_capture 2>/dev/null)"; then
   setup_invalidate_existing initial-readiness-check-failed || exit $?
   echo "Provider readiness check failed or returned invalid data. Run /octo:skill-doctor in Claude Code or 'octopus doctor providers --json' in a shell."
@@ -249,6 +256,13 @@ readiness. This clears stale completion before any human action can be cancelled
 
 ```bash
 if [[ "$SETUP_FLOW" == one-provider ]]; then
+  # Selection authorizes Vibe's keyring check before proposing remediation.
+  if [[ "$SETUP_PROVIDER" == vibe ]] &&
+     ! READINESS_JSON="$(setup_readiness_capture 2>/dev/null)"; then
+    setup_fail_recheck readiness-check-failed || exit $?
+    echo "The selected provider readiness check failed."
+    exit 1
+  fi
   SETUP_PROVIDER_RESULT="$(jq -c --arg provider "$SETUP_PROVIDER" \
     '.results[] | select(.provider == $provider)' <<<"$READINESS_JSON")"
   [[ -n "$SETUP_PROVIDER_RESULT" ]] || {

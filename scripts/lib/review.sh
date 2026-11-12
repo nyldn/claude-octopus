@@ -1119,7 +1119,8 @@ review_slurp_provider_json() (
 # Provider output is untrusted and may contain multiple top-level JSON values.
 # Canonicalize exactly one findings document before any arithmetic, rendering,
 # or persistence. Multiple documents are rejected rather than concatenated,
-# and exact duplicate findings collapse to one deterministic entry.
+# and exact duplicate findings collapse to one deterministic entry. Verified
+# records use every field as identity; Round 1 retains its location-based key.
 review_normalize_findings_json() {
     review_slurp_provider_json '
         if length == 1
@@ -1128,19 +1129,12 @@ review_normalize_findings_json() {
            and all(.[0].findings[]; type == "object")
         then .[0]
              | .findings |= (
-                 reduce .[] as $finding
-                   ({seen:{}, ordered:[]};
-                    ($finding | [
-                      (.file // ""),
-                      ((.line // 0) | tostring),
-                      (.category // ""),
-                      (.title // .message // "")
-                    ] | @json) as $key
-                    | if .seen[$key]
-                      then .
-                      else .seen[$key] = true | .ordered += [$finding]
-                      end)
-                 | .ordered
+                 to_entries
+                 | group_by(.value | if has("verdict") then . else [
+                     (.file // ""), ((.line // 0) | tostring),
+                     (.category // ""), (.title // .message // "")
+                   ] end)
+                 | map(min_by(.key)) | sort_by(.key) | map(.value)
                )
         else error("expected exactly one object with a findings array")
         end
@@ -1200,6 +1194,10 @@ review_local_synthesis_json() {
     local findings_json="$1"
     local warning="${2:-}"
     local sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; if all(.[]; type == "object") then to_entries | reduce .[] as $entry ({seen:{}, ordered:[]}; ($entry.value | [(.file // ""), ((.line // 0) | tostring), (.category // ""), (.title // .message // "")] | @json) as $key | if .seen[$key] then . else .seen[$key] = true | .ordered += [$entry] end) | .ordered | sort_by([(.value | severity_rank), .key]) | map(.value) else error("expected object findings entries") end'
+    # Verified records retain every original entry, even at a shared location.
+    if [[ "${3:-false}" == true ]]; then
+        sort_filter='def severity_rank: if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end; if all(.[]; type == "object") then sort_by(severity_rank) else error("expected object findings entries") end'
+    fi
     if [[ -n "$warning" ]]; then
         printf '%s' "$findings_json" | jq -c --arg warning "$warning" "{findings:(. // [] | ${sort_filter}), warning:\$warning}" 2>/dev/null \
             || printf '{"findings":[],"warning":%s}\n' "$(printf '%s' "$warning" | jq -R .)"
@@ -1463,6 +1461,15 @@ review_collect_diff() {
     esac
 
     printf '%s' "$diff_content"
+}
+
+# REVIEW.md skip entries select whole file blocks, never individual hunk lines.
+review_filter_diff() {
+    if [[ -z "${REVIEW_SKIP_PATTERNS:-}" ]]; then
+        cat
+        return
+    fi
+    python3 "${_agent_spec_lib_dir}/../helpers/review-diff-filter.py" "$REVIEW_SKIP_PATTERNS"
 }
 
 # review_run: canonical 3-round multi-LLM code review pipeline
@@ -1732,28 +1739,234 @@ print_provider_report() {
     rm -f "$extra_status_file"
 }
 
+review_next_run_id() {
+    local reservation_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/task-ids" reservation
+    mkdir -p "$reservation_dir" 2>/dev/null || true
+    if declare -F _octopus_prune_task_id_reservations >/dev/null 2>&1; then
+        _octopus_prune_task_id_reservations "$reservation_dir"
+    fi
+    reservation=$(mktemp "${reservation_dir}/XXXXXX" 2>/dev/null) || return 1
+    printf '%s-%s\n' "$(date +%s)" "${reservation##*/}"
+}
+
+review_verifier_input_budget() {
+    local provider="$1" budget="${OCTOPUS_CONTEXT_BUDGET:-200000}" proportion=100
+    if declare -F get_provider_context_limit >/dev/null 2>&1; then
+        budget=$(get_provider_context_limit "$provider" review implementation-verifier) || return 1
+    fi
+    if declare -F get_role_budget_proportion >/dev/null 2>&1; then
+        proportion=$(get_role_budget_proportion implementation-verifier) || return 1
+    fi
+    [[ "$budget" =~ ^[0-9]+$ && "$proportion" =~ ^[0-9]+$ ]] || return 1
+    # Half the effective token window remains for method/persona additions.
+    printf '%s\n' "$((10#$budget * 10#$proportion / 100 * 2))"
+}
+
+review_validate_verdicts() {
+    local originals="$1" normalized
+    normalized=$(review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d' |
+        review_slurp_provider_json '
+            if length == 1 and (.[0] | type == "object") and (.[0].findings | type == "array")
+               and all(.[0].findings[]; type == "object") then .[0]
+            else error("expected one verifier findings document") end') || return 1
+    [[ -n "$normalized" ]] || return 1
+    printf '%s' "$normalized" | jq -e --slurpfile original "$originals" '
+            def original_fields: del(.verdict, .pre_existing_newly_reachable);
+            if all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate") and
+               ([.findings[] | original_fields] | sort) == ([$original[0][] | original_fields] | sort)
+            then . else error("incomplete or invalid verifier verdicts") end'
+}
+
+# Only the existing unmanaged fallback uses this path. Its smaller context
+# limit must not restrict the initial provider or clip its failed batch.
+review_verifier_fallback() (
+    local inputs="$1" originals="$2" provider="$3" statuses="$4"
+    local dir budget batch response rows combined='[]' failed=false
+    budget=$(review_verifier_input_budget "$provider") || return 1
+    umask 077
+    dir=$(mktemp -d "$inputs/fallback.XXXXXX") || return 1
+    # Capture the private path before Bash 3.2 unwinds function locals on exit.
+    local cleanup_command
+    printf -v cleanup_command 'rm -rf -- %q' "$dir"
+    # shellcheck disable=SC2064
+    trap "$cleanup_command" EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    if ! python3 -I "${_agent_spec_lib_dir}/../helpers/review-verification-batches.py" \
+        --diff "$inputs/diff" --context "$inputs/context" --findings "$originals" \
+        --output "$dir" --max-bytes "$budget"; then
+        review_append_provider_status "$statuses" "$provider" implementation-verifier fallback "Complete fallback input cannot fit"
+        rm -rf "$dir"
+        return 1
+    fi
+    for batch in "$dir"/batch-*.prompt; do
+        if response=$(OCTOPUS_OVERSIZE_STRATEGY=fail review_run_agent_sync_progress "$provider" "$(cat "$batch")" implementation-verifier review "fallback-verifier-$(octo_agent_spec_slug "$provider")") &&
+           rows=$(printf '%s' "$response" | review_validate_verdicts "${batch%.prompt}.json" 2>/dev/null); then
+            review_append_provider_status "$statuses" "$provider" implementation-verifier ok "Round 2 fallback verification"
+        else
+            review_append_provider_status "$statuses" "$provider" implementation-verifier fallback "Round 2 fallback unavailable or invalid; preserving findings"
+            failed=true
+            rows=$(jq '{findings:map(. + {verdict:"unverified"})}' "${batch%.prompt}.json")
+        fi
+        combined=$(printf '%s\n%s\n' "$combined" "$rows" | jq -s '.[0] + .[1].findings') || { rm -rf "$dir"; return 1; }
+    done
+    rm -rf "$dir"
+    printf '{"findings":%s}\n' "$combined"
+    [[ "$failed" == false ]]
+)
+
+# Verify complete batches in a subshell so cleanup never replaces caller traps.
+review_verify_findings() (
+    local diff_content="$1" all_findings="$2" review_contract_context="$3" provider_status_file="$4"
+    local verifier_prompt verified_findings verifier_provider batch_findings
+    local verifier_dir verifier_budget verifier_inputs_ok=true verification_incomplete=false combined_verified='[]'
+    verifier_provider="$(review_phase_provider "codex" "implementation-verifier")" || return 1
+    umask 077
+    verifier_dir=$(mktemp -d "${TMPDIR:-/tmp}/octopus-verifier-input.XXXXXX") || return 1
+    # The EXIT handler must not depend on function-local lifetime (Bash 3.2).
+    local cleanup_command
+    printf -v cleanup_command 'rm -rf -- %q' "$verifier_dir"
+    # shellcheck disable=SC2064
+    trap "$cleanup_command" EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    printf '%s' "$diff_content" > "$verifier_dir/diff" || return 1
+    printf '%s' "$all_findings" > "$verifier_dir/findings" || return 1
+    printf '%s' "$review_contract_context" > "$verifier_dir/context" || return 1
+    # Leave half the effective token window for method/persona/transport inputs.
+    # Dispatch uses fail admission: no mandatory verifier input may be truncated.
+    if ! verifier_budget=$(review_verifier_input_budget "$verifier_provider") ||
+       ! python3 -I "${_agent_spec_lib_dir}/../helpers/review-verification-batches.py" \
+        --diff "$verifier_dir/diff" --findings "$verifier_dir/findings" \
+        --context "$verifier_dir/context" --output "$verifier_dir" --max-bytes "$verifier_budget"; then
+        verifier_inputs_ok=false
+        verification_incomplete=true
+        log WARN "review_run: complete verifier input cannot fit; preserving unverified findings without provider calls"
+    fi
+    if [[ "$verifier_inputs_ok" == true ]]; then
+        local verifier_batch verifier_transport_failed verifier_response_validated actual_verifier_provider
+        for verifier_batch in "$verifier_dir"/batch-*.prompt; do
+            [[ -f "$verifier_batch" ]] || continue
+            verifier_transport_failed=false
+            verifier_response_validated=false
+            actual_verifier_provider="$verifier_provider"
+            verifier_prompt=$(cat "$verifier_batch")
+            batch_findings=$(cat "${verifier_batch%.prompt}.json")
+            if [[ -n "${OCTOPUS_REVIEW_SINGLE_PROVIDER:-}" || -n "${OCTOPUS_REVIEW_VERIFIER_AGENT:-}" ]]; then
+                verified_findings=$(OCTOPUS_OVERSIZE_STRATEGY=fail review_run_agent_sync_progress "$verifier_provider" "$verifier_prompt" "implementation-verifier" "review" "verifier-$(octo_agent_spec_slug "$verifier_provider")") && {
+                    review_append_provider_status "$provider_status_file" "$verifier_provider" implementation-verifier ok "Round 2 verification"
+                } || {
+                    log WARN "review_run: ${verifier_provider} verification failed, preserving unverified findings"
+                    verifier_transport_failed=true
+                    review_append_provider_status "$provider_status_file" "$verifier_provider" implementation-verifier fallback "Round 2 verification failed; preserving Round 1 findings"
+
+                }
+            else
+                verified_findings=$(OCTOPUS_OVERSIZE_STRATEGY=fail review_run_agent_sync_progress "codex" "$verifier_prompt" "implementation-verifier" "review" "verifier-codex") && {
+                    review_append_provider_status "$provider_status_file" codex implementation-verifier ok "Round 2 verification"
+                } || {
+                    log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
+                    log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change." >&2
+                    review_append_provider_status "$provider_status_file" codex implementation-verifier fallback "Round 2 → claude-sonnet"
+                    actual_verifier_provider=claude-sonnet
+                    verified_findings=$(review_verifier_fallback "$verifier_dir" "${verifier_batch%.prompt}.json" claude-sonnet "$provider_status_file") && {
+                        verifier_response_validated=true
+                    } || {
+                        log WARN "review_run: verification failed entirely, preserving unverified findings"
+                        verifier_transport_failed=true
+                    }
+                }
+            fi
+            if [[ "$verifier_transport_failed" == false && "$verifier_response_validated" == false ]]; then
+                local normalized_verified_findings
+                if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_validate_verdicts "${verifier_batch%.prompt}.json" 2>/dev/null); then
+                    verified_findings="$normalized_verified_findings"
+                else
+                    log WARN "review_run: verification returned invalid or multi-document findings JSON; preserving Round 1 findings"
+                    review_append_provider_status "$provider_status_file" "$actual_verifier_provider" implementation-verifier fallback "Verification response incomplete or invalid"
+                    verifier_transport_failed=true
+                fi
+            fi
+            if [[ "$verifier_transport_failed" == true ]]; then
+                verification_incomplete=true
+                verified_findings=$(printf '{"findings":%s}' "$(echo "$batch_findings" | jq 'map(. + {"verdict":"unverified"})')")
+            fi
+
+            combined_verified=$(printf '%s\n%s\n' "$combined_verified" "$verified_findings" | jq -s '.[0] + .[1].findings') || { rm -rf "$verifier_dir"; return 1; }
+        done
+        verified_findings=$(printf '{"findings":%s}' "$combined_verified")
+    else
+        verified_findings=$(printf '{"findings":%s}' "$(echo "$all_findings" | jq 'map(. + {"verdict":"unverified"})')")
+    fi
+    rm -rf "$verifier_dir"
+
+    if [[ "$verification_incomplete" == true ]]; then
+        printf '%s' "$verified_findings" | jq '. + {verification_status:"incomplete"}'
+    else
+        printf '%s\n' "$verified_findings"
+    fi
+)
+
 # parallel fleet (Round 1) + verification (Round 2) + synthesis (Round 3)
 # that competes with CC Code Review's managed service.
 #
 # Args: JSON profile string with fields:
 #   target, focus, provenance, autonomy, publish, debate
+# Close failed review proof/report paths, optionally preserving saved findings.
+review_fail_closed() {
+    local findings="$1" proof="$2" providers="$3" message="$4"
+    local preserve_findings="${5:-false}"
+    log ERROR "review_run: $message"
+    if [[ "$preserve_findings" != true ]]; then
+        review_local_synthesis_json "[]" "$message" > "$findings" || true
+    fi
+    if [[ -n "$proof" ]]; then
+        [[ ! -s "$findings" ]] || octo_proof_artifact "$proof" "review-findings" "$findings" "$message" || true
+        octo_proof_capture_provider_status "$proof" "$providers" || true
+        octo_proof_finalize "$proof" fail "$message" || true
+    fi
+    render_terminal_report "$findings" || true
+    print_provider_report "$providers" || true
+    rm -f "$providers"
+    return 1
+}
+
+# Run independent review, verification and synthesis from a JSON profile. A strict
+# clean first round may skip later calls; findings, proof and provider reports remain.
 review_run() {
     local _ts; _ts=$(date +%s)
     local profile_json="${1:-"{}"}"
 
     # Parse profile fields (with defaults)
     local target focus provenance autonomy publish debate history context_file context_text context_label artifact_id
-    target=$(echo "$profile_json"       | jq -r '.target       // "staged"')
-    focus=$(echo "$profile_json"        | jq -r '.focus        // ["correctness","security","architecture","tdd"]  | join(",")')
-    provenance=$(echo "$profile_json"   | jq -r '.provenance   // "unknown"')
-    autonomy=$(echo "$profile_json"     | jq -r '.autonomy     // "supervised"')
-    publish=$(echo "$profile_json"      | jq -r '.publish      // "ask"')
-    debate=$(echo "$profile_json"       | jq -r '.debate       // "auto"')
-    history=$(echo "$profile_json"      | jq -r '.history      // "auto"')
-    context_file=$(echo "$profile_json" | jq -r '.contextFile  // .context_file  // empty')
-    context_text=$(echo "$profile_json" | jq -r '.contextText  // .context_text  // empty')
-    context_label=$(echo "$profile_json"| jq -r '.contextLabel // .context_label // "Review context / task contract"')
-    artifact_id=$(echo "$profile_json"  | jq -r '.artifactId   // .artifact_id   // empty')
+    local profile_values=() profile_value
+    while IFS= read -r -d '' profile_value; do
+        profile_values+=("$profile_value")
+    done < <(printf '%s' "$profile_json" | jq -j '
+        [(.target       // "staged"),
+         (.focus        // ["correctness","security","architecture","tdd"]  | join(",")),
+         (.provenance   // "unknown"),
+         (.autonomy     // "supervised"),
+         (.publish      // "ask"),
+         (.debate       // "auto"),
+         (.history      // "auto"),
+         (.contextFile  // .context_file  // ""),
+         (.contextText  // .context_text  // ""),
+         (.contextLabel // .context_label // "Review context / task contract"),
+         (.artifactId   // .artifact_id   // "")]
+        | .[] | tostring | sub("\n+$"; "") + "\u0000"')
+    [[ "${#profile_values[@]}" -eq 11 ]] || return 1
+    target="${profile_values[0]}"
+    focus="${profile_values[1]}"
+    provenance="${profile_values[2]}"
+    autonomy="${profile_values[3]}"
+    publish="${profile_values[4]}"
+    debate="${profile_values[5]}"
+    history="${profile_values[6]}"
+    context_file="${profile_values[7]}"
+    context_text="${profile_values[8]}"
+    context_label="${profile_values[9]}"
+    artifact_id="${profile_values[10]}"
     if [[ "$target" == "fresh" ]]; then
         target="working-tree"
         history="fresh"
@@ -1783,7 +1996,16 @@ review_run() {
 
     # Include the caller-provided identity in every cooperative worker task ID.
     # Cancellation can then reap only the workers owned by this review invocation.
-    local timestamp="$_ts${artifact_id:+-${artifact_id}}"
+    local timestamp
+    if [[ -n "$artifact_id" ]]; then
+        timestamp="$_ts-$artifact_id"
+    elif [[ "${DRY_RUN:-false}" == "true" ]]; then
+        timestamp="$_ts"
+    elif ! timestamp=$(review_next_run_id); then
+        log ERROR "review_run: could not reserve a run id"
+        rm -f "$provider_status_file"
+        return 1
+    fi
     local results_dir="${RESULTS_DIR:-$HOME/.claude-octopus/results}"
     # Sync RESULTS_DIR global so spawn_agent writes to the same directory
     RESULTS_DIR="$results_dir"
@@ -1895,6 +2117,11 @@ Use this context as the requested behavior and constraints. Flag severity=normal
     # ── Collect diff ─────────────────────────────────────────────────────────
     local diff_content=""
     diff_content=$(review_collect_diff "$target")
+    local review_input_diff="$diff_content"
+    if ! diff_content=$(printf '%s' "$diff_content" | review_filter_diff); then
+        review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not apply REVIEW.md skip patterns"
+        return 1
+    fi
 
     if [[ -z "$diff_content" ]]; then
         log WARN "review_run: no diff found for target=$target"
@@ -1909,14 +2136,6 @@ Use this context as the requested behavior and constraints. Flag severity=normal
         rm -f "$provider_status_file"
         render_terminal_report "$findings_file"
         return 1
-    fi
-
-    # Apply skip patterns from REVIEW.md (pre-filter before spending tokens)
-    if [[ -n "$REVIEW_SKIP_PATTERNS" ]]; then
-        while IFS= read -r pattern; do
-            [[ -z "$pattern" ]] && continue
-            diff_content=$(echo "$diff_content" | grep -v "$pattern" || true)
-        done <<< "$REVIEW_SKIP_PATTERNS"
     fi
 
     # ── Round-aware PR review state (#322) ───────────────────────────────────
@@ -2001,6 +2220,18 @@ Use this context as the requested behavior and constraints. Flag severity=normal
         rm -f "$provider_status_file"
         render_terminal_report "$findings_file"
         return "$fleet_status"
+    fi
+
+    if [[ -z "$fleet" ]]; then
+        log ERROR "review_run: no required reviewers; refusing clean result"
+        printf '%s\n' '{"findings":[],"warning":"No required reviewers available"}' > "$findings_file" || return 1
+        if [[ -n "$proof_dir" ]]; then
+            octo_proof_capture_provider_status "$proof_dir" "$provider_status_file"
+            octo_proof_finalize "$proof_dir" "fail" "No required reviewers available"
+        fi
+        render_terminal_report "$findings_file"
+        print_provider_report "$provider_status_file"
+        return 1
     fi
 
     local agent_prompt_base
@@ -2216,7 +2447,7 @@ ${round1_prompts[$retry_idx]}"
     if [[ "$round1_partial_count" -gt 0 || "$round1_parse_miss_count" -gt 0 ]]; then
         round1_warning="Round 1 was partial: ${round1_partial_count} provider(s) missing/failed/timed out, ${round1_parse_miss_count} provider output(s) had possible unparsed findings."
     fi
-    review_local_synthesis_json "$all_findings" "$round1_warning" > "$round1_findings_file"
+    review_local_synthesis_json "$all_findings" "$round1_warning" > "$round1_findings_file" || return 1
     log INFO "review_run: Round 1 findings snapshot saved to $round1_findings_file"
 
     # v9.20.1: Detect total fleet failure — all providers crashed/timed out (#255)
@@ -2246,63 +2477,51 @@ ${round1_prompts[$retry_idx]}"
         return 1
     fi
 
+    # Only an intact, nonempty roster with strict empty JSON may skip models.
+    local complete_empty=false current_diff
+    if [[ "${#round1_files[@]}" -gt 0 && "$round1_partial_count" -eq 0 && "$round1_parse_miss_count" -eq 0 && "$all_findings" == "[]" ]]; then
+        complete_empty=true
+        for f in "${round1_files[@]}"; do
+            if ! review_result_completed_successfully "$f" ||
+               ! review_extract_output_text "$f" | review_strip_external_cli_wrapper | jq -se '
+                   length == 1 and (.[0] | type == "object" and keys == ["findings"] and .findings == [])' >/dev/null 2>&1; then
+                complete_empty=false
+                break
+            fi
+        done
+        if [[ "$complete_empty" == true ]]; then
+            current_diff=$(review_collect_diff "$target") || {
+                review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not collect the current diff"
+                return 1
+            }
+            [[ "$current_diff" == "$review_input_diff" ]] || {
+                review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Diff changed during review"
+                return 1
+            }
+            jq -e '.findings == [] and (.warning // "") == ""' "$round1_findings_file" >/dev/null || {
+                review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Round 1 snapshot could not be verified"
+                return 1
+            }
+        fi
+    fi
+    local verification_incomplete=false final_json synth_ok=false synthesis_provider synthesis_provider_key
+    if [[ "$complete_empty" == true ]]; then
+        log INFO "review_run: complete empty Round 1; verification and synthesis require no model calls"
+        final_json=$(review_local_synthesis_json "[]" "") || return 1
+    else
     # ── ROUND 2: Verification ─────────────────────────────────────────────────
     log INFO "review_run: Round 2 — verification"
-    local verifier_prompt
-    verifier_prompt="You are a code review verifier. For each finding below, check whether it is a real bug (confirmed), a false positive, or needs debate (uncertain/conflicting).
-
-Return ONLY JSON: same findings array with an added 'verdict' field: confirmed|false-positive|needs-debate.
-Also add 'pre_existing_newly_reachable': true if a pre-existing finding becomes reachable via this PR changes.
-
-${review_contract_context}
-
-Diff:
-\`\`\`
-${diff_content}
-\`\`\`
-
-Findings to verify:
-$(echo "$all_findings" | jq -c '.')
-
-Return ONLY valid JSON with 'findings' array including verdict field."
-
-    local verified_findings verifier_provider
-    verifier_provider="$(review_phase_provider "codex" "implementation-verifier")" || return 1
-    if [[ -n "${OCTOPUS_REVIEW_SINGLE_PROVIDER:-}" || -n "${OCTOPUS_REVIEW_VERIFIER_AGENT:-}" ]]; then
-        verified_findings=$(review_run_agent_sync_progress "$verifier_provider" "$verifier_prompt" "implementation-verifier" "review" "verifier-$(octo_agent_spec_slug "$verifier_provider")") && {
-            review_append_provider_status "$provider_status_file" "$verifier_provider" implementation-verifier ok "Round 2 verification"
-        } || {
-            log WARN "review_run: ${verifier_provider} verification failed, using all findings as confirmed"
-            review_append_provider_status "$provider_status_file" "$verifier_provider" implementation-verifier fallback "Round 2 verification failed; preserving Round 1 findings"
-            verified_findings=$(printf '{"findings":%s}' "$(
-                echo "$all_findings" | jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]"
-            )")
-        }
-    else
-        verified_findings=$(review_run_agent_sync_progress "codex" "$verifier_prompt" "implementation-verifier" "review" "verifier-codex") && {
-            review_append_provider_status "$provider_status_file" codex implementation-verifier ok "Round 2 verification"
-        } || {
-            log WARN "review_run: codex verifier failed, falling back to claude-sonnet"
-            log "USER" "⚠ Round 2: Codex unavailable → claude-sonnet (fallback). Codex API usage will NOT change."
-            review_append_provider_status "$provider_status_file" codex implementation-verifier fallback "Round 2 → claude-sonnet"
-            verified_findings=$(review_run_agent_sync_progress "claude-sonnet" "$verifier_prompt" "implementation-verifier" "review" "verifier-claude-sonnet") || {
-                log WARN "review_run: verification failed entirely, using all findings as confirmed"
-                verified_findings=$(printf '{"findings":%s}' "$(
-                    echo "$all_findings" | jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]"
-                )")
-            }
-        }
+    local verified_findings
+    if ! verified_findings=$(review_verify_findings "$diff_content" "$all_findings" "$review_contract_context" "$provider_status_file"); then
+        verification_incomplete=true
+        verified_findings=$(printf '%s' "$all_findings" | jq '{findings:map(. + {verdict:"unverified"})}') || return 1
     fi
-    # v9.3.1: Strip markdown fences that LLMs wrap around JSON responses (#188)
-    verified_findings=$(echo "$verified_findings" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
-    local normalized_verified_findings
-    if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_normalize_findings_json 2>/dev/null); then
-        verified_findings="$normalized_verified_findings"
-    else
-        log WARN "review_run: verification returned invalid or multi-document findings JSON; preserving Round 1 findings"
-        verified_findings=$(printf '{"findings":%s}' "$(
-            echo "$all_findings" | jq 'map(. + {"verdict":"confirmed"})' 2>/dev/null || echo "[]"
-        )")
+
+    if printf '%s' "$verified_findings" | jq -e '.verification_status == "incomplete" or any(.findings[]; .verdict == "unverified")' >/dev/null; then
+        verification_incomplete=true
+    fi
+    if [[ "$verification_incomplete" == true ]]; then
+        round1_warning="${round1_warning:+$round1_warning }Independent verification was unavailable or invalid; findings remain unverified and publication is disabled."
     fi
 
     # Filter false positives
@@ -2380,33 +2599,44 @@ Return ONLY JSON: {\"decisions\":[{\"debate_id\":\"finding-0\",\"decision\":\"in
     # ── ROUND 3: Synthesis ────────────────────────────────────────────────────
     log INFO "review_run: Round 3 — synthesis"
     local synthesis_prompt
-    synthesis_prompt="Deduplicate and rank these code review findings by severity (normal first, then nit, then pre-existing). Merge duplicate findings (same bug from multiple agents) into one entry, preserving all agent perspectives in the detail field.
+    synthesis_prompt="Rank these verified code review findings by severity (normal first, then nit, then pre-existing). Preserve every supplied finding, including duplicate records, and every field exactly. Only reorder the findings; do not merge, remove, add or edit them.
 
 Findings: $(echo "$confirmed_findings" | jq -c '.')
 
-Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
+Return ONLY JSON: {\"findings\": [...ranked, unchanged findings...]}"
 
-    local final_json synth_ok="true" synthesis_provider synthesis_provider_key
+    synth_ok="true"
     synthesis_provider="$(review_phase_provider "claude-sonnet" "implementation-synthesizer")" || return 1
     synthesis_provider_key="$(review_provider_key_from_agent_type "$synthesis_provider")"
     final_json=$(review_run_agent_sync_progress "$synthesis_provider" "$synthesis_prompt" "implementation-synthesizer" "review" "synthesis-$(octo_agent_spec_slug "$synthesis_provider")") && {
         review_append_provider_status "$provider_status_file" "$synthesis_provider" implementation-synthesizer ok "Round 3 synthesis"
     } || {
         synth_ok="false"
-        log WARN "review_run: ${synthesis_provider} synthesis failed, using confirmed findings sorted as-is"
+        log WARN "review_run: ${synthesis_provider} synthesis failed, using retained findings sorted as-is"
         review_append_provider_status "$provider_status_file" "$synthesis_provider" implementation-synthesizer fallback "Round 3 synthesis failed; using local deterministic fallback"
-        final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")"
+        final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning" true)"
     }
 
     # v9.3.1: Strip markdown fences from synthesis result (#188)
     final_json=$(echo "$final_json" | review_strip_external_cli_wrapper | sed '/^```json$/d; /^```JSON$/d; /^```$/d')
-    local normalized_final_json
-    if ! normalized_final_json=$(printf '%s' "$final_json" | review_normalize_findings_json 2>/dev/null); then
+    local normalized_final_json expected_final_json
+    expected_final_json=$(review_local_synthesis_json "$confirmed_findings" "" true)
+    if ! normalized_final_json=$(printf '%s' "$final_json" | review_slurp_provider_json '
+        if length == 1 and (.[0] | type == "object") and (.[0].findings | type == "array")
+           and all(.[0].findings[]; type == "object") then .[0]
+        else error("expected one synthesis findings document") end' 2>/dev/null); then
         log WARN "review_run: synthesis returned invalid or multi-document findings JSON, using local fallback"
-        final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")
+        final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning" true)
         synth_ok="false"
+    elif ! printf '%s\n%s\n' "$normalized_final_json" "$expected_final_json" |
+        jq -es '(.[0].findings | sort) == (.[1].findings | sort)' >/dev/null; then
+        log WARN "review_run: synthesis changed verified findings, using local fallback"
+        final_json="$expected_final_json"
+        synth_ok=false
     else
-        final_json="$normalized_final_json"
+        # The comparison permits ordering changes only, retaining every record.
+        final_json=$(printf '%s' "$normalized_final_json" | jq -c '
+            {findings:(.findings | sort_by(if .severity == "normal" then 0 elif .severity == "nit" then 1 elif .severity == "pre-existing" then 2 else 3 end))}')
     fi
     if [[ -n "$round1_warning" ]]; then
         local warned_final_json
@@ -2414,17 +2644,26 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
             jq -c --arg warning "$round1_warning" '. + {warning:$warning}' 2>/dev/null); then
             final_json="$warned_final_json"
         else
-            final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning")
+            final_json=$(review_local_synthesis_json "$confirmed_findings" "$round1_warning" true)
             synth_ok="false"
         fi
+    fi
+
+    # Synthesis cannot upgrade findings when the independent verifier failed.
+    if [[ "$verification_incomplete" == true ]]; then
+        final_json="$(review_local_synthesis_json "$confirmed_findings" "$round1_warning" true)"
+        final_json=$(printf '%s' "$final_json" | jq '. + {verification_status:"incomplete"}')
+        synth_ok=false
     fi
 
     if [[ "$debate_audit" != "[]" ]]; then
         final_json=$(printf '%s\n%s\n%s\n' "$final_json" "$debate_audit" "$debate_excluded" | jq -sc --arg provider "$debate_provider" '.[0] + {debate:{provider:$provider,decisions:.[1]},excluded:.[2]}')
     fi
 
+    fi
+
     # Write findings file
-    printf '%s\n' "$final_json" > "$findings_file"
+    printf '%s\n' "$final_json" > "$findings_file" || return 1
     log INFO "review_run: findings saved to $findings_file"
 
     # #498: emit a synthesis lifecycle event when Round 3 synthesis succeeds.
@@ -2439,7 +2678,10 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
     fi
 
     if [[ -n "$proof_dir" ]]; then
-        octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "final review findings"
+        octo_proof_artifact "$proof_dir" "review-findings" "$findings_file" "final review findings" || {
+            review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not attach review findings to the proof packet" true
+            return 1
+        }
     fi
 
     if [[ -n "$review_state_file" ]] && declare -F pr_review_state_append_round >/dev/null 2>&1; then
@@ -2453,25 +2695,29 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
         if pr_review_state_append_round "$review_state_file" "$review_host" "$review_repo" "$review_pr_number" "$review_head_sha" "$providers_json" "$final_findings" "$classification" 2>/dev/null; then
             log INFO "review_run: round-aware state saved to $review_state_file"
             if [[ -n "$proof_dir" ]]; then
-                octo_proof_artifact "$proof_dir" "review-history-state" "$review_state_file" "round-aware PR review state"
+                octo_proof_artifact "$proof_dir" "review-history-state" "$review_state_file" "round-aware PR review state" || {
+                    review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not attach review history to the proof packet" true
+                    return 1
+                }
             fi
         fi
     fi
 
     # ── Output ────────────────────────────────────────────────────────────────
+    local publication_failed=false
     local pr_number="${review_pr_number:-}"
     if [[ -z "$pr_number" ]]; then
         pr_number=$(gh pr view --json number -q .number 2>/dev/null || true)
     fi
 
-    if [[ -n "$pr_number" && "$publish" != "never" ]]; then
+    if [[ -n "$pr_number" && "$publish" != "never" && "$verification_incomplete" != true ]]; then
         local avg_confidence
         avg_confidence=$(jq '[.findings[].confidence] | if length > 0 then add/length else 0 end' \
             "$findings_file" 2>/dev/null | head -n 1)
         [[ -z "$avg_confidence" ]] && avg_confidence="0"
         if [[ "$publish" == "auto" ]] && awk "BEGIN{exit !($avg_confidence >= 0.85)}"; then
             log INFO "review_run: auto-publishing to PR #$pr_number (confidence=$avg_confidence)"
-            post_inline_comments "$pr_number" "$findings_file" || render_terminal_report "$findings_file"
+            post_inline_comments "$pr_number" "$findings_file" || { publication_failed=true; render_terminal_report "$findings_file"; }
         elif [[ "$publish" == "auto" ]]; then
             log INFO "review_run: avg_confidence=$avg_confidence below 0.85 auto-publish gate; rendering terminal report instead."
             render_terminal_report "$findings_file"
@@ -2481,8 +2727,10 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
             echo "PR #$pr_number is open. Post findings as inline comments? (y/N)"
             read -r response
             if [[ "$response" =~ ^[Yy] ]]; then
-                post_inline_comments "$pr_number" "$findings_file" || \
+                post_inline_comments "$pr_number" "$findings_file" || {
+                    publication_failed=true
                     log WARN "review_run: PR posting was incomplete; terminal report was already shown"
+                }
             fi
         fi
     else
@@ -2500,7 +2748,7 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
             proof_finding_count=0
         fi
         proof_warning=$(jq -r '.warning // empty' "$findings_file" 2>/dev/null || true)
-        if [[ -n "$proof_warning" ]]; then
+        if [[ -n "$proof_warning" || "$publication_failed" == true ]]; then
             proof_verdict="fail"
         elif [[ "$proof_finding_count" -gt 0 ]]; then
             proof_verdict="findings"
@@ -2508,15 +2756,25 @@ Return ONLY JSON: {\"findings\": [...ranked, deduplicated findings...]}"
             proof_verdict="pass"
         fi
         proof_summary="/octo:review completed with ${proof_finding_count} finding(s)."
-        octo_proof_claim "$proof_dir" "Review findings were written to disk" "verified" "$findings_file"
-        octo_proof_capture_provider_status "$proof_dir" "$provider_status_file"
-        octo_proof_finalize "$proof_dir" "$proof_verdict" "$proof_summary"
+        octo_proof_claim "$proof_dir" "Review findings were written to disk" "verified" "$findings_file" || {
+            review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not record the review findings proof claim" true
+            return 1
+        }
+        octo_proof_capture_provider_status "$proof_dir" "$provider_status_file" || {
+            review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not capture providers in the review proof packet" true
+            return 1
+        }
+        octo_proof_finalize "$proof_dir" "$proof_verdict" "$proof_summary" || {
+            review_fail_closed "$findings_file" "$proof_dir" "$provider_status_file" "Could not finalize the review proof packet" true
+            return 1
+        }
         echo ""
         echo "Proof packet: $proof_dir"
     fi
 
     # v9.0: Print provider report card — always last, impossible to miss
-    print_provider_report "$provider_status_file"
+    print_provider_report "$provider_status_file" || return $?
+    [[ "$publication_failed" != true && "$verification_incomplete" != true ]]
 }
 
 # review_post_safe_body: stream generated text to the shared helper, which
@@ -2673,6 +2931,7 @@ review_emit_finding_events() {
     done
 }
 
+# render_terminal_report: Render findings, verification gaps, and publication status for the user.
 render_terminal_report() {
     local findings_file="$1"
     local findings_json="" finding_count="0"
@@ -2716,6 +2975,16 @@ render_terminal_report() {
 
     echo "Found $finding_count issue(s):"
     echo ""
+
+    local warning_msg
+    warning_msg=$(printf '%s' "$findings_json" | jq -r '.warning // empty' 2>/dev/null)
+    if [[ -n "$warning_msg" ]]; then
+        printf 'WARNING: %s\n\n' "$warning_msg"
+    fi
+    if [[ "$(printf '%s' "$findings_json" | jq -r '.verification_status // empty')" == incomplete ]]; then
+        echo "Independent verification is incomplete. Findings remain unverified and publication is disabled."
+        echo ""
+    fi
 
     printf '%s' "$findings_json" | jq -c '.findings[]' 2>/dev/null | while IFS= read -r finding; do
         local severity title file line detail

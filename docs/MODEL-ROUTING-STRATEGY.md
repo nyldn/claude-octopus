@@ -2,7 +2,44 @@
 
 Status: accepted and implemented
 Decision date: 2026-07-27
-Last reviewed: 2026-10-01
+Last reviewed: 2026-11-10
+
+## Reasoning effort by cost tier
+
+In `providers.json`, a tier target can remain a string or use an object with a
+`capability` target and optional `reasoning` value. For example:
+
+```json
+"tiers": {
+  "budget": {
+    "codex": {"capability": "default", "reasoning": "low"},
+    "claude": {"capability": "budget", "reasoning": "medium"}
+  }
+}
+```
+
+The target accepts the same capability or model references as the string form.
+Tier effort overrides `providers.<provider>.reasoning_effort` only when the
+model resolver actually selects that tier. Environment effort and role or phase
+effort take precedence. Model pins, role or phase model routes, capability seats,
+eval routing, frontier replacements and allowlist fallbacks keep their existing
+effort behavior.
+`reasoning: "auto"` leaves effort to the provider. Omitting `reasoning` keeps the
+provider default. Invalid effort values or objects without a capability fail
+before dispatch. Other tier value types, such as booleans, numbers and arrays,
+also fail validation. Missing or null entries retain default fallback behavior.
+The supported effort values and CLI compatibility checks remain
+provider specific, and explicit-only model restrictions still apply.
+
+For the text-only `anthropic-api` seat, explicit automatic effort omits
+`output_config.effort` from the Messages request and uses adaptive thinking.
+An omitted effort retains the seat's existing `high` fallback. Explicit
+`between_tools` thinking still requires low, medium or high effort on Sonnet 5.5.
+
+This affects seats that use the unified model and reasoning resolver, including
+Codex and the generic Claude seat. Dedicated Opus seats retain their separate
+phase effort policy. No default models or effort settings change until an
+operator configures an object tier.
 
 ## Decision
 
@@ -17,6 +54,43 @@ fallback.
 Fresh configurations adopt the new roster. Existing environment pins, session
 overrides, and `providers.json` settings retain precedence and are not silently
 rewritten.
+
+## Catalog refresh, 2026-11-10
+
+| Model ID | API context limit | Standard USD per MTok, input/output |
+|---|---:|---:|
+| `gpt-6.1-terra` | 1,050,000 | $1 / $5 |
+| `claude-fable-5-2` | 1,000,000 | $8 / $40 |
+
+Both models accept images and text, produce text, and support up to 128,000
+output tokens. Catalog limits describe the API; each client has its own
+context ceiling and account access requirements.
+
+GPT-6.1 Terra supports `none`, `low`, `medium`, `high`, `xhigh`, and `max`
+reasoning. Tool calls require Responses even at `none` effort. The Chat
+Completions adapter therefore requires `--tool-policy none`. Above 272,000
+input tokens, its whole-request prices become $2 input and $7.50 output per
+MTok. At the threshold, standard prices apply.
+
+Fable 5.2 is explicit-only: use a model-qualified `claude` or `claude-sdk`
+seat, or an environment pin such as `OCTOPUS_OPUS_MODEL=claude-fable-5-2`.
+Claude Code added this model in v2.1.321. Always-on adaptive thinking, forced
+tool-choice restrictions and 30-day provider retention apply. The existing
+Fable security reroute, exact-seat rejection, input ceiling, effort cap and
+SDK refusal recovery also apply to 5.2. Exact SDK seats keep retries disabled.
+Fable 5.1 remains the opt-in escalation target; 5.2 is not admitted to tier
+escalation by this refresh.
+
+This refresh adds choices and cost estimates. It does not rewrite saved pins,
+change release defaults, or assert access to a model through a gateway. Cursor,
+Copilot, OpenCode and Antigravity retain their provider-owned model lists.
+
+Sources checked on 2026-11-10: [GPT-6.1 Terra](https://developers.openai.com/api/docs/models/gpt-6.1-terra),
+[OpenAI pricing](https://developers.openai.com/api/docs/pricing),
+[GPT-6 compatibility](https://developers.openai.com/api/docs/guides/latest-model),
+[Fable 5.2](https://platform.claude.com/docs/en/models/fable-5-2/overview),
+[Fable migration constraints](https://platform.claude.com/docs/en/models/fable-5-2/migration-guide),
+and [Claude Code v2.1.321](https://github.com/anthropics/claude-code/releases/tag/v2.1.321).
 
 ## Catalog refresh, 2026-09-30
 
@@ -108,12 +182,48 @@ and [Agent SDK thinking types](https://code.claude.com/docs/en/agent-sdk/python#
 | Claude Sonnet 5.5 | standard Claude orchestration and synthesis on supported clients | $2 / $10 |
 | Claude Sonnet 5 | standard Claude fallback on older clients | $2 / $10 |
 | Claude Haiku 4.5 | budget Claude work | $1 / $5 |
+| Claude Haiku 5.5 | opt-in budget pin for classification, extraction and short tool tasks | $0.10 / $0.50 through 100K input; $0.50 / $2.50 above 100K |
 | Claude Fable 5.1 | opt-in judgment-class escalation, at most one automatic escalation per run | $10 / $50 |
 | GPT-6 Astra | opt-in OpenAI-family escalation after Sol fails a hard acceptance test | $10 / $50 |
 
 Opus 5 and Fable 5.1 are both Anthropic-family models. GPT-5.6 and Astra are
 both OpenAI-family models. Agreement within either pair does not count as
 independent provider diversity.
+
+### Haiku 5.5 saved pins
+
+`/octo:model-config set claude.budget claude-haiku-5-5` selects Haiku 5.5 for
+the existing budget capability. The shipped budget default stays on Haiku 4.5.
+Select budget routing with `/octo:model-config cost-mode budget` to use that
+capability. New configurations use the `standard` cost mode.
+An explicit `OCTOPUS_CLAUDE_MODEL` or native `CLAUDE_MODEL` session choice takes
+precedence over the saved budget pin. Removing that override restores the pin.
+Use Claude Code v2.1.293 or later and confirm account access separately. This
+catalog addition does not extend the `anthropic-api` adapter's model allowlist.
+
+Haiku 5.5 accepts text and images, tools and structured output with 1M context
+and 128K maximum output. It supports adaptive thinking and `low`, `medium`,
+`high`, `xhigh` and `max` effort. Its API and Claude Code default is `medium`;
+an explicit Octopus effort still applies. Disabled thinking is accepted at low,
+medium or high effort; xhigh and max require adaptive thinking. Changing effort
+mid-conversation also requires adaptive thinking. Start with medium for bounded agent
+tasks. Use low for short tasks whose results can be checked; the provider warns
+that low effort can skip searches or verification in long agent prompts. Raise
+effort or use the existing stronger-model route when acceptance checks fail,
+with a bounded retry. No local capability or latency benchmark is claimed.
+
+Prices are USD per million tokens. Above 100,000 input tokens, both input and
+output use the higher tariff for the whole request. Cache reads are $0.01/$0.05,
+five-minute writes $0.125/$0.625 and one-hour writes $0.20/$1 for the two prompt
+sizes. Batch input/output has a 50% discount. The standard estimates do not
+model cache or batch discounts, gateway surcharges or subscription allowances.
+Thinking counts toward output. The newer tokenizer can increase token counts,
+so compare total task cost, including retries, rather than price alone.
+
+Sources rechecked 2026-11-08: [model specifications and tariff](https://platform.claude.com/docs/en/models/haiku-5-5/overview),
+[effort guidance](https://platform.claude.com/docs/en/build-with-claude/effort),
+[migration constraints](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide),
+and [Claude Code version and model selection](https://code.claude.com/docs/en/model-config).
 
 ### Expensive-model admission
 

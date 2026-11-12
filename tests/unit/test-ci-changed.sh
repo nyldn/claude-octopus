@@ -89,6 +89,50 @@ else
     test_fail "unit-only fallback did not remain unit-scoped: $unit_only_plan"
 fi
 
+test_case "full fallback delegates once while unit-only keeps its own prerequisites"
+if python3 - "$CI_CHANGED" "$TEST_TMP_DIR" <<'FULL_FALLBACK'
+from pathlib import Path
+import os
+import shutil
+import subprocess
+import sys
+
+fixture = Path(sys.argv[2]) / "full-fallback"
+(fixture / "scripts").mkdir(parents=True)
+(fixture / "tests").mkdir()
+(fixture / "bin").mkdir()
+selector = fixture / "scripts/ci-changed.sh"
+shutil.copyfile(sys.argv[1], selector)
+(fixture / "tests/changed-scope.tsv").write_text("shared.sh\t@full\n")
+make = fixture / "bin/make"
+make.write_text('''#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$MAKE_CALLS"
+if [[ "$*" == "${FAIL_TARGET:-}" ]]; then exit 37; fi
+''')
+make.chmod(0o755)
+calls = fixture / "calls"
+base_env = dict(os.environ, PATH=str(make.parent) + os.pathsep + os.environ["PATH"], MAKE_CALLS=str(calls))
+
+for flags, expected in [([], ["ci-local"]),
+                        (["--skip-smoke"], ["ci-local"]),
+                        (["--unit-only"], ["sync-check", "test-smoke", "test-unit"]),
+                        (["--unit-only", "--skip-smoke"], ["sync-check", "test-unit"])]:
+    calls.unlink(missing_ok=True)
+    result = subprocess.run(["bash", str(selector), "--changed", "shared.sh", *flags],
+                            env=base_env, capture_output=True, text=True)
+    actual = calls.read_text().splitlines()
+    assert result.returncode == 0 and actual == expected, (flags, result.returncode, actual, result.stderr)
+
+for flags, target, expected in [([], "ci-local", ["ci-local"]),
+                                (["--unit-only"], "sync-check", ["sync-check"]),
+                                (["--unit-only"], "test-smoke", ["sync-check", "test-smoke"])]:
+    calls.unlink(missing_ok=True)
+    result = subprocess.run(["bash", str(selector), "--changed", "shared.sh", *flags],
+                            env=dict(base_env, FAIL_TARGET=target), capture_output=True, text=True)
+    assert result.returncode == 37 and calls.read_text().splitlines() == expected, (flags, target, result.returncode)
+FULL_FALLBACK
+then test_pass; else test_fail "full fallback repeated prerequisites or lost failure propagation"; fi
+
 test_case "focused unit-only selection excludes integration suites"
 unit_only_focused_plan="$(bash "$CI_CHANGED" --list --unit-only --skip-smoke --changed 'skills/skill-debug/SKILL.md' 2>&1 || true)"
 unit_only_selected="$(sed -n '/^Selected suites:/,$p' <<< "$unit_only_focused_plan")"
@@ -287,20 +331,14 @@ else
     test_fail "changed-scope command or iterative versus final guidance is missing"
 fi
 
-test_case "GitHub CI balances focused PR coverage with full non-PR coverage"
+# Workflow scheduling/failure semantics live in the behavioral tier test.
+test_case "GitHub CI exposes the focused and full unit tiers"
 if grep -Fq 'unit-focused:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   grep -Fq 'run: ./scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke --committed-only' "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   grep -Fq "needs.classify-changes.outputs.full_unit != 'true'" "$PROJECT_ROOT/.github/workflows/test.yml" &&
    grep -Fq 'unit-full:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   grep -Fq "needs.classify-changes.outputs.full_unit == 'true'" "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   grep -Fq 'run: ./tests/run-all.sh unit --exclude=unit/test-council-command.sh --shard-index=${{ matrix.shard_index }} --shard-count=${{ matrix.shard_count }}' "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   grep -Fq 'unit-deep:' "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   grep -Fq './tests/run-all-tests.sh --suite=unit/test-council-command.sh' "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   grep -q 'run: make test-integration' "$PROJECT_ROOT/.github/workflows/test.yml" &&
-   ! grep -q 'make ci-changed' "$PROJECT_ROOT/.github/workflows/test.yml"; then
+   grep -Fq './scripts/ci-changed.sh --base "$BASE_SHA" --unit-only --skip-smoke --committed-only' "$PROJECT_ROOT/.github/workflows/test.yml"; then
     test_pass
 else
-    test_fail "GitHub CI no longer separates focused PR coverage from the full non-PR unit matrix"
+    test_fail "GitHub CI no longer uses the shared selector"
 fi
 
 test_case "hosted classifier sends unmapped paths to the full unit lane"

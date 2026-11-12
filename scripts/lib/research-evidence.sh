@@ -620,12 +620,148 @@ research_extract_numbers() {
     printf '%s\n' "$line" | research_numeric_claims | sort -u || true
 }
 
+# A synthesis that numbers its findings refers back to them: "See point 2.",
+# "points 2 and 3", "item 4:". A whole number after point(s) or item(s), or
+# continuing such a list with a comma, "and", "or" or "&", is not a numeric claim
+# when no other word follows it. "2 retries", "point 40 requests" and
+# "section 2" are still checked.
 research_numeric_claims() {
-    LC_ALL=C awk '{
-        line = $0; pos = 1; id_end = -1
+    LC_ALL=C awk '
+    function unformat(text,    at, marker, width, previous, following, depth, result, piece, scan, paren_depth, marks, starts, drops, ticks, next_tick, parens, close_paren, destination_depth) {
+        # Pair equal-length backtick runs once. Literal code and destinations
+        # must not open or close emphasis in the surrounding prose.
+        scan = 1
+        while (match(substr(text, scan), /`+/)) {
+            at = scan + RSTART - 1; width = RLENGTH
+            if (width in ticks) next_tick[ticks[width]] = at
+            ticks[width] = at; scan = at + width
+        }
+        # Index balanced destinations once, including nested parentheses.
+        # Re-scanning an unterminated destination at every ]( is quadratic.
+        scan = 1; paren_depth = 0; destination_depth = 0
+        while (scan <= length(text)) {
+            marker = substr(text, scan, 1)
+            if (marker == "\\") { scan += 2; continue }
+            if (scan in next_tick && destination_depth == 0) {
+                match(substr(text, scan), /^`+/)
+                scan = next_tick[scan] + RLENGTH; continue
+            }
+            if (marker == "(") {
+                parens[++paren_depth] = scan
+                # Backticks inside a destination are literal, even if a
+                # matching run follows the link in ordinary prose.
+                if (destination_depth == 0 && substr(text, scan - 1, 1) == "]") destination_depth = paren_depth
+            }
+            if (marker == ")" && paren_depth > 0) {
+                if (paren_depth == destination_depth) destination_depth = 0
+                close_paren[parens[paren_depth--]] = scan
+            }
+            scan++
+        }
+        at = 1; depth = 0
+        while (at <= length(text)) {
+            marker = substr(text, at, 1)
+            if (marker == "\\") { at += 2; continue }
+            if (at in next_tick) {
+                match(substr(text, at), /^`+/)
+                at = next_tick[at] + RLENGTH; continue
+            }
+            if (substr(text, at, 2) == "](" && (at + 1) in close_paren) {
+                at = close_paren[at + 1] + 1; continue
+            }
+            if (substr(text, at, 2) == "][" && match(substr(text, at + 2), /^[^]]*\]/)) {
+                at += 2 + RLENGTH; continue
+            }
+            if (marker != "*" && marker != "_") { at++; continue }
+            while (substr(text, at + length(marker), 1) == substr(marker, 1, 1)) marker = marker substr(marker, 1, 1)
+            width = length(marker)
+            previous = substr(text, at - 1, 1)
+            following = substr(text, at + width, 1)
+            if (depth > 0 && marks[depth] == marker && previous !~ /[ \t]/ &&
+                (substr(marker, 1, 1) == "*" || following !~ /[0-9A-Za-z]/)) {
+                drops[starts[depth]] = width; drops[at] = width; depth--
+            } else if (following != "" && following !~ /[ \t]/ &&
+                       (at == 1 || previous !~ /[0-9A-Za-z_]/ || (depth > 0 && previous == "_"))) {
+                depth++; marks[depth] = marker; starts[depth] = at
+            }
+            at += width
+        }
+        result = ""; piece = 1
+        for (at = 1; at <= length(text); at++) {
+            if (at in drops) {
+                result = result substr(text, piece, at - piece)
+                at += drops[at] - 1; piece = at + 1
+            }
+        }
+        return result substr(text, piece)
+    }
+    function ordinal_reference(before, after, start, number,    gap, label, label_prefix, list_join, list_number, list_reference, section_reference) {
+        label_prefix = "[*_]*(points?|items?|findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*([ \\t]+|[ \\t]*:[*_]*[ \\t]*)"
+        label = label_prefix "$"
+        list_join = "([ \\t]*,[ \\t]*|[ \\t]*,?[ \\t]*((and|or)[ \\t]+|&[ \\t]*))"
+        list_number = "(" label_prefix ")?[*_]*[0-9]+([.,][0-9]+)*[*_]*"
+        section_reference = (tolower(before) ~ /(^|[(;.!?|]|(^|[^0-9a-z_])see[ \t])[ \t]*([-*+][ \t]+)?[*_]*(findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*([ \t]+|[ \t]*:[*_]*[ \t]*)$/)
+        # Commas without spaces can join references, but keep thousands groups
+        # and decimal values as claims even beside point/item labels.
+        if (number !~ /^[0-9]+$/) {
+            if (number !~ /^[0-9]+(,[0-9]+)+$/ || number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
+            if (tolower(before) !~ ("(^|[^0-9a-z_])" label) && !section_reference && ord_end == 0) return 0
+        }
+        # Quantities, including range endpoints and fraction numerators,
+        # remain substantive before any label/list exemptions.
+        # A trailing total describes quantities throughout the list.
+        if (tolower(after) ~ ("^(" list_join list_number ")*[ \\t]*,?[ \\t]+in[ \\t]+total([^0-9a-z_]|$)")) return 0
+        if (after ~ /^[ \t]*(-|\342\200\223|\342\200\224|\342\210\222|\/)[ \t]*[*_]*[0-9]/) return 0
+        if (after ~ /^[ \t]*%/) return 0
+        if (after ~ /^[ \t]*\+/) return 0
+        if (after ~ /^[ \t]*&/ && tolower(after) !~ ("^[ \\t]*&[ \\t]*" list_number)) return 0
+        # Link labels, including relative, fragment and reference links, can
+        # name units. Keep the quantity even for a shortcut reference label.
+        if (after ~ /^[ \t]*\[[^]]+\]/) return 0
+        if (after ~ /^[ \t]*[*_`(]*([0-9A-Za-z]|\302\260|\302\265|\316\274)/ && tolower(after) !~ /^[ \t]+(and|or)[ \t]/) return 0
+        # Check every list member before exemptions, including its final number.
+        # Conjunctions continue references only before a number or numbered label.
+        if (tolower(after) ~ /^[ \t]+(and|or)[ \t]/ &&
+            tolower(after) !~ /^[ \t]+(and|or)[ \t]+([*_]*(points?|items?|findings?|risks?|probes?|conflicts?|decisions?|gaps?)[*_]*([ \t]+|[ \t]*:[*_]*[ \t]*))?[*_]*[0-9]/) return 0
+        gap = tolower(substr(line, ord_end, start - ord_end))
+        list_reference = (ord_end > 0 && gap ~ ("^" list_join label))
+        # A label may describe a score or count. Only standalone labels,
+        # including Markdown list items, and explicit references are exempt.
+        # "and"/"or" continues a reference list only after a skipped reference
+        # or a section number, so "points: 50 and items: 10" stays a claim.
+        if (section_reference) return 1
+        if (tolower(before) ~ ("(^|[^0-9a-z_])" label) &&
+            tolower(before) !~ ("(^|[;.!?|])[ \\t]*([-*+][ \\t]+)?" label) &&
+            !list_reference &&
+            tolower(before) !~ ("(^|[^0-9a-z_])(see|sections?[ \\t]+[0-9]+[ \\t]*,?[ \\t]*(and|or)|refer[ \\t]+to|(corrected|covered|described|discussed|explained|listed|shown|noted|mentioned|addressed|detailed)[ \\t]+in)[ \\t]+" label)) return 0
+        if (tolower(before) ~ ("(^|[^0-9a-z_])" label)) return 1
+        return (ord_end > 0 && gap ~ ("^" list_join "$"))
+    }
+    {
+        line = $0
+        # Treat common nonbreaking unit/list spaces like ASCII spaces under C locale.
+        gsub(/\302\240|\342\200\257/, " ", line)
+        line = unformat(line)
+        # Nested emphasis can expose a list marker missed by the first pass.
+        sub(/^[ \t]*([-*+][ \t]*)?[0-9]+[.)][ \t]+/, "", line)
+        pos = 1; id_end = -1; ord_end = 0
         while (match(substr(line, pos), /[0-9]+([.,][0-9]+)*%?/)) {
             start = pos + RSTART - 1; len = RLENGTH; pos = start + len
             before = substr(line, 1, start - 1); after = substr(line, pos)
+            # Strip paired emphasis around this number before checking either
+            # reference context or identifier boundaries. Units still follow
+            # the closing marker and must remain substantive quantities.
+            # Underscores within an identifier are not emphasis delimiters.
+            emphasis_width = 0
+            if (match(before, /(\*\*|__|\*|_)$/)) {
+                emphasis = substr(before, RSTART)
+                emphasis_prefix = substr(before, 1, RSTART - 1)
+                if (emphasis_prefix !~ /[0-9A-Za-z]$/ && substr(after, 1, length(emphasis)) == emphasis) {
+                    emphasis_width = length(emphasis)
+                    before = substr(before, 1, length(before) - emphasis_width)
+                    after = substr(after, emphasis_width + 1)
+                }
+            }
             match(before, /[0-9A-Za-z]*$/); word = substr(before, RSTART)
             match(after, /^[0-9A-Za-z]*/); word = word substr(line, start, len) substr(after, 1, RLENGTH)
             hyphen_word = ""
@@ -634,6 +770,10 @@ research_numeric_claims() {
                 || (start == id_end + 1 && before ~ /-$/) \
                 || (length(word) >= 7 && length(word) <= 40 && word ~ /^[0-9a-f]*[a-f][0-9a-f]*$/)) {
                 id_end = pos
+                continue
+            }
+            if (ordinal_reference(before, after, start - emphasis_width, substr(line, start, len))) {
+                ord_end = pos + emphasis_width
                 continue
             }
             print substr(line, start, len)

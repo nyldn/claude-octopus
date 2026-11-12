@@ -40,6 +40,49 @@ assert_contains "$(grep -c 'probe-single)' "$ALL_SRC" 2>/dev/null || echo 0)" \
 assert_contains "$(grep -A40 'probe-single)' "$ALL_SRC" | head -45)" \
   "probe_single_cli" "probe-single: dispatch calls the command parser"
 
+test_case "probe-single: large file validation is bounded and preserves perspective text"
+if python3 - "$WORKFLOWS" "$BASH" <<'PY'
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+program = r'''
+source "$1"
+probe_single_agent() {
+    printf '%s' "$2" > "$CAPTURE_FILE"
+    printf '%s\n' "$1" "$3" "$4" "$5" > "$CAPTURE_META"
+}
+probe_single_cli codex --perspective-file "$2" task original
+'''
+cases = [
+    ("unicode", " \n" + "SightLogix · résultats → 2026\nData Center and Substation\n" * 1000, 0),
+    ("whitespace", " \t\r\v\f\n" * 10000, 1),
+    ("empty", "", 1),
+]
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    for name, text, expected_rc in cases:
+        prompt, capture, metadata = (root / (name + suffix) for suffix in (".txt", ".out", ".meta"))
+        prompt.write_bytes(text.encode("utf-8"))
+        result = subprocess.run(
+            [sys.argv[2], "-c", program, "_", sys.argv[1], str(prompt)],
+            env={**os.environ, "CAPTURE_FILE": str(capture), "CAPTURE_META": str(metadata)},
+            capture_output=True, timeout=5,
+        )
+        assert result.returncode == expected_rc, (name, result.returncode, result.stderr)
+        if expected_rc == 0:
+            # File loading has always stripped trailing newlines via command substitution.
+            assert capture.read_bytes() == prompt.read_bytes().rstrip(b"\n"), name
+            assert metadata.read_text() == "codex\ntask\noriginal\nfile\n", name
+        else:
+            assert not capture.exists() and not metadata.exists(), name
+            expected_error = b"contains no perspective text" if text else b"readable nonempty regular file"
+            assert expected_error in result.stderr, (name, result.stderr)
+PY
+then test_pass; else test_fail "file validation stalled, changed content or dispatched an empty perspective"; fi
+
 # ── probe_single_agent writes result files ───────────────────────────────────
 
 assert_contains "$PROBE_SINGLE_SRC" \
@@ -265,7 +308,8 @@ done
 
 # ── flow-discover.md references probe-single ─────────────────────────────────
 
-FLOW_DISCOVER="$(resolve_claude_skill_path "flow-discover")"
+FLOW_DISCOVER="$TEST_TMP_DIR/discover-contract.md"
+read_claude_skill_contract flow-discover > "$FLOW_DISCOVER"
 assert_contains "$(grep -c 'probe-single' "$FLOW_DISCOVER" 2>/dev/null || echo 0)" \
   "[1-9]" "flow-discover.md: references probe-single command"
 

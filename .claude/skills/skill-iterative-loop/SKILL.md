@@ -514,6 +514,11 @@ The strategy-rotation hook and self-regulation are complementary:
 
 ## Safety Mechanisms
 
+For metric runs, Metric Verification Mode replaces the general iteration limits
+and 30-minute continue prompt below. Its stop budgets cannot be extended by a
+checkpoint. Self-regulation revert counters do not apply because metric runs
+forbid reverts in the original workspace.
+
 ### 1. Iteration Limit
 
 ```python
@@ -574,146 +579,91 @@ Every N iterations:
 
 ## Metric Verification Mode
 
-When the user specifies a **Metric** command, switch to mechanical metric verification mode. This replaces subjective evaluation with automated measurement, git-backed experiments, and automatic rollback on regression.
+When the user supplies `Metric: <command>`, use mechanical measurement in a
+bounded candidate-copy experiment. Without a metric, use the normal loop above.
 
-**Falls back to standard loop behavior (above) when no metric is specified.**
+### Scope and budgets
 
-### Key Principles
+Freeze the metric, direction, guard, and authorized editable paths before the
+baseline. The guard is optional. Without a guard, accept only a measured
+improvement and report that no guard ran; do not claim safety validation.
+Defaults are five iterations, 30 elapsed minutes, and 14 additional
+model calls. `Iterations: N` accepts integers 1 through 20. `Minutes: N` and
+`Calls: N` accept positive integers. Explicit choices replace those defaults;
+invalid options stop before edits or calls. Stop at the first exhausted budget
+or after two rounds without measured improvement. Metric and guard subprocesses
+must have deadlines no longer than the remaining elapsed budget. If the host
+cannot enforce a subprocess deadline, report the missing capability and stop.
+Charge retries, research, and model-assisted edits to the call budget before
+dispatch. Never reset elapsed time or consumed calls on resume.
 
-- **One change per iteration (atomic)** — never combine multiple unrelated changes
-- **Mechanical verification only** — no subjective "looks good"; the metric command decides
-- **Automatic rollback on regression** — `git revert HEAD --no-edit` if metric worsens
-- **Simplicity wins** — equal metric results + less code = KEEP the simpler version
-- **Git is memory** — every experiment is committed with `experiment:` prefix before verification
-- **Guard commands must also pass** — even if metric improves, a failing guard reverts the change
+| Parameter | Meaning |
+|-----------|---------|
+| `Metric: <command>` | Must print one finite number |
+| `Direction: higher` or `Direction: lower` | Select the improving direction |
+| `Guard: <command>` | Optional. When supplied, must exit zero to accept a candidate |
+| `Iterations: N`, `Minutes: N`, `Calls: N` | Override the finite defaults above |
 
-### Parameters
+### Preserve the user's workspace
 
-| Parameter | Format | Required | Description |
-|-----------|--------|----------|-------------|
-| Metric | `Metric: <shell command>` | Yes (for this mode) | Command whose stdout is a number (the metric value) |
-| Direction | `Direction: higher\|lower` | Yes | Whether higher or lower metric values are better |
-| Guard | `Guard: <shell command>` | No | Must exit 0 for a change to be kept; run after metric |
-| Iterations | `Iterations: N` | No | Max iterations (default: unbounded, runs until interrupted) |
+Inspect repository status, including the staged index, dirty tracked files, and
+untracked files. Snapshot the exact authorized input bytes and their hashes.
+Create a unique private run directory outside the working repository, with
+separate original, best, and candidate copies. Never operate on unrelated paths.
+If the metric needs the whole repository, create a disposable isolated copy
+containing the required authorized baseline, including relevant existing edits.
+Do not silently substitute HEAD for a dirty baseline. If the host cannot create
+that faithful isolated baseline without exposing unrelated data, stop and name
+the limitation. Reject symlinks that would let experiments modify original files.
 
-### Experiment Log
+Do not stage, commit, stash, reset, clean, or revert the user's repository as
+part of an experiment. In particular, never use blanket staging. Git history is
+not the experiment store. Preserve the original index exactly.
 
-All results are logged as JSONL to `.claude-octopus/experiments/<YYYY-MM-DD>.jsonl`.
+### Execute and record
 
-Each line is a JSON object:
+1. In the isolated baseline, run the metric and any supplied guard with deadlines.
+   A baseline failure must be reported; it is not evidence that a later change is safe.
+2. Record baseline hashes, metric, guard evidence, start time, budget limits,
+   and consumed calls in the run's append-only `iterations.jsonl`.
+3. Before each iteration, check remaining time, iterations, and calls. Copy the
+   best candidate into a new candidate directory and make one scoped change.
+4. Run the same metric and any supplied guard. Keep only a measured improvement
+   whose guard passes when supplied. Without a guard, report that no guard ran
+   and do not claim safety validation. On equal results, keep the simpler
+   candidate only with evidence of reduced complexity. Failed, unverified, or worse candidates are rejected.
+5. Reject by discarding only the owned candidate directory; never undo changes
+   in the original workspace. Preserve logs for rejected and failed attempts.
+6. Stop on budget exhaustion, two stalled rounds, cancellation, or missing
+   evidence. Report the best measured result without claiming the target passed
+   when required validation is missing.
+
+Before publishing the best candidate, re-read every destination and verify it
+still matches the snapshot taken at the start. Also verify the repository HEAD
+and index have not changed. On a concurrent edit or index change, stop and
+preserve the candidate for review. Publish only the exact authorized files,
+then rerun the required checks against delivered bytes. Do not create a commit
+unless the user separately requested one.
+
+Example ledger record, with paths and hashes referring only to this run:
+
 ```json
-{"iteration": 1, "timestamp": "2026-03-21T14:30:00Z", "metric": 72.5, "best": 72.5, "status": "kept", "description": "Add index to users table", "commit": "abc1234"}
+{"iteration":1,"timestamp":"2026-11-07T12:00:00Z","metric":72.5,"best":72.5,"status":"kept","description":"One measured change","artifact_sha256":"<candidate hash>","elapsed_seconds":45,"calls_used":1}
 ```
 
-Fields:
-- `iteration` — iteration number (starting from 1; iteration 0 is baseline)
-- `timestamp` — ISO 8601 timestamp
-- `metric` — measured value from the metric command
-- `best` — best metric value seen so far
-- `status` — `"kept"` (improvement), `"reverted"` (regression), or `"error"` (metric/guard crashed)
-- `description` — one-line summary of what was changed
-- `commit` — short git SHA of the experiment commit (before potential revert)
+Use `kept`, `rejected`, or `error` for attempted rounds. Preserve rejected
+candidate evidence and failed guard outputs without changing the original.
 
-### Execution Contract
+### Resume and reporting
 
-You MUST follow this exact sequence for each iteration. No steps may be skipped or reordered.
-
-#### Iteration 0: Establish Baseline
-
-1. Create the experiment log directory if it does not exist:
-   ```bash
-   mkdir -p .claude-octopus/experiments
-   ```
-2. **Check for existing experiment log** — if `.claude-octopus/experiments/<today>.jsonl` exists, read it to determine the current best metric value and iteration count. Resume from the next iteration number.
-3. Run the metric command and capture the output number. This is the **baseline**.
-4. Log the baseline:
-   ```json
-   {"iteration": 0, "timestamp": "...", "metric": <baseline>, "best": <baseline>, "status": "baseline", "description": "Baseline measurement", "commit": "<current HEAD short SHA>"}
-   ```
-5. Report the baseline value to the user.
-
-#### Each Subsequent Iteration (1..N)
-
-**Step 1: Review state.** Read the experiment log (`.claude-octopus/experiments/<today>.jsonl`), review git history (`git log --oneline -10`), and identify what has been tried, what worked, and what failed.
-
-**Step 2: Pick the next change.** Based on what worked/failed/is untried, decide on ONE focused change. Do NOT combine multiple unrelated changes.
-
-**Step 3: Make the change.** Implement exactly one atomic change.
-
-**Step 4: Git commit BEFORE verification.** Commit with the `experiment:` prefix:
-```bash
-git add -A && git commit -m "experiment: <one-line description of the change>"
-```
-This ensures every experiment is recorded in git history regardless of outcome.
-
-**Step 5: Run mechanical verification.** Execute the metric command and capture the numeric result.
-
-**Step 6: Evaluate and act.**
-
-- **If metric improved** (higher when Direction=higher, lower when Direction=lower):
-  - If a Guard command is specified, run it now.
-    - If guard passes (exit 0) → **KEEP** the commit. Update best metric.
-    - If guard fails (exit non-zero) → **REVERT**: `git revert HEAD --no-edit`. Log status as `"reverted"`.
-  - If no guard → **KEEP** the commit. Update best metric.
-
-- **If metric stayed the same:**
-  - Check if the change reduces code complexity or size. If simpler → **KEEP** (simplicity wins).
-  - Otherwise → **REVERT**: `git revert HEAD --no-edit`. Log status as `"reverted"`.
-
-- **If metric worsened:**
-  - **REVERT**: `git revert HEAD --no-edit`. Log status as `"reverted"`.
-
-- **If metric command crashed (non-zero exit, no numeric output):**
-  - Attempt a quick fix (one try only). If fix works, re-measure.
-  - If still broken → **REVERT**: `git revert HEAD --no-edit`. Log status as `"error"`.
-
-**Step 7: Log the result.** Append a JSONL entry to `.claude-octopus/experiments/<today>.jsonl`.
-
-**Step 8: Report iteration summary.** Display:
-```
-Iteration N: <description>
-  Metric: <value> (best: <best>) — <kept|reverted|error>
-```
-
-**Step 9: Repeat** — go to Step 1 of the next iteration, unless:
-- Iterations limit reached → stop and report final summary
-- User interrupts → stop and report final summary
-
-### Resume Behavior
-
-If an experiment log already exists for today:
-1. Read the log to determine the last iteration number and current best metric value
-2. Resume from the next iteration number
-3. Use the recorded best value as the comparison baseline
-4. This allows stopping and resuming experiments across sessions
-
-### Final Summary
-
-When the loop completes (iterations exhausted or user stops), report:
-
-```
-Experiment Complete
-  Iterations: N
-  Baseline: <initial metric>
-  Final best: <best metric>
-  Improvement: <delta> (<percentage>%)
-  Kept: K changes, Reverted: R changes, Errors: E
-```
-
-### Example
-
-```
-/octo:loop Metric: npm test -- --coverage | grep 'All files' | awk '{print $(10)}' Direction: higher Guard: npm test Iterations: 20
-```
-
-This will:
-1. Measure baseline code coverage percentage
-2. Each iteration: make one change, commit as `experiment: ...`, measure coverage
-3. If coverage improves AND `npm test` passes → keep
-4. If coverage drops OR tests fail → `git revert HEAD --no-edit`
-5. After 20 iterations, report total improvement
-
----
+Resume only from the explicitly selected run directory, never from a shared
+per-day log. Verify its artifact hashes, frozen metric and guard, limits,
+elapsed start time, consumed calls, best candidate, and publication state.
+A changed contract requires a new baseline within the remaining budget.
+If elapsed budget expired while interrupted, report that stop without dispatch.
+Report baseline and each attempted round, actual checks, accepted/rejected
+changes, consumption, delivered hashes, and the stop reason. Unknown monetary
+cost stays unknown. These are host-managed steps, not an executable supervisor.
 
 ## The Bottom Line
 

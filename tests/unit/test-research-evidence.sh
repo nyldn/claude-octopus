@@ -290,10 +290,8 @@ fi
 
 test_case "flow discovery keeps one run ID and stops when verification fails"
 skill_gate_status=0
-for skill_file in \
-    "$PROJECT_ROOT/.claude/skills/flow-discover/SKILL.md" \
-    "$PROJECT_ROOT/.claude/skills/flow-discover/flow-discover.tmpl" \
-    "$PROJECT_ROOT/skills/flow-discover/SKILL.md"; do
+read_claude_skill_contract flow-discover > "$TEST_TMP_DIR/discover-contract.md"
+for skill_file in "$TEST_TMP_DIR/discover-contract.md"; do
     skill_content=$(<"$skill_file")
     skill_gate_block=$(sed -n '/Before presenting the synthesis/,/If verification reports/p' "$skill_file")
     if [[ "$skill_content" != *'RUN_TIMESTAMP="$(date +%s)"'* \
@@ -782,6 +780,486 @@ if [[ "$identifier_status" -ne 0 \
 else
     test_fail "identifier digits were checked as claims, or real numbers escaped: $identifier_kinds"
 fi
+
+test_case "references to the synthesis's own numbered points are not extracted as numbers"
+ordinal_numbers=""
+while IFS= read -r ordinal_line; do
+    ordinal_numbers="${ordinal_numbers}$(research_extract_numbers "$ordinal_line")"
+done <<'EOF'
+| Eligibility checks | Partial | Workspace evidence | See point 2. |
+| The probe said eligibility uses the caller. | Corrected in point 2: entitlement uses the owner. |
+- See points 2 and 3, items 4, 5 or 6, and Item 7.
+EOF
+ordinal_claims=$(research_extract_numbers \
+    'Point 2 retries twice; see point 2 above; section 3 and points 4 and 5 MiB; at one point 40% and 16 MiB; 2 retries; 3 points.' \
+    | LC_ALL=C sort | tr '\n' ' ')
+point_quantity=$(research_extract_numbers 'Point 2 retries twice.')
+standalone_quantity=$(research_extract_numbers '2 retries.')
+if [[ -z "$ordinal_numbers" && "$ordinal_claims" == "16 2 3 40% 5 " \
+      && "$point_quantity" == 2 && "$standalone_quantity" == 2 ]]; then
+    test_pass
+else
+    test_fail "ordinal references leaked [$ordinal_numbers] or claims were lost [$ordinal_claims]"
+fi
+
+test_case "numeric ranges beside point labels retain both endpoints"
+range_claims=$(research_extract_numbers 'points 2 and 5-10 MiB' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "range endpoint was lost: $range_claims"; fi
+
+for fraction_text in 'Items: 5/10 passed.' '- Items: **5**/**10** passed.' 'Items: 5 / 10 passed.'; do
+    test_case "a fraction after a standalone label keeps its numerator: $fraction_text"
+    fraction_claims=$(research_extract_numbers "$fraction_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$fraction_claims" == "10 5 " ]]; then test_pass; else test_fail "fraction numerator was lost: $fraction_claims"; fi
+done
+
+test_case "colon-separated reference labels do not create factual quantities"
+colon_refs=$(research_extract_numbers 'See points: 2 and 3; items:4,5.' | tr '\n' ' ')
+if [[ -z "$colon_refs" ]]; then test_pass; else test_fail "colon references became claims: $colon_refs"; fi
+
+test_case "colon scores and item counts remain numeric claims"
+colon_quantities=$(research_extract_numbers 'The mean score in points: 50; the number of items: 60.' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$colon_quantities" == "50 60 " ]]; then test_pass; else test_fail "colon quantities were lost: $colon_quantities"; fi
+
+test_case "Unicode numeric ranges beside point labels retain both endpoints"
+range_claims=$(research_extract_numbers 'points 2 and 5–10 MiB' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "Unicode range endpoint was lost: $range_claims"; fi
+
+for range_text in 'See points 5 – 10 MiB' 'See points 2 and 5 – 10 MiB' 'See points 5 - 10 MiB'; do
+    test_case "spaced range retains both endpoints: $range_text"
+    range_claims=$(research_extract_numbers "$range_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "range endpoint was lost: $range_claims"; fi
+done
+
+for range_marker in '**' '*' '__' '_'; do
+    for range_dash in '-' '–' ' - ' ' – '; do
+        range_text="See points ${range_marker}5${range_marker}${range_dash}${range_marker}10${range_marker} MiB"
+        test_case "emphasized range retains both endpoints: $range_text"
+        range_claims=$(research_extract_numbers "$range_text" | LC_ALL=C sort | tr '\n' ' ')
+        if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "emphasized range endpoint was lost: $range_claims"; fi
+    done
+done
+
+for range_dash in '—' '−' ' — ' ' − '; do
+    for range_marker in '' '**'; do
+        range_text="See points ${range_marker}5${range_marker}${range_dash}${range_marker}10${range_marker} MiB"
+        test_case "dash range after a reference label keeps both endpoints: $range_text"
+        range_claims=$(research_extract_numbers "$range_text" | LC_ALL=C sort | tr '\n' ' ')
+        if [[ "$range_claims" == "10 5 " ]]; then test_pass; else test_fail "range endpoint was lost: $range_claims"; fi
+    done
+done
+
+test_case "linked units retain quantities after reference labels"
+linked_claims=$(research_extract_numbers 'See points 2 and 5 [MiB](https://example.com).' | tr '\n' ' ')
+if [[ "$linked_claims" == "5 " ]]; then test_pass; else test_fail "linked quantity escaped: $linked_claims"; fi
+
+for reference_text in 'Refer to point 2.' '**Points:** 2 and 3.' '- **Items**: 4' 'See **points**: 2 and 3.'; do
+    test_case "explicit or emphasized self-reference: $reference_text"
+    reference_claims=$(research_extract_numbers "$reference_text")
+    if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "self-reference became a claim: $reference_claims"; fi
+done
+
+for quantity_text in 'Score in **points**: 50' 'Total **items:** 50' '**Points:** 50 MiB' 'See **points:** 50 [MiB](https://example.com)'; do
+    test_case "emphasized quantity requires evidence: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text")
+    if [[ "$quantity_claims" == 50 ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
+done
+
+for reference_text in '(Finding 4, as above)' '(Risk 3)' '(probe 3, under the unrelated-fixes rule)' 'See Finding 4.' 'See conflicts 1 and 2.' 'See risks 3 or 4.' 'See conflicts 1,2.' '(Risks 3,4)' 'See gap 3,4 or 5.' '(Findings 3 and 4)' '- **Decision** 7' 'Risk 3 and Risk 4' 'See risks 3 or Risk 4.' 'Finding: 4' 'See risks: 3' 'See Risk: 3 and Risk: 4'; do
+    test_case "synthesis section label is a self-reference: $reference_text"
+    reference_claims=$(research_extract_numbers "$reference_text")
+    if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "section label became a claim: $reference_claims"; fi
+done
+
+for quantity_text in 'Risk 3 of the services fail.' 'The top risk 3' '(Findings 3 in total)' '3 risks' 'Risk 3 or higher requires approval.' 'Risk 3 and above requires approval.' '(Finding 3 or more)' 'See gap 3 and higher.' 'Risk 3+ requires approval.' 'Risk 3 & above requires approval.'; do
+    test_case "quantity beside a section label requires evidence: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text")
+    if [[ "$quantity_claims" == 3 ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
+done
+
+for threshold in 'Risk 3 and 4 or higher requires approval.' 'See gaps 3 or 4 and above.' 'See points 3 and 4 or higher.' 'See conflicts 2,3 and 4 or more.'; do
+    test_case "threshold after a later reference-list member requires evidence: $threshold"
+    threshold_claims=$(research_extract_numbers "$threshold")
+    if [[ "$threshold_claims" == 4 ]]; then test_pass; else test_fail "threshold escaped: $threshold_claims"; fi
+done
+
+for quantity_text in 'Findings: 3 or 4 in total' '(Findings 3 and 4 in total)' '- **Findings:** **3** or **4** in total' 'Risks 3 & 4 in total' 'Findings 3 or Finding 4 in total'; do
+    test_case "every number in a total remains a quantity: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$quantity_claims" == "3 4 " ]]; then test_pass; else test_fail "total list lost a quantity: $quantity_claims"; fi
+done
+
+for quantity_text in 'Findings: 3 or 4, in total' 'Risks 3 & 4, in total' '- **Findings:** **3** or **4**, in total'; do
+    test_case "a comma before in total keeps every quantity: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$quantity_claims" == "3 4 " ]]; then test_pass; else test_fail "punctuated total lost a quantity: $quantity_claims"; fi
+done
+
+test_case "comma-separated total lists keep every member"
+quantity_claims=$(research_extract_numbers 'Risks 3, 4 and 5 in total.' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$quantity_claims" == "3 4 5 " ]]; then test_pass; else test_fail "total list lost a quantity: $quantity_claims"; fi
+
+for reference_text in 'See risks 3 & 4.' 'See risks 3&4.' 'See risks 3 & Risk 4.' 'See risks 3,4 & 5.' '(Risks 3 & 4)'; do
+    test_case "ampersands separate explicit references: $reference_text"
+    reference_claims=$(research_extract_numbers "$reference_text")
+    if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "ampersand reference became a claim: $reference_claims"; fi
+done
+
+test_case "a threshold following ampersand references still needs evidence"
+threshold_claims=$(research_extract_numbers 'See risks 3 & 4 or higher requires approval.')
+if [[ "$threshold_claims" == 4 ]]; then test_pass; else test_fail "ampersand threshold was misclassified: $threshold_claims"; fi
+
+for quantity in '1,000' '3.14' '1,000,000'; do
+    test_case "section labels preserve decimal and thousands quantities: $quantity"
+    quantity_claims=$(research_extract_numbers "See risks $quantity.")
+    if [[ "$quantity_claims" == "$quantity" ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
+done
+
+test_case "a threshold after a reference-list member still needs cited numeric evidence"
+threshold_draft="$RESEARCH_RUN_DIR/list-threshold.md"
+printf '%s\n' '- Risk 3 and 4 or higher requires approval (`src/handler.ts:4`).' > "$threshold_draft"
+threshold_status=0
+research_verify_synthesis "$threshold_draft" || threshold_status=$?
+threshold_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$threshold_status" -ne 0 && "$threshold_kinds" == "number_mismatch:4 " ]]; then
+    test_pass
+else
+    test_fail "threshold verification escaped: $threshold_status $threshold_kinds"
+fi
+
+test_case "both quantities in a total require cited evidence"
+printf '%s\n' '- Findings: 3 or 4 in total (`src/handler.ts:4`).' > "$threshold_draft"
+threshold_status=0
+research_verify_synthesis "$threshold_draft" || threshold_status=$?
+threshold_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$threshold_status" -ne 0 && "$threshold_kinds" == "number_mismatch:3 number_mismatch:4 " ]]; then
+    test_pass
+else
+    test_fail "total-list verification lost a quantity: $threshold_status $threshold_kinds"
+fi
+
+test_case "a comma before in total cannot bypass numeric evidence"
+printf '%s\n' '- Findings: 3 or 4, in total (`src/handler.ts:4`).' > "$threshold_draft"
+threshold_status=0
+research_verify_synthesis "$threshold_draft" || threshold_status=$?
+threshold_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$threshold_status" -ne 0 && "$threshold_kinds" == "number_mismatch:3 number_mismatch:4 " ]]; then
+    test_pass
+else
+    test_fail "punctuated total bypassed verification: $threshold_status $threshold_kinds"
+fi
+
+test_case "an ordinal self-reference needs no evidence while units beside it still do"
+ordinal_draft="$RESEARCH_RUN_DIR/local-ordinals.md"
+{
+    printf '%s\n' '- Unexpected errors return 500 (`src/handler.ts:4`). See point 2.'
+    printf '%s\n' '| The probe said errors return 503. | Corrected in point 2: they return 500 (`src/handler.ts:4`). |'
+    printf '%s\n' '- Unexpected errors return 500 under the 16 MiB document limit (`src/handler.ts:4`).'
+    printf '%s\n' '- Unexpected errors return 500 after 2 retries (`src/handler.ts:4`).'
+    printf '%s\n' '- Section 2 requires that unexpected errors return 500 (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 \
+      && "$ordinal_kinds" == "2:number_mismatch:503 3:number_mismatch:16 4:number_mismatch:2 5:number_mismatch:2 " ]]; then
+    test_pass
+else
+    test_fail "ordinal self-references were checked as numbers, or unit-bearing numbers escaped: $ordinal_kinds"
+fi
+
+test_case "Markdown reference labels remain references while count labels remain claims"
+list_refs=$(research_extract_numbers '- Points: 2 and 3; + Items: 4,5.' | tr '\n' ' ')
+table_counts=$(research_extract_numbers '| Failed items 12 | Total items 30 | Score in points 50 |' | LC_ALL=C sort | tr '\n' ' ')
+if [[ -z "$list_refs" && "$table_counts" == "12 30 50 " ]]; then
+    test_pass
+else
+    test_fail "Markdown references leaked [$list_refs] or count labels escaped [$table_counts]"
+fi
+
+test_case "emphasized references are skipped while emphasized quantities remain claims"
+emphasis_refs="" emphasis_claims=""
+for marker in '**' '*' '__' '_'; do
+    emphasis_refs="${emphasis_refs}$(research_extract_numbers "See points ${marker}2${marker},${marker}3${marker}.")"
+    emphasis_claims="${emphasis_claims}$(research_extract_numbers "The mean score in points: ${marker}50${marker}; points 2 and ${marker}5${marker} **MiB**." | LC_ALL=C sort | tr '\n' ' ')"
+done
+if [[ -z "$emphasis_refs" && "$emphasis_claims" == "5 50 5 50 5 50 5 50 " ]]; then
+    test_pass
+else
+    test_fail "emphasized references leaked [$emphasis_refs] or quantities escaped [$emphasis_claims]"
+fi
+
+test_case "paired underscores inside identifiers do not turn digit groups into claims"
+identifier_claims=$(research_extract_numbers 'see backup_2024_01_15.tar and 1_000_000; a_5_b; 2024_01_15' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$identifier_claims" == "1 2024 " ]]; then
+    test_pass
+else
+    test_fail "identifier digit groups became claims: $identifier_claims"
+fi
+
+for count_text in 'Score in points: 50, items: 10' 'Score in points: 50, **items:** 10' 'Score in points: 50, __items__: 10' 'Score in points: 50, items: **10**'; do
+    test_case "a comma-led count label remains a claim: $count_text"
+    count_claims=$(research_extract_numbers "$count_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$count_claims" == "10 50 " ]]; then
+        test_pass
+    else
+        test_fail "comma-led counts were lost: $count_claims"
+    fi
+done
+
+for count_join in 'and' 'or' ', and' ', or'; do
+    test_case "conjunction-led counts remain claims: $count_join"
+    count_claims=$(research_extract_numbers "Score in points: 50 $count_join items: 10" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$count_claims" == "10 50 " ]]; then test_pass; else test_fail "conjunction-led count was lost: $count_claims"; fi
+done
+
+test_case "conjunction-led item counts require cited evidence"
+printf '%s\n' '- Score in points: 500 and items: 10 (`src/handler.ts:4`).' > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:10 " ]]; then
+    test_pass
+else
+    test_fail "conjunction-led count escaped verification: $ordinal_kinds"
+fi
+
+for count_text in 'Score in points: 50 and items: 10' 'Score in points 50 or items 10' 'Score in points: 50 and **items:** 10' 'Score in points: 50 or __items__: 10'; do
+    test_case "a conjunction-led count label remains a claim: $count_text"
+    count_claims=$(research_extract_numbers "$count_text" | LC_ALL=C sort | tr '\n' ' ')
+    if [[ "$count_claims" == "10 50 " ]]; then
+        test_pass
+    else
+        test_fail "conjunction-led counts were lost: $count_claims"
+    fi
+done
+
+test_case "comma-led item labels continue an existing point-reference list"
+list_claims=$(research_extract_numbers 'See point 2, item 3; see points 4 and item 5; see point 6 or item 7; see points 8, and items 9; see points 10, or items 11.')
+if [[ -z "$list_claims" ]]; then test_pass; else test_fail "reference list became claims: $list_claims"; fi
+
+test_case "a comma-led item count still requires cited evidence"
+printf '%s\n' '- Score in points: 500, items: 10 (`src/handler.ts:4`).' > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:10 " ]]; then
+    test_pass
+else
+    test_fail "comma-led count escaped verification: $ordinal_kinds"
+fi
+
+test_case "colon quantities and Unicode range endpoints require source evidence"
+{
+    printf '%s\n' '- The mean score in points: 50 (`src/handler.ts:4`).'
+    printf '%s\n' '- See points 2 and 5–500 MiB (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:50 2:number_mismatch:5 " ]]; then
+    test_pass
+else
+    test_fail "colon quantity or Unicode range escaped verification: $ordinal_kinds"
+fi
+
+test_case "a fraction numerator after a standalone label still requires source evidence"
+printf '%s\n' '- Items: 5/500 passed (`src/handler.ts:4`).' > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:5 " ]]; then
+    test_pass
+else
+    test_fail "fraction numerator escaped verification: $ordinal_kinds"
+fi
+
+test_case "an emphasized range's first endpoint still requires source evidence"
+printf '%s\n' '- See points **5**–**500** MiB (`src/handler.ts:4`).' > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:5 " ]]; then
+    test_pass
+else
+    test_fail "emphasized range escaped verification: $ordinal_kinds"
+fi
+
+for range_dash in '—' '−'; do
+    test_case "dash range first endpoint requires cited evidence: $range_dash"
+    printf '%s\n' "- See points **5**${range_dash}**500** MiB (\`src/handler.ts:4\`)." > "$ordinal_draft"
+    ordinal_status=0
+    research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+    ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+    if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:5 " ]]; then
+        test_pass
+    else
+        test_fail "dash range escaped verification: $ordinal_kinds"
+    fi
+done
+
+for nested_value in '_**16**_' '**_16_**' '__**16**__' '**__16__**' '___16___' '***16***'; do
+    test_case "nested emphasis preserves substantive quantities: $nested_value"
+    nested_claims=$(research_extract_numbers "The limit is $nested_value MiB.")
+    if [[ "$nested_claims" == 16 ]]; then test_pass; else test_fail "nested quantity escaped: $nested_claims"; fi
+done
+
+test_case "emphasis across a range and a reference list preserves their different meanings"
+nested_range=$(research_extract_numbers 'See points _**5**—**500**_ MiB' | LC_ALL=C sort | tr '\n' ' ')
+nested_refs=$(research_extract_numbers 'See points _**2**,**3**_ and **_item 4_**.')
+nested_ids=$(research_extract_numbers 'backup_**5**_b a_5_b backup_2024_01_15.tar')
+if [[ "$nested_range" == "5 500 " && -z "$nested_refs" && -z "$nested_ids" ]]; then test_pass
+else test_fail "nested range [$nested_range], references [$nested_refs], identifiers [$nested_ids]"; fi
+
+for percent_space in ' ' $'\302\240' $'\342\200\257'; do
+    test_case "spaced percentages after labels remain factual quantities"
+    percent_claims=$(research_extract_numbers "Items: 5${percent_space}% passed.")
+    if [[ "$percent_claims" == 5 ]]; then test_pass; else test_fail "percentage escaped: $percent_claims"; fi
+done
+
+test_case "nested quantities, formatted ranges and spaced percentages require cited evidence"
+{
+    printf '%s\n' '- The limit is _**16**_ MiB (`src/handler.ts:4`).'
+    printf '%s\n' '- See points _**5**—**500**_ MiB (`src/handler.ts:4`).'
+    printf '%s\n' '- Items: 5 % passed (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:16 2:number_mismatch:5 3:number_mismatch:5 " ]]; then test_pass
+else test_fail "formatted quantities escaped verification: $ordinal_kinds"; fi
+
+test_case "compact point references are skipped while formatted units and numeric values remain claims"
+compact_refs=$(research_extract_numbers 'See points 2,3 and items 4,5,6.' | tr '\n' ' ')
+formatted_claims=""
+for ordinal_unit in '**MiB**' '*MiB*' '__MiB__' '_MiB_' '`MiB`' '(MiB)' '(**MiB**)'; do
+    formatted_claims="${formatted_claims}$(research_extract_numbers "See points 4 and 5 $ordinal_unit." | tr '\n' ' ')"
+done
+numeric_refs=$(research_extract_numbers 'See points 2.3, 1,000 and 12,345,678; items 3.14 and 4,000%.' | LC_ALL=C sort | tr '\n' ' ')
+if [[ -z "$compact_refs" && "$formatted_claims" == "5 5 5 5 5 5 5 " \
+      && "$numeric_refs" == "1,000 12,345,678 2.3 3.14 4,000% " ]]; then
+    test_pass
+else
+    test_fail "compact references leaked [$compact_refs] or claims were lost [$formatted_claims] [$numeric_refs]"
+fi
+
+test_case "degree units and nonbreaking spaces preserve quantities and ordinal lists"
+unicode_units=$(research_extract_numbers $'points 2 and 5 °C; points 3 and 6\302\240MB; items 4 and 7\342\200\257MiB' | LC_ALL=C sort | tr '\n' ' ')
+unicode_refs=$(research_extract_numbers $'points\302\2402\302\240and\302\2403, items 4\342\200\257or\342\200\2575.' | tr '\n' ' ')
+if [[ "$unicode_units" == "5 6 7 " && -z "$unicode_refs" ]]; then
+    test_pass
+else
+    test_fail "Unicode quantities were lost [$unicode_units] or references leaked [$unicode_refs]"
+fi
+
+for micro_unit in 'μg' 'µg' '**μg**' '(µg)' $'\302\240μg' $'\342\200\257µg'; do
+    test_case "micro-unit quantities remain claims beside point references: $micro_unit"
+    micro_claims=$(research_extract_numbers "See points 2 and 5 $micro_unit.")
+    if [[ "$micro_claims" == 5 ]]; then test_pass; else test_fail "micro-unit quantity escaped: $micro_claims"; fi
+done
+
+test_case "micro-unit quantities require cited evidence beside point references"
+{
+    printf '%s\n' '- See points 2 and 5 μg (`src/handler.ts:4`).'
+    printf '%s\n' '- See points 2 and 5 µg (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:5 2:number_mismatch:5 " ]]; then
+    test_pass
+else
+    test_fail "micro-unit quantities escaped verification: $ordinal_kinds"
+fi
+
+test_case "formatted units still produce verification mismatches beside compact references"
+printf '%s\n' '- Unexpected errors return 500 (`src/handler.ts:4`). See points 2,3; points 4 and 5 **MiB**.' > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "number_mismatch:5 " ]]; then
+    test_pass
+else
+    test_fail "compact reference or formatted unit verification regressed: $ordinal_kinds"
+fi
+
+for literal_text in '`_buffer`' '``literal `_buffer``' '[MiB](https://example.com/_unit)' '[MiB](./_unit_(name))' '[MiB][_unit]'; do
+    test_case "literal Markdown markers do not consume outer emphasis: $literal_text"
+    literal_claims=$(research_extract_numbers "The limit is _**16** ${literal_text}_ .")
+    if [[ "$literal_claims" == 16 ]]; then test_pass; else test_fail "literal marker hid quantity: $literal_claims"; fi
+done
+
+test_case "an unterminated destination does not consume surrounding emphasis"
+literal_claims=$(research_extract_numbers 'The limit is _**16** [MiB](unterminated_.')
+if [[ "$literal_claims" == 16 ]]; then test_pass; else test_fail "invalid destination hid quantity: $literal_claims"; fi
+
+test_case "many unterminated destinations have a bounded scan"
+if python3 - "$PROJECT_ROOT" <<'PY'
+import subprocess
+import sys
+import os
+import signal
+with subprocess.Popen(
+    ['bash', '-c', 'source "$1/scripts/lib/research-evidence.sh"; research_numeric_claims', 'fixture', sys.argv[1]],
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
+) as process:
+    try:
+        output, _ = process.communicate('](oops ' * 8000 + '16 MiB\n', timeout=5)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        sys.exit(1)
+sys.exit(0 if process.returncode == 0 and output == '16\n' else 1)
+PY
+then test_pass; else test_fail "malformed destinations exceeded five seconds or lost the quantity"; fi
+
+for linked_unit in '[MiB](#units)' '[MiB](./units.md)' '[MiB][units]' '[MiB][]' '[MiB]'; do
+    test_case "linked unit remains a quantity: $linked_unit"
+    linked_claims=$(research_extract_numbers "Items: 5 $linked_unit.")
+    if [[ "$linked_claims" == 5 ]]; then test_pass; else test_fail "linked unit hid quantity: $linked_claims"; fi
+done
+
+for list_label in '**_3._**' '_**3)**_' '___3.___'; do
+    test_case "nested formatted list label is excluded: $list_label"
+    list_claims=$(research_extract_numbers "- $list_label Unexpected errors return 500.")
+    if [[ "$list_claims" == 500 ]]; then test_pass; else test_fail "list label became a claim: $list_claims"; fi
+done
+
+test_case "Markdown literals and linked units cannot hide citation mismatches"
+{
+    printf '%s\n' '- The limit is _**16** [MiB](https://example.com/_unit)_ (`src/handler.ts:4`).'
+    printf '%s\n' '- The limit is _**16** with `_buffer`_ (`src/handler.ts:4`).'
+    printf '%s\n' '- Items: 5 [MiB](#units) (`src/handler.ts:4`).'
+    printf '%s\n' '- Items: 5 [MiB][units] (`src/handler.ts:4`).'
+    printf '%s\n' '- **_3._** Unexpected errors return 500 (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:16 2:number_mismatch:16 3:number_mismatch:5 4:number_mismatch:5 " ]]; then test_pass
+else test_fail "Markdown literal verification regressed: $ordinal_kinds"; fi
+
+for literal_destination in 'https://example.com/`unit' './`unit_(name)' '#`unit'; do
+    test_case "destination backticks cannot pair with following prose code: $literal_destination"
+    literal_claims=$(research_extract_numbers "The limit is _**16** [MiB](${literal_destination})_ and \`buffer\`.")
+    if [[ "$literal_claims" == 16 ]]; then test_pass; else test_fail "destination backtick hid quantity: $literal_claims"; fi
+done
+
+for attached_quantity in '_**16**ms_' '_*16*ms_' '__**16**ms__' '_**16**%_'; do
+    test_case "asterisk emphasis closes before an attached unit: $attached_quantity"
+    attached_claims=$(research_extract_numbers "The delay is ${attached_quantity}.")
+    if [[ "$attached_claims" == 16 || "$attached_claims" == 16% ]]; then test_pass; else test_fail "attached unit hid quantity: $attached_claims"; fi
+done
+
+test_case "destination backticks and attached units cannot hide citation mismatches"
+{
+    printf '%s\n' '- The limit is _**16** [MiB](https://example.com/`unit)_ and `buffer` (`src/handler.ts:4`).'
+    printf '%s\n' '- The delay is _**16**ms_ (`src/handler.ts:4`).'
+} > "$ordinal_draft"
+ordinal_status=0
+research_verify_synthesis "$ordinal_draft" || ordinal_status=$?
+ordinal_kinds=$(jq -r '.checks[] | "\(.line):\(.kind):\(.detail)"' "$RESEARCH_RUN_DIR/verification.json" | tr '\n' ' ')
+if [[ "$ordinal_status" -ne 0 && "$ordinal_kinds" == "1:number_mismatch:16 2:number_mismatch:16 " ]]; then test_pass
+else test_fail "Markdown boundary claims escaped verification: $ordinal_kinds"; fi
 
 test_case "an unresolved workspace citation is reported by name and its line numbers are not claims"
 unresolved_draft="$RESEARCH_RUN_DIR/local-unresolved.md"

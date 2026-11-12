@@ -270,7 +270,7 @@ cleanup_old_results() {
             probe-synthesis-*|grasp-consensus-*|tangle-validation-*|delivery-*) continue ;;
             .session-id|.created-at) continue ;;
         esac
-        rm -f "$file"
+        rm -f "$file" "${file%.md}.stderr.log"
         ((cleaned++)) || true
     done < <(find "$RESULTS_DIR" -name "*.md" -mmin "+$retention_mins" -print0 2>/dev/null)
 

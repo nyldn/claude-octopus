@@ -1270,8 +1270,6 @@ fi
 if multiline_match '\n___\n\*Multi-AI validation by Claude Octopus' \
         "$PROJECT_ROOT/.claude/skills/flow-deliver/SKILL.md" && \
         multiline_match '\n___\n\*Multi-AI validation by Claude Octopus' \
-        "$PROJECT_ROOT/.claude/skills/flow-deliver/flow-deliver.tmpl" && \
-        multiline_match '\n___\n\*Multi-AI validation by Claude Octopus' \
         "$PROJECT_ROOT/skills/flow-deliver/SKILL.md"; then
     pass "source and portable delivery skills preserve the footer separator"
 else

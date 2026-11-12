@@ -411,8 +411,20 @@ detect_tier_openai() {
     # Attempt API detection with minimal test call
     if command -v codex &>/dev/null; then
         local test_response
+        local -a PROVIDER_ENV_ARRAY=()
+        if ! { declare -F build_provider_env >/dev/null || source "${_smoke_policy_dir}/provider-routing.sh"; } ||
+           ! build_provider_env codex; then
+            if declare -F log >/dev/null; then
+                log WARN "Codex tier probe skipped: provider environment construction failed" >&2
+            else
+                printf '%s\n' 'Codex tier probe skipped: provider environment construction failed' >&2
+            fi
+            tier_cache_write "codex" "$fallback_tier"
+            echo "$fallback_tier"
+            return 0
+        fi
         # Use 5-second timeout for minimal "ok" prompt (3 tokens)
-        test_response=$(run_with_timeout 5 codex exec --skip-git-repo-check "ok" 2>&1 || echo "")
+        test_response=$(run_with_timeout 5 ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} codex exec --skip-git-repo-check "ok" 2>&1 || echo "")
 
         # Check for tier indicators in response
         # o3-mini/gpt-4 access suggests plus tier
@@ -845,7 +857,16 @@ smoke_test_cache_key() {
     if _smoke_claude_available; then
         claude_seat="${OCTOPUS_CLAUDE_BIN:-claude}/$(get_agent_model "claude-sonnet" 2>/dev/null || echo "default")"
     fi
-    echo "${codex_model}:${cursor_agent_model}:${cursor_agent_state}:${codex_sandbox}:claude=${claude_seat}"
+    local roster=""
+    declare -f octo_preflight_roster >/dev/null 2>&1 && roster="$(octo_preflight_roster 2>/dev/null || printf 'invalid')"
+    # The roster segment appears only when one is pinned, so the default key
+    # (and every existing cache) is unchanged.
+    echo "${codex_model}:${cursor_agent_model}:${cursor_agent_state}:${codex_sandbox}:claude=${claude_seat}${roster:+:roster=${roster//$'\n'/,}}"
+}
+
+# A pinned council roster limits the smoke test to its seats.
+_smoke_in_roster() {
+    ! declare -f octo_preflight_in_roster >/dev/null 2>&1 || octo_preflight_in_roster "$1"
 }
 
 # Claude seats run as `claude --print` subprocesses with the CLI's own
@@ -898,7 +919,10 @@ _classify_smoke_error() {
         local _re_rate='rate.?limit|429|too many requests|quota'
         local _re_policy='policy|blocked|safety|filtered|content.?filter|recitation'
         local _re_gitrepo='not inside a trusted directory|skip-git-repo-check|not a git repository'
-        if [[ "$stderr_output" =~ $_re_gitrepo ]]; then
+        local _re_sandbox='operation not permitted|EPERM|denied by sandbox|forbidden by sandbox|sandbox.*(denied|blocked)'
+        if [[ "$stderr_output" =~ $_re_sandbox ]]; then
+            echo "SANDBOX_DENIED"
+        elif [[ "$stderr_output" =~ $_re_gitrepo ]]; then
             echo "GIT_REPO_REQUIRED"
         elif [[ "$stderr_output" =~ $_re_model ]]; then
             echo "MODEL_NOT_FOUND"
@@ -957,9 +981,17 @@ _display_smoke_test_error() {
         TIMEOUT)
             echo -e "  ${YELLOW}⚠${NC} ${provider}: Smoke test timed out. Provider may be slow or down."
             ;;
+        SANDBOX_DENIED)
+            echo -e "  ${YELLOW}⚠${NC} ${provider}: Smoke test was denied by the sandbox (Operation not permitted), not by the provider"
+            echo -e "    ${DIM}Fix: re-run the preflight outside the sandbox before treating the provider as unavailable${NC}"
+            ;;
         GIT_REPO_REQUIRED)
             echo -e "  ${YELLOW}⚠${NC} ${provider}: Requires a git repository (configuration issue, not a provider failure)"
             echo -e "    ${DIM}Fix: Run from a git repo or use 'codex exec --skip-git-repo-check'${NC}"
+            ;;
+        ERROR)
+            echo -e "  ${RED}✗${NC} ${provider}: Provider environment construction failed"
+            echo -e "    ${DIM}Fix: check the selected provider credentials and environment allowlist${NC}"
             ;;
         UNKNOWN)
             echo -e "  ${RED}✗${NC} ${provider}: Smoke test failed (unknown error)"
@@ -999,6 +1031,16 @@ _smoke_test_provider() {
         return 0
     fi
 
+    # Readiness calls use the same credential boundary as task dispatch.
+    # Fail before launch if isolation cannot be constructed.
+    local -a PROVIDER_ENV_ARRAY=()
+    if ! { declare -F build_provider_env >/dev/null || source "${_smoke_policy_dir}/provider-routing.sh"; } ||
+       ! build_provider_env "$agent_type"; then
+        echo "ERROR:${model}" > "$result_file"
+        rm -f "$stderr_file" 2>/dev/null || true
+        return 0
+    fi
+
     # Send trivial prompt with timeout
     local smoke_exit=0
     if [[ "$provider" == "codex" ]]; then
@@ -1018,7 +1060,7 @@ _smoke_test_provider() {
         fi
         # codex cmd_str ends with `-` (stdin prompt); arg form is rejected.
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str \
+            ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} $cmd_str \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
         popd >/dev/null 2>&1 || cd "$OLDPWD" 2>/dev/null || true
         rm -rf "$smoke_dir" 2>/dev/null
@@ -1026,7 +1068,7 @@ _smoke_test_provider() {
         # cmd_str already carries --trust, --output-format text, --mode and
         # --model from dispatch; only the stdin headless trigger is appended.
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str -p "" \
+            ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} $cmd_str -p "" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     elif [[ "$provider" == "agy" ]]; then
         # agy-exec.sh is a stdin adapter that builds its own argv and execs agy
@@ -1036,17 +1078,17 @@ _smoke_test_provider() {
         # web-search tool call, which hangs with no sandbox network permission.
         echo "Reply with exactly: ok. Answer from your own knowledge only — do not use web search or any tools." \
             | run_with_timeout "$smoke_timeout" \
-            $cmd_str \
+            ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} $cmd_str \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     elif [[ "$provider" == "claude" ]]; then
         # claude --print reports auth failures ("Failed to authenticate: OAuth
         # session expired ...") on stdout, so both streams feed the classifier.
         echo "Reply with exactly: ok" | run_with_timeout "$smoke_timeout" \
-            $cmd_str \
+            ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} $cmd_str \
             >"$stderr_file" 2>&1 || smoke_exit=$?
     else
         run_with_timeout "$smoke_timeout" \
-            $cmd_str -p "Reply with exactly: ok" \
+            ${PROVIDER_ENV_ARRAY[@]+"${PROVIDER_ENV_ARRAY[@]}"} $cmd_str -p "Reply with exactly: ok" \
             >/dev/null 2>"$stderr_file" || smoke_exit=$?
     fi
 
@@ -1068,11 +1110,17 @@ _smoke_test_provider() {
     rm -f "$stderr_file" 2>/dev/null
 }
 
-# Tally one provider's smoke-test result and, on failure, mark it quota/auth-dead
-# for the rest of this session so get_dispatch_strategy() (embrace.sh) and the
-# other octo_quota_is_dead() consumers stop selecting it. Without this, a smoke
-# test failure was only ever logged — the provider stayed selectable and got
+# Tally one provider's smoke-test result and, on failure, mark it dead for the
+# rest of this run so get_dispatch_strategy() (embrace.sh) and the other
+# octo_quota_is_dead() consumers stop selecting it. Without this, a smoke test
+# failure was only ever logged — the provider stayed selectable and got
 # dispatched into the same failure a moment later. (#840)
+#
+# Only a definitive auth or quota/rate rejection seen outside a sandbox is
+# cached for later runs, with its own timestamp. An unknown error, a timeout or
+# a sandbox denial says nothing about the next run: caching it made the next
+# preflight report a healthy provider as "degraded (quota)" without calling it
+# (sail-cruisey #2905).
 _smoke_tally_result() {
     local provider="$1" result="$2"
     case "${result%%:*}" in
@@ -1085,9 +1133,37 @@ _smoke_tally_result() {
         SKIP) ((++skip_count)) ;;
         *)
             ((++fail_count))
-            declare -f octo_quota_mark_dead >/dev/null 2>&1 && octo_quota_mark_dead "$provider"
+            local persist=false
+            case "${result%%:*}" in
+                AUTH_FAILURE|RATE_LIMITED) persist=true ;;
+            esac
+            if declare -f octo_quota_in_sandbox >/dev/null 2>&1 && octo_quota_in_sandbox; then
+                persist=false
+            fi
+            if [[ "$persist" == true ]] && declare -f octo_quota_mark_dead >/dev/null 2>&1; then
+                octo_quota_mark_dead "$provider" "${OCTOPUS_QUOTA_DEAD_TTL:-3600}"
+            elif declare -f octo_quota_mark_failed_this_run >/dev/null 2>&1; then
+                # A timeout is slow, not dead: excluded in this run, but it does
+                # not stop a pass from being cached.
+                if [[ "${result%%:*}" == TIMEOUT ]]; then
+                    octo_quota_mark_failed_this_run "$provider" no-recheck
+                else
+                    octo_quota_mark_failed_this_run "$provider"
+                fi
+            fi
             ;;
     esac
+}
+
+# Status to cache for a passing smoke test: 0, unless a provider failed for an
+# unexplained reason. That provider is excluded only in this process, so a
+# cached pass would let the next run dispatch to it without testing it again.
+_smoke_pass_cache_status() {
+    if declare -f octo_quota_needs_recheck >/dev/null 2>&1 && octo_quota_needs_recheck; then
+        echo 1
+    else
+        echo 0
+    fi
 }
 
 # Orchestrate parallel smoke tests for all available providers
@@ -1115,12 +1191,12 @@ provider_smoke_test() {
 
     # Determine which providers are available (from preflight state)
     local has_codex=false has_cursor_agent=false has_agy=false has_claude=false
-    command -v codex &>/dev/null && has_codex=true
-    if declare -f cursor_agent_is_available >/dev/null 2>&1 && cursor_agent_is_available; then
+    command -v codex &>/dev/null && _smoke_in_roster codex && has_codex=true
+    if declare -f cursor_agent_is_available >/dev/null 2>&1 && cursor_agent_is_available && _smoke_in_roster cursor-agent; then
         has_cursor_agent=true
     fi
-    command -v agy &>/dev/null && has_agy=true
-    _smoke_claude_available && has_claude=true
+    command -v agy &>/dev/null && _smoke_in_roster agy && has_agy=true
+    _smoke_claude_available && _smoke_in_roster claude && has_claude=true
 
     if [[ "$has_codex" == "false" && "$has_cursor_agent" == "false" && "$has_agy" == "false" && "$has_claude" == "false" ]]; then
         log WARN "Smoke test: no providers to test"
@@ -1206,6 +1282,9 @@ provider_smoke_test() {
             local claude_model="${claude_result#*:}"
             _display_smoke_test_error "Claude" "$claude_error" "$claude_model"
         fi
+        if declare -f octo_preflight_sandbox_note >/dev/null 2>&1; then
+            octo_preflight_sandbox_note | sed 's/^/  /'
+        fi
         echo ""
     fi
 
@@ -1218,7 +1297,7 @@ provider_smoke_test() {
         TIMEOUT)
             if [[ $pass_count -eq 0 && $fail_count -eq 1 ]]; then
                 log WARN "Smoke test: degraded mode (the claude CLI timed out and no other provider was tested)"
-                smoke_test_cache_write "0"
+                smoke_test_cache_write "$(_smoke_pass_cache_status)"
                 return 0
             fi
             ;;
@@ -1229,6 +1308,30 @@ provider_smoke_test() {
             ;;
     esac
 
+    # A pinned council roster needs every seat it launched to pass: one seat
+    # passing must not cover for another failing auth. A timeout stays
+    # degraded, as above (slow is not dead).
+    if declare -f octo_preflight_roster >/dev/null 2>&1 && [[ -n "$(octo_preflight_roster 2>/dev/null)" ]]; then
+        local roster_failed="" seat seat_result
+        for seat in codex cursor-agent agy claude; do
+            case "$seat" in
+                codex) seat_result="$codex_result" ;;
+                cursor-agent) seat_result="$cursor_agent_result" ;;
+                agy) seat_result="$agy_result" ;;
+                claude) seat_result="$claude_result" ;;
+            esac
+            case "${seat_result%%:*}" in
+                PASS|SKIP|TIMEOUT) ;;
+                *) roster_failed="${roster_failed}${roster_failed:+ }${seat}" ;;
+            esac
+        done
+        if [[ -n "$roster_failed" ]]; then
+            log ERROR "Smoke test failed: council roster seat(s) failed: ${roster_failed}"
+            smoke_test_cache_write "1"
+            return 1
+        fi
+    fi
+
     # Pass if at least one provider succeeds (consistent with v7.9.1 single-provider mode)
     if [[ $pass_count -gt 0 ]]; then
         if [[ $fail_count -gt 0 ]]; then
@@ -1236,7 +1339,7 @@ provider_smoke_test() {
         else
             log INFO "Smoke test passed ($pass_count provider(s) verified)"
         fi
-        smoke_test_cache_write "0"
+        smoke_test_cache_write "$(_smoke_pass_cache_status)"
         return 0
     fi
 

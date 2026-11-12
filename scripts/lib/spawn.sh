@@ -4,6 +4,7 @@
 
 _octopus_spawn_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_octopus_spawn_lib_dir}/engineering-methods.sh"
+source "${_octopus_spawn_lib_dir}/provider-failure.sh"
 source "${_octopus_spawn_lib_dir}/pid-ledger.sh"
 source "${_octopus_spawn_lib_dir}/agent-spec.sh" 2>/dev/null || true
 source "${_octopus_spawn_lib_dir}/dispatch-plan.sh" 2>/dev/null || true
@@ -343,6 +344,21 @@ octopus_effective_agent_timeout() {
             configured_timeout="$tangle_timeout"
         elif [[ "${OCTOPUS_TIMEOUT_EXPLICIT:-0}" != "1" ]]; then
             configured_timeout=0
+        fi
+    elif [[ "$phase" == "probe" ]] && declare -F octopus_sync_timeout_override >/dev/null 2>&1; then
+        # Probe seats take run_agent_sync's precedence: OCTOPUS_AGENT_TIMEOUT,
+        # then the captured --timeout, then TIMEOUT. Nothing copies the
+        # variable into TIMEOUT, so a seat stopped at the 600s default while
+        # its timeout message said to set the variable that was already set.
+        # Probe's progress watchdog reads this value too. Other async
+        # workflows still wait for their seats against TIMEOUT.
+        local probe_timeout_raw probe_timeout
+        if probe_timeout_raw="$(octopus_sync_timeout_override "$configured_timeout" "$phase")"; then
+            if ! probe_timeout="$(_octo_timeout_normalize_seconds "$probe_timeout_raw")"; then
+                log "ERROR" "Probe timeout '$probe_timeout_raw' must be a non-negative integer of at most 1073741823 seconds"
+                return 2
+            fi
+            configured_timeout="$probe_timeout"
         fi
     fi
 
@@ -798,6 +814,11 @@ octopus_tangle_apply_execution_boundary() {
     cmd_array=("${boundary_cmd[@]}" "${cmd_array[@]}")
 }
 
+# Resolve the agent's role and start it through its configured execution path.
+# Arguments: agent type, prompt, optional task ID, role, phase, and fork flag.
+# Direct refinement spawns use the underlying task type for roles and rules.
+# Subprocess launches print their PID after worker registration; dry runs only
+# log the proposed command. Rejected launches return a nonzero status.
 spawn_agent() {
     local agent_type="$1"
     if [[ "$agent_type" == "claude-opus-fast" ]]; then
@@ -837,16 +858,23 @@ spawn_agent() {
         log "DEBUG" "Worktree hooks available — Octopus env vars will propagate via WorktreeCreate"
     fi
 
+    # Native refinement is an auto handoff. Direct spawns still need the
+    # underlying coding/design/etc. type for persona and task-type rules.
+    local task_type role_task_type
+    task_type=$(classify_task "$prompt")
+    role_task_type="$task_type"
+    if [[ "$task_type" == native-refine ]]; then
+        role_task_type=$(classify_task "$prompt" --skip-refine)
+    fi
+
     # Determine role if not provided
     if [[ -z "$role" ]]; then
-        local task_type
-        task_type=$(classify_task "$prompt")
-        role=$(get_role_for_context "$agent_type" "$task_type" "$phase")
+        role=$(get_role_for_context "$agent_type" "$role_task_type" "$phase")
     fi
 
     # v8.19.0: Check routing rules for role override
     local routed_role
-    routed_role=$(match_routing_rule "$(classify_task "$prompt" 2>/dev/null)" "$prompt" 2>/dev/null) || true
+    routed_role=$(match_routing_rule "$task_type" "$prompt" "$role_task_type" 2>/dev/null) || true
     if [[ -n "$routed_role" ]]; then
         log DEBUG "Routing rules override: $role -> $routed_role"
         role="$routed_role"
@@ -1282,7 +1310,11 @@ ${heuristic_ctx}"
     case "$agent_type" in
         cursor-agent*|copilot*|qwen*) _plan_append_empty_prompt=true ;;
     esac
-    build_provider_env "$agent_type"
+    if ! build_provider_env "$agent_type"; then
+        octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
+            "Provider environment construction failed" 74 "" >/dev/null 2>&1 || true
+        return 74
+    fi
     octo_dispatch_plan_bind_model_env "$agent_type" "$model"
     local _plan_failure=""
     if ! dispatch_argv_json="$(octo_dispatch_command_argv_json "$cmd")"; then
@@ -1653,12 +1685,7 @@ ${heuristic_ctx}"
                [[ $auth_attempt -lt $max_auth_retries ]]; then
                 local stderr_content=""
                 [[ -s "$temp_errors" ]] && stderr_content=$(<"$temp_errors")
-                if [[ "$stderr_content" == *"unauthorized"* ]] || \
-                   [[ "$stderr_content" == *"401"* ]] || \
-                   [[ "$stderr_content" == *"auth"* ]] || \
-                   [[ "$stderr_content" == *"credential"* ]] || \
-                   [[ "$stderr_content" == *"token expired"* ]] || \
-                   [[ "$stderr_content" == *"refresh"* ]]; then
+                if octopus_provider_failure_retryable "$agent_type" "$stderr_content"; then
                     ((auth_attempt++)) || true
                     local backoff=$((auth_attempt * 5))
                     if [[ "$_timeout_deadline" -gt 0 ]]; then
@@ -1732,7 +1759,13 @@ ${heuristic_ctx}"
                     -e '^Using FileKeychain' \
                     -e '^Loaded cached credentials' \
                     -e '^Run /mcp' \
-                    "$temp_output" >> "$result_file" 2>/dev/null || cat "$temp_output" >> "$result_file"
+                    "$temp_output" >> "$result_file" 2>/dev/null || {
+                    local _filter_status=$?
+                    # grep returns 1 when every line was intentionally removed.
+                    if [[ "$_filter_status" -gt 1 ]]; then
+                        cat "$temp_output" >> "$result_file"
+                    fi
+                }
             fi
             if [[ "$agent_type" == codex* ]] \
                 && ! grep -q '[[:alnum:]]' "$temp_output" 2>/dev/null \
@@ -1779,18 +1812,47 @@ ${heuristic_ctx}"
                 fi
             fi
 
-            # Append stderr if it contains useful content (not just warnings)
+            # Append stderr if it contains useful content (not just warnings).
+            # Codex echoes every file it reads on stderr; a large transcript
+            # beside a real stdout answer goes to <result>.stderr.log with only
+            # its tail inline, so the result holds the review (sail-cruisey
+            # #3245: 294 KB of echoed files around a 2 KB review). A stdout-less
+            # run keeps it inline: its answer was recovered from stderr.
             if [[ -s "$temp_errors" ]] && ! grep -q "^mcp startup:" "$temp_errors"; then
+                local _stderr_bytes _stderr_sidecar=""
+                _stderr_bytes="$(wc -c < "$temp_errors" | tr -d '[:space:]')"
+                if [[ "${_stderr_bytes:-0}" -gt 16384 ]] &&
+                   grep -q '[[:alnum:]]' "$temp_output" 2>/dev/null &&
+                   octo_result_framed_sections "$result_file" output | grep '[[:alnum:]]' >/dev/null; then
+                    _stderr_sidecar="${result_file%.md}.stderr.log"
+                    # Reuse the path-safe writer. Refused paths or transcripts
+                    # above its 1 MiB input limit retain the full inline copy.
+                    if ! python3 "${_octopus_spawn_lib_dir}/../helpers/private-atomic-write.py" \
+                        "$_stderr_sidecar" < "$temp_errors" 2>/dev/null; then
+                        _stderr_sidecar=""
+                    fi
+                fi
                 echo "" >> "$result_file"
                 echo "## Warnings/Errors" >> "$result_file"
                 if [[ -n "$_untrusted_nonce" ]]; then
                     echo "<!-- BEGIN-UNTRUSTED:provider=${agent_type}:stream=stderr:nonce=${_untrusted_nonce} -->" >> "$result_file"
                 fi
                 echo '```' >> "$result_file"
-                cat "$temp_errors" >> "$result_file"
+                if [[ -n "$_stderr_sidecar" ]]; then
+                    tail -c 16384 "$temp_errors" | tail -n 40 | python3 -c '
+import sys
+sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore").encode("utf-8"))
+' >> "$result_file"
+                    printf '\n' >> "$result_file"
+                else
+                    cat "$temp_errors" >> "$result_file"
+                fi
                 echo '```' >> "$result_file"
                 if [[ -n "$_untrusted_nonce" ]]; then
                     echo "<!-- END-UNTRUSTED:provider=${agent_type}:stream=stderr:nonce=${_untrusted_nonce} -->" >> "$result_file"
+                fi
+                if [[ -n "$_stderr_sidecar" ]]; then
+                    echo "(Last 40 lines, at most 16 KB shown. Full stderr transcript, ${_stderr_bytes} bytes: ${_stderr_sidecar})" >> "$result_file"
                 fi
             fi
 
@@ -1930,7 +1992,10 @@ ${heuristic_ctx}"
             echo "" >> "$result_file"
             echo "**Recommendations**:" >> "$result_file"
             echo "- Partial results may still be valuable" >> "$result_file"
-            if [[ "$_eff_timeout" =~ ^[0-9]+$ && "$_eff_timeout" -gt 0 ]]; then
+            if [[ "$_eff_timeout" =~ ^[0-9]+$ && "$_eff_timeout" -gt 0 && \
+                  "$phase" == "probe" && -n "${OCTOPUS_AGENT_TIMEOUT:-}" ]]; then
+                echo "- Consider increasing timeout: \`OCTOPUS_AGENT_TIMEOUT=$((_eff_timeout * 2))\` (overrides \`--timeout\`)" >> "$result_file"
+            elif [[ "$_eff_timeout" =~ ^[0-9]+$ && "$_eff_timeout" -gt 0 ]]; then
                 echo "- Consider increasing timeout: \`--timeout $((_eff_timeout * 2))\`" >> "$result_file"
             else
                 echo "- Consider setting an explicit timeout only if this task needs a wall-clock cap" >> "$result_file"

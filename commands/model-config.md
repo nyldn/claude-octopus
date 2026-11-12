@@ -24,7 +24,7 @@ echo "provider | model | config | routing | cost"
 **Preflight — Ensure plugin root is resolvable (run via Bash tool):**
 
 ```bash
-OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
   if [[ ! -x "$helper" ]]; then
@@ -161,9 +161,8 @@ AskUserQuestion({
     multiSelect: false,
     options: [
       {label: "gpt-6.1-sol", description: "Current Sol for complex coding, 2/10 USD per MTok input/output; requires model access in your Codex client"},
-      {label: "gpt-6-sol", description: "Previous Sol, 2/10 USD per MTok input/output; preserve an existing pin if preferred"},
+      {label: "gpt-6.1-terra", description: "Visual reasoning and writing, 1/5 USD per MTok input/output; confirm access in your Codex client"},
       {label: "gpt-6-luna", description: "Focused tasks and budget checks, 0.10/0.50 USD per MTok input/output"},
-      {label: "gpt-5.6-sol", description: "Current Octopus release default, 4/20 USD per MTok input/output; retained for existing configurations"},
       {label: "Custom", description: "Enter a custom model name"}
     ]
   }]
@@ -177,7 +176,17 @@ cost 2x input and 1.5x output for the whole request. The catalog also includes
 v2.1.284 and newer. Older clients retain their supported Sonnet default. Saved
 pins remain unchanged; catalogue presence does not confirm account access. Catalog
 specifications and sources are in `docs/MODEL-ROUTING-STRATEGY.md`.
-`gpt-5.6-terra`, `gpt-5.6-luna`, and `o3` remain available through Custom.
+GPT-6.1 Terra tools require Responses; the Chat Completions adapter accepts it
+only with `--tool-policy none`. It supports `none` reasoning, unlike GPT-6.1 Sol.
+
+`claude-fable-5-2` is available through an explicit model-qualified Claude or
+Claude SDK seat, or a session environment pin. It costs USD 8 per million input
+tokens and USD 40 per million output tokens, needs Claude Code v2.1.321 or newer
+on the CLI path, and retains the Fable security, input-size, effort and retry
+guards. It requires 30-day provider retention.
+It does not replace the existing Fable 5.1 escalation target.
+`gpt-6-sol`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, and `o3`
+remain available through Custom. The release default remains GPT-5.6 Sol.
 
 `gpt-6-astra` is intentionally absent from persistent provider defaults. For a
 bounded Premium evaluation after Sol fails a hard acceptance test, configure
@@ -215,7 +224,7 @@ session is not usable here; run `kimi` with the same `KIMI_CODE_HOME` and enter
 After selection, apply the change:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh set <provider> <model>
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" set <provider> <model>
 ```
 
 Then confirm: `✓ Set <provider> default → <model>`
@@ -366,7 +375,7 @@ AskUserQuestion({
 Apply the selection with the shared helper:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh cost-mode <mode>
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" cost-mode <mode>
 ```
 
 The helper persists the selection in `providers.json`. Do not edit the user's
@@ -376,7 +385,7 @@ shell profile. Mention the matching quick command: `/octo:budget-mode`,
 To configure which model or capability a provider uses in a tier:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh tier <budget|standard|premium> <provider> <model-or-capability>
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" tier <budget|standard|premium> <provider> <model-or-capability>
 ```
 
 When Premium is selected, offer these optional bounded judgment escalations
@@ -397,14 +406,14 @@ Use role routing when a specific persona or workflow role should use a different
 Show current role overrides:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh show roles
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" show roles
 ```
 
 Set or remove an override:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh route-role <role> <provider:capability-or-model>
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh unroute-role <role>
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" route-role <role> <provider:capability-or-model>
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" unroute-role <role>
 ```
 
 Role overrides are intentionally sparse. Do not restate defaults; add a role only when it needs deterministic routing different from the provider/persona default.
@@ -416,7 +425,7 @@ Use this when the user wants to turn a provider off for the current session, for
 First show the current allowlist:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh providers
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" providers
 ```
 
 Then ask which providers should be available:
@@ -444,15 +453,15 @@ AskUserQuestion({
 Apply the selection as a session allowlist:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh allow <providers...> --session
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" allow <providers...> --session
 ```
 
 Useful direct commands:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh disable codex --session
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh allow claude agy --session
-${HOME}/.claude-octopus/plugin/scripts/helpers/octo-model-config.sh clear-allowlist --session
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" disable codex --session
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" allow claude agy --session
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/octo-model-config.sh" clear-allowlist --session
 ```
 
 Explain that `OCTO_ALLOWED_PROVIDERS` still wins when it is set in the shell environment.

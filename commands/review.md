@@ -197,7 +197,7 @@ If the user includes `fresh` in the command text, do not treat it as a file path
 ## Step 2.5: Ensure plugin root is resolvable (run via Bash tool)
 
 ```bash
-OCTO_ROOT="${HOME}/.claude-octopus/plugin"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
   helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
   if [[ ! -x "$helper" ]]; then
@@ -215,7 +215,7 @@ If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setu
 Run via Bash tool:
 
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh code-review '<profile-json>'
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" code-review '<profile-json>'
 ```
 
 Where `<profile-json>` is the JSON profile built in Step 2.
@@ -224,7 +224,7 @@ The pipeline runs 3 rounds (parallel fleet → verification → synthesis) and o
 
 Round-aware PR history is enabled automatically for open PR reviews. Local state is stored at `~/.claude-octopus/pr-state/<host>/<owner>/<repo>/<pr>.json` and is used to show addressed, persistent, new, and regressed finding counts across repeated `/octo:review` runs. Set `OCTOPUS_PR_HISTORY=0` before invoking the command to disable all history reads and writes.
 
-Each review also writes a local proof packet under `~/.claude-octopus/runs/<run-id>/`. The packet includes `state.json`, `proof.jsonl`, `summary.md`, findings artifacts, and provider substitution records so review claims can be checked after the chat scroll is gone. Set `OCTOPUS_PROOF_PACKET=0` to disable proof packet writes.
+Each review also writes a local proof packet under `~/.claude-octopus/runs/<run-id>/`. Inside Claude Code the run id starts with the session id, followed by the workflow, a timestamp and the process id, so parallel or back-to-back reviews in one session keep separate packets. Set `OCTOPUS_PROOF_RUN_ID` to choose the run id yourself. The packet includes `state.json`, `proof.jsonl`, `summary.md`, findings artifacts, and provider substitution records so review claims can be checked after the chat scroll is gone. Set `OCTOPUS_PROOF_PACKET=0` to disable proof packet writes.
 
 If a project already has `graphify-out/GRAPH_REPORT.md`, `/octo:review` also passes a compact Graphify companion context into the reviewer prompt as an orientation map. This is passive: Octopus does not build or refresh the graph during review, and `OCTOPUS_GRAPHIFY=0` disables the injection.
 
@@ -252,5 +252,16 @@ Drop-in compatible with Claude Code's managed Code Review service.
 - Prefer early returns over nested conditionals
 
 ## Skip
-- Generated files under src/gen/
+- src/gen/
+- *.lock
 ```
+
+Skip entries are case-sensitive paths or globs relative to the repository root.
+A trailing `/` skips that directory and its descendants. `*` matches any
+characters, including `/`; `?` and `[abc]` are also supported. Entries may be
+wrapped in backticks. Matching removes the whole file diff, including its
+headers and hunks. Renames match the destination path; deletions match the
+original path. Unrecognized diff formats are retained for review.
+Standard Git `a/` and `b/` prefixes and `--no-prefix` are supported, including
+quoted paths and binary or mode-only changes. Blocks with custom prefixes may
+be retained even when their paths match.

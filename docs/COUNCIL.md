@@ -1,5 +1,40 @@
 # Council evidence
 
+## Check your roster
+
+Run `/octo:preflight` before a council to check the providers you configured.
+When the council provider roster is pinned, preflight checks those seats,
+including Claude, and names any seat that is not ready. An unset roster or
+`auto` keeps the usual detection behavior. See the
+[preflight configuration](../commands/preflight.md). A seat without local
+provider detection is reported as not checked.
+
+A sandbox can hide a valid keychain login, network access or files outside
+the workspace. Preflight now reports this limitation. Re-run it outside the
+sandbox before treating the provider as unauthenticated. A successful local
+check still does not prove account entitlement or remaining quota.
+
+## Concurrent seats
+
+Advice, critique and revision phases run up to two seats at once, with one call
+per provider. The scheduler scans the roster for an eligible provider when a
+slot opens. Usage reservations follow admission order before dispatch; queued
+seats consume no calls. Seats for the same provider retain roster order. Each
+phase still waits for every selected seat before applying its existing quorum,
+grounding and dissent checks.
+
+| Environment variable | Default | Effect |
+| --- | --- | --- |
+| `OCTOPUS_COUNCIL_MAX_PARALLEL` | `2` | Maximum concurrent seats, also capped by the global `MAX_PARALLEL` setting |
+| `OCTOPUS_COUNCIL_PROVIDER_MAX_PARALLEL` | `1` | Maximum concurrent calls to each provider |
+| `OCTOPUS_COUNCIL_MAX_PARALLEL_<PROVIDER>` | Inherits provider limit | Override for one provider, for example `OCTOPUS_COUNCIL_MAX_PARALLEL_CODEX=2` |
+
+Set `OCTOPUS_COUNCIL_MAX_PARALLEL=1` for serial dispatch. Existing projected-cost
+limits and the aggregate deadline apply across workers. Partial responses and
+failed-seat diagnostics remain in the run directory after cancellation.
+
+## Provide review evidence
+
 Council file access depends on the provider and dispatch transport. Consultative
 CLI seats run in a disposable working-tree copy and can inspect project files
 present there. A tracked relative path such as `./src/service.ts` can therefore
@@ -55,6 +90,27 @@ do not prove that the quote came from that exact file or that a seat read it.
 Validated citations and the council's other grounding paths still apply.
 
 ## Citation quote verification
+
+Evidence-path grounding resolves citations relative to the evidence root first.
+If the written path is missing, a bare filename or path suffix can resolve when
+exactly one eligible file under the root matches, including files in hidden
+directories. For example, `pr-watchdog.yml:249` can resolve to
+`.github/workflows/pr-watchdog.yml:249`. Nested checkouts with their own `.git`
+entry are excluded from suffix matching. Ambiguous repository suffixes remain
+unresolved. Line numbers past the end of a file do not validate an evidence-path
+entry.
+
+Quote verification checks the written path first, then a uniquely matching
+attached context file, then a unique repository suffix. It evaluates ambiguity
+separately in the attached context list and the repository index. A unique
+context match takes precedence even when the repository suffix is ambiguous;
+multiple context matches can still fall back to a unique repository suffix.
+Quote matching checks file contents and can succeed despite an out-of-range
+cited line number.
+
+An existing unsafe path or directory is rejected before suffix matching, so
+a citation cannot silently refer to another file. Direct symlinks to files
+inside the evidence root keep their existing behavior.
 
 Council also checks specific code quotes beside `path:line` citations against
 the cited files and reviewed diff. A seat whose checked quotes are fabricated

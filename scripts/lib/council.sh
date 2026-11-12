@@ -86,6 +86,7 @@ if ! declare -f octo_api_key_provider_is_available >/dev/null 2>&1; then
 fi
 source "${_council_lib_dir}/agent-sync.sh" 2>/dev/null || true
 source "${_council_lib_dir}/features.sh" 2>/dev/null || true
+source "${_council_lib_dir}/council-workers.sh"
 unset _council_lib_dir
 
 council_usage() {
@@ -1868,20 +1869,11 @@ _council_cancel_tree() {
     kill -KILL "$pid" 2>/dev/null || true
 }
 
+# Run one roster member with bounded detached output, or use the inline fixture
+# path; publish the seat PID so the phase scheduler can collect it later.
 council_dispatch_member_detached() {
-    # Serial-but-detached seat dispatch (sail-cruisey #2077). A council seat used to
-    # run inline in the council's own process group: a SIGHUP/SIGINT/SIGTERM to the
-    # council (a Claude Code tool timeout, a user Ctrl-C, an orchestrator-level signal)
-    # propagated to the in-flight provider child, killing it mid-write and leaving a
-    # torn response file — the council then hung or reported a false provider
-    # shortage. This wrapper runs the seat in a signal-isolated, disowned background
-    # subshell that writes to a .partial file and atomically renames it into place on
-    # completion, dropping a .done sentinel carrying the exit code. The seat's write
-    # is thus decoupled from the parent's process group: an interrupted parent can no
-    # longer kill a seat mid-write or leave a half-written file, and reaping is
-    # authoritative via the .done sentinel rather than a synchronous return that a
-    # racing signal could truncate. Seats still run one at a time (serial ordering
-    # preserved) — this is a reliability change, not a concurrency change.
+    # Signal-isolated dispatch with atomic output and completion records. The
+    # phase scheduler can launch this seat now and reap it after other seats.
     #
     # setsid is deliberately NOT used: it is absent on macOS (util-linux only). The
     # portable equivalent — `disown` plus `trap '' HUP INT TERM` inside the subshell —
@@ -1922,6 +1914,10 @@ council_dispatch_member_detached() {
     (
         trap '' HUP INT TERM
         trap 'exit 143' USR1
+        if [[ "${_COUNCIL_POOL_LAUNCH:-0}" == 1 ]] && declare -f record_agent_call >/dev/null 2>&1; then
+            # Preparation stays parallel; the scheduler owns usage reservations.
+            record_agent_call() { council_pool_request_reservation "$output_path" "$@" || exit 74; }
+        fi
         rc=0
         council_dispatch_member "$member_json" "$phase" > "$partial" || rc=$?
         # A swallowed mv failure would let the wrapper report success (rc unchanged)
@@ -1944,6 +1940,19 @@ council_dispatch_member_detached() {
     # the bare form (most-recent job) if the shell has already reaped it.
     disown "$seat_pid" 2>/dev/null || disown 2>/dev/null || true
 
+    if [[ "${_COUNCIL_POOL_LAUNCH:-0}" == 1 ]]; then
+        COUNCIL_ASYNC_PID="$seat_pid"
+        COUNCIL_ASYNC_TIMEOUT="$timeout_secs"
+        return 0
+    fi
+    council_reap_member_detached "$output_path" "$seat_pid" "$timeout_secs"
+}
+
+# Collect a detached seat's completion status within its timeout and reap grace.
+# Kill an overdue process tree before discarding output that could publish late.
+council_reap_member_detached() {
+    local output_path="$1" seat_pid="$2" timeout_secs="$3"
+    local partial="${output_path}.partial" done_file="${output_path}.done"
     # Bounded reap. run_agent_sync already enforces the per-seat provider timeout, so
     # the subshell terminates on its own; this poll is a safety net keyed to the same
     # timeout plus a grace margin for the mv+sentinel write. Poll the .done sentinel
@@ -1953,7 +1962,7 @@ council_dispatch_member_detached() {
     # shared resolver so this consumer and the aggregate-budget clamp normalize the
     # value identically (a raw "08" would break this arithmetic as invalid octal).
     local grace_secs; grace_secs="$(council_deadline_reap_grace)"
-    local max_ms=$(( (timeout_secs + grace_secs) * 1000 )) waited_ms=0
+    local max_ms=$(( (timeout_secs + grace_secs) * 1000 )) waited_ms=${4:-0}
     while (( waited_ms < max_ms )); do
         [[ -f "$done_file" ]] && break
         if ! kill -0 "$seat_pid" 2>/dev/null; then
@@ -1989,7 +1998,9 @@ council_dispatch_member_detached() {
         fi
         rm -f "$output_path"
     fi
-    rm -f "$done_file" "${done_file}.tmp" "$partial"
+    rm -f "$done_file" "${done_file}.tmp"
+    # Retain unfinished provider output for diagnosis after watchdog cancellation.
+    [[ "$rc" != 0 && -s "$partial" ]] || rm -f "$partial"
     if council_deadline_exceeded; then COUNCIL_DEADLINE_HIT="true"; fi
     return "$rc"
 }
@@ -2707,6 +2718,7 @@ council_response_evidence_paths_json() {
     python3 - "$response_path" "$evidence_root" <<'PY'
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -2717,6 +2729,48 @@ pattern = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9
 validated = []
 seen = set()
 file_facts = {}
+index = None
+INDEX_SKIP = {".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv"}
+
+def build_index():
+    # Bounded like the quote verifier's index. An unread subtree could hold
+    # another file with the same name, so an incomplete walk resolves nothing.
+    paths, entries, stack = [], 0, [(root, 0)]
+    while stack:
+        directory, depth = stack.pop()
+        try:
+            with os.scandir(directory) as listing:
+                for entry in listing:
+                    entries += 1
+                    if entries >= 50_000:
+                        return None
+                    if entry.is_symlink():
+                        continue
+                    if entry.is_dir(follow_symlinks=False):
+                        # A nested checkout (.claude/worktrees/<issue>) is another
+                        # tree, and its copies would make every name ambiguous.
+                        if entry.name in INDEX_SKIP or os.path.lexists(os.path.join(entry.path, ".git")):
+                            continue
+                        if depth >= 32:
+                            return None
+                        stack.append((Path(entry.path), depth + 1))
+                    elif entry.is_file(follow_symlinks=False):
+                        paths.append("/" + Path(entry.path).relative_to(root).as_posix())
+        except OSError:
+            return None
+    return paths
+
+def unique_suffix(relative):
+    # sail-cruisey #3295: seats cite "pr-watchdog.yml:249" for
+    # .github/workflows/pr-watchdog.yml. A bare name or path suffix counts only
+    # when exactly one file under the root ends with it.
+    global index
+    if index is None:
+        index = build_index() or []
+    tail = "/" + relative.as_posix()
+    hits = [p for p in index if p.endswith(tail)][:2]
+    return Path(hits[0][1:]) if len(hits) == 1 else None
+
 for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding="utf-8", errors="replace")):
     relative = Path(raw_path.strip())
     if relative.is_absolute() or ".." in relative.parts:
@@ -2724,8 +2778,23 @@ for raw_path, raw_start, raw_end in pattern.findall(response.read_text(encoding=
     try:
         candidate = (root / relative).resolve(strict=True)
         candidate.relative_to(root)
-    except (OSError, ValueError):
+    except FileNotFoundError:
+        # A dangling link is an existing citation, not a missing suffix.
+        if any(root.joinpath(*relative.parts[:i]).is_symlink()
+               for i in range(1, len(relative.parts) + 1)):
+            continue
+        candidate = None
+    except (OSError, RuntimeError, ValueError):
         continue
+    if candidate is None:
+        relative = unique_suffix(relative)
+        if relative is None:
+            continue
+        try:
+            candidate = (root / relative).resolve(strict=True)
+            candidate.relative_to(root)
+        except (OSError, ValueError):
+            continue
     if not candidate.is_file():
         continue
     try:
@@ -2809,6 +2878,7 @@ council_response_quote_verification_json() {
     } <<'PY'
 import html
 import json
+import math
 import os
 import re
 import selectors
@@ -2855,7 +2925,9 @@ try:
     # Some transports deliver Markdown HTML-escaped ("&gt; quote", "=&gt;").
     # Unescape before parsing so blockquotes and operators read as written; the
     # file side is unescaped the same way so an HTML source still matches.
-    resp = html.unescape(raw.decode("utf-8", "replace"))
+    raw_resp = raw.decode("utf-8", "replace")
+    policy_text_valid = raw_resp.encode("utf-8") == raw
+    resp = html.unescape(raw_resp)
     root = Path(sys.argv[2]).resolve(strict=True)
 except (OSError, RuntimeError, ValueError):
     result["verification_failed"] = True
@@ -2898,7 +2970,10 @@ def build_index():
                         if entry.is_symlink():
                             continue
                         if entry.is_dir(follow_symlinks=False):
-                            if entry.name not in INDEX_SKIP:
+                            # A nested checkout (.claude/worktrees/<issue>) is
+                            # another tree; its copies are not this root's files.
+                            if (entry.name not in INDEX_SKIP
+                                    and not os.path.lexists(os.path.join(entry.path, ".git"))):
                                 if depth < MAX_INDEX_DEPTH:
                                     stack.append((Path(entry.path), depth + 1))
                                 else:
@@ -2920,22 +2995,25 @@ def contained(candidate):
 
 def resolve_citation(relative):
     # 1) Relative to the evidence root, as written.
+    # An existing unsafe path must never become a different suffix/context hit.
     try:
         candidate = (root / relative).resolve(strict=True)
-        if contained(candidate):
-            return candidate
+        return candidate if contained(candidate) else None
+    except FileNotFoundError:
+        if any(root.joinpath(*relative.parts[:i]).is_symlink()
+               for i in range(1, len(relative.parts) + 1)):
+            return None
     except (OSError, RuntimeError):
-        pass
+        return None
     # 2) An attached --context-file, named by its basename or a path suffix
     #    ("phase-3-plan.md:8" for .todo/claude-octopus/3032/phase-3-plan.md).
     tail = "/" + relative.as_posix()
     hits = [p for p in context_files if ("/" + p.as_posix()).endswith(tail)]
     if len(hits) == 1:
         return hits[0]
-    # 3) A unique path suffix under the root, including hidden directories. A bare
-    #    basename is too ambiguous to resolve this way.
-    if len(relative.parts) < 2:
-        return None
+    # 3) A unique path suffix under the root, including hidden directories. A
+    #    bare basename counts too when only one file has it (sail-cruisey #3295:
+    #    "pr-watchdog.yml:249" for .github/workflows/pr-watchdog.yml).
     global suffix_index, suffix_index_complete
     if suffix_index is None:
         suffix_index, suffix_index_complete = build_index()
@@ -3018,20 +3096,113 @@ DIFF_HUNK = re.compile(r"^@@ -[0-9]{1,10}(?:,([0-9]{1,10}))? \+[0-9]{1,10}(?:,([
 units = []
 fence_ranges = []
 fences = []
+def policy_findings_blocks():
+    # The feature workflow's structured findings block is JSON, not a code
+    # quote; feature-analysis.py checks each finding by digest (sail-cruisey
+    # #3244 CP1). Mirror its fences() reader so only blocks it reads are
+    # exempt: a line of only a marker and the label (any indentation), closed
+    # by the same marker, skipping other fences, with a body that parses as a
+    # findings list or an object whose "findings" is one. Anything else stays
+    # a quote unit, so the label cannot hide an invented quote.
+    def pairs(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise ValueError("duplicate JSON key")
+            value[key] = item
+        return value
+    def nonfinite(_):
+        raise ValueError("nonfinite JSON number")
+    def finite_float(text):
+        value = float(text)
+        if not math.isfinite(value):
+            raise ValueError("nonfinite JSON number")
+        return value
+    # Runtime extraction rejects the entire response on any invalid block or
+    # more than 100 findings in total. Such a response has no policy-digest
+    # coverage, so none of its blocks may bypass ordinary quote verification.
+    if not policy_text_valid:
+        return []
+    # JSON and fence syntax belong to the raw transport text. Decoding entities
+    # can break JSON strings or invent markers that policy ingestion never saw.
+    # Quote units still use resp, so translate line boundaries to that view.
+    lines, offsets, offset = raw_resp.splitlines(), [], 0
+    for line in raw_resp.splitlines(keepends=True):
+        offsets.append(offset)
+        offset += len(html.unescape(line))
+    blocks, index, total_findings = [], 0, 0
+    while index < len(lines):
+        match = re.fullmatch(r"\s*(`{3,}|~{3,})octopus-policy-findings\s*", lines[index])
+        marker = match.group(1) if match else None
+        if not match:
+            other = re.match(r"^\s*(`{3,}|~{3,})", lines[index])
+            marker = other.group(1) if other else None
+        first = index + 1
+        index += 1
+        if marker is None:
+            continue
+        while index < len(lines) and not re.fullmatch(r"\s*" + re.escape(marker) + r"\s*", lines[index]):
+            index += 1
+        # Analysis can fall back to the first body line when the full source
+        # quotation exceeds 16 KiB, but it rejects an oversized first line too.
+        if match and (index == len(lines) or len(lines[first]) > 16384):
+            return []
+        if match and index < len(lines):
+            try:
+                value = json.loads("\n".join(lines[first:index]), object_pairs_hook=pairs,
+                                   parse_constant=nonfinite, parse_float=finite_float)
+            except (ValueError, RecursionError):
+                return []
+            if isinstance(value, dict):
+                value = value.get("findings")
+            if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+                return []
+            total_findings += len(value)
+            if total_findings > 100:
+                return []
+            blocks.append((offsets[first - 1], offsets[index] + len(html.unescape(lines[index]))))
+        index += 1
+    return blocks
+
+policy_ranges = policy_findings_blocks()
+policy_starts = [p_start for p_start, _ in policy_ranges]
+
+def in_policy_block(start):
+    i = bisect_right(policy_starts, start) - 1
+    return i >= 0 and policy_ranges[i][1] > start
+
+def capture_fence(opener, end, body_end):
+    # Accepted raw policy blocks can sit inside an entity-decoded ordinary
+    # fence. Split its quote units so neither side absorbs the findings JSON.
+    start, body_start = opener.start(), opener.end()
+    index = max(0, bisect_right(policy_starts, body_start) - 1)
+    for index in range(index, len(policy_ranges)):
+        policy_start, policy_end = policy_ranges[index]
+        if policy_start >= body_end:
+            break
+        if policy_end <= body_start:
+            continue
+        fences.append((start, policy_start, opener.group(2), resp[body_start:policy_start]))
+        start = body_start = policy_end
+    fences.append((start, end, opener.group(2), resp[body_start:body_end]))
+
 opener = None
 # A closing fence uses the same marker and at least the opening width. Scan
 # marker lines once so mismatched or unterminated fences cannot hide quotes.
 # Treat malformed info strings as openers too, matching the verdict parser.
 for match in re.finditer(r"^ {0,3}(`{3,}|~{3,})([^\n]*)(?:\n|$)", resp, re.M):
     marker, info = match.groups()
+    # Policy markers cannot open or close an ordinary fence.
+    if in_policy_block(match.start()):
+        continue
     if opener is None:
         opener = match
     elif (marker[0] == opener.group(1)[0] and len(marker) >= len(opener.group(1))
           and not info.strip()):
-        fences.append((opener.start(), match.end(), opener.group(2), resp[opener.end():match.start()]))
+        capture_fence(opener, match.end(), match.start())
         opener = None
 if opener is not None:
-    fences.append((opener.start(), len(resp), opener.group(2), resp[opener.end():]))
+    capture_fence(opener, len(resp), len(resp))
 for start, end, info, body in fences:
     fence_ranges.append((start, end))
     info = info.strip().lower()
@@ -3071,9 +3242,17 @@ for start, end, info, body in fences:
             kept.append(line)
     units.append((start, end, "fence", kept, removed_kept, info))
 
-# Fences come from one marker scan, so they are sorted and disjoint: only the
-# last fence starting before the span ends can overlap it. A bisect keeps a
+# The fence scan skips findings blocks, so add their ranges (which also hide
+# code spans inside them) and merge any overlap. Fence ranges are then sorted and disjoint: only the last
+# fence starting before the span ends can overlap it. A bisect keeps a
 # response with many fences and spans linear-log instead of quadratic.
+merged = []
+for f_start, f_end in sorted(fence_ranges + policy_ranges):
+    if merged and f_start < merged[-1][1]:
+        merged[-1] = (merged[-1][0], max(merged[-1][1], f_end))
+    else:
+        merged.append((f_start, f_end))
+fence_ranges = merged
 fence_starts = [f_start for f_start, _ in fence_ranges]
 
 def in_fence(start, end):
@@ -3138,6 +3317,22 @@ for c_start, c_end, _, _ in tokens:
     units.append((line_end + 1, next_end, "bare", [line], [], ""))
 units.sort(key=lambda unit: unit[0])
 
+# A seat's own arithmetic ("8 + 10 + 0.5 = 18.5 KB") is a value it computed,
+# not a quote of the payload (sail-cruisey #3246): only numbers, a known unit
+# right after a number, and operators, with at least one digit and one
+# operator. Any identifier ("base + taxes * 2") or keyword ("0 if n else 1")
+# keeps it a code quote. Only a whole inline span is exempt, and only when no
+# citation claims it: fence lines and diff removals assert source content.
+COMPUTED_UNIT = (r"%|(?:[kmgtp]i?)?b|bytes?|bits?|(?:kilo|mega|giga|tera)(?:bytes?|bits?)"
+                 r"|[kmgt]|ns|us|µs|ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|weeks?"
+                 r"|x|tokens?|chars?|characters?|words?|lines?|files?|calls?|requests?|rows?|items?")
+COMPUTED_NUMBER = re.compile(r"\d+(?:_\d+)*(?:[.,]\d+(?:_\d+)*)*(?:e[+-]?\d+)?(?:\s*(?:" + COMPUTED_UNIT + r")(?![A-Za-z0-9_]))?", re.I)
+def computed(text):
+    text = norm(text)
+    if not re.search(r"\d", text) or not re.search(r"[-+*/×÷=≈<>%]", text):
+        return False
+    return re.sub(r"[\s\-+*/×÷=≈~<>%()\[\],.]+", "", COMPUTED_NUMBER.sub("", text)) == ""
+
 def checkable(text):
     # A quoted citation or a bare path is not a code quote.
     if CITATION.search(text):
@@ -3146,14 +3341,127 @@ def checkable(text):
         return False
     return specific(text)
 
-def specific_lines(block):
+# GFM table rows: a delimiter row, the header line above it, and the rows
+# below it until a blank line or a line that starts another block
+# (heading, quote, fence, list item, thematic break or HTML). Only a code span
+# in one of these rows can carry a table-escaped "\|".
+DELIMITER_ROW = re.compile(r"^[ \t]*\|?(?:[ \t]*:?-+:?[ \t]*\|)*[ \t]*:?-+:?[ \t]*\|?[ \t]*$")
+BLOCK_START = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|>|```|~~~|[-+*][ \t]|\d{1,9}[.)][ \t]|<|(?:[-*_][ \t]*){3,}$)")
+table_ranges = []
+resp_lines = []
+offset = 0
+# Parse structure before entity decoding: "&#124;" is cell content, never a
+# separator. Keep offsets in the decoded response used by quote units.
+for raw_line in raw_resp.split("\n"):
+    end = offset + len(html.unescape(raw_line))
+    resp_lines.append((offset, end, raw_line))
+    offset = end + 1
+def table_cells(text):
+    # Consume escape pairs before recognizing separators, including inside
+    # backticks. GFM splits cells before it parses inline code spans.
+    separators = [-1] + [m.start() for m in re.finditer(r"\\.|(\|)", text) if m.group(1)] + [len(text)]
+    cells = [(left + 1, right) for left, right in zip(separators, separators[1:])]
+    if len(cells) > 1 and not text[cells[0][0]:cells[0][1]].strip():
+        cells.pop(0)
+    if len(cells) > 1 and not text[cells[-1][0]:cells[-1][1]].strip():
+        cells.pop()
+    return cells
+
+def indented_code(text):
+    # Four columns of indentation make an indented code block, not a table.
+    indent = text[:len(text) - len(text.lstrip(" \t"))]
+    return len(indent.expandtabs(4)) >= 4
+
+def table_line(index):
+    l_start, l_end, text = resp_lines[index]
+    return (bool(text.strip()) and not indented_code(text) and not BLOCK_START.match(text)
+            and index not in html_lines and not in_fence(l_start, l_end + 1))
+
+# Raw HTML blocks suppress Markdown table parsing. Comments and the other
+# explicit terminators can cross blank lines; ordinary HTML blocks end at a
+# blank line. Be conservative about tag-like openers at this evidence boundary.
+html_lines = set()
+html_end = None
+for index, (l_start, l_end, text) in enumerate(resp_lines):
+    if html_end is None:
+        if in_fence(l_start, l_end + 1):
+            continue
+        if re.match(r"^ {0,3}<!--", text):
+            html_end = re.compile(r"-->")
+        elif re.match(r"^ {0,3}<\?", text):
+            html_end = re.compile(r"\?>")
+        elif re.match(r"^ {0,3}<!\[CDATA\[", text):
+            html_end = re.compile(r"\]\]>")
+        elif re.match(r"^ {0,3}<![A-Z]", text):
+            html_end = re.compile(r">")
+        else:
+            tag = re.match(r"^ {0,3}<(script|pre|style|textarea)(?:[ \t>]|$)", text, re.I)
+            if tag:
+                html_end = re.compile(r"</" + tag.group(1) + r">", re.I)
+            elif re.match(r"^ {0,3}<", text):
+                html_end = False  # Blank-line-terminated block.
+            else:
+                continue
+    if html_end is False and not text.strip():
+        html_end = None
+        continue
+    html_lines.add(index)
+    if html_end and html_end.search(text):
+        html_end = None
+
+row = 1
+while row < len(resp_lines):
+    delimiter = resp_lines[row]
+    # The delimiter skips BLOCK_START, since a "- | -" delimiter also looks
+    # like a list item.
+    if not ("|" in delimiter[2] and DELIMITER_ROW.match(delimiter[2]) and not indented_code(delimiter[2])
+            and row not in html_lines and not in_fence(delimiter[0], delimiter[1] + 1) and table_line(row - 1)
+            and len(table_cells(resp_lines[row - 1][2])) == len(table_cells(delimiter[2]))):
+        row += 1
+        continue
+    last = row
+    while last + 1 < len(resp_lines) and table_line(last + 1):
+        last += 1
+    # Excess body cells are discarded by GFM. Only a complete code span
+    # within one rendered header/body cell may receive table decoding.
+    columns = len(table_cells(delimiter[2]))
+    for index in [row - 1] + list(range(row + 1, last + 1)):
+        l_start, _, text = resp_lines[index]
+        # Decode disjoint pieces once to map raw cell boundaries into the
+        # decoded quote coordinate space, without repeated prefix scans.
+        cursor, decoded_offset = 0, l_start
+        for start, end in table_cells(text)[:columns]:
+            decoded_offset += len(html.unescape(text[cursor:start]))
+            decoded_end = decoded_offset + len(html.unescape(text[start:end]))
+            table_ranges.append((decoded_offset, decoded_end))
+            cursor, decoded_offset = end, decoded_end
+    row = last + 2
+
+# Cells come from one forward scan, so they are sorted and disjoint.
+table_starts = [t_start for t_start, _ in table_ranges]
+
+def in_table(start, end):
+    i = bisect_right(table_starts, start) - 1
+    return i >= 0 and end <= table_ranges[i][1]
+
+def unescaped(variants, table):
+    # "\|" is how a seat writes "|" inside a Markdown table cell (sail-cruisey
+    # #3125: `a \|\| b` for `a || b`). Only in a table cell: elsewhere "\|" is
+    # literal and can change a regular expression. Quote side only, after the
+    # literal variant: source text keeps its backslashes, so a quote that drops
+    # a source line's own "\|" still does not match it.
+    if not table:
+        return variants
+    return variants + [v.replace("\\|", "|") for v in variants if "\\|" in v]
+
+def specific_lines(block, table=False):
     out = []
     for line in block:
         variants = [line.strip()]
         stripped = GUTTER.sub("", line).strip()
         if stripped != variants[0]:
             variants.append(stripped)
-        variants = [v for v in variants if checkable(v)]
+        variants = [v for v in unescaped(variants, table) if checkable(v)]
         if variants:
             out.append(variants)
     return out
@@ -3379,10 +3687,10 @@ GAP_WORDS = {"reads", "read", "shows", "show", "contains", "contain", "has", "sa
              "defines", "define", "defined", "declares", "declare", "declared",
              "line", "lines", "source", "code", "verbatim", "quote", "quoted", "excerpt",
              "current", "currently", "actual", "l"}
-SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared)\b", re.I)
+SOURCE_VERB = re.compile(r"\b(?:reads?|shows?|contains?|has|says?|is|defines?|defined|declares?|declared|computes?)\b", re.I)
 SOURCE_ABSENCE = re.compile(
     r"\b(?:(?:does|do|did)\s+not|(?:doesn|don|didn)['’]t)\s+"
-    r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have)\b", re.I)
+    r"(?:currently\s+)?(?:contain|show|read|say|define|declare|have|compute)\b|\bnever\s+computes?\b", re.I)
 PROPOSAL = re.compile(r"\b(should|propos\w*|suggest\w*|recommend\w*|replace with|instead|would|could|change (?:it |this )?to|rewrit\w*|becomes?|example|e\.g\.|such as|consider|cover|prefer\w*|expected|want)\b", re.I)
 # Backticks also format prose and multiword values. Sentence punctuation alone
 # is not code syntax, nor is a dotted name embedded in a sentence. Calls,
@@ -3413,7 +3721,9 @@ def attribution(token, gap):
         return None
     # A source verb in this bounded clause still attributes the quote when
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
-    source_clause = SOURCE_VERB.search(gap) and not re.search(r"[.!?;]", gap)
+    source_verb = SOURCE_VERB.search(gap)
+    source_clause = (source_verb and not re.search(r"[.!?;]", gap)
+                     and not re.search(r"(?:^|[,;:]|\b(?:and|but|so|while)\b)\s*(?:I|we)\s+(?:estimate|compute|calculate)\b", gap, re.I))
     if PROPOSAL.search(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
@@ -3435,22 +3745,49 @@ def proposed(start):
     prose = CITATION.sub("", LINK_TARGET.sub("", prose))
     return bool(PROPOSAL.search(prose))
 
+token_starts = [t[0] for t in tokens]
+CITED_AFTER = re.compile(r"(?:[(\[]|[:,\u2013\u2014-]|in|at|from)?[ \t]*`?", re.I)
+HORIZONTAL_SPACE = re.compile(r"[ \t]*")
+def cited_after(end):
+    """Recognize an adjacent citation without copying the remaining response."""
+    index = bisect_left(token_starts, end)
+    if index >= len(tokens):
+        return False
+    limit = tokens[index][0]
+    start = HORIZONTAL_SPACE.match(resp, end, limit).end()
+    return CITED_AFTER.fullmatch(resp, start, limit) is not None
+
 checkable_units = 0
 for start, end, kind, block, removed_block, info in units:
     wholes = unit_wholes(block) if len(block) > 1 else []
-    line_variants = specific_lines(block)
+    # Only an inline code span can sit in a table cell.
+    line_variants = specific_lines(block, kind == "inline" and in_table(start, end))
     removed_variants = [v for v in [" ".join(l.strip() for l in removed_block)] + [l.strip() for l in removed_block]
                         if v and checkable(v)]
     if not wholes and not line_variants and not removed_variants and not (
             removed_block and checkable(" ".join(block + removed_block))):
         continue
+    associated, gap = association(start)
+    attributed = attribution(associated, gap)
+    # A seat's own arithmetic in an inline span is a value it computed, unless a
+    # citation claims it: then it is a claim about the cited file to verify.
+    if kind == "inline" and attributed is None and computed(block[0]) and not cited_after(end):
+        # A removal claim asserts old source content. Keep that span for the
+        # existing diff matcher only when removal wording directly introduces
+        # or follows this expression, rather than describing another subject.
+        before = re.split(r"(?<=[.!?])\s+|\n", resp[max(0, start - REMOVAL_WINDOW):start])[-1]
+        after = re.split(r"(?<=[.!?])\s+|\n", resp[end:end + REMOVAL_WINDOW], maxsplit=1)[0]
+        removal_before = re.search(REMOVAL_WORDS.pattern +
+                                   r"(?:\s+(?:the|this|old|code|expression|line|calculation))*\s*:?\s*$", before, re.I)
+        removal_after = re.match(r"\s*(?:(?:was|is|were|are|has been|had been)\s+)?" +
+                                 REMOVAL_WORDS.pattern, after, re.I)
+        if not (removal_before or removal_after):
+            continue
     # Specificity selects the entire quote. A short nonempty side of a mixed
     # quote still needs an exact whole-side match; it is not an absent side.
     if removed_block and block and not (wholes or line_variants):
         wholes = [norm(" ".join(block))]
     flat_variants = wholes + [v for variants in line_variants for v in variants]
-    associated, gap = association(start)
-    attributed = attribution(associated, gap)
     if associated is not None and associated[2] is None:
         # Written about a citation that names a file outside the evidence root
         # (an upstream repo, a symlinked dependency tree): unverifiable, and never
@@ -4048,6 +4385,8 @@ council_chair_is_host_native() {
     [[ "$status" == "host-native" ]]
 }
 
+# Collect independent advice and build seat, quorum and dissent records from
+# completed outputs, retaining failures and deadline omissions in the evidence.
 council_run_advice_phase() {
     COUNCIL_RESPONSES_RECEIVED="0"
     COUNCIL_CHAIR_RESPONSE_RECEIVED="false"
@@ -4067,14 +4406,10 @@ council_run_advice_phase() {
     artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
     COUNCIL_ARTIFACT_DIGEST="$artifact_digest"
     COUNCIL_DEADLINE_HIT="false"; COUNCIL_SEATS_DISPATCHED=0; COUNCIL_SEATS_SKIPPED=0
+    council_run_seat_pool independent-advice responses || return $?
     while IFS= read -r member; do
-        persona="$(jq -r '.persona' <<< "$member")"
-        seat="$(jq -r '.seat' <<< "$member")"
-        mprovider_spec="$(jq -r '.agent_spec // .provider' <<< "$member")"
+        council_read_seat_fields "$member"
         mprovider="$(octo_agent_spec_provider "$mprovider_spec")"
-        seat_org="$(jq -r '.provider_org // ""' <<< "$member")"
-        seat_model="$(jq -r '.model // ""' <<< "$member")"
-        seat_model_family="$(jq -r '.model_family // ""' <<< "$member")"
         [[ -n "$seat_model_family" ]] || seat_model_family="$(council_model_family "$mprovider" "$seat_model")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/responses/$(printf '%02d' "$index")-${slug}.md"
@@ -4086,7 +4421,7 @@ council_run_advice_phase() {
         # remaining seat as skipped-for-deadline (honest tally), then let quorum be
         # recomputed below from the seats that actually completed — a reported
         # quorum-fail beats being SIGTERM-reaped mid-seat with no summary.json.
-        if council_deadline_exceeded; then
+        if [[ "${COUNCIL_POOL_PHASE:-}" != independent-advice || ! -f "${output_path}.pool-result" ]] && council_deadline_exceeded; then
             COUNCIL_DEADLINE_HIT="true"
             COUNCIL_SEATS_SKIPPED=$((COUNCIL_SEATS_SKIPPED + 1))
             seat_status="skipped-deadline"
@@ -4109,9 +4444,9 @@ council_run_advice_phase() {
         # The detached seat's stderr reaches no one; a seat that exits non-zero
         # leaves its provider stderr here.
         local stderr_file="${COUNCIL_RUN_DIR}/stderr/$(basename "$output_path" .md).log" failure="" failure_rc=0
-        rm -f "$stderr_file" 2>/dev/null
+        [[ "${COUNCIL_POOL_PHASE:-}" == independent-advice && -f "${output_path}.pool-result" ]] || rm -f "$stderr_file" 2>/dev/null
         _OCTOPUS_SEAT_STDERR_FILE="$stderr_file" \
-            council_dispatch_member_detached "$member" "independent-advice" "$output_path" || dispatch_rc=$?
+            council_collect_seat "$member" "independent-advice" "$output_path" || dispatch_rc=$?
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
         # Admit the serialized contribution before changing any response or vote
         # counters. A refreshed report can reject evidence that passed earlier
@@ -4439,38 +4774,42 @@ council_run_chair_fallback() {
     return 1
 }
 
+# Collect cross-critiques after the advice barrier, except at quick depth.
+# Discard failed critique outputs while retaining completed pooled seats.
 council_run_critique_phase() {
     if [[ "$COUNCIL_DEPTH" == "quick" ]]; then
         return 0
     fi
 
     local index=0 member persona slug output_path
+    council_run_seat_pool cross-critique critiques || return $?
     while IFS= read -r member; do
         # Stop enriching once the aggregate budget is spent (#2918); the run
         # finalizes a partial before synthesis. Critiques are best-effort, so a
-        # break here simply omits the rest — no partial file is left behind.
-        if council_deadline_exceeded; then COUNCIL_DEADLINE_HIT="true"; break; fi
+        # unlaunched seats stay absent; completed pooled seats are still collected.
         persona="$(jq -r '.persona' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/critiques/$(printf '%02d' "$index")-${slug}.md"
-        council_dispatch_member_detached "$member" "cross-critique" "$output_path" || rm -f "$output_path"
+        council_collect_seat "$member" "cross-critique" "$output_path" || rm -f "$output_path"
         index=$((index + 1))
     done < <(jq -c '.[]' <<< "$COUNCIL_ROSTER_JSON")
 }
 
+# At deep depth, collect each member's revision after all critiques complete.
+# Failed or unlaunched seats do not contribute a revision artifact.
 council_run_revision_phase() {
     if [[ "$COUNCIL_DEPTH" != "deep" ]]; then
         return 0
     fi
 
     local index=0 member persona slug output_path
+    council_run_seat_pool revision-after-critique revisions || return $?
     while IFS= read -r member; do
         # Stop once the aggregate budget is spent (#2918); revisions are best-effort.
-        if council_deadline_exceeded; then COUNCIL_DEADLINE_HIT="true"; break; fi
         persona="$(jq -r '.persona' <<< "$member")"
         slug="$(council_slug "$persona")"
         output_path="${COUNCIL_RUN_DIR}/revisions/$(printf '%02d' "$index")-${slug}.md"
-        if council_dispatch_member_detached "$member" "revision-after-critique" "$output_path"; then
+        if council_collect_seat "$member" "revision-after-critique" "$output_path"; then
             :
         else
             rm -f "$output_path"
@@ -5500,7 +5839,7 @@ _council_run_impl() {
 
     council_preflight_context_guard || return $?
 
-    council_run_advice_phase
+    council_run_advice_phase || return $?
 
     # Two distinct stop-before-synthesis conditions:
     #   1. The vote failed (quorum.met=false) — nothing was approved.
@@ -5540,14 +5879,14 @@ _council_run_impl() {
         [[ "$COUNCIL_ABORTED_FOR_COST" == "true" ]] && return 0
         return 1
     fi
-    council_run_critique_phase
+    council_run_critique_phase || return $?
     if council_check_cost_cap "revision" "revision"; then
         :
     else
         [[ "$COUNCIL_ABORTED_FOR_COST" == "true" ]] && return 0
         return 1
     fi
-    council_run_revision_phase
+    council_run_revision_phase || return $?
     # Critique/revision consume wall-clock too — re-check before the chair synthesis
     # dispatch so a run that crossed the deadline during those phases finalizes a
     # partial instead of launching one more (budget-overrunning) synthesis (#2918).

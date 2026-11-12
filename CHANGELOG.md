@@ -2,6 +2,428 @@
 
 ## [Unreleased]
 
+## [11.22.2] - 2026-11-11
+
+### Fixed
+
+- Large `probe-single --perspective-file` prompts pass startup validation
+  promptly without rewriting their content. Empty and whitespace-only files
+  are still rejected before provider dispatch. Fixes [#1295](https://github.com/nyldn/claude-octopus/issues/1295)
+  through [#1296](https://github.com/nyldn/claude-octopus/pull/1296).
+- Explicit GPT-5.4 Mini API usage uses the documented $0.75 input and $4.50
+  output rates per million tokens. Capability checks now recognize its image
+  input and reasoning support. Model defaults and saved choices are preserved.
+  See [#1294](https://github.com/nyldn/claude-octopus/pull/1294).
+
+- Review verification sends complete findings in bounded batches with relevant
+  patch evidence. Final admission rejects oversized verifier requests instead of
+  clipping their tails. Incomplete verification returns failure with recovery
+  artifacts and never applies unverified findings. Verified findings from a
+  partial reviewer fleet can still receive corrections. Synthesis cannot drop,
+  invent or change verified findings. See [#1290](https://github.com/nyldn/claude-octopus/pull/1290).
+
+## [11.22.1] - 2026-11-11
+
+### Fixed
+
+- Research verification recognizes section labels such as "(Finding 4)" and
+  references such as "See conflicts 1 & 2". Quantities and thresholds still
+  need evidence. Numbers written separately in totals remain checked,
+  including lists with a comma before "in total".
+
+### Maintenance
+
+- Council deadline tests measure prompt preparation separately from worker
+  startup, preventing false timing failures on busy runners. The watchdog
+  limit and checks for cancelled children and late output are preserved.
+- Focused unit CI retains timeout logs and cleans up owned processes before
+  the job deadline, matching the full unit lane. Interrupted steps preserve
+  collected output alongside the cancellation message.
+- Full unit shard weights include hosted macOS timings to spread process-heavy
+  suites across the four shards.
+
+## [11.22.0] - 2026-11-10
+
+### Added
+
+- GPT-6.1 Terra and Claude Fable 5.2 in the model catalog, with current API
+  pricing, Terra long-context billing and gateway restrictions, and Fable
+  dispatch guards. Existing routing defaults and saved pins are preserved.
+
+### Fixed
+
+- Refinement runs enforce round and stall limits through persisted state, retain
+  the best accepted candidate, and refuse unprepared or stopped dispatches.
+- Input snapshots match the bytes validated and scored. Interrupted rubric
+  corrections retain the prior best and score, preserve stalls, and keep the
+  original stop reason.
+- Successful structured judge answers can discuss context limits without being
+  misclassified as oversized-prompt errors. Genuine provider failures still stop.
+
+### Maintenance
+
+- Skill generation uses the authored entries directly through the existing sync
+  pipeline. Retired flow templates no longer provide competing source copies.
+  Contributor guidance now links the repository map, script index and test tiers.
+
+## [11.21.0] - 2026-11-09
+
+### Added
+
+- Opt-in Claude worker advisors through `OCTOPUS_CLAUDE_ADVISOR`, with version
+  checks, validated launch arguments and fixed refinement judge isolation.
+- Explicit refinement requests route to the existing bounded `/octo:refine`
+  workflow. Ordinary plan editing does not add independent judges.
+- Native Claude plugin eval cases and a bounded `make test-native-evals` target.
+- Guidance for advisor accounting, subagent effort and context, native dynamic
+  workflow handoffs, and the separate implementation needed for Mods and MCP tasks.
+
+### Changed
+
+- Critical synchronous pre-action hooks block on hook failures on Claude Code
+  v2.1.295 or later.
+
+## [11.20.0] - 2026-11-09
+
+### Added
+
+- `/octo:deck --red-team` can review a draft outline through stakeholder seats
+  before approval, map decision-blocking objections to the main deck, and prepare
+  draft answers and appendix backup slides for Q&A. The pass is opt-in and uses
+  the existing debate provider and cost controls. Transports with unbounded
+  follow-up requests are excluded from the pass.
+
+- Deck outlines now start with a confirmed governing question, a brief
+  situation/complication/question opener and an answer supported by two to four
+  pillars. Slide titles form a sentence skeleton that must carry the argument
+  in a titles-only read before the user approves rendering. Informational decks
+  retain their own purpose. Addresses #1215.
+
+- Executive and board decision decks put the recommendation, context, supporting
+  pillars and explicit ask on slide 2. Their outline compares doing nothing
+  with a real alternative, ties data-slide highlights to one proof point,
+  and includes an appendix for expected questions. Missing decision material
+  is identified before outline approval rather than invented. Informational
+  updates keep their own purpose, and short decks can combine evidence and
+  decision slides within the approved target. The action closes the main deck,
+  before appendix backup slides. Addresses #1216.
+
+- Research can optionally share one Keenable web search across its perspectives.
+  Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` and include `keenable` in any active
+  provider allowlist. Search suggestions remain untrusted, and lookup failures
+  keep the original research prompts. No API key is required for the public
+  endpoint. Addresses [#1261](https://github.com/nyldn/claude-octopus/issues/1261).
+
+### Improved
+
+- Leading CLI help skips workflow initialization. Complete, valid reviews with
+  no findings skip verifier and synthesis calls after confirming the diff is unchanged.
+- Council advice, critique and revision use bounded concurrency with ordered
+  usage reservations. Refinement can overlap its two pinned, independent judges
+  under one call budget and deadline.
+- Preparation can check an explicit provider panel and validate a short-lived
+  readiness receipt. Fresh dispatch authorization remains required.
+- Discovery and refinement load phase instructions as needed. Brainstorm, PRD
+  and security workflows reuse supplied answers and ask about material gaps.
+- Correction loops detect completed workers sooner. Provider retries distinguish
+  terminal authentication failures from recoverable refresh or transport failures.
+- Worktree metadata sampling, usage reports, context lookup and convergence
+  checks avoid repeated subprocesses, whole-log buffering or unchanged file reads.
+
+### Fixed
+
+- Worktree progress fingerprints preserve stat compatibility for timestamps before
+  1970, including fractional seconds. The batch sampler and shell fallback produce
+  the same digest while ordinary files keep the batch sampling path.
+
+- Code review skips complete file diffs using REVIEW.md path globs. Generated
+  hunks no longer appear under another file's header, and retained code that
+  mentions a skipped path stays intact. Fully skipped diffs launch no reviewers.
+  Standard and no-prefix Git diffs are supported, including quoted, binary
+  and mode-only paths.
+  Fixes [#1279](https://github.com/nyldn/claude-octopus/issues/1279).
+- Provider smoke tests explain environment construction failures instead of
+  failing silently. Search-credential rejection uses the routing error logger,
+  with a stderr fallback for standalone callers.
+- Optional search skips interpreters without total-deadline support and warns
+  when a lookup fails or returns no suggestions, while research continues.
+- Codex subscription probes exclude search credentials and skip execution if
+  provider environment construction fails.
+
+## [11.19.0] - 2026-11-08
+
+### Added
+
+- Deck generation verifies rendered slides before reporting completion. It
+  checks thumbnails, rendered titles and highlighted data claims, then reports
+  each slide's result. Artifacts with missing evidence remain drafts.
+  Addresses [#1219](https://github.com/nyldn/claude-octopus/issues/1219).
+- Cost tiers can now pair a model or capability with reasoning effort in
+  `providers.json`, such as `{"capability":"default","reasoning":"low"}`.
+  Existing string targets still work. Tier effort applies only when that tier
+  selects the model; explicit model routes and effort overrides keep precedence.
+
+### Fixed
+
+- Haiku 5.5 can be saved as a Claude budget pin. Its estimates use the published
+  base rate through 100K input tokens and the whole-request tariff above that
+  boundary. Existing model defaults are unchanged.
+  Fixes [#1250](https://github.com/nyldn/claude-octopus/issues/1250).
+
+- Research verification no longer fails a synthesis for referring to its own
+  numbered points. A synthesis line such as "See point 2." or "Corrected in
+  point 2: ..." next to a workspace citation failed with `number_mismatch`,
+  because the cited file did not contain a standalone 2. A whole number after
+  `point`, `points`, `item` or `items`, or continuing such a list with a comma,
+  "and" or "or", is now skipped when no other word follows it. Numbers with a
+  unit, including formatted units such as `5 **MiB**`, and section numbers are
+  still checked. Compact lists such as `points 2,3` are also recognized, while
+  decimals and thousands-formatted numeric claims remain checked. Scores and
+  counts introduced by a colon, both endpoints of hyphen and Unicode
+  dash ranges, and quantities with either Unicode micro-unit prefix also remain checked.
+  Nested emphasis and whitespace before a percent sign cannot hide quantities.
+  Literal destination backticks and emphasis before attached units also retain
+  unsupported quantities for evidence checks.
+
+## [11.18.0] - 2026-11-07
+
+### Added
+
+- `/octo:refine`, with `/octo:ladder` as an alias, improves artifacts through a frozen rubric, independent Claude/Codex scoring, and bounded rounds. Reports retain each attempted round and the best verified result.
+
+### Fixed
+
+- Guard modes now check forced recursive removal targets, require review of unclassified executable input, and share stable session identity across activation, hooks, and deactivation.
+- Metric-loop instructions direct the host to preserve existing edits and the staged index through isolated candidates, finite iteration/time/call budgets, and resume accounting. These steps depend on host compliance; they are not an executable supervisor.
+- Failed or malformed independent review verification leaves findings unverified and disables publication.
+- Commands, skills, and registered hooks use the current host installation with quoted executable paths, including sessions using different versions or installation paths containing spaces.
+- Budget, standard, and premium shortcuts remain supported; removed the obsolete v11 removal notice.
+
+### Development
+
+- Run affected PR tests on both supported systems and shard full unit coverage into four weighted lanes per system. Run integration beside units and use targeted symlink regressions on every event.
+- Remove duplicate local sync/smoke runs, standalone packaging jobs, repeated full local release requirements, and automatic advisory model reviews unless explicitly enabled. Required CI and approval remain intact.
+- Keep release validation read-only and publish through the gated release process. Reject unknown test-runner flags before execution.
+- Bound full unit steps and retain their output before the job deadline so stalled tests produce actionable diagnostics.
+
+## [11.17.1] - 2026-11-05
+
+### Fixed
+
+- A council seat is no longer marked fabricated for its own arithmetic. An
+  inline code span made only of numbers (`1.5e6` and `1_000` included), known
+  units right after a number (`KB`, `kilobytes`, `ms`, `%`, `tokens`, ...),
+  and operators including `%`, such as `8 + 10 + 0.5 = 18.5 KB`, is a value
+  the seat computed, not a quote of the code. The verifier found it in no
+  file, and when it was the only quote the seat was dropped as blind. Any
+  identifier or keyword, as in `base + taxes * 2` or
+  `100 if 1000 > 500 else 1`, still makes it a checked code quote. Arithmetic
+  a citation claims, before or right after the span, is still verified against
+  cited evidence. The exemption never covers a code fence or a diff removal: their
+  arithmetic lines go through the usual checks, so a specific enough line is
+  still verified.
+- Vibe setup and readiness now recognize a key stored by `vibe --setup` in
+  the OS keyring when Vibe is explicitly selected for a provider check. The
+  local presence check is silent, read-only and bounded, and receives a
+  minimal environment. Automatic discovery defers keyring inspection.
+  Standard Python user-site installations work without enabling user-site
+  loader hooks. Import and probe failures, including successful package exits,
+  cannot report a key as present. It does not launch Vibe or make a model
+  request. Addresses #1191; automatic scans still defer keyring inspection.
+  Explicit single-provider probes carry the Vibe selection into preflight,
+  without treating a general cached pass as proof that Vibe is ready.
+  Successful selected checks preserve general readiness cache entries, avoiding
+  repeated discovery in other provider workflows.
+
+- Council quote verification recognizes valid `octopus-policy-findings` JSON
+  without marking the seat fabricated. Entity-encoded quotes remain intact,
+  and runtime policy extraction accepts the same indented, backtick and tilde
+  fences as analysis. Invalid blocks and invented quotes outside a findings
+  block still undergo quote verification.
+  Overflowing JSON numbers are rejected by every findings reader, and failed
+  policy extraction or verification defers implementation instead of dropping
+  blocking findings.
+  [#1230](https://github.com/nyldn/claude-octopus/pull/1230).
+- Define, develop, deliver and ship now validate the report names the engine
+  writes, within the current session and after the current invocation starts.
+  A failed command, stale report or missing completion status cannot pass the
+  skill's result gate. Reports from other invocations are identified before
+  their bodies are loaded, so unrelated large output cannot exhaust the
+  validator's memory. Execution and validation use the installation that loaded
+  the skill, even when the stable link still points at an older copy. Truncated
+  UTF-8 in task or provider text preserves the launcher's completion checks.
+  Feature development checks every owned wave before returning the final
+  wave report. Descriptor-based reads reject symlink replacements and special
+  files without blocking the validator. Fixes #1170.
+
+## [11.17.0] - 2026-11-05
+
+### Added
+
+- Deck and document export recognize standalone and alternate-plugin renderer
+  skills advertised by the session. An explicit or saved renderer can receive a
+  house template and the approved slide skeleton, visual callouts and appendix
+  list. Ambiguous selections and unavailable explicit or saved renderers fail
+  visibly instead of forcing another plugin or discarding the selected renderer. Fixes [#1218](https://github.com/nyldn/claude-octopus/issues/1218).
+
+### Fixed
+
+- The develop quality challenger now sees provider output and bounded change
+  excerpts from the run's starting commit. Long executor prompts no longer
+  hide the implementation. Change excerpts exclude credential paths,
+  directories and symlinks and are marked as untrusted content. Fixes #1171.
+  Collecting those excerpts disables Git clean/process filters and filesystem
+  monitors, and ignores inherited Git routing and global configuration.
+  Binary diff markers and nontext excerpts are omitted before shell capture.
+  UTF-8 excerpts retain complete characters at the byte limit, and collection
+  examines at most 200 candidate paths per pass.
+- A code-span quote written inside a Markdown table cell now matches its
+  source line. Seats escape `|` as `\|` in a table, so a quote of
+  `member.tier || member.legacyTier` arrived as `member.tier \|\| member.legacyTier`
+  and was counted as invented (sail-cruisey #3125). Quote matching now also
+  tries a table-cell code span with `\|` read as `|`. Outside a table, `\|` is
+  literal (it changes a regular expression), and source text keeps its
+  backslashes, so a quote that drops a source line's own `\|` still does not
+  match it.
+
+  Table decoding also requires the whole quote to fit inside one rendered
+  cell. Quotes crossing cells or rows, and cells discarded beyond the header
+  width, keep their literal backslashes.
+
+  Table structure is recognized before HTML entity decoding, so encoded pipes
+  cannot manufacture a delimiter or split a cell. Single-column headers and
+  nonempty body rows without pipes also retain their table context.
+
+## [11.16.0] - 2026-11-02
+
+### Fixed
+
+- Decision support now includes the cost of doing nothing, sets criteria and
+  weights before scoring, and shows raw and weighted scores. Presentation
+  templates no longer recommend the first option before analysis. Uncertain
+  decisions can include an optional scenario stress test.
+  Fixes [#1220](https://github.com/nyldn/claude-octopus/issues/1220).
+  [#1247](https://github.com/nyldn/claude-octopus/pull/1247).
+
+- Workflow skills can now persist phase state through `update_state`, query
+  completed phases and import definition synthesis into the roadmap. History
+  notes cannot change a phase's recorded status. Initializing a project with
+  a missing state file preserves existing issues, lessons and phase plans.
+  Fixes [#1169](https://github.com/nyldn/claude-octopus/issues/1169).
+  [#1248](https://github.com/nyldn/claude-octopus/pull/1248).
+
+- Configured fallback chains now honor `OCTO_ALLOWED_PROVIDERS` and the
+  session or global provider allowlist. `run_agent_sync_fallback_chain`
+  dispatched its primary, preferred fallback and chain candidates without
+  checking the allowlist. With `OCTO_ALLOWED_PROVIDERS="codex claude"`, Tangle
+  decomposition still sent the prompt to its default `agy` researcher seat
+  first. The chain now skips any candidate outside the allowlist and logs the
+  skip. If no candidate is allowed, it fails closed without dispatching.
+  `octo_fallback_agent_available` applies the same check, so
+  `get_fallback_agent` and `octo_fallback_first_available` no longer return a
+  disallowed provider just because its CLI is installed.
+  [#1244](https://github.com/nyldn/claude-octopus/pull/1244).
+
+- Preflight checks the council roster that `OCTOPUS_COUNCIL_DEFAULT_PROVIDERS`
+  pins. A Codex-led session pins `claude,agy`, but preflight ignored the list:
+  the static pass checked every non-Claude provider, the smoke test always
+  tried Codex, and nothing reported on the Claude seat. With a roster set,
+  `orchestrate.sh preflight` checks exactly those seats, Claude included, names
+  the list it used, and fails naming any seat that is not ready. The smoke test
+  and `/octo:preflight` cover only the roster, and the smoke test fails when
+  any roster seat it tested fails. A pinned Codex seat with an expired OAuth
+  token fails the roster even when other seats are ready. A seat with no
+  provider detection, such as `openai-tools`, is listed as not checked instead
+  of failing the roster or counting as degraded. The JSON gains `roster`, `roster_unchecked` and `sandbox`, and cached results are
+  keyed on the roster. Unset or `auto` keeps the previous behavior.
+- Preflight readiness inside a macOS sandbox. The `/octo:preflight` loop sent
+  stderr through `2> >(cat >&2)`, a `/dev/fd` write that Codex and Claude Code
+  sandboxes deny, so every provider read `check-failed` there. Inside such a
+  sandbox (`CODEX_SANDBOX` or `SANDBOX_RUNTIME`), a provider that is not ready
+  now carries a note that keychain logins, network access or files outside the
+  workspace can fail there, with the remedy to re-run preflight outside it.
+  [#1229](https://github.com/nyldn/claude-octopus/pull/1229).
+
+### Maintenance
+
+- Updated the MCP server's Zod dependency.
+  [#1235](https://github.com/nyldn/claude-octopus/pull/1235).
+- The timer regression waits for completion before checking failure precedence.
+  [#1249](https://github.com/nyldn/claude-octopus/pull/1249).
+
+## [11.15.4] - 2026-11-01
+
+### Fixed
+
+- A probe seat now runs for the `OCTOPUS_AGENT_TIMEOUT` budget. `orchestrate.sh
+  probe` gave each seat the 600-second `TIMEOUT` default even with
+  `OCTOPUS_AGENT_TIMEOUT=1200` set, and the timeout message then recommended
+  setting the variable that was already set. Probe seats, `probe-single` and
+  the probe progress watchdog now use the budget `run_agent_sync` uses:
+  `OCTOPUS_AGENT_TIMEOUT`, then `--timeout`, then the default. A timed-out
+  probe seat recommends `OCTOPUS_AGENT_TIMEOUT` when it is set. Other
+  background workflows still wait for their seats against `--timeout`, so
+  their seats keep that budget.
+  [#1241](https://github.com/nyldn/claude-octopus/pull/1241),
+  commit [1f8d395](https://github.com/nyldn/claude-octopus/commit/1f8d3951b2a2b4326d5f2e4710864217812588c3).
+
+## [11.15.3] - 2026-10-30
+
+### Fixed
+
+- Reviews started in the same second without an `artifactId` now reserve
+  separate run IDs before starting seats. Their findings no longer overwrite
+  each other, and one review cannot block another's execution contracts by
+  reusing its ID. If no ID can be reserved, the review stops before writing
+  findings. Explicit `artifactId` values and dry-run behavior are preserved.
+  [#1239](https://github.com/nyldn/claude-octopus/pull/1239).
+- By default, repeated and concurrent workflows within one Claude Code session
+  now write separate proof packets, keeping events, findings and summaries
+  separate. `OCTOPUS_PROOF_RUN_ID` still overrides the complete run ID. Use a
+  unique override per run; reusing one shares the directory and can overwrite
+  the earlier packet.
+  [#1238](https://github.com/nyldn/claude-octopus/pull/1238).
+- Council grounding and quote verification accept a bare filename or path
+  suffix when exactly one eligible file matches. Nested checkout copies no
+  longer make names ambiguous. Grounding rejects missing, ambiguous and unsafe
+  paths, and line numbers past the end of a file. Quote verification checks
+  uniquely matching attached context before repository suffixes and can verify
+  matching file text even when the cited line number is out of range.
+  An unsafe existing path cannot fall back to a different file.
+  [#1236](https://github.com/nyldn/claude-octopus/pull/1236).
+
+
+## [11.15.2] - 2026-10-28
+
+### Fixed
+
+- Learned file hints and provider history stay within the current project or
+  Git worktree. Hints record and suggest only existing relative paths inside
+  that root. Older patterns without a root and unscoped provider histories
+  remain on disk but are ignored. Provider history now uses
+  `.octo/providers/<project-key>/` under the Octopus workspace.
+  [#1228](https://github.com/nyldn/claude-octopus/pull/1228),
+  commit [ee7bcb4](https://github.com/nyldn/claude-octopus/commit/ee7bcb42e47ba6740100482e5be4155c3e6ebc46).
+- Provider answers stay readable when stderr contains a large transcript.
+  With a usable stdout answer and stderr over 16 KB, the full transcript goes
+  to a private `.stderr.log` sidecar. The result keeps at most 16 KB from its
+  last 40 lines, preserving UTF-8 and the untrusted-content wrapper. Runs
+  without an answer, unsafe sidecar paths, and transcripts over the private
+  writer's 1 MiB limit keep stderr inline. Result expiry removes the matching
+  transcript while preserving transcripts for retained reports.
+  [#1232](https://github.com/nyldn/claude-octopus/pull/1232),
+  commit [931b13e](https://github.com/nyldn/claude-octopus/commit/931b13e20393e7bb3d4b178e6d6ac97c959e8df0).
+- Smoke-test failures no longer mark a healthy provider quota-dead for later
+  runs unless they are explicit authentication or rate-limit rejections
+  observed outside coding sandboxes. Other failures exclude the provider only
+  for the current run. Unknown failures prevent caching a successful overall
+  check, while timeouts retain the existing slow-provider pass-cache policy.
+  Preflight distinguishes cached quota/auth failures, with their individual
+  timestamps, from current-run failures. Sandbox denials identify the check's
+  restriction and advise retrying outside the sandbox.
+  [#1233](https://github.com/nyldn/claude-octopus/pull/1233),
+  commit [16dd9e6](https://github.com/nyldn/claude-octopus/commit/16dd9e67d4be42e1bed11c89fed251b3cea4d7b5).
+
 ## [11.15.1] - 2026-10-23
 
 ### Fixed

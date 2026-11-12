@@ -63,6 +63,56 @@ octo_quota_mark_dead() {
     return 0
 }
 
+# Providers that failed a check in this process for a reason that says nothing
+# about the next run: an unknown error, a timeout, a sandbox denial. They stay
+# excluded for the rest of this run (#840) but are never written to the cache,
+# so a later preflight checks them again (sail-cruisey #2905).
+_OCTO_QUOTA_RUN_DEAD="${_OCTO_QUOTA_RUN_DEAD:- }"
+# The subset whose failure is unexplained (not a timeout): a pass cached in this
+# run would let a later run skip the check that should see them again.
+_OCTO_QUOTA_RUN_RECHECK="${_OCTO_QUOTA_RUN_RECHECK:- }"
+
+# octo_quota_mark_failed_this_run <provider> [recheck|no-recheck]
+octo_quota_mark_failed_this_run() {
+    local provider="$1" recheck="${2:-recheck}"
+    [[ -n "$provider" ]] || return 0
+    [[ "$_OCTO_QUOTA_RUN_DEAD" == *" ${provider} "* ]] || _OCTO_QUOTA_RUN_DEAD+="${provider} "
+    if [[ "$recheck" == recheck && "$_OCTO_QUOTA_RUN_RECHECK" != *" ${provider} "* ]]; then
+        _OCTO_QUOTA_RUN_RECHECK+="${provider} "
+    fi
+    return 0
+}
+
+octo_quota_failed_this_run() {
+    [[ -n "${1:-}" && "${_OCTO_QUOTA_RUN_DEAD:- }" == *" ${1} "* ]]
+}
+
+# True when a provider failed this run for an unexplained reason. A pass cached
+# now would let a later run skip the check that should see it again.
+octo_quota_needs_recheck() {
+    [[ -n "${_OCTO_QUOTA_RUN_RECHECK// /}" ]]
+}
+
+# A check that ran inside a Codex or Claude Code sandbox can fail for reasons the
+# sandbox imposes (keychain, network, files outside the workspace), so its
+# failures are not cached as the provider's own.
+octo_quota_in_sandbox() {
+    [[ -n "${CODEX_SANDBOX:-}" || -n "${SANDBOX_RUNTIME:-}" ]]
+}
+
+# octo_quota_dead_marked_at <provider> — epoch seconds when the provider was
+# cached as dead, from its own metadata line. Prints nothing for a mark without
+# one: the marker file's mtime is shared, so it may date another provider.
+octo_quota_dead_marked_at() {
+    local provider="$1" meta line marked
+    meta="$(octo_quota_dead_meta_file)"
+    [[ -f "$meta" ]] || return 0
+    line="$(grep "^${provider}	" "$meta" 2>/dev/null | tail -1)" || line=""
+    marked="$(printf '%s\n' "$line" | cut -f2)"
+    [[ "$marked" =~ ^[0-9]+$ ]] && printf '%s\n' "$marked"
+    return 0
+}
+
 # octo_quota_clear_dead <provider>
 # A successful health probe is stronger evidence than a cached failure. Remove
 # both the compatibility marker and any per-provider expiry metadata so a
@@ -70,6 +120,8 @@ octo_quota_mark_dead() {
 octo_quota_clear_dead() {
     local provider="$1"
     [[ -n "$provider" ]] || return 0
+    _OCTO_QUOTA_RUN_DEAD="${_OCTO_QUOTA_RUN_DEAD// ${provider} / }"
+    _OCTO_QUOTA_RUN_RECHECK="${_OCTO_QUOTA_RUN_RECHECK// ${provider} / }"
 
     local f meta tmp
     f="$(octo_quota_dead_file)"
@@ -136,6 +188,7 @@ _octo_quota_file_mtime() {
 octo_quota_is_dead() {
     local provider="$1"
     [[ -n "$provider" ]] || return 1
+    [[ "${_OCTO_QUOTA_RUN_DEAD:- }" == *" ${provider} "* ]] && return 0
     local f
     f="$(octo_quota_dead_file)"
     [[ -f "$f" ]] || return 1

@@ -13,7 +13,7 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 <p align="center">
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <img src="https://img.shields.io/badge/Version-11.15.1-blue" alt="Version 11.15.1">
+  <img src="https://img.shields.io/badge/Version-11.22.2-blue" alt="Version 11.22.2">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.14+_required-blueviolet" alt="Requires Claude Code v2.1.14+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -26,7 +26,7 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 🔄 **Choose the workflow the task needs.** Use a focused method for architecture, debugging, or TDD. Use `/octo:embrace` for Discover → Define → Develop → Deliver, with quality gates between phases.
 
-🐙 **31 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **54 commands** (slash commands you type), **63 skills** (reusable workflow modules). Explicit workflows select the experts they need; ordinary Claude requests do not activate Octopus.
+🐙 **31 specialized personas** (role-specific AI agents like security-auditor, backend-architect), **56 commands** (slash commands you type), **64 skills** (reusable workflow modules). Explicit workflows select the experts they need; ordinary Claude requests do not activate Octopus.
 
 🐙 **Works with just Claude. Adds up to twelve external provider integrations.** Zero external providers are needed to start. Add them one at a time — each becomes available when detected and runs only inside an explicit workflow.
 
@@ -36,27 +36,28 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-### Research uses your chosen intensity
+Large file-backed `probe-single` requests validate promptly while preserving
+their text. Code reviews verify complete findings in bounded requests and keep
+unfinished work available when verification cannot complete. Review synthesis
+preserves every verified finding. See [review verification](docs/DEVELOPER.md#complete-review-verification).
 
-`/octo:discover` and `/octo:research` pass your quick, standard, or deep
-selection to the research engine. The workflow examples also pass prior-phase
-results correctly and put focus, depth, and audit scope in the prompt.
-See [knowledge workflows](docs/KNOWLEDGE-WORKERS.md#workflow-customization).
+Deck generation checks rendered slides before reporting completion. It compares
+titles with the approved outline, checks highlighted data claims against their
+source data, and reviews slide thumbnails. Missing evidence leaves the deck as a
+draft. See [document renderers](docs/DOCUMENT-RENDERERS.md).
 
-### Session preferences stay outside your repository
+Cost tiers can pair a model with reasoning effort, so a budget task can use a
+lighter setting while a difficult task uses a deeper one. Explicit model and
+effort choices keep precedence. See [model routing](docs/MODEL-ROUTING-STRATEGY.md).
 
-SessionEnd saves preferences and Markdown session learnings in the current
-project's existing Claude auto-memory directory. SessionStart restores
-preferences from that directory. The hooks no longer create `memory/` in your
-repository or fall back to an unrelated project's memory. Custom Claude
-configuration directories use the same mapping at session start and end.
-
-SessionEnd also saves structured cross-task learnings as JSON under
-`~/.claude-octopus/learnings`. That store is shared across projects and is not
-automatically read by SessionStart. See [session memory troubleshooting](docs/TROUBLESHOOTING.md#session-preferences-and-memory).
+Research verification recognizes references to a synthesis's own numbered
+points without treating them as unsupported measurements. Numeric claims with
+units, percentages, scores and ranges keep the existing verification rules:
+unfetched sources leave numbers unverified, and claims marked `[inference]`
+can pass without citations. See [research evidence](docs/RESEARCH-EVIDENCE.md).
 
 <!-- BEGIN CURRENT RELEASE -->
-> 🆕 **v11.15.1 — Honor selected research intensity, correct workflow examples, and keep session memory outside repositories.**
+> 🆕 **v11.22.2 — Complete review verification, faster large prompt validation and corrected GPT-5.4 Mini usage estimates.**
 >
 > **Default roster:** Claude Opus 5.5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5.5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
@@ -79,7 +80,7 @@ automatically read by SessionStart. See [session memory troubleshooting](docs/TR
 
 | Version | Best Features |
 |---------|--------------|
-| **v11.15.1** (new) | Honor selected research intensity, correct workflow examples, and keep session memory outside repositories. |
+| **v11.22.2** (new) | Complete review verification, faster large prompt validation and corrected GPT-5.4 Mini usage estimates. |
 | **v9.50** | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (introduced with Opus 4.8 and now following the current Opus 5 default), starter skills pack, `/plugin browse` manifest with projected context cost. |
 | **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
 | **v9** | Up to 10 external provider integrations (Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OrcaRouter, OpenCode, and Grok) alongside the Claude Code host. Structured provider debates and configurable multi-LLM councils. Explicit-only activation by default, with an optional smart router. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Opt-in discipline gates and token compression. Two-stage review. Circuit breakers with automatic provider recovery inside active workflows. Cursor + OpenCode + Codex cross-compatibility. `bin/octopus` CLI. 182 Claude Code capability flags through v2.1.219, including Opus 5, Sonnet 5, and dynamic workflow awareness. |
@@ -434,7 +435,7 @@ Nine high-traffic commands cover the common Octopus workflows: lifecycle executi
 /octo:council --goal decision "Should we keep this service monolithic?"  # Persona council with budget/veto gates
 /octo:debate monorepo vs microservices     # Structured provider debate with consensus
 /octo:research --breadth=standard htmx vs react in 2026  # Attributed multi-provider research
-/octo:design mobile checkout redesign       # UI/UX design with BM25 style intelligence
+/octo:design-ui-ux mobile checkout redesign # UI/UX design with BM25 style intelligence
 /octo:tdd create user auth                 # Red-green-refactor with test discipline
 /octo:security                              # OWASP vulnerability scan + remediation
 /octo:prd mobile checkout redesign          # AI-optimized PRD with 100-point scoring
@@ -442,7 +443,14 @@ Nine high-traffic commands cover the common Octopus workflows: lifecycle executi
 
 `/octo:council` uses the real runner by default. Single-model simulation is only used when explicitly requested with `--simulate` or `--single-model`; `--research-first` writes a research artifact before fanout, and `--corpus-mode append|require` preserves synthesis and plans in project corpus workflows.
 
-Plus 40+ more: review, debug, extract, deck, docs, schedule, parallel, sentinel, optimize, brainstorm, doctor, and [the full set](docs/COMMAND-REFERENCE.md).
+Score and improve an existing artifact with `/octo:refine plan.md --max-rounds 3`.
+It uses a frozen rubric and independent Claude and Codex scoring. `/octo:ladder`
+is an alias. See the [refinement guide](docs/REFINEMENT.md) for review-only mode
+and limits on rounds, elapsed time, and model calls.
+
+Find other commands with `/octo:guide list` or browse the
+[complete command reference](docs/COMMAND-REFERENCE.md). For diagnostics, invoke
+the manual `/octo:skill-doctor` skill or run `octopus doctor` in a shell.
 
 Don't remember the command name? Just describe what you need:
 
@@ -468,7 +476,8 @@ Not sure which command to use? Pick by goal:
 | Get a panel recommendation or gated implementation plan | `/octo:council` |
 | Debate two approaches | `/octo:debate` |
 | Build a feature end-to-end | `/octo:embrace` |
-| Design a UI or style system | `/octo:design` |
+| Design a UI or style system | `/octo:design-ui-ux` |
+| Score and improve an existing artifact | `/octo:refine`, alias `/octo:ladder` |
 | Review existing code | `/octo:review` |
 | Write tests first, then code | `/octo:tdd` |
 | Scan for vulnerabilities | `/octo:security` |
@@ -562,7 +571,7 @@ Specialized agents selected by explicit Octopus workflows. `/octo:security` can 
 
 Categories span Software Engineering, Specialized Development, Documentation & Communication, Research & Strategy, Business & Compliance, and Creative & Design.
 
-[Full persona reference](docs/AGENTS.md) | [All 63 skills](docs/COMMAND-REFERENCE.md)
+[Full persona reference](docs/AGENTS.md) | [All 64 skills](docs/COMMAND-REFERENCE.md)
 
 ### Built-in Reaction Engine
 
@@ -621,7 +630,10 @@ The table excludes provider tool charges. Sonar Pro adds a **request fee** of $6
 | Council (4-6 seats + synthesis) | 60-150K tokens | $0.50-2.50 |
 | Full embrace (4 phases, multi-provider) | 150-400K tokens | $1.00-6.00+ |
 
-Before an expensive run, `/octo:costs` shows a session cost projection; after runs, `/octo:usage` breaks down actual spend per provider and skill. Anything projected over $1 is called out before dispatch.
+`/octo:usage` reports recorded provider, skill, and MCP usage with estimated
+costs. `/octo:costs` shows a cost-focused compatibility view of the same records.
+These reports do not forecast a proposed run or verify provider billing. Use the
+workflow's available budget controls before dispatch.
 
 ### What You Get With Just Claude
 
@@ -655,6 +667,18 @@ v9.50.0 aligns the plugin with Claude Code's 2026 native capabilities. Each piec
 | `OCTOPUS_SUBAGENT_MIN_QUALITY` | `0` | Quality floor (0-100) enforced by the gate in strict mode; `0` disables |
 
 ---
+
+## Model catalog update
+
+The catalog includes GPT-6.1 Terra ($1/$5 per million input/output tokens) and
+Claude Fable 5.2 ($8/$40). Terra supports visual reasoning and writing; tool
+calls require Responses. Fable 5.2 requires an explicit pin, retains the Fable
+dispatch guards, and needs Claude Code v2.1.321 or newer on the CLI path.
+Its provider requires 30-day retention.
+
+Release defaults, saved model pins and the Fable 5.1 escalation target remain
+unchanged. See the [catalog limits, compatibility rules and sources](docs/MODEL-ROUTING-STRATEGY.md#catalog-refresh-2026-11-10),
+or list choices with `/octo:model-config models`.
 
 ## GPT-6 Astra Support
 
@@ -791,11 +815,10 @@ Join [r/ClaudeOctopus](https://www.reddit.com/r/ClaudeOctopus/) for help, workfl
 
 ### Contributing
 
-1. [Report issues](https://github.com/nyldn/claude-octopus/issues)
-2. Submit PRs following existing code style
-3. `git clone https://github.com/nyldn/claude-octopus.git && make test`
-
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details.
+Follow the [contributor guide](docs/CONTRIBUTING.md) for setup, checks and PRs.
+The [repository map](docs/REPOSITORY.md) identifies authored sources and generated
+files. [Report issues](https://github.com/nyldn/claude-octopus/issues) with steps
+to reproduce the problem.
 
 ---
 
@@ -808,6 +831,7 @@ See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for details.
 - [Agents & Personas](docs/AGENTS.md) — All 31 personas
 - [Provider Wiring Map](docs/PROVIDERS.md) — How a provider is wired (contributors)
 - [Developer Guide](docs/DEVELOPER.md) — Modular config, E2E testing, enforcement patterns
+- [Repository map](docs/REPOSITORY.md) and [script index](scripts/README.md) for contributors
 - [Scheduler](docs/SCHEDULER.md) — Scheduled workflow runner
 - [Privacy](docs/PRIVACY.md) — What leaves your machine and when
 - [Security Policy](SECURITY.md) — Threat model and trust boundaries

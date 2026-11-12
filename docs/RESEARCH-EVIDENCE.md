@@ -3,6 +3,42 @@
 Claude Octopus research keeps a small, local run record so a long discovery
 session can be inspected or resumed without repeating provider calls.
 
+## Optional web search suggestions
+
+Set `OCTOPUS_RESEARCH_WEB_SEARCH=keenable` to run one search for the research
+question before `probe_discover` dispatches its perspectives. When a provider
+allowlist is active, it must include `keenable` as well as the model providers.
+This source adds no seat and works at quick, standard and deep intensity.
+Default runs, dry runs, cache hits and resumed runs perform no lookup.
+
+Each perspective receives up to five titles, URLs and 500-character excerpts,
+wrapped as untrusted content. These are leads for the existing evidence pipeline,
+not verified claims. Seats must inspect and cite the linked pages. Existing
+source-fetch restrictions and citation verification still apply. Failed, empty,
+oversized or malformed searches leave the original prompts unchanged. One lookup
+has a 15-second deadline and does not retry or follow redirects. Interpreters
+without the signal alarm APIs skip the optional lookup so the total deadline
+is preserved. Failed or empty lookups emit one fixed warning without provider
+output or credentials, then research continues with its original prompts.
+
+Python 3's standard library handles the request; no SDK or CLI installation is
+needed. The question is sent to Keenable only when this option and the allowlist
+permit it. With no key, the helper uses `/v1/search/public` and identifies Claude
+Octopus with `X-Keenable-Title`. An optional `KEENABLE_API_KEY` selects `/v1/search`
+with `X-API-Key`; it is excluded from model-child environments, subscription
+tier probes and prompts.
+The helper normalizes title and snippet whitespace and bounds their lengths.
+The resulting formatted suggestions are preserved literally inside their
+untrusted boundaries; they are not exact quotations of the source fields.
+Keyless limits are shared by egress IP. Authenticated usage follows the account's
+credits and rate limits.
+No live search or model request is required by the offline tests.
+
+HTTP contract checked on 2026-11-08 against the official
+[search reference](https://docs.keenable.ai/api-reference/search),
+[quickstart](https://docs.keenable.ai/) and
+[authentication documentation](https://docs.keenable.ai/authentication).
+
 ## Choose the depth
 
 Research uses one of three intensity levels:
@@ -48,6 +84,25 @@ When a host-native workflow writes its synthesis in conversation, verify that fi
 The verifier fails closed for unknown source IDs, unsupported consensus claims, and quoted or numeric claims that disagree with a fetched snapshot. Claims whose source was not fetched are retained with an explicit warning instead of being silently presented as verified.
 
 Digits that belong to an identifier are not numeric claims: a ticket or requirement ID such as `PLAT-1181`, `T-1` or `R2`, a reference such as `#1728` or `§4.2`, a name such as `p95` or `k8s`, and a git SHA such as `89a941fda`. Standalone numbers, percentages, decimals, numbers with a unit suffix such as `15m` or `5xx`, and ranges such as `10-13` are still checked.
+
+A reference to the synthesis's own numbered points is not a numeric claim either: a whole number after `point`, `points`, `item` or `items`, as in `See point 2.`, `Corrected in point 2:` or `points 2 and 3`, `points 2,3` or `points: 2 and 3`, when no other word follows the number. Labels must stand alone, including Markdown list items, or use an explicit reference such as `See` or `Corrected in`. Paired inline emphasis around reference numbers and labels is accepted, including `See point **2**` and `**Points:** 2 and 3`. Explicit references also include `Refer to point 2`. A label after "and" or "or" continues a reference only when the number before the conjunction was itself a skipped reference or a section number, so both numbers in `Score in points: 50 and items: 10` remain checked. Prose quantities such as `The mean score in points: 50` and `Total items 30` remain checked, as do emphasized quantities with units. Formatted units such as `5 **MiB**` and `5 (MiB)`, degree units such as `5 °C`, linked units such as `5 [MiB](https://example.com)`, decimals, spaced or unspaced range endpoints using hyphens, en dashes, em dashes or Unicode minus signs, fraction numerators such as the 5 in `Items: 5/10` and thousands-formatted values remain numeric claims. Ordinary and narrow nonbreaking spaces are accepted around units and in reference lists. `2 retries`, `point 40 requests`, `16 MiB` and `section 2` are still checked.
+
+Emphasis markers inside inline code or link destinations remain literal.
+Relative, fragment and reference-style linked units still require numeric
+evidence. Nested emphasis around an ordered-list label does not turn that label
+into a numeric claim.
+
+The same reference rules apply to standalone `Finding`, `Risk`, `Probe`,
+`Conflict`, `Decision` and `Gap` labels and their plurals. `(Finding 4)` and
+`See conflicts 1 & 2` refer to sections. `Risk 3 of the services` still states
+a quantity that needs evidence.
+
+In totals, numbers written separately are checked individually.
+`Findings: 3 or 4 in total`, `Findings: 3 or 4, in total` and
+`Findings: 3, 4 in total` each keep `3` and `4` for evidence checks.
+Without a space, `3,4` is one numeric token. Write `3, 4` to check them
+separately. Thresholds such as `Risk 3 or higher` and `Risk 3 & above`
+also remain numeric claims.
 
 When a probe synthesis fails verification, its synthesizer gets one repair
 pass with the findings, evidence catalog and numbered draft. Missing citations,

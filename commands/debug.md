@@ -6,13 +6,17 @@ description: Debug a symptom through reproducible, bounded evidence
 
 # Octopus debug
 
+For long Claude investigations, follow the subagent context and effort guidance
+in `docs/CLAUDE-NATIVE-INTEGRATION.md`. An advisor requires explicit activation
+and adds usage beyond the current worker. Preserve host-only and budget limits.
+
 Load `skills/blocks/engineering-method-selection.md` from the installed plugin
 and apply only the methods relevant to this task. Preserve this entry point's
 execution contract and output format. Read referenced skills as instructions;
 do not invoke the current command recursively or add provider calls from a seat.
 
 Load and follow
-`${HOME}/.claude-octopus/plugin/.claude/skills/skill-debug/SKILL.md` and its
+`${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-debug/SKILL.md` and its
 literal `skills/blocks/debug-feedback-loop.md` reference.
 
 Treat `--peer-review` as an instruction to request one bounded independent review

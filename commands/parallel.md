@@ -9,13 +9,18 @@ aliases:
 
 # Parallel - Team of Teams
 
+When dispatching native Claude agents, use only context and effort fields exposed
+by the current Agent tool schema. Keep repository instructions in each brief.
+See `docs/CLAUDE-NATIVE-INTEGRATION.md` for compatible controls and the handoff to
+native dynamic workflows for large Claude-only work.
+
 ## INSTRUCTIONS FOR CLAUDE
 
 When the user invokes this command (e.g., `/octo:parallel <arguments>`):
 
 **CORRECT - Read the explicit workflow source:**
 ```
-Read ${HOME}/.claude-octopus/plugin/.claude/skills/flow-parallel/SKILL.md, then execute it with <user's arguments>
+Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/flow-parallel/SKILL.md, then execute it with <user's arguments>
 ```
 
 **INCORRECT:**

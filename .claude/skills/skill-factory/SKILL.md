@@ -69,8 +69,8 @@ DO NOT proceed past this gate if file does not exist.
 
 ### STEP 4: Read Prior State (OPTIONAL)
 ```bash
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" init_state 2>/dev/null || true
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" set_current_workflow "factory" "factory" 2>/dev/null || true
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" init_state 2>/dev/null || true
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" set_current_workflow "factory" "factory" 2>/dev/null || true
 ```
 Failure → continue without state, warn user.
 
@@ -90,7 +90,7 @@ command -v codex >/dev/null 2>&1 && review_provider="codex"
 [[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
 
 if [[ -n "$review_provider" ]]; then
-  "${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh" spawn "$review_provider" \
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$review_provider" \
     "You are a QA adversary. Given this specification and generated scenarios, identify coverage gaps.
 
 SPECIFICATION:
@@ -119,7 +119,7 @@ fi
 
 ### STEP 5: Execute orchestrate.sh factory (MANDATORY — Bash Tool)
 ```bash
-${HOME}/.claude-octopus/plugin/scripts/orchestrate.sh factory --spec "<spec_path>"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" factory --spec "<spec_path>"
 ```
 
 With optional flags based on Step 1 answers:
@@ -164,7 +164,7 @@ Present to user:
 
 ### STEP 8: Update State & Next Steps (MANDATORY)
 ```bash
-"${HOME}/.claude-octopus/plugin/scripts/state-manager.sh" record_decision "factory" "Factory run completed: <verdict> (<score>/<target>)" 2>/dev/null || true
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" record_decision "factory" "Factory run completed: <verdict> (<score>/<target>)" 2>/dev/null || true
 ```
 
 Present next-step suggestions based on verdict:

@@ -21,6 +21,7 @@ _octo_get_model_catalog_raw() {
         # dispatch applies the configured transport ceiling separately.
         gpt-6-astra)            echo "1050|yes|yes|yes|codex|premium|limited" ;;
         gpt-6.1-sol)            echo "1050|yes|yes|yes|codex|standard|active" ;;
+        gpt-6.1-terra)          echo "1050|yes|yes|yes|codex|standard|active" ;;
         gpt-6-sol)              echo "1050|yes|yes|yes|codex|standard|active" ;;
         gpt-6-luna)             echo "1050|yes|yes|yes|codex|budget|active" ;;
         gpt-5.6|gpt-5.6-sol)    echo "1050|yes|yes|yes|codex|premium|active" ;;
@@ -33,7 +34,7 @@ _octo_get_model_catalog_raw() {
         gpt-5.3-codex)          echo "400|yes|yes|no|codex|standard|active" ;;
         gpt-5.3-codex-spark)    echo "128|yes|no|no|codex|standard|active" ;;
         gpt-5.2-codex)          echo "400|yes|yes|no|codex|standard|active" ;;
-        gpt-5.4-mini)           echo "400|yes|no|no|codex|budget|active" ;;
+        gpt-5.4-mini)           echo "400|yes|yes|yes|codex|budget|active" ;;
         gpt-5.1-codex-max)      echo "400|yes|yes|no|codex|standard|active" ;;
         # Reasoning models
         o3)                     echo "200|yes|no|yes|codex|premium|active" ;;
@@ -46,10 +47,12 @@ _octo_get_model_catalog_raw() {
         # provider-aware so the cursor-agent route still bills as subscription.
         auto)                      echo "128|yes|no|no|copilot|standard|active" ;;
         # Claude
+        claude-haiku-5-5)      echo "1000|yes|yes|yes|claude|budget|active" ;;
         claude-haiku-4.5)      echo "200|yes|yes|yes|claude|budget|active" ;;
         claude-sonnet-5-5)     echo "1000|yes|yes|yes|claude|standard|active" ;;
         claude-sonnet-5)       echo "1000|yes|yes|yes|claude|standard|active" ;;
         claude-sonnet-4.6)      echo "200|yes|yes|no|claude|standard|active" ;;
+        claude-fable-5-2)       echo "1000|yes|yes|yes|claude|premium|active" ;;
         claude-fable-5-1)       echo "1000|yes|yes|yes|claude|premium|active" ;;
         claude-fable-5)         echo "1000|yes|yes|yes|claude|premium|active" ;;  # v9.44: Mythos-class, opt-in via OCTOPUS_OPUS_MODEL
         claude-opus-5-5)        echo "1000|yes|yes|yes|claude|premium|active" ;;
@@ -83,7 +86,7 @@ _octo_get_model_catalog_raw() {
         # OpenCode (multi-provider router — models use opencode/<model> namespace)
         opencode/deepseek-v4-flash-free) echo "128|yes|no|no|opencode|budget|active" ;;
         opencode/gpt-5.4)       echo "400|yes|yes|no|opencode|premium|active" ;;
-        opencode/gpt-5.4-mini)  echo "400|yes|no|no|opencode|budget|active" ;;
+        opencode/gpt-5.4-mini)  echo "400|yes|yes|yes|opencode|budget|active" ;;
         opencode/glm-5.1)       echo "203|yes|no|no|opencode|standard|active" ;;
         # Perplexity
         sonar-pro)              echo "128|no|no|no|perplexity|standard|active" ;;
@@ -159,6 +162,7 @@ get_model_policy() {
     local model
     model="$(octo_model_canonical_id "$1")" || return 1
     case "$model" in
+        claude-fable-5-2) echo "explicit|no|0|0|general" ;;
         claude-fable-5-1) echo "explicit|no|0|1|general" ;;
         claude-fable-5)   echo "explicit|no|0|0|general" ;;
         gpt-6-astra)      echo "explicit|no|0|1|limited" ;;
@@ -277,6 +281,7 @@ octo_model_ids() {
     cat <<'EOF'
 gpt-6-astra
 gpt-6.1-sol
+gpt-6.1-terra
 gpt-6-sol
 gpt-6-luna
 gpt-5.6-sol
@@ -296,10 +301,12 @@ o3-pro
 o3-mini
 agy/default
 auto
+claude-haiku-5-5
 claude-haiku-4.5
 claude-sonnet-5-5
 claude-sonnet-5
 claude-sonnet-4.6
+claude-fable-5-2
 claude-fable-5-1
 claude-fable-5
 claude-opus-5-5

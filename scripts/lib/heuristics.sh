@@ -116,6 +116,7 @@ rank_results_by_signals() {
     done
 
     # Sort descending by score, output paths only
+    [[ -n "${scored[0]+set}" ]] || return 0
     printf '%s\n' "${scored[@]}" | sort -t'|' -k1 -rn | cut -d'|' -f2
 }
 

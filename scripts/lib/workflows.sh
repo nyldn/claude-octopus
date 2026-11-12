@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/result-file.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/feature-scheduler.sh"
+_octopus_workflows_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_octopus_workflows_lib_dir/result-file.sh"
+source "$_octopus_workflows_lib_dir/feature-scheduler.sh"
 
 # Double Diamond workflow phases
 # Extracted from orchestrate.sh to reduce file size
 # Functions: probe_single_agent, probe_discover, grasp_define, tangle_develop, ink_deliver
 
 # shellcheck source=scripts/lib/json-contract.sh
-source "${BASH_SOURCE[0]%/*}/json-contract.sh" || return 1
+source "$_octopus_workflows_lib_dir/json-contract.sh" || return 1
+source "$_octopus_workflows_lib_dir/provider-failure.sh" || return 1
+unset _octopus_workflows_lib_dir
 
 if ! type probe_result_file_status >/dev/null 2>&1; then
     _octo_probe_results_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/probe-results.sh"
@@ -73,7 +76,7 @@ probe_single_cli() {
             printf '%s\n' 'Error: --perspective-file could not be read' >&2
             return 1
         }
-        [[ -n "${perspective//[[:space:]]/}" ]] || { printf '%s\n' 'Error: --perspective-file contains no perspective text' >&2; return 1; }
+        [[ "$perspective" =~ [^[:space:]] ]] || { printf '%s\n' 'Error: --perspective-file contains no perspective text' >&2; return 1; }
         agent_type="$1"; task_id="$2"; original_prompt="${3:-}"
         perspective_mode="file"
     else
@@ -110,7 +113,7 @@ probe_single_agent() {
     fi
 
     # Pre-flight validation
-    preflight_check || return 1
+    preflight_check false "$agent_type" || return 1
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
@@ -137,6 +140,11 @@ probe_single_agent() {
     routed_role=$(match_routing_rule "$(classify_task "$perspective" 2>/dev/null)" "$perspective" 2>/dev/null) || true
     if [[ -n "$routed_role" ]]; then
         role="$routed_role"
+    fi
+
+    local seat_timeout="${TIMEOUT:-0}"
+    if declare -F octopus_effective_agent_timeout >/dev/null 2>&1; then
+        seat_timeout="$(octopus_effective_agent_timeout "$seat_timeout" "$phase" "$role")" || return 2
     fi
 
     # v8.53.0: Pre-compute curated_name for readonly frontmatter check
@@ -244,12 +252,19 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     bridge_register_task "$task_id" "$agent_type" "$phase" "$role" || true
 
     local result_file="${RESULTS_DIR}/${agent_type}-${task_id}.md"
-    update_agent_status "$agent_type" "running" 0 "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+    update_agent_status "$agent_type" "running" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
 
     # Build command array with credential isolation
     local -a cmd_array
     local -a inner_cmd_array
-    build_provider_env "$agent_type"
+    if ! build_provider_env "$agent_type"; then
+        log ERROR "Provider environment construction failed for $agent_type"
+        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
+        type write_agent_status >/dev/null 2>&1 && write_agent_status \
+            "$agent_type" "failed" "$tokens_in" 0 "Provider environment construction failed" \
+            0 "$result_file" "$role" || true
+        return 1
+    fi
     octo_dispatch_command_to_argv "$cmd" || return 1
     inner_cmd_array=("${OCTO_COMMAND_ARGV[@]}")
     if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
@@ -271,7 +286,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     printf '# Prompt metadata: original_chars=%s final_chars=%s compression=%s\n' \
         "$_budget_original_chars" "$_budget_final_chars" "$_budget_compression" >> "$result_file"
     if ! write_agent_result_prompt "$result_file" "$enhanced_prompt"; then
-        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Failed to persist dispatched prompt" \
             0 "$result_file" "$role" || true
@@ -283,7 +298,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     _probe_nonce=$(od -An -N16 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n') || _probe_nonce=""
     if [[ ! "$_probe_nonce" =~ $_probe_nonce_pattern ]]; then
         printf '## Output\n```\n(no provider launched)\n```\n## Status: FAILED (Unable to generate result nonce)\n' >> "$result_file"
-        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Unable to generate result nonce" \
             0 "$result_file" "$role" || true
@@ -314,12 +329,18 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local start_time_ms
     start_time_ms=$(( $(date +%s) * 1000 ))
 
+    local auth_deadline=0 attempt_timeout="$seat_timeout"
+    [[ "$seat_timeout" -gt 0 ]] && auth_deadline=$((SECONDS + seat_timeout))
     while true; do
+        if [[ "$auth_deadline" -gt 0 ]]; then
+            attempt_timeout=$((auth_deadline - SECONDS))
+            [[ "$attempt_timeout" -gt 0 ]] || { exit_code=124; break; }
+        fi
         exit_code=0
         # v9.2.2: All agents use stdin to avoid ARG_MAX. File-backed capture is
         # portable to Git Bash and cannot be held open by provider descendants.
         if octopus_capture_provider_output \
-            "$enhanced_prompt" "$TIMEOUT" "$temp_input" \
+            "$enhanced_prompt" "$attempt_timeout" "$temp_input" \
             "$raw_output" "$temp_errors" "${cmd_array[@]}"; then
             exit_code=0
         else
@@ -330,14 +351,14 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         if [[ $exit_code -ne 0 ]] && [[ $auth_attempt -lt $max_auth_retries ]]; then
             local stderr_content=""
             [[ -s "$temp_errors" ]] && stderr_content=$(<"$temp_errors")
-            if [[ "$stderr_content" == *"unauthorized"* ]] || \
-               [[ "$stderr_content" == *"401"* ]] || \
-               [[ "$stderr_content" == *"auth"* ]] || \
-               [[ "$stderr_content" == *"credential"* ]] || \
-               [[ "$stderr_content" == *"token expired"* ]] || \
-               [[ "$stderr_content" == *"refresh"* ]]; then
+            if [[ "$exit_code" != 76 && "$exit_code" != 124 && "$exit_code" != 143 ]] && \
+               octopus_provider_failure_retryable "$agent_type" "$stderr_content"; then
                 ((auth_attempt++)) || true
                 local backoff=$((auth_attempt * 5))
+                if [[ "$auth_deadline" -gt 0 && $((auth_deadline - SECONDS)) -le "$backoff" ]]; then
+                    exit_code=124
+                    break
+                fi
                 log "WARN" "Auth failure (attempt $auth_attempt/$max_auth_retries), retrying in ${backoff}s..."
                 sleep "$backoff"
                 : > "$temp_output"; : > "$temp_errors"; : > "$raw_output"
@@ -443,21 +464,21 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
                     echo '```' >> "$result_file"
                     echo "<!-- END-UNTRUSTED:provider=${agent_type}:stream=stderr:nonce=${_probe_nonce} -->" >> "$result_file"
                 fi
-                update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+                update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "fail" "$elapsed_ms" 2>/dev/null || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "${reason:-unusable output}" "$elapsed_ms" "$result_file" "$role" || true
                 final_rc=1
                 ;;
             degraded)
                 echo "## Status: SUCCESS (DEGRADED: ${reason:-partial output})" >> "$result_file"
-                update_agent_status "$agent_type" "degraded" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+                update_agent_status "$agent_type" "degraded" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
                 type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "degraded" "$tokens_in" "$tokens_out" "${reason:-partial output}" "$elapsed_ms" "$result_file" "$role" || true
                 ;;
             *)
                 echo "## Status: SUCCESS" >> "$result_file"
-                update_agent_status "$agent_type" "completed" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+                update_agent_status "$agent_type" "completed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
                 record_outcome "$agent_type" "$agent_type" "research" "$phase" "success" "$elapsed_ms" 2>/dev/null || true
                 # v9.3.0: Record file co-occurrence pattern for heuristic learning
                 record_run_pattern "$agent_type" "${enhanced_prompt:-$original_prompt}" "$result_file" 2>/dev/null || true
@@ -491,7 +512,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         end_time_ms=$(( $(date +%s) * 1000 ))
         elapsed_ms=$((end_time_ms - start_time_ms))
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
-        update_agent_status "$agent_type" "timeout" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+        update_agent_status "$agent_type" "timeout" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "timeout" "$tokens_in" "$tokens_out" "Timed out before completion" "$elapsed_ms" "$result_file" "$role" || true
         final_rc=$exit_code
     else
@@ -517,7 +538,7 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         end_time_ms=$(( $(date +%s) * 1000 ))
         elapsed_ms=$((end_time_ms - start_time_ms))
         tokens_out=$(octo_estimate_tokens_for_file "$temp_output" 2>/dev/null || echo 0)
-        update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$TIMEOUT" "$task_id" "$phase" "$result_file"
+        update_agent_status "$agent_type" "failed" "$elapsed_ms" "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         local failure_reason="Exit code $exit_code"
         declare -F octo_failure_reason >/dev/null 2>&1 && \
             failure_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_errors" "$temp_output")
@@ -1003,6 +1024,19 @@ ${_blind_spot_checklist}"
         log INFO "Perplexity web research seat skipped: disabled by provider allowlist"
     fi
 
+    # One optional lookup shared by all perspectives, after admission/cost/cache
+    # gates and before provider dispatch. A failed lookup leaves prompts intact.
+    local web_search_context="" perspective_index
+    if [[ "${OCTOPUS_RESEARCH_WEB_SEARCH:-}" == keenable ]] &&
+       source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/keenable.sh" &&
+       web_search_context=$(probe_keenable_search_context "$prompt"); then
+        for perspective_index in "${!perspectives[@]}"; do
+            perspectives[$perspective_index]="${perspectives[$perspective_index]}
+
+$web_search_context"
+        done
+    fi
+
     # Initialize progress tracking with actual agent count (dynamic, may be 5, 6, or 7)
     init_progress_tracking "discover" "${#perspectives[@]}"
 
@@ -1375,6 +1409,7 @@ Constraints: $def3"
 
     cat > "$consensus_file" << EOF
 # GRASP Phase - Problem Definition Consensus
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
 ## Task: $prompt
 ## Generated: $(date)
 
@@ -1680,6 +1715,8 @@ tangle_resolve_repo_root() {
     printf '%s\n' "$resolved_root"
 }
 
+# Resolve concrete task paths against a supplied tracked-file snapshot, or take
+# one snapshot when omitted; bound basename matches and the final file count.
 tangle_resolve_repo_context_files() {
     local text="$1"
     local max_files="${OCTOPUS_TANGLE_CONTEXT_MAX_FILES:-16}"
@@ -1689,6 +1726,10 @@ tangle_resolve_repo_context_files() {
     repo_root=$(tangle_resolve_repo_root) || return 0
     git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1 || return 0
 
+    local tracked_paths="${2-}"
+    [[ $# -ge 2 ]] || tracked_paths=$(git -C "$repo_root" ls-files)
+    local basename_index
+    basename_index=$(printf '%s\n' "$tracked_paths" | awk '{n=split($0,a,"/"); b=a[n]; if (++count[b]<=4) print b "\t" $0}')
     local files=()
     local token full basename
 
@@ -1703,7 +1744,7 @@ tangle_resolve_repo_context_files() {
             if [[ "$basename" == *.* ]]; then
                 while IFS= read -r full; do
                     [[ -n "$full" ]] && files+=("$full")
-                done < <(git -C "$repo_root" ls-files | awk -v b="$basename" 'BEGIN{n=0} {split($0,a,"/"); if (a[length(a)]==b && n<4) {print; n++}}')
+                done < <(printf '%s\n' "$basename_index" | awk -F "\t" -v b="$basename" '$1==b {sub(/^[^\t]*\t/, ""); print}')
             fi
         fi
     done < <(printf '%s\n' "$text" | grep -Eo '[A-Za-z0-9_./-]+\.(js|ts|json|md|yml|yaml|toml|py|sh)' | sort -u)
@@ -1805,12 +1846,15 @@ tangle_require_execution_boundary() {
     export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
 }
 
+# Build task context from one tracked-file snapshot and the active write policy,
+# keeping path resolution and the displayed repository inventory consistent.
 tangle_build_repo_context_block() {
     local assigned_subtask="$1"
     local repo_root
     repo_root=$(tangle_resolve_repo_root) || return 0
-    local resolved
-    resolved=$(tangle_resolve_repo_context_files "$assigned_subtask")
+    local resolved tracked_paths
+    tracked_paths=$(git -C "$repo_root" ls-files 2>/dev/null)
+    resolved=$(tangle_resolve_repo_context_files "$assigned_subtask" "$tracked_paths")
     local scope_mode scope_guidance
     scope_mode=$(tangle_write_scope_mode)
     if [[ "$scope_mode" == "adaptive" ]]; then
@@ -1829,7 +1873,7 @@ Repository context for this subtask:
 ${scope_guidance}
 
 Tracked files, first 200:
-$(git -C "$repo_root" ls-files 2>/dev/null | sed -n '1,200p')
+$(printf '%s\n' "$tracked_paths" | sed -n '1,200p')
 
 Resolved relevant files to inspect/edit for this subtask:
 ${resolved:-<none resolved>}
@@ -4101,9 +4145,15 @@ tangle_run_context_code_review() {
     normal_count=$(tangle_review_blocking_count "$findings_file")
     review_warning=$(tangle_review_warning_text "$findings_file")
     log INFO "Contextual code review findings: $findings_file (normal=${normal_count})"
+    # Keep status 3 exclusive to completed partial reviews from this wrapper.
+    [[ "$review_rc" -ne 3 ]] || review_rc=1
     if [[ -n "$review_warning" ]]; then
         log WARN "Contextual code review warning: ${review_warning}"
-        return 1
+        # Status 3 is reserved for a successfully finished review with partial
+        # fleet coverage. Proof, transport and publication failures keep their
+        # failure status even when a verified findings file survived.
+        [[ "$review_rc" -eq 0 ]] || return "$review_rc"
+        return 3
     fi
     return "$review_rc"
 }
@@ -4117,6 +4167,8 @@ tangle_correction_identity_message() {
     printf '%s\n' "Step 5: Applying contextual review corrections (round=${round_num}, role=implementer, strategy=${correction_strategy}, stall_window=${stall_window}s, executor_alias=${correction_agent}, configured_provider=$(octo_provider_identity_from_agent_type "${correction_agent}"), configured_model=${correction_model}, runtime_provider=unknown, runtime_model=unknown)..."
 }
 
+# Apply verified normal findings within the correction budget. Track worktree
+# progress and completion separately so progress reporting cannot delay reaping.
 tangle_apply_review_corrections() {
     local resolved_prompt="$1"
     local context_file="$2"
@@ -4192,13 +4244,19 @@ ${normal_findings}
     ) &
     local correction_pid=$!
     local stalled="false"
+    local next_probe=$((last_progress + poll_secs))
 
     while true; do
         [[ -f "$rc_file" ]] && break
         if ! tangle_process_is_active_non_zombie "$correction_pid"; then
             break
         fi
-        sleep "$poll_secs"
+        sleep 1
+        [[ -f "$rc_file" ]] && break
+        tangle_process_is_active_non_zombie "$correction_pid" || break
+        now=$(date +%s)
+        [[ "$now" -ge "$next_probe" || ( "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ) ]] || continue
+        next_probe=$((now + poll_secs))
         local current_fp current_size
         current_fp=$(tangle_worktree_fingerprint)
         current_size=$(stat -c '%s' "$correction_file" 2>/dev/null || stat -f '%z' "$correction_file" 2>/dev/null || echo 0)
@@ -4210,6 +4268,8 @@ ${normal_findings}
         fi
         now=$(date +%s)
         if [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
+            [[ -f "$rc_file" ]] && break
+            tangle_process_is_active_non_zombie "$correction_pid" || break
             stalled="true"
             log WARN "Correction round ${round_num}: no observable progress for ${stall_window}s — stopping agent and preserving partial writes"
             pkill -TERM -P "$correction_pid" 2>/dev/null || true
@@ -5591,6 +5651,42 @@ tangle_should_attempt_contextual_review() {
 # round accounting, the convergence guard, and the absolute round ceiling are
 # unit-testable with stubbed review/correction functions
 # (tests/unit/test-tangle-correction-loop-behavior.sh).
+tangle_review_verification_complete() {
+    local review_rc="${2:-0}"
+    case "$review_rc" in
+        0) ;;
+        3) jq -e '(.warning // "") != ""' "$1" >/dev/null 2>&1 || return 1 ;;
+        *) return 1 ;;
+    esac
+    jq -e '(.verification_status // "") != "incomplete" and (.error // "") == "" and ((.findings | length) > 0 or (.warning // "") == "") and all(.findings[]?; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate")' "$1" >/dev/null 2>&1
+}
+
+tangle_record_review_verification() {
+    local task_group="$1" findings_file="$2" state="$3"
+    local metadata="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/.tangle-${task_group}-git.json"
+    local tmp outcome="$state"
+    if [[ "$state" == complete ]] && ! jq -e '(.warning // "") == ""' "$findings_file" >/dev/null 2>&1; then
+        state=incomplete
+        outcome=partial-verified
+    fi
+    if [[ -f "$metadata" ]]; then
+        tmp=$(mktemp "${metadata}.XXXXXX") || return 1
+        if jq --arg findings "$findings_file" --arg state "$state" --arg outcome "$outcome" '
+            if $state == "pending" and .reviewVerification == "incomplete" then
+                if $findings == "" then . else .reviewFindings = $findings end
+            else
+                . + {reviewVerification:$state,reviewOutcome:$outcome} |
+                if $state == "incomplete" and $findings == "" then . else .reviewFindings = $findings end
+            end' "$metadata" > "$tmp"; then
+            mv "$tmp" "$metadata" || { rm -f "$tmp"; return 1; }
+        else rm -f "$tmp"; return 1; fi
+    fi
+    if [[ "$state" == incomplete ]]; then
+        log ERROR "Contextual review infrastructure incomplete; preserving worktree without applying unverified findings: $findings_file"
+    fi
+    return 0
+}
+
 tangle_contextual_review_gate() {
     local task_group="$1"
     local resolved_prompt="$2"
@@ -5615,17 +5711,26 @@ tangle_contextual_review_gate() {
         return "$validation_rc"
     fi
 
+    tangle_record_review_verification "$task_group" "" pending || return 2
     local review_context_file
-    review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial")
+    review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "initial") || return $?
 
     local review_rc=0
     tangle_run_context_code_review "$task_group" "$review_context_file" "initial" || review_rc=$?
     local findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
-    tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
     if ! tangle_review_findings_valid "$findings_file"; then
+        tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
         log ERROR "Contextual code review produced an invalid findings document: ${findings_file}"
         return 1
     fi
+    if ! tangle_review_verification_complete "$findings_file" "$review_rc"; then
+        tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
+        if [[ "$review_rc" -ne 0 ]]; then return "$review_rc"; fi
+        return 2
+    fi
+    # Local scope evidence cannot establish that the reviewer fleet completed.
+    tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
+    tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
     local normal_count
     normal_count=$(tangle_review_blocking_count "$findings_file")
 
@@ -5671,6 +5776,7 @@ tangle_contextual_review_gate() {
         fi
 
         local correction_rc=0
+        tangle_record_review_verification "$task_group" "$findings_file" pending || return 2
         tangle_apply_review_corrections "$resolved_prompt" "$review_context_file" "$findings_file" "$correction_round" "$tangle_coding_agent" "$correction_strategy" || correction_rc=$?
         if [[ "$correction_rc" -ne 0 ]]; then
             if [[ "${TANGLE_CORRECTION_STATUS:-}" == "failed-no-progress" && "${TANGLE_CORRECTION_CHANGED:-0}" != "1" ]]; then
@@ -5708,15 +5814,22 @@ tangle_contextual_review_gate() {
             log ERROR "Tangle retry supervision failed after correction; stopping before further review or delivery"
             return "$validation_rc"
         fi
-        review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}")
+        review_context_file=$(tangle_build_develop_review_context "$task_group" "$resolved_prompt" "$context" "$subtasks" "$validation_file" "$worktree_before_file" "correction-${correction_round}") || return $?
         review_rc=0
         tangle_run_context_code_review "$task_group" "$review_context_file" "correction-${correction_round}" || review_rc=$?
         findings_file="$TANGLE_REVIEW_FINDINGS_FILE"
-        tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
         if ! tangle_review_findings_valid "$findings_file"; then
+            tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
             log ERROR "Contextual code review produced an invalid findings document after correction round ${correction_round}: ${findings_file}"
             return 1
         fi
+        if ! tangle_review_verification_complete "$findings_file" "$review_rc"; then
+            tangle_record_review_verification "$task_group" "$findings_file" incomplete || return 2
+            if [[ "$review_rc" -ne 0 ]]; then return "$review_rc"; fi
+            return 2
+        fi
+        tangle_ensure_scope_contract_finding "$findings_file" "${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}" || return 1
+        tangle_record_review_verification "$task_group" "$findings_file" complete || return 2
         normal_count=$(tangle_review_blocking_count "$findings_file")
         local current_signature
         current_signature=$(tangle_findings_signature "$findings_file")
@@ -6121,23 +6234,35 @@ $sonnet_review
 Compact source context to synthesize:
 $all_results"
 
-    local delivery
-    if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
-        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "agy" "$synthesis_prompt" 0 "synthesizer" "ink") || \
+    local delivery synth_agent=""
+    if ! declare -F octo_provider_allowed >/dev/null 2>&1; then
+        log WARN "Synthesis authorization unavailable; using bounded fallback synthesis"
+    elif declare -F _aggregate_pick_synth_agent >/dev/null 2>&1; then
+        synth_agent=$(_aggregate_pick_synth_agent)
+    elif octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
+        synth_agent="agy"
+    fi
+    if [[ -n "$synth_agent" ]]; then
+        log INFO "Step 2b: Synthesizing delivery via ${synth_agent}..."
+        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "$synth_agent" "$synthesis_prompt" 0 "synthesizer" "ink") || \
             [[ ! "$delivery" =~ [^[:space:]] ]]; then
-            log WARN "Antigravity (agy) returned no usable delivery; using bounded fallback synthesis"
+            log WARN "Synthesizer ${synth_agent} returned no usable delivery; using bounded fallback synthesis"
             delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
         fi
     else
-        log WARN "Antigravity (agy) unavailable or not allowed, using fallback delivery synthesis"
+        log WARN "No synthesis provider is available or allowed; using fallback delivery synthesis"
         delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
     fi
 
     # Step 3: Generate final document
     local delivery_file="${RESULTS_DIR}/delivery-${task_group}.md"
 
+    local delivery_task_bytes
+    delivery_task_bytes=$(LC_ALL=C printf '%s' "$prompt" | wc -c | tr -d '[:space:]')
     cat > "$delivery_file" << EOF
 # DELIVERY DOCUMENT
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
+<!-- octopus-task-bytes: ${delivery_task_bytes} -->
 ## Task: $prompt
 ## Generated: $(date)
 ## Status: $([[ "$checks_passed" == "true" ]] && echo "COMPLETE" || echo "PARTIAL - Review Required")

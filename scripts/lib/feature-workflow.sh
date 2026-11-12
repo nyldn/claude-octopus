@@ -153,7 +153,9 @@ feature_workflow_gate() {
         if [[ -f "${FEATURE_RUNTIME_DIR}/policy-findings.json" ]]; then
             cp "${FEATURE_RUNTIME_DIR}/policy-findings.json" "$findings"
         else
-            python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" extract --input "$plan" --label octopus-policy-findings > "$findings" || printf '[]\n' > "$findings"
+            # An extraction error must survive into verification, rather than
+            # becoming an apparently successful empty findings list.
+            python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" extract --input "$plan" --label octopus-policy-findings > "$findings" || : > "$findings"
         fi
         local bound_plan
         bound_plan="$(mktemp "${FEATURE_RUNTIME_DIR}/bound-plan.XXXXXX")" || return 1
@@ -164,6 +166,9 @@ feature_workflow_gate() {
                 jq -r '.verified_violations[] | "Policy conflict before implementation: " + .source + ":" + (.line_start|tostring) + "\nPolicy: " + .quote + "\nPlan action: " + .plan_action' "$verification" >&2
                 rc=1
             fi
+        else
+            feature_workflow_warning 'policy verification unavailable; deferring implementation'
+            [[ "$phase" != develop ]] || rc=1
         fi
         rm -f "$findings" "$verification" "$bound_plan"
     fi
@@ -319,7 +324,7 @@ feature_workflow_policy_response() {
     [[ -n "${FEATURE_POLICY_SNAPSHOT:-}" && -n "${FEATURE_RUNTIME_DIR:-}" ]] || return 0
     response_file="$(mktemp "${FEATURE_RUNTIME_DIR}/policy-response.XXXXXX")" || return 0
     printf '%s\n' "$response" > "$response_file"
-    python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" extract --input "$response_file" --label octopus-policy-findings > "${FEATURE_RUNTIME_DIR}/policy-findings.json" || printf '[]\n' > "${FEATURE_RUNTIME_DIR}/policy-findings.json"
+    python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" extract --input "$response_file" --label octopus-policy-findings > "${FEATURE_RUNTIME_DIR}/policy-findings.json" || : > "${FEATURE_RUNTIME_DIR}/policy-findings.json"
     rm -f "$response_file"
 }
 

@@ -124,7 +124,7 @@ fi
 test_case "plan renders its retained readiness snapshot without raw probes"
 plan_command="$PROJECT_ROOT/commands/plan.md"
 if grep -Fq 'PROVIDER_STATUS' "$plan_command" &&
-   grep -Fq 'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"' "$plan_command" &&
+   grep -Fq 'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"' "$plan_command" &&
    grep -Fq 'if [[ ! -x "$provider_helper" ]]' "$plan_command" &&
    ! grep -Fq 'command -v' "$plan_command" &&
    ! grep -Fq '11434/api/tags' "$plan_command" &&
@@ -245,7 +245,7 @@ fi
 
 test_case "parallel skill resolves readiness from the active plugin root"
 canonical_parallel_skill="$PROJECT_ROOT/.claude/skills/skill-parallel-agents/SKILL.md"
-if grep -Fq 'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}"' \
+if grep -Fq 'OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"' \
        "$canonical_parallel_skill" &&
    grep -Fq '"$OCTO_ROOT/scripts/orchestrate.sh" detect-providers' \
        "$canonical_parallel_skill"; then

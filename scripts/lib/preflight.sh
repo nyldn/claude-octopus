@@ -15,6 +15,103 @@ if ! declare -f _is_cursor_agent_binary >/dev/null 2>&1; then
     source "${_preflight_lib_dir}/cursor-agent.sh" 2>/dev/null || true
 fi
 
+# The council roster a session has pinned, if any. A Codex-led session sets
+# OCTOPUS_COUNCIL_DEFAULT_PROVIDERS=claude,agy because Codex is the lead, not a
+# seat, so preflight must check exactly those seats rather than every
+# detectable provider (sail-cruisey #2901). Prints canonical provider ids, one
+# per line, without duplicates; nothing when unset or "auto". Returns 2 when
+# the list is not a valid council roster.
+octo_preflight_roster() {
+    local raw="${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS:-}" seat provider seen=" "
+    [[ -n "$raw" && "$raw" != auto ]] || return 0
+    if ! declare -f octo_validate_provider_policy_list >/dev/null 2>&1; then
+        source "${_preflight_registry_dir}/provider-policy.sh" 2>/dev/null || return 2
+    fi
+    octo_validate_provider_policy_list "$raw" council OCTOPUS_COUNCIL_DEFAULT_PROVIDERS >/dev/null 2>&1 || return 2
+    for seat in ${raw//,/ }; do
+        provider="$(octo_provider_canonical "${seat%%:*}" 2>/dev/null)" || return 2
+        [[ -n "$provider" ]] || return 2
+        [[ "$seen" == *" $provider "* ]] && continue
+        seen="${seen}${provider} "
+        printf '%s\n' "$provider"
+    done
+    # A separator-only policy can validate without yielding a council seat.
+    [[ "$seen" != " " ]] || return 2
+}
+
+# A fixed internal panel is separate from the user's council policy.
+octo_preflight_panel() {
+    local raw="${1:-${OCTOPUS_PREFLIGHT_PROVIDERS:-}}" seat provider seen=" "
+    [[ -n "$raw" ]] || return 2
+    case "$raw" in *,|,*|*,,*|*[!a-zA-Z0-9,_-]*) echo "ERROR: invalid preflight panel" >&2; return 2 ;; esac
+    for seat in ${raw//,/ }; do
+        provider="$(octo_provider_canonical "$seat")" || { echo "ERROR: unknown required preflight provider: $seat" >&2; return 2; }
+        if [[ -z "$provider" ]] || ! octo_provider_has_capability "$provider" detect; then
+            echo "ERROR: unsupported required preflight provider: $seat" >&2
+            return 2
+        fi
+        [[ "$seen" == *" $provider "* ]] && continue
+        seen="${seen}${provider} "
+        printf '%s\n' "$provider"
+    done
+}
+
+# NUL fields preserve empty strings and embedded/trailing newlines on Bash 3.2.
+# Null follows the legacy scalar helper's empty-string convention.
+_octo_readiness_json_fields() {
+    local json="$1" jq_bin; shift
+    jq_bin="$(type -P jq 2>/dev/null || true)"
+    if [[ -n "$jq_bin" ]]; then
+        printf '%s' "$json" | "$jq_bin" -j --args '. as $o | $ARGS.positional[] | . as $k | ($o[$k] // ""), "\u0000"' -- "$@"
+    else
+        OCTO_READINESS_JSON="$json" python3 - "$@" <<'PYFIELDS'
+import json, os, sys
+row = json.loads(os.environ["OCTO_READINESS_JSON"])
+for field in sys.argv[1:]:
+    value = row.get(field)
+    sys.stdout.write(("" if value is None or value is False else str(value)) + "\0")
+PYFIELDS
+    fi
+}
+
+# True when no roster is pinned, or the provider is on it.
+octo_preflight_in_roster() {
+    local roster
+    roster="$(octo_preflight_roster)" || return 0
+    [[ -z "$roster" ]] || grep -qxF "$1" <<< "$roster"
+}
+
+# A valid council seat the registry gives no detect capability (openai-tools:
+# an API-configured runtime with no local CLI) cannot be checked by preflight;
+# readiness reports it not-detectable on every run. Preflight lists it as not
+# checked instead of failing the roster on it; the council checks it when it
+# dispatches.
+octo_preflight_seat_checkable() {
+    octo_provider_has_capability "$1" detect 2>/dev/null
+}
+
+# The sandbox this process runs in, if any. Codex sets CODEX_SANDBOX for its
+# workspace-write and read-only sandboxes; Claude Code's Bash sandbox sets
+# SANDBOX_RUNTIME.
+octo_preflight_sandbox() {
+    if [[ -n "${CODEX_SANDBOX:-}" ]]; then
+        printf 'Codex sandbox (CODEX_SANDBOX=%s)\n' "$CODEX_SANDBOX"
+    elif [[ -n "${SANDBOX_RUNTIME:-}" ]]; then
+        printf 'Claude Code sandbox (SANDBOX_RUNTIME)\n'
+    fi
+}
+
+# A provider that needs a keychain login, the network or files outside the
+# workspace can fail inside a sandbox and work outside it (the claude seat
+# reported missing auth inside Codex's workspace-write sandbox). Says so, with
+# the remedy, instead of leaving the failure to read as missing auth.
+octo_preflight_sandbox_note() {
+    local sandbox
+    sandbox="$(octo_preflight_sandbox)"
+    [[ -n "$sandbox" ]] || return 0
+    printf 'Note: preflight ran inside the %s. A provider that needs a keychain login, the network or files outside the workspace can fail here and work outside it. Re-run orchestrate.sh preflight outside the sandbox before treating it as missing or unauthenticated.\n' "$sandbox"
+}
+
 _preflight_agy_configured_model() {
     local model="${OCTOPUS_AGY_MODEL:-}"
     local config_file="${HOME}/.claude-octopus/config/providers.json"
@@ -361,8 +458,12 @@ _octo_provider_static_readiness() {
             if command -v vibe >/dev/null 2>&1; then
                 if _octo_value_has_nonwhitespace "${MISTRAL_API_KEY:-}" ||
                    _octo_assignment_has_nonempty_value "${HOME}/.vibe/.env" "MISTRAL_API_KEY" ||
-                   _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key"; then
+                   _octo_assignment_has_nonempty_value "${HOME}/.vibe/config.toml" "api_key" ||
+                   _octo_vibe_keyring_has_key "${_octo_vibe_check_context:-selected}"; then
                     status="available"; reason_code="ready"; remediation=""
+                elif [[ "${_octo_vibe_check_context:-selected}" != selected ]]; then
+                    status="degraded"; reason_code="live-check-required"
+                    remediation="Run /octo:setup and select Vibe to inspect the OS keyring, or set MISTRAL_API_KEY."
                 else
                     status="degraded"; reason_code="auth-missing"
                 fi
@@ -384,10 +485,27 @@ _octo_provider_static_readiness() {
             ;;
     esac
 
-    if [[ "$status" == "available" ]] && declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$provider"; then
+    if [[ "$status" == "available" ]] && declare -f octo_quota_failed_this_run >/dev/null 2>&1 &&
+       octo_quota_failed_this_run "$provider"; then
+        # An inconclusive smoke failure in this run: excluded for now, not cached.
+        status="degraded"
+        reason_code="health-failed"
+        remediation="Failed this run's smoke test (not cached); excluded for the rest of this run."
+    elif [[ "$status" == "available" ]] && declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$provider"; then
         status="degraded"
         reason_code="quota"
         remediation="Wait for the provider quota window to reset or choose another provider."
+        # The mark is cached from an earlier quota or auth failure; say so, so a
+        # lead does not report it as a live quota error.
+        local _quota_marked_at _quota_marked_time=""
+        if declare -f octo_quota_dead_marked_at >/dev/null 2>&1; then
+            _quota_marked_at="$(octo_quota_dead_marked_at "$provider" 2>/dev/null)" || _quota_marked_at=""
+            if [[ "$_quota_marked_at" =~ ^[0-9]+$ ]]; then
+                _quota_marked_time="$(date -r "$_quota_marked_at" +%H:%M 2>/dev/null ||
+                    date -d "@$_quota_marked_at" +%H:%M 2>/dev/null)" || _quota_marked_time=""
+            fi
+            remediation="Quota or auth failure (cached${_quota_marked_time:+ ${_quota_marked_time}}, not re-checked). A passing smoke test clears it; otherwise wait for the provider quota window to reset or choose another provider."
+        fi
     fi
 
     printf '%s|%s|%s\n' "$status" "$reason_code" "$remediation"
@@ -423,7 +541,9 @@ EOF
     fi
 
     if [[ "$check_kind" == "live" && "$health_handler" != "none" ]] &&
-       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]]; }; then
+       { [[ "$status" == "available" ]] || [[ "$reason_code" == "live-check-required" ]]; } &&
+       ! [[ "$provider" == vibe && "$reason_code" == live-check-required &&
+            "${_octo_vibe_check_context:-selected}" != selected ]]; then
         # Live mode is explicit. Execute the registry-selected health handler in
         # a fresh bounded shell so a provider CLI cannot stall setup or Doctor.
         source "${_preflight_registry_dir}/providers.sh" 2>/dev/null || true
@@ -433,6 +553,7 @@ EOF
         (( live_timeout < 1 )) && live_timeout=1
         if declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
             _octo_run_bare_probe_with_timeout "$live_timeout" "$live_timeout" 0 \
+                env "_octo_vibe_check_context=${_octo_vibe_check_context:-selected}" \
                 bash -c 'source "$1" 2>/dev/null; "$2" "$3"' _ \
                 "${_preflight_registry_dir}/providers.sh" "$health_handler" "$provider" \
                 >/dev/null || live_rc=$?
@@ -481,9 +602,17 @@ EOF
 }
 
 octo_provider_readiness_all() {
-    local check_kind="${1:-static}" provider result
-    for provider in $(octo_provider_ids detect); do
-        result="$(octo_provider_readiness_result "$provider" "$check_kind" 2> >(cat >&2))" || result=""
+    # An optional provider list (a pinned council roster) replaces the
+    # registry's detectable providers.
+    local check_kind="${1:-static}" providers="${2:-}" provider result
+    local _octo_vibe_check_context="${_octo_vibe_check_context:-automatic}"
+    [[ -z "$providers" ]] || _octo_vibe_check_context=selected
+    [[ -n "$providers" ]] || providers="$(octo_provider_ids detect)"
+    for provider in $providers; do
+        # Stderr already passes through; a "2> >(cat >&2)" redirect writes to
+        # /dev/fd, which macOS sandboxes deny, and turned every provider into
+        # check-failed there.
+        result="$(octo_provider_readiness_result "$provider" "$check_kind")" || result=""
         if [[ -n "$result" ]]; then
             printf '%s\n' "$result"
         else
@@ -493,13 +622,13 @@ octo_provider_readiness_all() {
     done
 }
 
+# Convert one shared readiness result to the legacy status text expected by callers.
 octo_provider_readiness_legacy() {
     local check_kind="${1:-static}" result provider status
     printf '%s\n' "PROVIDER_CHECK_START"
     while IFS= read -r result; do
         [[ -n "$result" ]] || continue
-        provider="$(_octo_readiness_json_field "$result" provider)"
-        status="$(_octo_readiness_json_field "$result" status)"
+        { IFS= read -r -d '' provider; IFS= read -r -d '' status; } < <(_octo_readiness_json_fields "$result" provider status)
         printf '%s:%s\n' "$provider" "$status"
         if declare -f octo_event_emit >/dev/null 2>&1; then
             octo_event_emit "provider.status" provider="$provider" status="$status" source="check-providers" || true
@@ -558,9 +687,7 @@ cmd_detect_providers() {
     {
         while IFS= read -r readiness_result; do
             [[ -n "$readiness_result" ]] || continue
-            provider="$(_octo_readiness_json_field "$readiness_result" provider)"
-            status="$(_octo_readiness_json_field "$readiness_result" status)"
-            reason_code="$(_octo_readiness_json_field "$readiness_result" reason_code)"
+            { IFS= read -r -d '' provider; IFS= read -r -d '' status; IFS= read -r -d '' reason_code; } < <(_octo_readiness_json_fields "$readiness_result" provider status reason_code)
             env_name="$(printf '%s' "$provider" | tr '[:lower:]-' '[:upper:]_')"
             case "$status" in
                 available) env_status="ok" ;;
@@ -605,9 +732,27 @@ _preflight_provider_candidates() {
 # Supports single-provider mode with any detectable dispatch provider.
 preflight_check() {
     local force_check="${1:-false}"
+    local selected_provider="${2:-}"
+    local _octo_vibe_check_context=automatic
+
+    # Fixed panels never consume or populate the broad discovery cache.
+    if [[ -n "${OCTOPUS_PREFLIGHT_PROVIDERS:-}" ]]; then
+        local panel_report panel_args=(--json --providers "$OCTOPUS_PREFLIGHT_PROVIDERS")
+        if [[ -n "${OCTOPUS_PREFLIGHT_REPORT:-}" ]]; then
+            panel_args+=(--report-in "$OCTOPUS_PREFLIGHT_REPORT" --run-id "${OCTOPUS_PREFLIGHT_RUN_ID:-}")
+        fi
+        panel_report="$(WORKSPACE_DIR="$WORKSPACE_DIR" bash "${_preflight_registry_dir}/../helpers/preflight.sh" "${panel_args[@]}")" || return 1
+        jq -e '.providers_degraded == 0' <<< "$panel_report" >/dev/null || { log ERROR "Required provider panel is not ready"; return 1; }
+        if [[ ",$OCTOPUS_PREFLIGHT_PROVIDERS," == *,codex,* ]]; then
+            check_codex_auth_freshness || return 1
+        fi
+        [[ -d "$WORKSPACE_DIR" ]] || init_workspace
+        return 0
+    fi
 
     # Performance: Return cached result if valid (unless forced)
-    if [[ "$force_check" != "true" ]] && preflight_cache_valid; then
+    # Selected Vibe checks inspect the keyring that automatic scans defer.
+    if [[ "$force_check" != "true" && "$selected_provider" != vibe ]] && preflight_cache_valid; then
         local cached_status
         cached_status=$(preflight_cache_read)
         if [[ "$cached_status" == "0" ]]; then
@@ -621,15 +766,39 @@ preflight_check() {
     local providers_found=0 ready_provider_count=0 codex_auth=false
     local readiness status reason remediation provider available_providers=""
     local other_ready_providers=""
-    local candidate_ids=() candidate_statuses=() candidate_remediations=()
-    local candidate_index=0
+    local candidate_ids=() candidate_statuses=() candidate_reasons=() candidate_remediations=()
+    local candidate_index=0 roster="" roster_rc=0 candidates
 
-    for provider in $(_preflight_provider_candidates); do
+    # A pinned council roster is checked seat by seat, Claude included;
+    # otherwise any one independent provider is enough.
+    roster="$(octo_preflight_roster)" || roster_rc=$?
+    if [[ "$roster_rc" -ne 0 ]]; then
+        log ERROR "OCTOPUS_COUNCIL_DEFAULT_PROVIDERS is not a valid council roster: ${OCTOPUS_COUNCIL_DEFAULT_PROVIDERS}"
+        preflight_cache_write "1"
+        return 1
+    fi
+    if [[ -n "$roster" ]]; then
+        _octo_vibe_check_context=selected
+        candidates="$roster"
+        echo -e "Checking the council roster from OCTOPUS_COUNCIL_DEFAULT_PROVIDERS: ${CYAN}${roster//$'\n'/ }${NC}"
+    elif [[ "$selected_provider" == vibe ]]; then
+        _octo_vibe_check_context=selected
+        candidates=vibe
+    else
+        candidates="$(_preflight_provider_candidates)"
+    fi
+
+    local roster_unchecked=""
+    for provider in $candidates; do
+        if [[ -n "$roster" ]] && ! octo_preflight_seat_checkable "$provider"; then
+            roster_unchecked="${roster_unchecked}${roster_unchecked:+ }${provider}"
+            continue
+        fi
         readiness="$(octo_provider_readiness_result "$provider" static)"
-        status="$(_octo_readiness_json_field "$readiness" status)"
-        remediation="$(_octo_readiness_json_field "$readiness" remediation)"
+        { IFS= read -r -d '' status; IFS= read -r -d '' reason; IFS= read -r -d '' remediation; } < <(_octo_readiness_json_fields "$readiness" status reason_code remediation)
         candidate_ids+=("$provider")
         candidate_statuses+=("$status")
+        candidate_reasons+=("$reason")
         candidate_remediations+=("$remediation")
         if [[ "$status" != "missing" ]]; then
             ((providers_found++)) || true
@@ -645,8 +814,34 @@ preflight_check() {
         fi
     done
 
-    # v7.9.1: Only need ONE provider to work
-    if [[ "$providers_found" -eq 0 ]]; then
+    # A pinned roster needs every seat ready.
+    if [[ -n "$roster" ]]; then
+        local roster_unready=""
+        for ((candidate_index=0; candidate_index<${#candidate_ids[@]}; candidate_index++)); do
+            provider="${candidate_ids[$candidate_index]}"
+            status="${candidate_statuses[$candidate_index]}"
+            if [[ "$status" == "available" ]]; then
+                echo -e "  ${GREEN}✓${NC} ${provider}"
+            else
+                echo -e "  ${RED}✗${NC} ${provider}: ${status} (${candidate_reasons[$candidate_index]}) ${candidate_remediations[$candidate_index]}"
+                roster_unready="${roster_unready}${roster_unready:+ }${provider}"
+            fi
+        done
+        for provider in $roster_unchecked; do
+            echo -e "  ${DIM}-${NC} ${provider}: not checked (the registry gives it no provider detection; the council checks it when it dispatches)"
+        done
+        if [[ -n "$roster_unready" ]]; then
+            echo ""
+            echo -e "${YELLOW}Council roster seat(s) not ready: ${roster_unready}${NC}"
+            octo_preflight_sandbox_note
+            preflight_cache_write "1"
+            return 1
+        fi
+    fi
+
+    # Without a pinned roster, at least one detectable provider must work.
+    # Pinned rosters were checked above; unchecked seats stay unchecked.
+    if [[ -z "$roster" && "$providers_found" -eq 0 ]]; then
         echo ""
         echo -e "${RED}╔═══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${RED}║  ❌ NO AI PROVIDERS FOUND                                     ║${NC}"
@@ -672,7 +867,7 @@ preflight_check() {
     fi
 
     # Check if at least one provider is authenticated
-    if [[ "$ready_provider_count" -eq 0 ]]; then
+    if [[ -z "$roster" && "$ready_provider_count" -eq 0 ]]; then
         echo ""
         echo -e "${YELLOW}╔═══════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${YELLOW}║  ⚠️  PROVIDERS FOUND BUT NOT READY                            ║${NC}"
@@ -686,6 +881,7 @@ preflight_check() {
             echo -e "${CYAN}${provider}:${NC} ${remediation}"
         done
         echo ""
+        octo_preflight_sandbox_note
         echo -e "Run ${GREEN}/octo:setup${NC} for guided configuration."
         echo ""
         preflight_cache_write "1"
@@ -699,6 +895,15 @@ preflight_check() {
     # Warn early if token is expired/expiring — saves a failed smoke test round-trip
     if [[ "$codex_auth" == "true" ]]; then
         if ! check_codex_auth_freshness; then
+            # A pinned codex seat needs a live token; another ready seat is no
+            # substitute. Without a roster, degrade gracefully as before.
+            if [[ -n "$roster" ]]; then
+                echo ""
+                echo -e "${YELLOW}Council roster seat(s) not ready: codex (OAuth token expired; run: codex login)${NC}"
+                octo_preflight_sandbox_note
+                preflight_cache_write "1"
+                return 1
+            fi
             # Token expired but another authenticated provider may still work — degrade gracefully
             if [[ "$ready_provider_count" -gt 1 ]]; then
                 log WARN "Codex OAuth expired; continuing with other ready providers: $other_ready_providers"
@@ -762,8 +967,12 @@ preflight_check() {
         return 1
     fi
 
-    log INFO "Pre-flight checks passed 🐙"
-    echo -e "${GREEN}✓${NC} All 8 tentacles accounted for and ready to work!"
+    if [[ -n "$roster_unchecked" ]]; then
+        log INFO "Preflight completed with unchecked council seats: $roster_unchecked"
+    else
+        log INFO "Pre-flight checks passed 🐙"
+        echo -e "${GREEN}✓${NC} All 8 tentacles accounted for and ready to work!"
+    fi
 
     # v8.19: Provider smoke test (Issue #34)
     if ! provider_smoke_test "$force_check"; then
@@ -772,6 +981,15 @@ preflight_check() {
         return 1
     fi
 
-    preflight_cache_write "0"  # Cache success
+    # A selected-only result cannot replace the general discovery cache.
+    [[ "$selected_provider" != vibe ]] || return 0
+
+    # A provider that failed inconclusively is excluded only in this process, so
+    # do not cache a pass that would let the next run skip checking it again.
+    if declare -f octo_quota_needs_recheck >/dev/null 2>&1 && octo_quota_needs_recheck; then
+        preflight_cache_write "1"
+    else
+        preflight_cache_write "0"  # Cache success
+    fi
     return 0
 }

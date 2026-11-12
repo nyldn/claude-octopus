@@ -121,24 +121,28 @@ claude --add-dir=config/workflows          # Double Diamond
 
 ---
 
-## Local CI Gates
+## Test gates
 
-Use the smallest gate that matches the delivery stage:
+Run affected suites while editing and `make ci-quick` before push. Inspect
+`scripts/ci-changed.sh --list` to use its audited focused mapping from
+`tests/changed-scope.tsv`. Shared or unmapped changes select the complete local
+matrix for offline diagnosis. Do not repeat that full matrix locally when
+successful exact-commit hosted coverage is available.
 
-| Stage | Command | Contract |
-|-------|---------|----------|
-| Edit loop | affected test files | Fast feedback while the change is still moving |
-| Ordinary branch push | `make ci-changed` | Always runs sync and all smoke checks, then audited suites from `tests/changed-scope.tsv` |
-| Pull request | `make ci-changed` | Generated checks, smoke, and audited suites for changed surfaces |
-| Merge or release | `make ci-local` | Complete smoke, full unit, integration, and CI-only matrix |
-| Main, nightly, manual, or merge queue | explicit deep council lane | Deep council lifecycle contract in addition to the core unit matrix |
+Hosted checks use focused PR coverage or the full weighted-shard tier. Main,
+nightly, manual, and merge-queue runs always use the full unit inventory on
+Linux and macOS. Required Smoke Tests, Unit Tests, and Integration Tests,
+exact-commit approval, and resolved threads still gate merge and publication.
+See [test tiers](../tests/README.md#test-tiers) and [releasing](../RELEASING.md)
+for the delivery contract. `make ci-local` remains the complete offline fallback.
 
-Inspect a selection without executing it with `scripts/ci-changed.sh --list`.
-The selector fails closed to `make ci-local` for shared orchestration,
-generators, manifests, unknown paths, missing bases, or stale mappings. When a
-new source surface has a proven focused regression set, add its path and suites
-to `tests/changed-scope.tsv`; otherwise leave it unmapped so the full matrix
-remains mandatory.
+Test fixtures default to a separate `octopus-tests-<pid>` directory under
+`TMPDIR`, or `/tmp` when unset. Set `TMPDIR` to a private directory with readable
+ancestors when a host's temporary-file policy prevents descriptor traversal.
+Relative `TMPDIR` values are anchored to the suite's original working directory.
+Leave `TEST_TMP_DIR` unset for nested suites so each process owns its cleanup.
+Keep UTF-8 character classification enabled; use `LC_COLLATE=C` for consistent
+sorting rather than forcing `LC_ALL=C` across Unicode tests.
 
 ## Tangle Input and Migration Safety
 
@@ -234,3 +238,86 @@ $OCTOPUS_AGENT_LIFECYCLE_HOOK completed
 ```
 
 The hook receives the same lifecycle metadata through `OCTOPUS_AGENT_*` environment variables. Hook stdout/stderr are redirected to the optional hook log or `/dev/null`; hook failures are ignored so observer outages never fail agent execution.
+
+## Command safety acceptance
+
+Run `bash tests/unit/test-command-safety-regressions.sh` for deletion target
+checks and stable guard-state identity across Claude and Codex hosts. The
+fixture passes command text to hooks without running deletion commands.
+`tests/unit/test-review-external-cli-unwrap.sh` covers failed, timed-out, and
+malformed verification and the publication gate using inert providers.
+`tests/unit/test-command-discovery.sh` checks host root precedence across the
+command catalog. Regenerate portable skills and command adapters with
+`make sync` after changing their source instructions.
+
+Metric loops are host-managed candidate-copy workflows. Their contract requires
+preservation of the index and existing edits, concurrent-edit checks, bounded
+subprocesses and persistent budgets. Static tests do not prove a host complied
+with that contract; retain the run's snapshots, hashes, checks, and ledger when
+validating an actual experiment. A missing capability stops the run.
+
+## Complete review verification
+
+Round 2 builds byte-bounded requests from complete findings and the matching
+patches or numbered excerpts. Every batch preserves finding identity; a missing,
+duplicate or invalid verdict leaves that batch unverified. The builder plans all
+batches before dispatch, so a finding that cannot fit fails admission before any
+verifier calls. Final dispatch uses `OCTOPUS_OVERSIZE_STRATEGY=fail` to account for
+method and persona additions without silently clipping required input.
+
+The contextual Tangle gate never dispatches corrections for unverified findings.
+Verified findings from a partial reviewer fleet may receive corrections while
+validation remains incomplete. The gate records `reviewVerification` and
+`reviewFindings` in the existing attempt manifest. A complete retry updates the
+same marker. Consumers must treat an incomplete review as unfinished validation,
+not as a list of confirmed product defects. No provider retry policy is changed.
+
+New review/correction work marks verification pending unless an earlier review
+remains incomplete. Pending attempts preserve incomplete and partial-verified
+markers until a completed review replaces them. Failed fleet or malformed
+review artifacts keep it incomplete until a genuinely completed review replaces
+them. Completion is checked before local scope findings are added, so a scope
+violation cannot authorize corrections after the reviewer fleet fails.
+The existing unmanaged fallback replans a failed batch for its own context
+window; this does not restrict the initial provider or alter pinned review seats.
+
+`tests/unit/test-review-verifier-batches.sh` exercises large Unicode finding
+sets, relevant evidence, admission refusal and preservation without corrections.
+Patch windows retain adjacent removals at the finding's new-file coordinates
+and shrink before rejecting a complete finding. Verification may add a verdict
+and the newly-reachable flag, but cannot change original fields such as confidence.
+Missing or invalid final verdicts keep Tangle verification incomplete. A failed
+manifest replacement stops the gate instead of reporting a successful update.
+Context setup failures stop both initial and retry review even when a caller
+handles the gate's exit status. Verified findings from a partial fleet can still
+receive corrections, while the manifest remains incomplete until a full review.
+
+Synthesis may reorder verified findings, but cannot remove them, invent findings,
+or change their fields. A changed set uses deterministic local synthesis instead.
+Incomplete verification returns failure after saving findings and proof artifacts.
+
+Final synthesis compares the full verified finding multiset before any display
+normalization. Distinct records at the same location remain in the saved artifact,
+ranked with blockers first. Deleted-file excerpts use the cited old-file line.
+
+A completed review with partial fleet coverage returns status 3 from the
+contextual wrapper only after the underlying review succeeds. Its manifest
+keeps `reviewVerification: incomplete` and records `reviewOutcome: partial-verified`.
+Other nonzero review results cannot authorize corrections, even when a verified
+findings file survived a proof or publication failure. A complete retry clears
+both markers. Patch excerpts bound adjacent removal context separately and label
+unmatched short patches as unrelated context requiring repository inspection.
+
+Verifier input directories use private permissions and subprocess-scoped cleanup
+for normal exits, interrupts and termination. Caller traps remain intact. Valid
+synthesis ordering is retained within each severity tier; a changed finding
+multiset still uses the complete deterministic fallback.
+
+Accepted synthesis contributes only findings. Document-level warnings and
+verification status come from local review state. Reports and publication
+preserve distinct verified records at the same location and collapse only
+fully identical verified records.
+
+An incomplete retry that produces no findings file retains the previous
+`reviewFindings` path for recovery. A new findings file replaces that path, and
+a complete retry records its own artifact and clears the incomplete state.
