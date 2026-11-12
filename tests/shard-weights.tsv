@@ -290,8 +290,8 @@ unit/test-migrate-stale-gpt5-line.sh	2
 unit/test-research-lock-admission.sh	3
 unit/test-tangle-retry-feedback.sh	2
 unit/test-validate-release-tag-scope.sh	3
-# Initial OpenCode compatibility weight: completed local macOS run of all 81
-# cases on 2026-11-12, 117.13 seconds. Hosted timing remains to be established.
+# Initial OpenCode weight used 117.13s for 81 local macOS cases. The current
+# weight uses the passing 101-case hosted duration recorded above.
 unit/test-opencode-v2.sh	566
 unit/test-council-diff-short-circuit.sh	28
 unit/test-council-source-claim-modifiers.sh	7
