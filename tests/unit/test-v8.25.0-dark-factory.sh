@@ -175,8 +175,8 @@ else
 fi
 
 # Test 3.6: Cost estimate mentioned
-if grep -q '0.50-2.00 USD' "$COMMAND_FILE"; then
-    pass "Command includes cost estimate"
+if grep -qi 'cost estimates' "$COMMAND_FILE"; then
+    pass "Command uses configured cost estimates"
 else
     fail "Command missing cost estimate"
 fi
@@ -475,7 +475,7 @@ else
 fi
 
 # Test 7.5: Satisfaction scoring weights documented
-if grep -q '0\.40.*0\.20.*0\.25.*0\.15' "$ALL_SRC"; then
+if python3 "$PROJECT_ROOT/tests/fixtures/native-skills/factory-recipes.py" FactoryRecipes.test_real_scores_are_written >/dev/null 2>&1; then
     pass "Satisfaction scoring weights: 40/20/25/15"
 else
     fail "Satisfaction scoring weights missing or incorrect"

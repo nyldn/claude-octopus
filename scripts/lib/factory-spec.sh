@@ -4,6 +4,8 @@
 # Extracted from orchestrate.sh (v9.7.8)
 # Source-safe: no main execution block.
 
+_octo_factory_spec_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # ═══════════════════════════════════════════════════════════════════════════
 # DARK FACTORY MODE — Spec-in, software-out autonomous pipeline (v8.25.0)
 # Issue #37: E19 (Scenario Holdout) + E21 (Satisfaction Scoring) + E22 (Factory)
@@ -102,7 +104,7 @@ parse_factory_spec() {
     fi
 
     # Copy spec into run directory
-    cp "$spec_path" "$run_dir/spec.md"
+    cp "$spec_path" "$run_dir/spec.md" || return 1
 
     local spec_content
     spec_content=$(<"$spec_path")
@@ -131,7 +133,7 @@ parse_factory_spec() {
     fi
 
     # Override with env var if set
-    if [[ -n "$OCTOPUS_FACTORY_SATISFACTION_TARGET" ]]; then
+    if [[ -n "${OCTOPUS_FACTORY_SATISFACTION_TARGET:-}" ]]; then
         satisfaction_target="$OCTOPUS_FACTORY_SATISFACTION_TARGET"
         log INFO "Satisfaction target overridden by env: $satisfaction_target"
     fi
@@ -144,26 +146,21 @@ parse_factory_spec() {
     local behavior_count
     behavior_count=$(echo "$spec_content" | grep -c '^\(### \|[0-9]\+\.\s\+\*\*\)') || behavior_count=0
     if [[ "$behavior_count" -eq 0 ]]; then
-        behavior_count=$(echo "$spec_content" | grep -c '^- \*\*' || echo "3")
+        behavior_count=$(grep -c '^- \*\*' <<< "$spec_content") || behavior_count=0
     fi
 
     log INFO "Factory spec parsed: complexity=$complexity, satisfaction_target=$satisfaction_target, behaviors=$behavior_count"
 
     # Write parsed metadata (includes maturity from pre-flight E27 assessment)
-    cat > "$run_dir/session.json" << SPECEOF
-{
-  "run_id": "$(basename "$run_dir")",
-  "spec_path": "$spec_path",
-  "satisfaction_target": $satisfaction_target,
-  "complexity": "$complexity",
-  "behavior_count": $behavior_count,
-  "holdout_ratio": $holdout_ratio,
-  "max_retries": $max_retries,
-  "maturity": $maturity_json_in,
-  "status": "initialized",
-  "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-SPECEOF
+    jq -n --arg run_id "$(basename "$run_dir")" --arg spec_path "$spec_path" \
+        --argjson satisfaction_target "$satisfaction_target" --arg complexity "$complexity" \
+        --argjson behavior_count "$behavior_count" --argjson holdout_ratio "$holdout_ratio" \
+        --argjson max_retries "$max_retries" --argjson maturity "$maturity_json_in" \
+        --arg started_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{run_id:$run_id,spec_path:$spec_path,satisfaction_target:$satisfaction_target,
+          complexity:$complexity,behavior_count:$behavior_count,holdout_ratio:$holdout_ratio,
+          max_retries:$max_retries,maturity:$maturity,status:"initialized",started_at:$started_at}' \
+        > "$run_dir/session.json" || return 1
 
     echo "$satisfaction_target"
 }
@@ -344,9 +341,6 @@ score_satisfaction() {
     local spec_content=""
     [[ -f "$run_dir/spec.md" ]] && spec_content=$(<"$run_dir/spec.md")
 
-    local holdout_score="0.50"
-    [[ -f "$run_dir/holdout-results.md" ]] && holdout_score=$(grep -oi 'score[: ]*[0-9]*\.[0-9]*' "$run_dir/holdout-results.md" | tail -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.50")
-
     # Multi-provider satisfaction scoring
     local scoring_prompt="You are evaluating whether an implementation satisfies its original specification.
 
@@ -367,58 +361,20 @@ constraint_adherence: X.XX
 quality: X.XX
 justification: <2-3 sentences>"
 
-    local scoring_result
-    scoring_result=$(run_agent_sync "claude-sonnet" "$scoring_prompt" 120 "evaluator" "factory" 2>/dev/null) || true
-
+    local scoring_result factory_helper
+    rm -f "$run_dir/satisfaction-scores.json" || return 1
+    if ! scoring_result=$(run_agent_sync "claude-sonnet" "$scoring_prompt" 120 "evaluator" "factory" 2>/dev/null); then
+        scoring_result=""
+    fi
     if [[ -z "$scoring_result" ]]; then
-        scoring_result=$(run_agent_sync "claude" "$scoring_prompt" 120 "evaluator" "factory" 2>/dev/null) || true
+        if ! scoring_result=$(run_agent_sync "claude" "$scoring_prompt" 120 "evaluator" "factory" 2>/dev/null); then
+            scoring_result=""
+        fi
     fi
-
-    # Parse scores from response
-    local behavior_score constraint_score quality_score
-    behavior_score=$(echo "$scoring_result" | grep -oi 'behavior_coverage[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.70")
-    constraint_score=$(echo "$scoring_result" | grep -oi 'constraint_adherence[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.70")
-    quality_score=$(echo "$scoring_result" | grep -oi 'quality[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.70")
-
-    # Weighted composite: behavior(40%) + constraints(20%) + holdout(25%) + quality(15%)
-    local composite
-    composite=$(echo "$behavior_score $constraint_score $holdout_score $quality_score" | \
-        awk '{printf "%.2f", $1 * 0.40 + $2 * 0.20 + $3 * 0.25 + $4 * 0.15}')
-
-    # Determine verdict
-    local verdict="FAIL"
-    local target_minus_05
-    target_minus_05=$(echo "$satisfaction_target" | awk '{printf "%.2f", $1 - 0.05}')
-
-    if awk "BEGIN {exit !($composite >= $satisfaction_target)}"; then
-        verdict="PASS"
-    elif awk "BEGIN {exit !($composite >= $target_minus_05)}"; then
-        verdict="WARN"
-    fi
-
-    log INFO "Satisfaction score: $composite (target: $satisfaction_target) -> $verdict"
-
-    # Write scores JSON
-    cat > "$run_dir/satisfaction-scores.json" << SCOREEOF
-{
-  "behavior_coverage": $behavior_score,
-  "constraint_adherence": $constraint_score,
-  "holdout_pass_rate": $holdout_score,
-  "quality": $quality_score,
-  "composite": $composite,
-  "satisfaction_target": $satisfaction_target,
-  "verdict": "$verdict",
-  "weights": {
-    "behavior_coverage": 0.40,
-    "constraint_adherence": 0.20,
-    "holdout_pass_rate": 0.25,
-    "quality": 0.15
-  },
-  "scored_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-SCOREEOF
-
-    echo "$composite|$verdict"
+    printf '%s\n' "$scoring_result" > "$run_dir/satisfaction-evaluation.txt" || return 1
+    [[ -n "$scoring_result" ]] || { log ERROR "Factory scoring returned no evaluation"; return 1; }
+    factory_helper="$_octo_factory_spec_lib_dir/../helpers/factory-run.py"
+    python3 -I "$factory_helper" score --run-dir "$run_dir" --target "$satisfaction_target"
 }
 
 generate_factory_report() {

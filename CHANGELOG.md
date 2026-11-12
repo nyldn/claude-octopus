@@ -14,6 +14,12 @@
 
 ### Fixed
 
+- Factory honors a declined run, snapshots inline specifications, and passes a
+  selected satisfaction target to the pipeline. Reports and scores belong to
+  one unique run. Scenario coverage review occurs after generation and before
+  implementation, and missing evaluation evidence stops scoring instead of
+  producing fallback numbers. Run metadata safely preserves quoted paths.
+
 - The six-worker feature-task fixture resets its eight-second join deadline
   after each worker starts. Staggered launches retain the concurrency
   check, while serial waves and stalled workers still fail.

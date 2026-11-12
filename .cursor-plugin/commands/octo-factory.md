@@ -3,185 +3,24 @@ description: "[advanced] Dark Factory Mode - Spec-in, software-out autonomous pi
 disable-model-invocation: true
 ---
 
-# Factory - Dark Factory Mode (v8.25.0)
+# Factory
 
-## INSTRUCTIONS FOR CLAUDE
+## Instructions for Claude
 
-### MANDATORY COMPLIANCE — DO NOT SKIP
+When the user explicitly invokes factory or one of its aliases, load
+`skills/skill-factory/SKILL.md` from the active plugin installation and execute
+its eight-step contract. Preserve the supplied `--spec`, inline specification,
+target, holdout ratio, retry limit, fast-mode choice and prior authorization.
 
-**When the user explicitly invokes `/octo:factory`, you MUST execute the orchestrated factory pipeline below.** You are PROHIBITED from replacing the pipeline with a direct Claude-only implementation.
+The skill owns the `orchestrate.sh factory` pipeline and its run artifacts.
+It validates the spec, reviews generated scenarios before implementation, runs
+Holdout Tests, and measures Satisfaction against the selected target. Use the
+current provider configuration for cost estimates and actual readiness output
+for the provider banner, including Antigravity when it is unavailable.
 
-When the user invokes this command (e.g., `/octo:factory --spec <path>`):
-
-### Step 1: Ask Clarifying Questions
-
-**CRITICAL: Before starting the factory pipeline, use the AskUserQuestion tool to gather context:**
-
-Ask 3 clarifying questions:
-1. Spec path — Where is the NLSpec file? (provide path, or paste inline)
-2. Satisfaction target — Accept spec default, or override? (Use spec default / Custom target 0.80-0.99)
-3. Cost confirmation — Factory mode runs ~20-30 agent calls (~0.50-2.00 USD). Proceed? (Yes / Yes with --ci for non-interactive / No)
-
-After receiving answers: validate spec path exists, set overrides, proceed.
-
-### Step 1.5: Ensure plugin root is resolvable (run via Bash tool)
-
-```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
-if [[ ! -x "$OCTO_ROOT/scripts/orchestrate.sh" ]]; then
-  helper="$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh"
-  if [[ ! -x "$helper" ]]; then
-    helper="$(find "${HOME}/.claude/plugins/cache" "${HOME}/Library/Application Support/Claude" "${LOCALAPPDATA:-/dev/null}/Claude" "${XDG_DATA_HOME:-${HOME}/.local/share}/Claude" -maxdepth 8 -path "*/nyldn-plugins/octo/*/scripts/helpers/ensure-plugin-root.sh" -print -quit 2>/dev/null)"
-  fi
-  [[ -x "$helper" ]] && bash "$helper" >/dev/null 2>&1 || true
-fi
-test -x "$OCTO_ROOT/scripts/orchestrate.sh" && echo "plugin-root:ok" || echo "plugin-root:missing"
-```
-
-If the output is `plugin-root:missing`, stop and ask the user to run `/octo:setup`.
-
-### Step 2: Check Provider Availability & Display Banner
-
-Check via bash:
-```bash
-codex_available="Not installed"
-if command -v codex >/dev/null 2>&1; then
-  codex_available="Available"
-fi
-
-```
-
-**MANDATORY: Check provider availability before displaying the banner:**
-
-```bash
-echo "PROVIDER_CHECK_START"
-printf "codex:%s\n" "$(command -v codex >/dev/null 2>&1 && echo available || echo missing)"
-printf "agy:%s\n" "$(command -v agy >/dev/null 2>&1 && echo available || echo missing)"
-printf "perplexity:%s\n" "$([ -n "${PERPLEXITY_API_KEY:-}" ] && echo available || echo missing)"
-printf "opencode:%s\n" "$(command -v opencode >/dev/null 2>&1 && echo available || echo missing)"
-printf "copilot:%s\n" "$(command -v copilot >/dev/null 2>&1 && echo available || echo missing)"
-printf "qwen:%s\n" "$(command -v qwen >/dev/null 2>&1 && echo available || echo missing)"
-printf "ollama:%s\n" "$(command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1 && echo available || echo missing)"
-printf "openrouter:%s\n" "$([ -n "${OPENROUTER_API_KEY:-}" ] && echo available || echo missing)"
-echo "PROVIDER_CHECK_END"
-```
-
-Render the factory banner from actual provider checks. Do not hand-write or summarize this banner; run this block and display its output exactly. The output MUST include the Antigravity line even when `agy` is missing.
-
-```bash
-status_cli() { command -v "${1}" >/dev/null 2>&1 && echo "Available ✓" || echo "Not installed ✗"; }
-status_env() { [[ -n "${1:-}" ]] && echo "Configured ✓" || echo "Not configured ✗"; }
-codex_status="$(status_cli codex)"
-agy_status="$(status_cli agy)"
-opencode_status="$(status_cli opencode)"
-copilot_status="$(status_cli copilot)"
-qwen_status="$(status_cli qwen)"
-if command -v ollama >/dev/null 2>&1 && curl -sf http://localhost:11434/api/tags >/dev/null 2>&1; then ollama_status="Available ✓"; else ollama_status="Not installed ✗"; fi
-perplexity_status="$(status_env "${PERPLEXITY_API_KEY:-}")"
-cat <<BANNER
-CLAUDE OCTOPUS ACTIVATED - Dark Factory Mode
-Pipeline: Parse → Scenarios → Embrace → Holdout → Score → Report
-
-Providers:
-  🔴 Codex CLI: ${codex_status}
-  🧭 Antigravity CLI: ${agy_status}
-  🟤 OpenCode: ${opencode_status}
-  🟢 Copilot CLI: ${copilot_status}
-  🟠 Qwen CLI: ${qwen_status}
-  ⚫ Ollama: ${ollama_status}
-  🔵 Claude: Available ✓ - Orchestration, synthesis, satisfaction scoring
-  🟣 Perplexity: ${perplexity_status}
-BANNER
-```
-
-The rendered factory banner must look like this shape, with ACTUAL statuses:
-
-```
-CLAUDE OCTOPUS ACTIVATED - Dark Factory Mode
-Pipeline: Parse → Scenarios → Embrace → Holdout → Score → Report
-
-Providers:
-  🔴 Codex CLI: [Available ✓ / Not installed ✗]
-  🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
-  🟤 OpenCode: [Available ✓ / Not installed ✗]
-  🟢 Copilot CLI: [Available ✓ / Not installed ✗]
-  🟠 Qwen CLI: [Available ✓ / Not installed ✗]
-  ⚫ Ollama: [Available ✓ / Not installed ✗]
-  🔵 Claude: Available ✓ - Orchestration, synthesis, satisfaction scoring
-  🟣 Perplexity: [Configured ✓ / Not configured ✗]
-
-Spec: <spec-path>
-Estimated cost: 0.50-2.00 USD (~20-30 agent calls)
-```
-
-**PROHIBITED: Displaying only Claude without listing all providers.**
-If no external providers are available, warn but proceed (Claude-only mode is supported).
-
-### EXECUTION MECHANISM — NON-NEGOTIABLE
-
-**You MUST execute this command by calling `orchestrate.sh` as documented below. You are PROHIBITED from:**
-- ❌ Doing the work yourself using only Claude-native tools (Agent, Read, Grep, Write)
-- ❌ Using a single Claude subagent instead of multi-provider dispatch via orchestrate.sh
-- ❌ Skipping orchestrate.sh because "I can do this faster directly"
-
-**Multi-LLM orchestration is the purpose of this command.** If you execute using only Claude, you've violated the command's contract.
-
-### Step 3: Validate Spec
-
-Read the spec file and verify it contains:
-- Purpose or description section
-- At least one behavior or requirement
-- Ideally: actors, constraints, acceptance criteria
-
-If the spec is minimal, warn the user but proceed — factory mode works with thin specs (lower quality results).
-
-### Step 3.5: Adversarial Scenario Coverage Gate
-
-Before committing to the expensive embrace phase, verify scenario coverage by dispatching the spec to a second provider. This quick check (~30 seconds) can save a wasted 2.00 USD factory run. See skill-factory.md Step 4.5 for details. Skip with `--fast`.
-
-### Step 4: Execute Factory Pipeline
-
-```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" factory --spec "<spec-path>"
-```
-
-With optional flags:
-- `--holdout-ratio 0.25` if user requested custom split
-- `--max-retries 2` if user wants more retry attempts
-- `--ci` if user confirmed non-interactive mode
-
-### Step 5: Present Results
-
-After factory completes, read the factory report:
-```bash
-cat .octo/factory/factory-*/factory-report.md
-```
-
-Present to the user:
-1. **Verdict** (PASS/WARN/FAIL) with the composite score
-2. **Score breakdown** across the 4 dimensions
-3. **Holdout results** — which blind scenarios passed/failed
-4. **Artifact locations** for deeper review
-5. **Next steps** — if WARN/FAIL, suggest reviewing holdout failures and re-running
-
-## 7-Phase Pipeline
-
-| Phase | What Happens |
-|-------|-------------|
-| 1. Parse Spec | Validate NLSpec, extract satisfaction target + complexity + behaviors |
-| 2. Generate Scenarios | Multi-provider scenario generation from spec |
-| 3. Split Holdout | 80/20 split ensuring holdout covers diverse behaviors |
-| 4. Embrace Workflow | Full 4-phase implementation (discover → define → develop → deliver) |
-| 5. Holdout Tests | Blind evaluation of withheld scenarios against implementation |
-| 6. Score Satisfaction | Weighted scoring: behavior(40%) + constraints(20%) + holdout(25%) + quality(15%) |
-| 7. Report | Markdown report + JSON session summary |
-
-## Key Properties
-
-- **Autonomy:** Runs embrace in fully autonomous mode (no phase-by-phase approval)
-- **Cost:** ~0.50-2.00 USD per run depending on spec complexity and provider costs
-- **Retry:** On FAIL verdict, re-runs phases 3-4 with remediation context (up to max-retries)
-- **Verdict levels:** PASS (>= target), WARN (>= target - 0.05), FAIL (< target - 0.05)
-- **Artifacts:** `.octo/factory/<run-id>/` contains all intermediate files
-- **Not for:** Simple bug fixes, code review only, tasks without a clear specification
-- **Related commands:** `/octo:spec` (create NLSpec), `/octo:embrace` (manual 4-phase workflow)
+<HARD-GATE>
+Do not replace the pipeline with direct implementation. A declined run stops
+before dispatch. Skipping questions does not approve cost. Do not substitute
+fallback scores or select a report from another run. Use the loaded plugin root
+directly when hooks are untrusted; a missing stable link does not require setup.
+</HARD-GATE>
