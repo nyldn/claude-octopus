@@ -75,7 +75,7 @@ behavior test or claim that model output is deterministic.
 | Edit | Each behavior change | Affected regression suites with inert providers |
 | Quick | Before push | `make ci-quick`: generated files, packaging, syntax, discovery, safety smoke |
 | Focused PR | All changed paths have mappings | Affected unit suites on Linux and macOS, both smoke lanes, portability, path-sensitive suites, full integration |
-| Full | Shared/unmapped PRs; every main, queue, nightly, manual run | Every unit suite, including council lifecycle, split into four weighted shards per OS; the other required checks also run |
+| Full | Shared/unmapped PRs; every main, queue, nightly, manual run | Every unit suite, including council lifecycle, split into four weighted Linux shards and six weighted macOS shards; the other required checks also run |
 | Native/artifact | Installation changes and publication | Isolated native installation/discovery, relevant first use, downloaded artifact and revision checks |
 | Live | Explicit provider changes needing live evidence | Bounded opt-in provider checks, with quota and cost accounted for |
 
@@ -95,7 +95,9 @@ tier and `make test-unit-deep` include council as part of the ordinary inventory
 The shard timing profile includes completed macOS suite measurements because
 process-heavy tests can cost more there than on Linux. Unobserved suites retain
 their previous weights. The profile changes shard membership; every unit suite
-still runs once per OS.
+still runs once per OS. macOS has six lanes to leave room for the longer
+suite durations measured on hosted runners; the 20-minute step limit stays
+unchanged.
 
 Integration runs alongside unit tests because it consumes no unit artifacts.
 The symlink lane runs the explicit path-behavior set on every event. Packaging
