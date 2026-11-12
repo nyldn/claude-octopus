@@ -205,8 +205,10 @@ if missing=$(check_explicit_file_coverage $'- Read ./SPEC.md\n- Implement read s
 test_case "numbered and polite instructions preserve the read boundary"
 if missing=$(check_explicit_file_coverage $'1. Please update context handling in src/parser.ts\n2. Read ./SPEC.md' 'done') && [[ "$missing" == src/parser.ts ]]; then test_pass; else test_fail "numbered instruction boundaries changed coverage"; fi
 
-test_case "semicolon separates read context from a write target"
-if missing=$(check_explicit_file_coverage 'Update src/parser.ts; read ./SPEC.md' 'done') && [[ "$missing" == src/parser.ts ]]; then test_pass; else test_fail "semicolon boundary changed coverage"; fi
+for instruction in 'Update src/parser.ts; read ./SPEC.md' 'Update src/parser.ts;read ./SPEC.md'; do
+    test_case "semicolon separates read context from a write target: $instruction"
+    if missing=$(check_explicit_file_coverage "$instruction" 'done') && [[ "$missing" == src/parser.ts ]]; then test_pass; else test_fail "semicolon boundary changed coverage"; fi
+done
 
 for instruction in \
     'Read ./SPEC.md, then update src/main.ts.' \

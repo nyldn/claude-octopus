@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/result-file.sh"
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/secure.sh"
+# Resolve helpers at load time for Bash 3.2 command substitutions.
+_octopus_testing_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$_octopus_testing_lib_dir/result-file.sh"
+source "$_octopus_testing_lib_dir/secure.sh"
 
 # testing.sh — Extracted from orchestrate.sh
 # Contains: validate_tangle_results, squeeze_test
@@ -149,7 +151,7 @@ check_explicit_file_coverage() {
     # Managed workflows supply parent-owned Files:/Creates: paths. They are
     # checked on disk, not inferred from quoted read context or model wording.
     if [[ "${TANGLE_REQUIRED_OUTPUT_SCOPES+x}" == x ]]; then
-        printf '%s\n' "$TANGLE_REQUIRED_OUTPUT_SCOPES" | python3 -I "${BASH_SOURCE[0]%/*}/../helpers/required-output-coverage.py" "${PROJECT_ROOT:-$PWD}" "${TANGLE_REQUIRED_OUTPUT_BASELINE:-}"
+        printf '%s\n' "$TANGLE_REQUIRED_OUTPUT_SCOPES" | python3 -I "$_octopus_testing_lib_dir/../helpers/required-output-coverage.py" "${PROJECT_ROOT:-$PWD}" "${TANGLE_REQUIRED_OUTPUT_BASELINE:-}"
         return $?
     fi
     local original_prompt="$1"
@@ -164,7 +166,7 @@ import re,sys
 text=sys.stdin.read()
 # Keep every reference unless a recognizable read-only clause excludes it.
 # Read words inside write instructions must not open a read-only clause.
-starts=re.compile(r"(?:^|[.!?;]\s+|,\s*then\s+|\band\s+then\s+)[ \t]*(?:[-*]\s+|\d+[.)]\s+)?(?:(?:first|next|then|finally)\s+)?(?:please\s+)?(?:after\s+reading|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)[:\s]*",re.I|re.M)
+starts=re.compile(r"(?:^|[.!?]\s+|;\s*|,\s*then\s+|\band\s+then\s+)[ \t]*(?:[-*]\s+|\d+[.)]\s+)?(?:(?:first|next|then|finally)\s+)?(?:please\s+)?(?:after\s+reading|read|review|inspect|consult|context|inputs?|references?)\b(?=[:\s]|$)[:\s]*",re.I|re.M)
 writes=r"(?:add|update|create|edit|modify|delete|remove|refactor|fix|write|implement|rename|move)"
 ends=re.compile(r"[.!?]\s+|;|\n|,(?=\s*"+writes+r"\b)|\b(?:and\s+)?then\b|\b(?:and|to)\s+"+writes+r"\b",re.I)
 for event in reversed(list(starts.finditer(text))):
