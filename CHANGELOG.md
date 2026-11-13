@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Council grounding checks a later source claim even when an earlier clause
+  describes the reviewer's own estimate or calculation.
+
 - Deep research validates the current invocation's completed synthesis in the
   active host session instead of accepting an unrelated recent report.
 - Checkpoint rollback removes tracked files added after the checkpoint and
