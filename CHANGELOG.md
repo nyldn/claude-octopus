@@ -11,6 +11,10 @@
 
 ### Fixed
 
+- Checkpoint rollback refuses uncommitted or untracked work before preview,
+  safety tagging and restoration, so a tag cannot be mistaken for a backup of
+  changes that exist only in the working tree or index.
+
 - OpenCode debates admit the Claude moderator before proposals; successful
   quorum debates need no moderator. Squeeze verifies its required providers
   and stops on empty phases or failed fallbacks. Completed research resumes
