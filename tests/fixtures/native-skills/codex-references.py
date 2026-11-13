@@ -21,6 +21,41 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_finish_branch_requires_a_common_ancestor_before_review(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
+            blocks = re.findall(r'```bash\n(.*?)\n```', text, re.S)
+            resolve = next(b for b in blocks if 'BASE_REF=$(git symbolic-ref' in b)
+            summary = next(b for b in blocks if 'DIFF_STAT=' in b)
+            for unrelated in (False, True):
+                with self.subTest(tree=tree, unrelated=unrelated), tempfile.TemporaryDirectory() as temporary:
+                    env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
+                               GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+                               GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid')
+                    def git(*args):
+                        return subprocess.check_output(['git', '-C', temporary, *args], env=env,
+                                                       stderr=subprocess.DEVNULL, text=True).strip()
+                    git('init', '-q', '-b', 'main')
+                    path = Path(temporary) / 'base.txt'
+                    path.write_text('base\n')
+                    git('add', '.')
+                    git('commit', '-qm', 'base')
+                    git('checkout', '-q', '--orphan' if unrelated else '-b', 'feature')
+                    path.write_text('changed\n')
+                    git('add', '.')
+                    git('commit', '-qm', 'feature')
+                    result = subprocess.run(['/bin/bash', '-c', resolve + '\n' + summary +
+                                             '\nprintf "REVIEW_REACHED|%s|%s" "$DIFF_FILES" "$DIFF_STAT"'],
+                                            cwd=temporary, env=env, capture_output=True, text=True, timeout=5)
+                    if unrelated:
+                        self.assertNotEqual(result.returncode, 0, result.stdout)
+                        self.assertNotIn('REVIEW_REACHED', result.stdout)
+                        self.assertIn('Cannot determine a common ancestor', result.stderr)
+                    else:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertIn('REVIEW_REACHED|base.txt|', result.stdout)
+                        self.assertIn('1 file changed', result.stdout)
+
     def test_staged_review_filters_and_retains_successful_answers(self):
         text = (ROOT / '.claude/skills/skill-staged-review/SKILL.md').read_text()
         block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
@@ -281,7 +316,7 @@ class CodexReferences(unittest.TestCase):
         self.assertNotIn("Initialize .octo/ directory with STATE.md, PROJECT.md, ROADMAP.md", resume)
         rollback = (ROOT / "codex-skills/skill-rollback/SKILL.md").read_text()
         self.assertNotIn("/octo:rollback", rollback)
-        self.assertIn("$skill-rollback octo-checkpoint-pre-rollback", rollback)
+        self.assertIn("$skill-rollback $SAFETY_CHECKPOINT_TAG", rollback)
         ship = (ROOT / "codex-skills/skill-ship/SKILL.md").read_text()
         self.assertNotIn("Claude: Available", ship)
         self.assertNotIn("Providers Used:** Claude", ship)

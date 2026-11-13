@@ -55,7 +55,7 @@ fi
 ### Step 2: Determine the base branch and review the diff
 
 Resolve the base before computing any diff. Carry the verified `BASE_REF` and local `BASE_BRANCH`
-into each later shell invocation.
+into each later shell invocation, along with the verified `MERGE_BASE`.
 
 ```bash
 BASE_REF=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
@@ -73,14 +73,19 @@ fi
   exit 1
 }
 BASE_BRANCH="${BASE_REF#origin/}"
+MERGE_BASE=$(git merge-base HEAD "$BASE_REF") || {
+  echo "Cannot determine a common ancestor; fetch the missing history or confirm the base before reviewing." >&2
+  exit 1
+}
+[[ -n "$MERGE_BASE" ]] || exit 1
 ```
 
 **Run a quick multi-provider review of the changes before shipping.** This catches issues before they reach PR reviewers.
 
 ```bash
 # Get the diff summary
-DIFF_STAT=$(git diff --stat $(git merge-base HEAD "${BASE_REF:?Restore the verified base ref}")..HEAD)
-DIFF_FILES=$(git diff --name-only $(git merge-base HEAD "${BASE_REF:?Restore the verified base ref}")..HEAD)
+DIFF_STAT=$(git diff --stat "${MERGE_BASE:?Restore the verified merge base}..HEAD") || exit 1
+DIFF_FILES=$(git diff --name-only "${MERGE_BASE:?Restore the verified merge base}..HEAD") || exit 1
 ```
 
 **Always run a quick review — this is automatic, not optional:**
@@ -89,7 +94,7 @@ DIFF_FILES=$(git diff --name-only $(git merge-base HEAD "${BASE_REF:?Restore the
 # Quick review via orchestrate.sh (uses available providers)
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
-$(git diff $(git merge-base HEAD "${BASE_REF:?Restore the verified base ref}")..HEAD | head -500)"
+$(git diff "${MERGE_BASE:?Restore the verified merge base}..HEAD" | head -500)"
 ```
 
 **If critical issues found:** Present them and ask whether to fix or ship anyway.
@@ -131,7 +136,7 @@ AskUserQuestion({
 
 ```bash
 # Generate changelog entry from commits
-COMMITS=$(git log --oneline $(git merge-base HEAD "${BASE_REF:?Restore the verified base ref}")..HEAD)
+COMMITS=$(git log --oneline "${MERGE_BASE:?Restore the verified merge base}..HEAD") || exit 1
 # Prepend to CHANGELOG.md if it exists
 ```
 
