@@ -15,6 +15,143 @@
   adapted entries. Registered names, manual invocation and the starter pack
   remain available in both hosts.
 
+- OpenCode debates admit the Claude moderator before proposals; successful
+  quorum debates need no moderator. Squeeze verifies its required providers
+  and stops on empty phases or failed fallbacks. Completed research resumes
+  return saved results without requiring live provider admission.
+- Command Code availability probes exclude the unrelated Mistral credential,
+  matching the existing health probe.
+
+- Fresh Embrace runs confirm an unpinned OpenCode login before rejecting
+  readiness. Resumed workflows keep the existing admission
+  path; skipped probes and provider exclusions remain enforced.
+- Authentication-library initialization uses the system `dirname`, so a
+  project-selected utility cannot run before OpenCode admission guards.
+
+
+- OpenCode readiness pins its bootstrap tools and clears `BASH_ENV` before
+  starting probe shells. Dependency loading stays outside the project directory,
+  while the guarded login check retains project-relative CLI selection.
+
+- OpenCode debate and fan-out seats appear in the production agent inventory.
+  Interpreter supervision uses system cleanup timers when a project changes
+  `PATH`, and cancellation tests retain real waits for supervisor children.
+
+- The six-worker feature-task fixture resets its eight-second join deadline
+  after each worker starts. Staggered launches retain the concurrency
+  check, while serial waves and stalled workers still fail.
+
+- OpenCode admission applies bounded Tangle isolation before executing probes.
+  Version checks omit forwarded credentials; login checks disable project
+  configuration and reject project-owned executables or configuration paths.
+  Saved logins, external custom configuration and environment-only login remain
+  available. Command refusals preserve exit 125 and their launcher diagnostic.
+- Non-council research ignores unrelated council roster admission while honoring
+  explicit preflight panels. Opus selection displays the command's model, and
+  OpenCode dry runs identify unchecked server mode and bounded availability.
+
+- Automatic research confirms SQLite-only and environment-only OpenCode logins
+  before choosing its fleet, including without a pinned council roster. Static
+  preflight inspection, probe skips and existing provider exclusions are preserved.
+
+- SQLite-only and environment-only OpenCode logins retain existing quota and
+  run-local health exclusions. Excluded seats are not probed or readmitted.
+  Copilot capability and GitHub authentication probes omit the unrelated
+  Mistral credential forwarded for OpenCode while preserving parent settings.
+
+- OpenCode discovery and readiness check each supported environment token
+  independently, so a blank token cannot hide another configured login.
+  Preflight uses the current directory when the configured project root is
+  absent, matching direct-probe directory selection.
+
+- Selected OpenCode seats receive login confirmation even when a fixed provider
+  panel omits them. Static discovery recognizes the same supported environment
+  credentials as readiness checks without launching the CLI.
+
+- MCP preserves OpenCode's custom XDG configuration, cache and state roots.
+  GitHub authentication checks and OpenCode workers explicitly using known
+  non-Mistral provider namespaces exclude the unrelated Mistral key. Mistral,
+  custom providers and configured default models retain their credential.
+
+
+- Cursor version and session-status probes exclude the Mistral credential
+  forwarded for OpenCode, while preserving Cursor session authentication and
+  the parent environment.
+
+- Claude startup version, status and capability checks exclude the Mistral
+  credential forwarded for OpenCode, while preserving parent authentication.
+  MCP also preserves the explicit `OPENCODE_CONFIG` file selector so custom
+  OpenCode provider settings reach login checks and dispatch. OpenCode version
+  probes omit Mistral and search credentials, while login checks retain the
+  required Mistral credential and omit the unrelated search key.
+
+- CommandCode health checks exclude the Mistral credential forwarded for
+  OpenCode. Failed selected OpenCode admission preserves the broad discovery
+  cache, including login and provider smoke failures.
+
+- Fixed-panel OpenCode dispatch confirms SQLite-only and environment logins
+  before admitting work. Panel inspection stays static, and unrelated panel
+  providers retain their existing readiness checks.
+
+- Automatic OpenCode routing displays its model without launching a version
+  probe. Compatibility helpers still load when their libraries were sourced by
+  bare filename before the working directory changed.
+
+- Broad preflight scans and roster inspection no longer launch OpenCode version
+  or login probes. Selected OpenCode dispatch and workflows with a pinned
+  OpenCode roster still confirm login and cannot
+  reuse or populate the broad discovery cache. Single-agent probes confirm a
+  pinned OpenCode roster even when another provider handles the selected seat.
+
+- OpenCode checks and private servers launched through MCP retain an explicit
+  `OPENCODE_CONFIG_DIR`, preserving custom configuration alongside SQLite login
+  storage. Other providers retain their existing environment isolation.
+
+- MCP OpenCode calls preserve custom SQLite login paths selected with
+  `OPENCODE_DB` and `XDG_DATA_HOME`, so saved logins remain discoverable.
+
+- OpenCode 2.x dispatch no longer passes the removed `--pure` flag. OpenCode
+  1.x keeps its external-plugin hang protection through `OPENCODE_PURE=1`.
+  Discovery recognizes SQLite login storage without launching OpenCode. An
+  explicit live readiness check confirms saved or environment credentials,
+  with bounded version and login commands. Version-aware 2.x dispatch uses a
+  private server so tools stay inside the selected process boundary; unknown
+  CLI versions refuse real dispatch. Empty or failed listings remain unavailable.
+  Large legacy login listings survive strict pipeline checks, the live deadline
+  covers both probes and startup, and failed direct probes record a terminal seat
+  event in durable research history.
+  Workflow admission confirms SQLite-only logins, including pinned rosters,
+  before rejecting readiness. Direct OpenCode probes check login for the
+  standard, fast and research seats.
+  Environment-only logins also receive runtime confirmation before admission.
+  Background login and version checks use the worker's project directory, so
+  directory-sensitive executables select the correct private-server flags.
+  Direct `probe-single --dry-run` previews stop before health checks or provider
+  execution.
+  Both `OCTOPUS_SKIP_PROVIDER_PROBES=true` and `=1` suppress OpenCode version
+  and login probes and refuse real dispatch without selecting a server mode.
+  OpenCode 2.x login validation also works without `jq`, using Python 3's
+  standard-library JSON parser while retaining connection validation.
+  Admission confirms logins even when static token evidence is present and
+  checks project-relative executables from the worker directory. Failed command
+  construction closes its durable research-seat event.
+  MCP research also forwards the optional Mistral environment credential to
+  OpenCode, while isolated model children keep their own credential boundary.
+  Unrelated CLI and shell-function provider children omit that unselected Mistral
+  credential while preserving their own authentication and the parent environment.
+  OpenCode 2.x bounded Tangle refuses model tasks regardless of storage writability.
+  Saved logins and filesystem boundaries remain
+  intact; support for that execution path still requires a safe state projection.
+  Failed live checks retain `opencode auth login` guidance. Health diagnostics
+  use the application logger or stderr, including on macOS, and a failed health
+  handler lookup closes the direct probe's durable research-seat event.
+  Rejected timeout settings, context budgets, command validation, environment
+  setup and result preparation also close the seat, including under shell
+  error-exit mode, so rejected work does not remain marked as running.
+  Rejected explicit models also close the research seat and preserve the
+  resolver's failure status, whether or not shell error-exit mode is enabled.
+  Addresses [#1172](https://github.com/nyldn/claude-octopus/issues/1172).
+
 - Council quota classification requires a terminal marker validated against
   complete stdout. A truncated diagnostic tail cannot establish a session
   limit. Quote checks retain patch-introduction ownership and reuse elision

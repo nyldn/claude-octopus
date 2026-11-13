@@ -5,6 +5,19 @@
 # Extracted from orchestrate.sh
 # ═══════════════════════════════════════════════════════════════════════════════
 
+_auth_lib_dir="$(cd "$(/usr/bin/dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Remote startup skips discovery probes unless the user opts in. Selected
+# OpenCode admission checks only the explicit setting, not this startup default.
+_octo_skip_discovery_probes() {
+    case "${OCTOPUS_SKIP_PROVIDER_PROBES:-}" in
+        true|1) return 0 ;;
+        false|0) return 1 ;;
+    esac
+    [[ "${CLAUDE_CODE_REMOTE:-}" == true || "${CLAUDE_CODE_WEB:-}" == true ||
+       "${OCTOPUS_REMOTE_SESSION:-false}" == true ]]
+}
+
 # Shared credential-value parsing. Provider admission surfaces must not trust a
 # file merely because an assignment exists: blank and quoted-empty values are
 # unauthenticated, while a # inside a quoted credential is data, not a comment.
@@ -59,7 +72,7 @@ _octo_assignment_has_nonempty_value() {
 # Never launch its interactive CLI, print a secret or migrate keyring entries.
 _octo_vibe_keyring_has_key() {
     [[ "${1:-}" == selected ]] || return 1
-    case "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" in true|1) return 1 ;; esac
+    _octo_skip_discovery_probes && return 1
     local binary shebang interpreter extra lib_dir name
     local -a probe_env
     binary="$(command -v vibe 2>/dev/null)" || return 1
@@ -297,3 +310,152 @@ handle_auth_command() {
             ;;
     esac
 }
+
+# Test each supported token separately; blank values do not mask later keys.
+_octo_opencode_environment_auth_present() {
+    local name
+    for name in GITHUB_TOKEN OPENROUTER_API_KEY Z_AI_API_KEY MINIMAX_API_KEY MISTRAL_API_KEY; do
+        _octo_value_has_nonwhitespace "${!name:-}" && return 0
+    done
+    return 1
+}
+
+# OpenCode v2 migrated local credentials into SQLite. Store presence is only
+# configuration evidence; static discovery must not launch the CLI or open it.
+_octo_opencode_auth_store_present() {
+    local data_dir="${XDG_DATA_HOME:-${HOME}/.local/share}/opencode"
+    local database="${OPENCODE_DB:-opencode.db}"
+    [[ -f "${data_dir}/auth.json" ]] && return 0
+    [[ "$database" != :memory: ]] || return 1
+    [[ "$database" == /* ]] || database="${data_dir}/${database}"
+    [[ -f "$database" ]] && return 0
+    [[ -z "${OPENCODE_DB:-}" ]] || return 1
+    for database in "$data_dir"/opencode-*.db; do
+        [[ ! -f "$database" ]] || return 0
+    done
+    return 1
+}
+
+# Check the helper interpreter's location before running even its capability
+# probe. A project-local Python must not receive login credentials either.
+_octo_opencode_probe_python() (
+    declare -f _octo_pid_python_capable >/dev/null 2>&1 || source "${_auth_lib_dir}/pid-ledger.sh" || return 125
+    local candidate="${OCTOPUS_PYTHON:-${_OCTO_PID_LEDGER_PYTHON:-python3}}"
+    local directory target project current count
+    if [[ "$candidate" != */* ]]; then
+        candidate="$(type -P "$candidate")" || return 125
+    fi
+    [[ "$candidate" == /* ]] || candidate="$PWD/$candidate"
+    # Resolve at most 16 symlink hops; the iteration number is not otherwise used.
+    # shellcheck disable=SC2034
+    for count in {1..16}; do
+        directory="$(cd "${candidate%/*}" 2>/dev/null && pwd -P)" || return 125
+        candidate="$directory/${candidate##*/}"
+        [[ -L "$candidate" ]] || break
+        target="$(/usr/bin/readlink "$candidate")" || return 125
+        if [[ "$target" == /* ]]; then candidate="$target"; else candidate="$directory/$target"; fi
+    done
+    [[ -x "$candidate" && ! -L "$candidate" ]] || return 125
+    current="$(pwd -P)"
+    if [[ -n "${PROJECT_ROOT:-}" ]]; then
+        project="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P)" || project="$current"
+        case "$candidate" in
+            "$project"|"${project%/}/"*) return 125 ;;
+        esac
+    fi
+    if [[ "$current" != "$(cd "$HOME" 2>/dev/null && pwd -P)" ]]; then
+        case "$candidate" in "$current"|"$current"/*) return 125 ;; esac
+    fi
+    _octo_pid_python_capable "$candidate" || return 125
+    printf '%s\n' "$candidate"
+)
+
+# Metadata and login probes use the same filesystem boundary as a bounded seat.
+_octo_opencode_run_probe() (
+    local mode="$1" name python
+    shift
+    unset KEENABLE_API_KEY NODE_OPTIONS NODE_PATH BUN_OPTIONS PYTHONPATH LD_PRELOAD \
+        DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH || return 125
+    if [[ "$mode" != login ]]; then
+        while IFS= read -r name; do
+            case "$name" in
+                *API_KEY*|*_TOKEN|*_TOKEN_*|*SECRET*|*PASSWORD*|*CREDENTIAL*) unset "$name" || return 125 ;;
+            esac
+        done < <(compgen -e)
+    fi
+    declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1 || source "${_auth_lib_dir}/bounded-probe.sh" || return 1
+    declare -f octopus_pid_python_resolve >/dev/null 2>&1 || source "${_auth_lib_dir}/pid-ledger.sh" || return 1
+    python="$(_octo_opencode_probe_python)" || {
+        printf '%s\n' 'OpenCode admission refused: a capable Python interpreter outside the project is required' >&2
+        return 125
+    }
+    local -a cmd_array=("$python" -I "${_auth_lib_dir}/../helpers/opencode-probe.py" "$mode" "${PROJECT_ROOT:-}" "$@")
+    if [[ "${OCTOPUS_TANGLE_EXECUTION_BOUNDARY:-false}" == true ||
+          "${OCTOPUS_TANGLE_WRITE_SCOPE_MODE:-strict}" == adaptive ]]; then
+        declare -f octopus_tangle_apply_execution_boundary >/dev/null 2>&1 || source "${_auth_lib_dir}/spawn.sh" || return 125
+        if ! declare -f log >/dev/null 2>&1; then
+            log() { printf '[%s] %s\n' "$1" "${*:2}" >&2; }
+        fi
+        # The shared boundary reads this caller's scope and command array.
+        # shellcheck disable=SC2034
+        local phase=tangle role=reviewer agent_type=opencode
+        if ! octopus_tangle_apply_execution_boundary; then
+            printf '%s\n' 'OpenCode admission refused: no enforceable Tangle probe boundary' >&2
+            return 125
+        fi
+    fi
+    _octo_run_bare_probe_with_timeout 3 2 1 "${cmd_array[@]}" </dev/null
+)
+
+# Runtime-only, bounded version detection. Unknown generations cannot safely
+# select private-server flags, so real dispatch fails closed.
+_octo_opencode_cli_major() (
+    # Version metadata needs neither model nor search credentials.
+    unset MISTRAL_API_KEY KEENABLE_API_KEY || return 1
+    local version rc=0 mode="${1:-version}"
+    case "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" in true|1) return 1 ;; esac
+    if ! declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1; then
+        source "${_auth_lib_dir}/bounded-probe.sh" 2>/dev/null || return 1
+    fi
+    version="$(_octo_opencode_run_probe "$mode" --version)" || rc=$?
+    [[ "$rc" -eq 0 ]] || return "$rc"
+    if [[ "$version" =~ ^(opencode[[:space:]]+)?v?([12])\.[0-9]+\.[0-9]+([+-][[:alnum:].-]+)?$ ]]; then
+        printf '%s\n' "${BASH_REMATCH[2]}"
+    else
+        return 1
+    fi
+)
+
+# Explicit live check only. Keep all account metadata private. V2 checks the
+# same private-server environment used by dispatch, never the shared service.
+_octo_opencode_has_saved_login() (
+    # Environment-only login still needs Mistral; search credentials never do.
+    unset KEENABLE_API_KEY || return 1
+    local listing major rc=0
+    declare -f _octo_run_bare_probe_with_timeout >/dev/null 2>&1 || source "${_auth_lib_dir}/bounded-probe.sh" || return 1
+    major="$(_octo_opencode_cli_major login-version)" || rc=$?
+    [[ "$rc" -eq 0 ]] || return "$rc"
+    if [[ "$major" == 2 ]]; then
+        if [[ "${OCTOPUS_TANGLE_EXECUTION_BOUNDARY:-false}" == true ||
+              "${OCTOPUS_TANGLE_WRITE_SCOPE_MODE:-strict}" == adaptive ]]; then
+            printf '%s\n' 'OpenCode 2.x bounded Tangle requires saved-login-preserving session storage; this dispatch is unavailable' >&2
+            return 125
+        fi
+        listing="$(_octo_opencode_run_probe login auth list --standalone --format json)" || return $?
+
+    else
+        listing="$(_octo_opencode_run_probe login auth list)" || return $?
+    fi
+    # The provider needed credentials to list environment logins. Parsing does
+    # not. Strip them before resolving or checking the parser interpreter.
+    local name python
+    unset NODE_OPTIONS NODE_PATH BUN_OPTIONS PYTHONPATH LD_PRELOAD \
+        DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH || return 125
+    while IFS= read -r name; do
+        case "$name" in
+            *API_KEY*|*_TOKEN|*_TOKEN_*|*SECRET*|*PASSWORD*|*CREDENTIAL*) unset "$name" || return 125 ;;
+        esac
+    done < <(compgen -e)
+    python="$(_octo_opencode_probe_python)" || return 125
+    printf '%s\n' "$listing" | "$python" -I "${_auth_lib_dir}/../helpers/opencode-probe.py" parse-login "$major"
+)

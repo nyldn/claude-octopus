@@ -33,7 +33,7 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # shellcheck source=scripts/lib/json-contract.sh
-source "${BASH_SOURCE[0]%/*}/json-contract.sh" || return 1
+source "${_profile_lib_dir}/json-contract.sh" || return 1
 
 #                    gpt-5.2-codex, gpt-5.4-mini (budget), gpt-5 (standard), gpt-5.2, gpt-5.1
 # - OpenAI Reasoning: o3, o3-pro (API-key only), o3 (API-key only), o3-mini (API-key only)
@@ -258,11 +258,14 @@ _octopus_allowed_model_or_fallback() {
 }
 
 # Extract the concrete model serialized by a generated provider command. The
-# fallback preserves providers whose command shape does not carry --model.
+# OpenCode commands use -m; other command shapes retain their fallback model.
 octo_dispatch_command_model() {
-    local command="${1:-}" fallback="${2:-}" resolved
-    resolved="$(printf '%s\n' "$command" | awk '
-      { for (i = 1; i <= NF; i++) if ($i == "--model" && i < NF) { print $(i + 1); exit } }
+    local command="${1:-}" fallback="${2:-}" resolved short_model_flag=""
+    case "$command" in
+        opencode\ *|env\ OPENCODE_PURE=1\ opencode\ *) short_model_flag=-m ;;
+    esac
+    resolved="$(printf '%s\n' "$command" | awk -v short_flag="$short_model_flag" '
+      { for (i = 1; i <= NF; i++) if (($i == "--model" || (short_flag != "" && $i == short_flag)) && i < NF) { print $(i + 1); exit } }
     ')"
     printf '%s\n' "${resolved:-$fallback}"
 }
@@ -927,13 +930,33 @@ get_agent_command() {
             if [[ -n "$model" && "$model" != "default" ]]; then
                 oc_model_flag="-m ${model}"
             fi
-            # --pure skips opencode's external-plugin auto-title path, which
-            # otherwise resolves an SDK handle for a hardcoded small model
-            # before the prompt is even sent — an unresolvable catalog/model
-            # there hangs `opencode run` indefinitely with no timeout or error
-            # (Issue #566). It's a global flag, so it must precede the `run`
-            # subcommand or risk being ignored/rejected.
-            echo "opencode --pure run ${oc_model_flag}"
+            # OpenCode 1.x implements --pure by setting this environment
+            # variable. Preserve its plugin-hang protection (#566) without
+            # passing the removed global flag to OpenCode 2.x (#1172).
+            local oc_major oc_standalone=""
+            if [[ "${DRY_RUN:-false}" != true ]]; then
+                declare -f _octo_opencode_cli_major >/dev/null 2>&1 || source "${_profile_lib_dir}/auth.sh" || return 1
+                oc_major="$(_octo_opencode_cli_major)" || {
+                    local oc_version_rc=$?
+                    [[ "$oc_version_rc" -ne 125 ]] || return 125
+                    log ERROR "OpenCode version unavailable; cannot select a safe server mode"
+                    return "$oc_version_rc"
+                }
+                if [[ "$oc_major" == 2 ]]; then
+                    # The private server shares SQLite credentials and session
+                    # state. The bounded filesystem has no safe writable
+                    # projection for that store yet; never select a shared
+                    # server or hide saved logins behind an empty database.
+                    if [[ "$phase" == tangle ]] &&
+                       [[ "${OCTOPUS_TANGLE_EXECUTION_BOUNDARY:-false}" == true ||
+                          "${OCTOPUS_TANGLE_WRITE_SCOPE_MODE:-strict}" == adaptive ]]; then
+                        log ERROR "OpenCode 2.x bounded Tangle requires saved-login-preserving session storage; this dispatch is unavailable"
+                        return 125
+                    fi
+                    oc_standalone="--standalone "
+                fi
+            fi
+            echo "env OPENCODE_PURE=1 opencode run ${oc_standalone}${oc_model_flag}"
             ;;
         *) return 1 ;;
     esac

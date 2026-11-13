@@ -911,6 +911,8 @@ _preflight_cache_roster_key() {
 # Write preflight cache (stores timestamp and status)
 preflight_cache_write() {
     local status="$1"
+    # Selected-provider admission must not overwrite broad discovery evidence.
+    [[ "${2:-true}" == true ]] || return 0
     mkdir -p "$(dirname "$PREFLIGHT_CACHE_FILE")"
     {
         date +%s

@@ -116,8 +116,13 @@ probe_single_agent() {
         log "DEBUG" "probe_single_agent: perspective=${perspective:0:100}..."
     fi
 
+    if [[ "${DRY_RUN:-false}" == true ]]; then
+        log INFO "[DRY-RUN] Would dispatch $agent_type for task $task_id"
+        return 0
+    fi
+
     # Pre-flight validation
-    preflight_check false "$agent_type" || return 1
+    preflight_check false "$agent_type" dispatch || return 1
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
@@ -148,7 +153,12 @@ probe_single_agent() {
 
     local seat_timeout="${TIMEOUT:-0}"
     if declare -F octopus_effective_agent_timeout >/dev/null 2>&1; then
-        seat_timeout="$(octopus_effective_agent_timeout "$seat_timeout" "$phase" "$role")" || return 2
+        if ! seat_timeout="$(octopus_effective_agent_timeout "$seat_timeout" "$phase" "$role")"; then
+            if declare -F research_probe_single_record >/dev/null 2>&1; then
+                research_probe_single_record "$task_id" "$agent_type" failed || true
+            fi
+            return 2
+        fi
     fi
 
     # v8.53.0: Pre-compute curated_name for readonly frontmatter check
@@ -193,10 +203,13 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     local tokens_in _budget_original_chars _budget_final_chars _budget_compression
     _budget_original_chars=${#enhanced_prompt}
     tokens_in=$(( _budget_original_chars / 4 ))
-    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase" "$probe_seat_id")
-    local _budget_rc=$?
+    local _budget_rc=0
+    enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase" "$probe_seat_id") || _budget_rc=$?
     if [[ $_budget_rc -ne 0 ]]; then
         type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "$role" "$probe_seat_id" || true
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return "$_budget_rc"
     fi
     _budget_final_chars=${#enhanced_prompt}
@@ -212,20 +225,61 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     fi
 
     # Resolve model and command
-    local model
-    model=$(get_agent_model "$agent_type" "$phase" "$role")
-
-    local cmd
-    if ! cmd=$(get_agent_command "$agent_type" "$phase" "$role" "$(octo_prompt_byte_length "$enhanced_prompt")"); then
-        log ERROR "Unknown agent type: $agent_type"
-        return 1
+    local model model_rc=0
+    model=$(get_agent_model "$agent_type" "$phase" "$role") || model_rc=$?
+    if [[ "$model_rc" -ne 0 ]]; then
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
+        return "$model_rc"
     fi
+
+    # OpenCode's direct probe path must confirm login just like normal dispatch.
+    # Resolve the registered handler rather than duplicating credential checks.
+    if [[ "$agent_type" == opencode* ]]; then
+        local health_handler health_diag
+        if ! health_handler="$(octo_provider_health_handler opencode)" ||
+           [[ "$health_handler" == none ]] || ! declare -F "$health_handler" >/dev/null 2>&1; then
+            log ERROR "OpenCode health handler unavailable"
+            if declare -F research_probe_single_record >/dev/null 2>&1; then
+                research_probe_single_record "$task_id" "$agent_type" failed || true
+            fi
+            return 1
+        fi
+        local health_rc=0
+        health_diag=$("$health_handler" opencode "$model" 2>&1) || health_rc=$?
+        if [[ "$health_rc" -ne 0 ]]; then
+            log WARN "OpenCode health check failed: $health_diag"
+            if declare -F research_probe_single_record >/dev/null 2>&1; then
+                research_probe_single_record "$task_id" "$agent_type" failed || true
+            fi
+            return "$health_rc"
+        fi
+    fi
+
+    local cmd OCTO_RESOLVED_COMMAND="" OCTO_COMMAND_DIAGNOSTIC="" command_rc=0
+    octo_resolve_agent_command "$PWD" "$agent_type" "$phase" "$role" "$(octo_prompt_byte_length "$enhanced_prompt")" || command_rc=$?
+    if [[ "$command_rc" -ne 0 ]]; then
+        if [[ "$command_rc" -eq 125 ]]; then
+            log WARN "Provider command refused for $agent_type: ${OCTO_COMMAND_DIAGNOSTIC:-no launcher diagnostic}"
+        else
+            log ERROR "Unknown agent type: $agent_type"
+        fi
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
+        return "$command_rc"
+    fi
+    cmd="$OCTO_RESOLVED_COMMAND"
     if declare -f octo_dispatch_command_model >/dev/null 2>&1; then
         model="$(octo_dispatch_command_model "$cmd" "$model")"
     fi
 
     if ! validate_agent_command "$cmd"; then
         log ERROR "Invalid agent command: $cmd"
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return 1
     fi
 
@@ -261,15 +315,28 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     # Build command array with credential isolation
     local -a cmd_array
     local -a inner_cmd_array
-    if ! build_provider_env "$agent_type"; then
+    if ! build_provider_env "$agent_type" "$model"; then
         log ERROR "Provider environment construction failed for $agent_type"
         update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Provider environment construction failed" \
             0 "$result_file" "$role" "$probe_seat_id" || true
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return 1
     fi
-    octo_dispatch_command_to_argv "$cmd" || return 1
+    if ! octo_dispatch_command_to_argv "$cmd"; then
+        log ERROR "Provider command argument conversion failed for $agent_type"
+        update_agent_status "$agent_type" "failed" 0 "$estimated_cost" "$seat_timeout" "$task_id" "$phase" "$result_file"
+        type write_agent_status >/dev/null 2>&1 && write_agent_status \
+            "$agent_type" "failed" "$tokens_in" 0 "Provider command argument conversion failed" \
+            0 "$result_file" "$role" "$probe_seat_id" || true
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
+        return 1
+    fi
     inner_cmd_array=("${OCTO_COMMAND_ARGV[@]}")
     if [[ ${#PROVIDER_ENV_ARRAY[@]} -gt 0 ]]; then
         cmd_array=("${PROVIDER_ENV_ARRAY[@]}" "${inner_cmd_array[@]}")
@@ -294,6 +361,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Failed to persist dispatched prompt" \
             0 "$result_file" "$role" "$probe_seat_id" || true
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return 74
     fi
     echo "# Started: $(date)" >> "$result_file"
@@ -306,6 +376,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
         type write_agent_status >/dev/null 2>&1 && write_agent_status \
             "$agent_type" "failed" "$tokens_in" 0 "Unable to generate result nonce" \
             0 "$result_file" "$role" "$probe_seat_id" || true
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return 74
     fi
     echo "<!-- BEGIN-UNTRUSTED:provider=${agent_type}:nonce=${_probe_nonce} -->" >> "$result_file"
@@ -890,22 +963,36 @@ probe_discover() {
         return 0
     fi
 
-    # Pre-flight validation
-    preflight_check || return 1
-
-    if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-true}" == "true" ]] \
+    # Completed resumes return saved evidence without needing live providers.
+    local _research_resumed=false
+    if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-true}" == true &&
+          "${OCTOPUS_RESEARCH_RESUME:-false}" == true ]] \
        && declare -F research_run_begin >/dev/null 2>&1; then
         research_run_begin "$task_group" "$prompt" "$research_intensity" || return $?
+        _research_resumed=true
         task_group="$RESEARCH_TASK_GROUP"
         prompt="$RESEARCH_PROMPT"
         research_intensity="$RESEARCH_INTENSITY"
-        if [[ "${OCTOPUS_RESEARCH_RESUME:-false}" == "true" ]]; then
-            local resumed_synthesis="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
-            if [[ -s "$resumed_synthesis" ]] \
-               && [[ "$(research_manifest_value "$RESEARCH_RUN_DIR/manifest.json" status)" == "completed" ]]; then
-                echo -e "${GREEN}✓${NC} Research run already complete: $resumed_synthesis"
-                return 0
-            fi
+        local resumed_synthesis="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
+        if [[ -s "$resumed_synthesis" ]] \
+           && [[ "$(research_manifest_value "$RESEARCH_RUN_DIR/manifest.json" status)" == completed ]]; then
+            log INFO "✓ Research run already complete: $resumed_synthesis"
+            return 0
+        fi
+    fi
+
+    # Fresh runs create evidence only after admission; unfinished resumes still dispatch.
+    local _octo_opencode_research_ready=false
+    preflight_check false "" auto-dispatch || return 1
+
+    if [[ "${OCTOPUS_RESEARCH_EVIDENCE:-true}" == "true" ]] \
+       && declare -F research_run_begin >/dev/null 2>&1; then
+        if [[ "$_research_resumed" != true ]]; then
+            research_run_begin "$task_group" "$prompt" "$research_intensity" || return $?
+            task_group="$RESEARCH_TASK_GROUP"
+            prompt="$RESEARCH_PROMPT"
+            research_intensity="$RESEARCH_INTENSITY"
+        else
             research_collect_sources "$task_group" || return 1
             synthesize_probe_results "$task_group" "$prompt" "0"
             return $?
@@ -6720,8 +6807,12 @@ ${obs_ctx}"
     # Set flag to skip individual phase cost prompts (already shown above)
     export OCTOPUS_SKIP_PHASE_COST_PROMPT="true"
 
-    # Pre-flight validation
-    if ! preflight_check; then
+    # A fresh run selects its research fleet after admission, like probe_discover.
+    # Resumed later phases keep their existing selected-roster admission.
+    local preflight_context=dispatch
+    local _octo_opencode_research_ready=false
+    case "$resume_from" in ""|null) preflight_context=auto-dispatch ;; esac
+    if ! preflight_check false "" "$preflight_context"; then
         log ERROR "Pre-flight check failed. Aborting workflow."
         return 1
     fi
