@@ -395,8 +395,26 @@ adapt_skill_references_for_codex() {
 
 # Adapt narrator/tool references while preserving explicitly labelled native
 # call examples, whose argument names must remain valid for their own host.
+adapt_freeze_for_codex() {
+    awk '
+        /^## Scoped freeze guard$/ {
+            print "## Scoped editing in Codex"
+            print ""
+            print "This repository does not bind its Claude freeze-check hook to Codex."
+            print "Do not run the freeze-state recipe or report automatic edit blocking."
+            print "Keep edits within the user-approved module and inspect the final diff."
+            print "If enforced boundaries are required, stop until the active host provides"
+            print "a verified permission boundary for that scope."
+            skip = 1
+            next
+        }
+        skip && /^## / { skip = 0 }
+        !skip { print }
+    '
+}
+
 adapt_host_context_for_codex() {
-    adapt_shared_paths_for_codex | adapt_skill_references_for_codex | sed -E \
+    adapt_shared_paths_for_codex | adapt_skill_references_for_codex | adapt_freeze_for_codex | sed -E \
         -e 's/Bash tool/native shell command tool/g' \
         -e 's/Agent tool/host subagent tool/g' \
         -e 's/Task tool/host subagent tool/g' \

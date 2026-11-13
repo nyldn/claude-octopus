@@ -168,7 +168,7 @@ class CodexReferences(unittest.TestCase):
     def test_authoring_checks_both_hosts_and_verification_alias_uses_registered_names(self):
         authoring = (ROOT / "codex-skills/skill-authoring/SKILL.md").read_text()
         for required in (".codex-plugin/plugin.json", "policy.allow_implicit_invocation: false",
-                         "codex-skills/<registered-name>/SKILL.md", "derive the plugin root",
+                         "codex-skills/octopus-starter-pack/debate-kickoff/SKILL.md", "derive the plugin root",
                          "test-codex-manifest.sh", "test-native-skill-registration.sh"):
             self.assertIn(required, authoring)
         for name in ("skill-verification-gate", "skill-verify"):
@@ -179,6 +179,53 @@ class CodexReferences(unittest.TestCase):
         audit = (ROOT / "codex-skills/skill-audit/SKILL.md").read_text()
         self.assertIn("octopus-security-audit", audit)
         self.assertNotIn("skill-security-audit", audit)
+
+    def test_codex_debug_does_not_claim_unbound_freeze_enforcement(self):
+        native = (ROOT / "skills/skill-debug/SKILL.md").read_text()
+        codex = (ROOT / "codex-skills/skill-debug/SKILL.md").read_text()
+        self.assertIn("## Scoped freeze guard", native)
+        self.assertIn("os.open", native)
+        self.assertIn("does not bind its Claude freeze-check hook to Codex", codex)
+        self.assertNotIn("/tmp/octopus-freeze-", codex)
+        self.assertNotIn("os.open", codex)
+        sample = "## Scoped freeze guard\nunsafe activation\n## Next section\nkeep me\n"
+        result = subprocess.check_output([
+            "/bin/bash", "-eu", "-c", 'source "$1"; adapt_freeze_for_codex',
+            "fixture", str(GENERATOR)
+        ], input=sample, text=True)
+        self.assertNotIn("unsafe activation", result)
+        self.assertIn("## Next section\nkeep me", result)
+
+    def test_nested_entries_and_continuations_keep_their_installation(self):
+        starter = ROOT / "codex-skills/octopus-starter-pack/debate-kickoff/SKILL.md"
+        self.assertTrue(starter.is_file())
+        authoring = (ROOT / "codex-skills/skill-authoring/SKILL.md").read_text()
+        self.assertNotIn("immediate child", authoring)
+        self.assertIn("full relative path", authoring)
+        delivery = (ROOT / "codex-skills/flow-deliver/SKILL.md").read_text()
+        self.assertIn("${OCTO_ROOT}/codex-skills/skill-doc-sync/SKILL.md", delivery)
+        self.assertIn("${OCTO_ROOT}/codex-skills/skill-ship/SKILL.md", delivery)
+        self.assertNotIn("from the stable plugin root", delivery)
+        self.assertIn("same verified `OCTO_ROOT`", delivery)
+        self.assertIn('"${OCTO_ROOT}/scripts/octo-state.sh" update_state', delivery)
+
+    def test_host_routes_and_evidence_claims_are_supported(self):
+        decision = (ROOT / "codex-skills/skill-decision-support/SKILL.md").read_text()
+        self.assertNotRegex(decision, r"flow-(probe|tangle)")
+        resume = (ROOT / "codex-skills/skill-resume/SKILL.md").read_text()
+        self.assertNotIn("/octo:embrace", resume)
+        self.assertIn("$flow-discover", resume)
+        self.assertIn("Do not restart Discover", resume)
+        self.assertIn("OCTOPUS_PROJECT_PERSISTENCE=true", resume)
+        self.assertNotIn("Initialize .octo/ directory with STATE.md, PROJECT.md, ROADMAP.md", resume)
+        rollback = (ROOT / "codex-skills/skill-rollback/SKILL.md").read_text()
+        self.assertNotIn("/octo:rollback", rollback)
+        self.assertIn("$skill-rollback octo-checkpoint-pre-rollback", rollback)
+        ship = (ROOT / "codex-skills/skill-ship/SKILL.md").read_text()
+        self.assertNotIn("Claude: Available", ship)
+        self.assertNotIn("Providers Used:** Claude", ship)
+        pipeline = (ROOT / "skills/skill-content-pipeline/SKILL.md").read_text().split("---", 2)[1]
+        self.assertNotIn("context: fork", pipeline)
 
     def test_loaded_block_paths_belong_to_the_codex_tree(self):
         for name in ("skill-authoring", "skill-audit", "skill-meta-prompt"):

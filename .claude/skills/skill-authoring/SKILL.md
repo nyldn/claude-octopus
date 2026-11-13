@@ -68,9 +68,10 @@ ancestor containing the selected host's plugin manifest, check its registration:
    path beneath that ancestor and append `SKILL.md`. Require the resolved loaded
    entry to equal one of those existing registered files.
 2. Codex: read `.codex-plugin/plugin.json`. Expand the declared `skills` directory
-   beneath that ancestor. Require the loaded entry to be the existing
-   `<skills-directory>/<registered-name>/SKILL.md`, with the skill directory an
-   immediate child of that declared directory.
+   beneath that ancestor. Require the loaded entry to match an existing
+   descendant `SKILL.md` within that directory, including nested starter-pack
+   entries. Preserve the full relative path and require its resolved path to
+   remain inside the declared directory.
 3. Accept exactly one matching ancestor as the plugin root. Reject paths outside
    the root, missing registered entries, and zero or ambiguous matches. Stop if
    the host does not expose the loaded entry's absolute path; do not guess from
@@ -79,9 +80,11 @@ ancestor containing the selected host's plugin manifest, check its registration:
 Before loading another skill, construct its host-registered path under that
 verified root and confirm its complete `SKILL.md` exists. Load the complete
 host-specific `SKILL.md` entry. For this repository's current Codex manifest,
-the registered path pattern is `codex-skills/<registered-name>/SKILL.md`, such
-as `codex-skills/skill-authoring/SKILL.md`; derive the directory from the
-manifest rather than assuming this package layout elsewhere.
+use the complete registered relative path, such as
+`codex-skills/skill-authoring/SKILL.md` or
+`codex-skills/octopus-starter-pack/debate-kickoff/SKILL.md`. Find the requested
+frontmatter name among existing entries and require exactly one match. Derive
+the discovery directory from the manifest rather than assuming this layout.
 
 Treat the loaded body as instructions in the current conversation. Follow its
 steps in order and pass the user's text as workflow arguments, never executable

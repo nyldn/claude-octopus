@@ -27,7 +27,7 @@ Palette rules:
 - No pure `#000000` backgrounds or text
 - Do not reuse the same palette family across consecutive projects in a session
 - Every text/background pair must pass WCAG AA — verify with the contrast checker
-  (`scripts/helpers/contrast-check.py`), never by eye
+  (`${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/contrast-check.py`), never by eye
 
 ## 3. Font rules
 

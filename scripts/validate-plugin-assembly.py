@@ -185,6 +185,9 @@ def validate_skills(root: Path, errors: list[str]) -> int:
         if not codex.is_dir() or not codex.resolve().is_relative_to(root):
             errors.append("codex-skills/: missing or unsafe required generated skill directory")
             return checked
+        if not any(codex.rglob("SKILL.md")):
+            errors.append("codex-skills/: required generated skill directory is empty")
+            return checked
     for directory in (root / "skills", root / ".claude" / "skills", root / "codex-skills"):
         if not directory.resolve().is_relative_to(root):
             errors.append(f"{rel(root, directory)}: unsafe skill directory")

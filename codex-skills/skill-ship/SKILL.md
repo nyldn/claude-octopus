@@ -122,7 +122,7 @@ command -v agy &> /dev/null && agy_status="Available" || agy_status="Not install
 **Providers:**
 - Codex CLI: ${codex_status} - Code security analysis
 - Antigravity CLI: ${agy_status} - Additional external-model challenge
-- Claude: Available - Synthesis and final validation
+- Current host: Available - Synthesis and final validation
 
 **Estimated Time:** 3-5 minutes
 **Estimated Cost:** 0.02-0.08 USD
@@ -359,7 +359,7 @@ Present final summary:
 
 - **Security Score:** {score}/100
 - **Quality Score:** {score}/100
-- **Providers Used:** Claude plus available external providers
+- **Providers Used:** [List only providers with completed audit evidence]
 
 ### Archive
 
@@ -381,7 +381,7 @@ Restore with: `$skill-rollback {CHECKPOINT_TAG}`
 **To start a new project:** `/octo:embrace`
 
 *Multi-AI validation powered by Claude Octopus*
-*Providers: Codex | Antigravity | Claude*
+*Providers: [List only providers with completed audit evidence]*
 ```
 
 

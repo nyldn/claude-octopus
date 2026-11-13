@@ -198,9 +198,9 @@ Rollback Complete
    ```bash
    git add -A && git commit -m "chore: rollback to $CHECKPOINT_TAG"
    ```
-3. Or return to previous state:
-   ```bash
-   /octo:rollback octo-checkpoint-pre-rollback-$TIMESTAMP
+3. Or invoke the rollback skill in the conversation to return to the previous state:
+   ```text
+   $skill-rollback octo-checkpoint-pre-rollback-$TIMESTAMP
    ```
 ```
 

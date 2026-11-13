@@ -558,7 +558,7 @@ for skill in skill-debate; do
 done
 
 # Read-only built-in agents cannot dispatch providers or write their reports.
-for skill in skill-prd skill-code-review skill-deep-research flow-discover flow-define skill-ui-ux-design; do
+for skill in skill-prd skill-code-review skill-deep-research flow-discover flow-define skill-ui-ux-design skill-content-pipeline; do
     skill_path="$(resolve_claude_skill_path "$skill")"
     if [[ -f "$skill_path" ]] && ! grep -qE '^agent: (Explore|Plan)$|^context: fork$' "$skill_path"; then
         pass "$skill.md preserves a writable execution context"

@@ -817,9 +817,13 @@ Ink workflows typically cost 0.02-0.08 USD per validation depending on codebase 
 
 After validation passes (go decision), run documentation synchronization to keep project docs current with shipped code. This step is **automatic** when running as part of `/octo:embrace` and **offered** when running standalone.
 
+Retain STEP 4's verified absolute `OCTO_ROOT` in the host context for these
+continuations. In a fresh shell, assign that exact value again. Do not choose a
+stable link or another installation during handoff.
+
 **Load the doc-sync source after delivery has been explicitly requested:**
 ```
-Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/codex-skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
+Read ${OCTO_ROOT}/codex-skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
 ```
 
 The doc-sync skill will:
@@ -842,15 +846,15 @@ After delivery validation and doc-sync complete, route according to the user's e
 request:
 
 - **Ship requested:** update `.octo/STATE.md`, then read and follow
-  `codex-skills/skill-ship/SKILL.md` from the stable plugin root.
+  `codex-skills/skill-ship/SKILL.md` from the same verified `OCTO_ROOT` used in STEP 4.
 - **Branch wrap-up requested:** read and follow
-  `codex-skills/skill-finish-branch/SKILL.md` from the stable plugin root.
+  `codex-skills/skill-finish-branch/SKILL.md` from the same verified `OCTO_ROOT` used in STEP 4.
 - **Review only:** deliver the synthesized findings and stop. Do not update the project
   to a ready-to-ship state or display a shipping instruction.
 
 ```bash
 # Run this block only when the user explicitly requested shipping.
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+"${OCTO_ROOT}/scripts/octo-state.sh" update_state \
   --status "complete" \
   --history "All phases complete, ready to ship"
 
@@ -870,7 +874,7 @@ echo "📦 **Project ready! Run \`/octo:ship\` to finalize and archive.**"
 After that block succeeds, perform the requested finalization immediately:
 
 ```text
-Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/codex-skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
+Read ${OCTO_ROOT}/codex-skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
 ```
 
 Do not stop after displaying the command. The ship-requested branch is incomplete until

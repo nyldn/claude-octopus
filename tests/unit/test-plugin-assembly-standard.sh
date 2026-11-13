@@ -252,6 +252,8 @@ with tempfile.TemporaryDirectory() as directory:
     assert result.returncode != 0 and 'codex-skills/: missing or unsafe required' in result.stderr, result.stderr
     generated = root / 'codex-skills/demo/SKILL.md'
     generated.parent.mkdir(parents=True)
+    result = validate()
+    assert result.returncode != 0 and 'generated skill directory is empty' in result.stderr, result.stderr
     generated.write_text(valid)
     assert validate().returncode == 0
     codex_data = json.loads(codex_manifest.read_text())
