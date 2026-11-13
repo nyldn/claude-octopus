@@ -11,6 +11,12 @@
 
 ### Fixed
 
+- Quick tasks commit only their selected files, preserve unrelated staged work,
+  and stop before recording completion when staging or committing fails.
+
+- Quota and authentication failures update the original provider seat in agent
+  summaries instead of leaving duplicate entries that still show it running.
+
 - Council grounding checks a later source claim even when an earlier clause
   describes the reviewer's own estimate or calculation.
 - Claude Code discovers native skill instructions while Codex loads its own

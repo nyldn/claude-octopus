@@ -478,7 +478,8 @@ run_watched_fixture() {
         fi
         unset OCTOPUS_AGENT_TIMEOUT OCTOPUS_TIMEOUT_EXPLICIT OCTOPUS_TIMEOUT_EXPLICIT_SECS
         TIMEOUT="$timeout"
-        if [[ "$scenario" == quota-injection || "$scenario" == terminated-injection ]]; then
+        if [[ "$scenario" == quota-held || "$scenario" == auth-held ||
+              "$scenario" == quota-injection || "$scenario" == terminated-injection ]]; then
             source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
         fi
         record_agent_start() { printf '%s\n' "call-$scenario"; }
@@ -1400,6 +1401,19 @@ else
     test_fail "terminal auth failure allowed another direct dispatch"
 fi
 rm -f "$(octo_quota_dead_file)" "$(octo_quota_dead_meta_file)"
+
+for task in quota-fast-fail auth-fast-fail; do
+    test_case "$task updates the original seat without leaving a running row"
+    if jq -e --arg seat "spawn-$task" --arg file "$RESULTS_DIR/fake-api-$task.md" '
+        .agents | map(select(.output_file == $file)) |
+        length == 1 and .[0].seat_id == $seat and .[0].status == "failed" and
+        .[0].transition == "failed" and .[0].contribution == "none"
+    ' "$WORKSPACE_DIR/runs/$OCTOPUS_RUN_ID/agents.json" >/dev/null; then
+        test_pass
+    else
+        test_fail "quota/auth completion split the failed seat from its running row"
+    fi
+done
 
 test_case "provider reset hints stay inside untrusted frames"
 run_watched_fixture quota-injection quota-reset-injection 30

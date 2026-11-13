@@ -121,6 +121,11 @@ Quickly assess:
 - What's the specific change?
 - Any dependencies or side effects?
 
+Inspect the existing index and working-tree diff before editing. Select only
+task-owned paths. If a selected file already contains unrelated changes, use a
+deliberate partial-commit workflow instead of quick mode. Leave unrelated files
+and their staged changes intact.
+
 ### Step 2: Make the Change
 
 Implement directly using appropriate tools:
@@ -133,16 +138,21 @@ Implement directly using appropriate tools:
 **Always create a descriptive commit:**
 
 ```bash
-# Stage changes
-git add [changed-files]
+# Replace this array with the exact task-owned paths, including deletions.
+QUICK_FILES=("path/to/task-file")
+git --literal-pathspecs add -- "${QUICK_FILES[@]}" || exit 1
 
-# Create commit with clear message
-git commit -m "quick: [brief description]
+# Commit only those paths; preserve unrelated staged files in the index.
+git --literal-pathspecs commit --only -m "quick: [brief description]
 
 [Detailed explanation if needed]
 
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" -- "${QUICK_FILES[@]}" || exit 1
 ```
+
+If staging or committing fails, stop the workflow. Do not record successful
+execution, generate a completion summary, or report an earlier commit as this
+task's result. Preserve the edits for recovery.
 
 **Commit message format:**
 - Prefix with `quick:` to indicate quick mode
@@ -221,10 +231,10 @@ echo "📝 Summary saved to: $summary_file"
 
 3. **Commit atomically**
    ```bash
-   git add README.md
-   git commit -m "quick: fix typo in README (recieve → receive)
+   git --literal-pathspecs add -- README.md || exit 1
+   git --literal-pathspecs commit --only -m "quick: fix typo in README (recieve → receive)
 
-   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+   Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" -- README.md || exit 1
    ```
 
 4. **Record in state**
