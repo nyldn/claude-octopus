@@ -100,6 +100,31 @@ class CodexReferences(unittest.TestCase):
                             self.assertEqual(result.returncode, 0, result.stderr)
                             self.assertTrue('+TAIL_REQUIRES_REVIEW' in capture.read_text(), 'diff tail was omitted')
 
+    def test_finish_branch_rejects_an_empty_diff(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
+            block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
+                         if '# Quick review via orchestrate.sh' in b)
+            with self.subTest(tree=tree), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                scripts = root / 'plugin/scripts'
+                scripts.mkdir(parents=True)
+                capture = root / 'review'
+                runner = scripts / 'orchestrate.sh'
+                runner.write_text('#!/bin/bash\nprintf "dispatched" > "$REVIEW_CAPTURE"\n')
+                runner.chmod(0o755)
+                subprocess.run(['git', 'init', '-q', '-b', 'main', temporary], check=True)
+                subprocess.run(['git', '-c', 'user.name=Fixture', '-c',
+                                'user.email=fixture@example.invalid', 'commit', '-q',
+                                '--allow-empty', '-m', 'base'], cwd=root, check=True)
+                env = dict(os.environ, MERGE_BASE='HEAD', CLAUDE_PLUGIN_ROOT=str(scripts.parent),
+                           REVIEW_CAPTURE=str(capture))
+                result = subprocess.run(['/bin/bash', '-c', block], cwd=root, env=env,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+                self.assertIn('no changes', result.stderr)
+                self.assertFalse(capture.exists(), 'reviewer dispatched with an empty diff')
+
     def test_staged_review_filters_and_retains_successful_answers(self):
         text = (ROOT / '.claude/skills/skill-staged-review/SKILL.md').read_text()
         block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)

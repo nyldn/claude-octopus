@@ -103,6 +103,10 @@ DIFF_FILES=$(git diff --name-only "${MERGE_BASE:?Restore the verified merge base
 # inside the reviewer prompt alone would not stop the outer command.
 : "${MERGE_BASE:?Restore the verified merge base}"
 REVIEW_DIFF=$(git diff "$MERGE_BASE..HEAD") || exit 1
+if [[ -z "$REVIEW_DIFF" ]]; then
+  echo "Review incomplete: no changes between $MERGE_BASE and HEAD." >&2
+  exit 1
+fi
 # Keep the command argument bounded without silently dropping any changed lines.
 REVIEW_DIFF_BYTES=$(printf '%s' "$REVIEW_DIFF" | wc -c) || exit 1
 if [[ "$REVIEW_DIFF_BYTES" -gt 65536 ]]; then
