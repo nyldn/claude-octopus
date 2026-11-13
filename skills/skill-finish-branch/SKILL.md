@@ -103,15 +103,24 @@ DIFF_FILES=$(git diff --name-only "${MERGE_BASE:?Restore the verified merge base
 # inside the reviewer prompt alone would not stop the outer command.
 : "${MERGE_BASE:?Restore the verified merge base}"
 REVIEW_DIFF=$(git diff "$MERGE_BASE..HEAD") || exit 1
+# Keep the command argument bounded without silently dropping any changed lines.
+REVIEW_DIFF_BYTES=$(printf '%s' "$REVIEW_DIFF" | wc -c) || exit 1
+if [[ "$REVIEW_DIFF_BYTES" -gt 65536 ]]; then
+  echo "Review incomplete: the full diff exceeds this quick-review transport. Use a complete file-based review before continuing." >&2
+  exit 1
+fi
 
 # Quick review via orchestrate.sh (uses available providers)
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
-$(printf '%s\n' "$REVIEW_DIFF" | head -500)"
+$REVIEW_DIFF" || exit 1
 ```
 
 **If critical issues found:** Present them and ask whether to fix or ship anyway.
 **If clean:** Continue to Step 3. Show a brief `✓ Review clean — no issues found`.
+Only report a clean review after the reviewer has completed and covered the
+entire diff. An oversized diff or failed dispatch leaves review incomplete;
+stop this workflow until a complete review is available.
 
 ---
 

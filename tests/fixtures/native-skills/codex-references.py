@@ -79,22 +79,26 @@ class CodexReferences(unittest.TestCase):
                 git('init', '-q', '-b', 'main')
                 git('commit', '-q', '--allow-empty', '-m', 'base')
                 base = git('rev-parse', 'HEAD')
-                (root / 'change.txt').write_text('verified change\n')
-                git('add', 'change.txt')
-                git('commit', '-qm', 'feature')
-                for merge_base in (None, 'missing-base', base):
-                    with self.subTest(tree=tree, merge_base=merge_base):
+                for merge_base, lines in ((None, 1), ('missing-base', 1), (base, 550), (base, 6000)):
+                    with self.subTest(tree=tree, merge_base=merge_base, lines=lines):
+                        (root / 'change.txt').write_text('reviewed line\n' * lines + 'TAIL_REQUIRES_REVIEW\n')
+                        git('add', 'change.txt')
+                        git('commit', '--allow-empty', '-qm', 'feature')
+                        capture = root / 'review'
+                        capture.unlink(missing_ok=True)
                         call_env = dict(env)
                         if merge_base is not None:
                             call_env['MERGE_BASE'] = merge_base
                         result = subprocess.run(['/bin/bash', '-c', block], cwd=root, env=call_env,
                                                 capture_output=True, text=True, timeout=5)
-                        if merge_base != base:
+                        if merge_base != base or lines == 6000:
                             self.assertNotEqual(result.returncode, 0, result.stderr)
-                            self.assertFalse((root / 'review').exists(), 'reviewer received no verified diff')
+                            self.assertFalse(capture.exists(), 'reviewer received an incomplete diff')
+                            if lines == 6000:
+                                self.assertIn('Review incomplete', result.stderr)
                         else:
                             self.assertEqual(result.returncode, 0, result.stderr)
-                            self.assertIn('+verified change', (root / 'review').read_text())
+                            self.assertTrue('+TAIL_REQUIRES_REVIEW' in capture.read_text(), 'diff tail was omitted')
 
     def test_staged_review_filters_and_retains_successful_answers(self):
         text = (ROOT / '.claude/skills/skill-staged-review/SKILL.md').read_text()
