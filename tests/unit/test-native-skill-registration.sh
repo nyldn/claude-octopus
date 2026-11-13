@@ -16,6 +16,12 @@ from pathlib import Path
 root = Path(sys.argv[1])
 manifest = json.loads((root / '.claude-plugin/plugin.json').read_text())
 registered = {path: (root / path / 'SKILL.md').read_text() for path in manifest['skills']}
+# These workflows consume agreed scope or ask the user during execution.
+# Native discovery must keep them in the conversation, just like command loaders.
+for name in ('flow-develop', 'flow-deliver', 'skill-debate'):
+    entry = registered['./skills/' + name]
+    frontmatter = entry.split('---', 2)[1]
+    assert not re.search(r'^context: fork\s*$', frontmatter, re.M), f'conversation-dependent workflow forks: {name}'
 for path, text in registered.items():
     assert 'Host: Codex CLI' not in text, f'Claude loads Codex instructions: {path}'
 native = list((root / '.claude/skills').glob('*/SKILL.md'))

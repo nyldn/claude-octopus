@@ -547,18 +547,8 @@ done
 echo ""
 echo "=== 7. Skill Frontmatter ==="
 
-# Debate keeps its fork; provider workflows need a writable execution context.
-for skill in skill-debate; do
-    skill_path="$(resolve_claude_skill_path "$skill")"
-    if [[ -f "$skill_path" ]] && grep -q '^context: fork' "$skill_path"; then
-        pass "$skill.md has context: fork"
-    else
-        fail "$skill.md has context: fork" "missing or file not found"
-    fi
-done
-
-# Read-only built-in agents cannot dispatch providers or write their reports.
-for skill in skill-prd skill-code-review skill-deep-research flow-discover flow-define skill-ui-ux-design skill-content-pipeline; do
+# Workflows need conversation scope, user questions and writable provider dispatch.
+for skill in skill-prd skill-code-review skill-deep-research flow-discover flow-define flow-develop flow-deliver skill-debate skill-ui-ux-design skill-content-pipeline; do
     skill_path="$(resolve_claude_skill_path "$skill")"
     if [[ -f "$skill_path" ]] && ! grep -qE '^agent: (Explore|Plan)$|^context: fork$' "$skill_path"; then
         pass "$skill.md preserves a writable execution context"
