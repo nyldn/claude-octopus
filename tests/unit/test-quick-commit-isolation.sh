@@ -10,6 +10,7 @@ if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY'
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -31,8 +32,10 @@ class QuickCommit(unittest.TestCase):
             primary = re.search(r'```bash\n(.*?)\n```', primary, re.S)[1]
             example = text.split('## Complete Example', 1)[1]
             example = next(block for block in re.findall(r'```bash\n(.*?)\n\s*```', example, re.S)
-                           if 'git commit' in block)
+                           if re.search(r'git(?: --literal-pathspecs)? commit', block))
             for label, recipe, filename in [('primary', primary, 'task file.txt'),
+                                             ('brackets', primary, 'file[1].txt'),
+                                             ('pathspec magic', primary, ':(glob)*.txt'),
                                              ('example', example, 'README.md')]:
                 for scenario in ('modified', 'new', 'deleted', 'rejected'):
                     with self.subTest(entry=str(entry), recipe=label, scenario=scenario):
@@ -51,7 +54,7 @@ class QuickCommit(unittest.TestCase):
 
             git('init', '-q', '-b', 'main')
             task = repo / filename
-            other = repo / 'unrelated.txt'
+            other = repo / 'file1.txt'
             other.write_text('original\n')
             if scenario != 'new':
                 task.write_text('original\n')
@@ -59,8 +62,8 @@ class QuickCommit(unittest.TestCase):
             git('commit', '-qm', 'base')
             before = git('rev-parse', 'HEAD')
             other.write_text('user staged bytes\n')
-            git('add', '--', 'unrelated.txt')
-            staged = git('show', ':unrelated.txt')
+            git('add', '--', 'file1.txt')
+            staged = git('show', ':file1.txt')
             other.write_text('user unstaged bytes\n')
             if scenario == 'deleted':
                 task.unlink()
@@ -70,11 +73,10 @@ class QuickCommit(unittest.TestCase):
                 hook = repo / '.git/hooks/pre-commit'
                 hook.write_text('#!/bin/sh\nexit 1\n')
                 hook.chmod(0o755)
-            recipe = recipe.replace('git add [changed-files]', 'git add -- "task file.txt"')
-            recipe = recipe.replace('"path/to/task-file"', '"task file.txt"')
+            recipe = recipe.replace('"path/to/task-file"', shlex.quote(filename))
             result = subprocess.run(['bash', '-c', recipe + '\nprintf done > reached-state'],
                                     cwd=repo, env=env, capture_output=True, text=True, timeout=10)
-            self.assertEqual(git('show', ':unrelated.txt'), staged)
+            self.assertEqual(git('show', ':file1.txt'), staged)
             self.assertEqual(other.read_text(), 'user unstaged bytes\n')
             if scenario == 'rejected':
                 self.assertNotEqual(result.returncode, 0, result.stdout)

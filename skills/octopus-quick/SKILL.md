@@ -135,10 +135,10 @@ Implement directly using appropriate tools:
 ```bash
 # Replace this array with the exact task-owned paths, including deletions.
 QUICK_FILES=("path/to/task-file")
-git add -- "${QUICK_FILES[@]}" || exit 1
+git --literal-pathspecs add -- "${QUICK_FILES[@]}" || exit 1
 
 # Commit only those paths; preserve unrelated staged files in the index.
-git commit --only -m "quick: [brief description]
+git --literal-pathspecs commit --only -m "quick: [brief description]
 
 [Detailed explanation if needed]
 
@@ -224,8 +224,8 @@ echo "📝 Summary saved to: $summary_file"
 
 3. **Commit atomically**
    ```bash
-   git add -- README.md || exit 1
-   git commit --only -m "quick: fix typo in README (recieve → receive)
+   git --literal-pathspecs add -- README.md || exit 1
+   git --literal-pathspecs commit --only -m "quick: fix typo in README (recieve → receive)
 
    Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" -- README.md || exit 1
    ```
