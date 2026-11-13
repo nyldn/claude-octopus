@@ -73,9 +73,7 @@ sys.exit(1 if mode == "failed" else 0)
         self.env.pop('OCTOPUS_PROJECT_PERSISTENCE', None)
         self.env.update(HOME=str(self.home), CLAUDE_PLUGIN_DATA=str(self.workspace),
                         CLAUDE_CODE_SESSION_ID='session-a', FIXTURE_RESULTS=str(self.results),
-                        TMPDIR=str(self.home), OCTOPUS_WORKFLOW_INVOCATION_ID='marker',
-                        research_intensity='quick', research_question='fixture',
-                        focus_choice='technical', format_choice='summary')
+                        TMPDIR=str(self.home), OCTOPUS_WORKFLOW_INVOCATION_ID='marker')
 
     def skill_command(self, phase, generated=False):
         name = ('octopus-research' if generated else 'skill-deep-research') if phase == 'probe' else (
@@ -99,16 +97,7 @@ sys.exit(1 if mode == "failed" else 0)
                         self.assertNotEqual(result.returncode, 0, result.stdout)
                         self.assertNotIn('VALIDATION PASSED', result.stdout)
 
-    def test_research_does_not_search_other_sessions(self):
-        for generated in (False, True):
-            for directory in (self.workspace / 'results', self.workspace / 'results/session-b'):
-                directory.mkdir(exist_ok=True)
-                self.env['FIXTURE_RESULTS'] = str(directory)
-                result = self.run_skill('probe', generated=generated)
-                self.assert_rejected(result, 'does not belong to this invocation')
-
     def test_actual_probe_writer_binds_its_invocation(self):
-        self.actual_probe_report()
         result = self.validator(self.actual_probe_report, 'probe')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('probe-synthesis-fixture.md', result.stdout)
@@ -135,7 +124,8 @@ synthesize_probe_results fixture 'Current question' 1
     def run_skill(self, phase, mode='complete', generated=False):
         self.env['FIXTURE_MODE'] = mode
         return subprocess.run(['bash', '-c', self.skill_command(phase, generated)],
-                              env=self.env, cwd=self.home, text=True,
+                              env=dict(self.env, research_intensity='quick', research_question='fixture',
+                                       focus_choice='technical', format_choice='summary'), cwd=self.home, text=True,
                               capture_output=True, timeout=15)
 
     def assert_rejected(self, result, diagnostic):
@@ -684,8 +674,9 @@ sys.exit(m.main())
         for directory in (self.workspace / 'results', self.workspace / 'results/session-b'):
             directory.mkdir(exist_ok=True)
             self.env['FIXTURE_RESULTS'] = str(directory)
-            result = self.run_skill('deliver')
-            self.assert_rejected(result, 'does not belong to this invocation')
+            for phase, generated in (('deliver', False), ('probe', False), ('probe', True)):
+                result = self.run_skill(phase, generated=generated)
+                self.assert_rejected(result, 'does not belong to this invocation')
 
     def test_workspace_override_without_plugin_data(self):
         self.env.pop('CLAUDE_PLUGIN_DATA')
