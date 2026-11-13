@@ -112,7 +112,9 @@ test_case "authoring: records the native explicit-invocation contract"
 if [[ -f "$AU" ]] \
     && grep -q "disable-model-invocation: true" "$AU" \
     && grep -Fq 'Claude Code: read `.claude-plugin/plugin.json`' "$AU" \
-    && grep -Fq 'codex-skills/<registered-name>/SKILL.md' "$AU" \
+    && grep -Fq 'codex-skills/skill-authoring/SKILL.md' "$AU" \
+    && grep -Fq 'codex-skills/octopus-starter-pack/debate-kickoff/SKILL.md' "$AU" \
+    && grep -q 'full relative path' "$AU" \
     && grep -q 'absolute entry path supplied by the host' "$AU" \
     && grep -q 'Accept exactly one matching ancestor as the plugin root' "$AU" \
     && grep -q 'Load the complete' "$AU" \

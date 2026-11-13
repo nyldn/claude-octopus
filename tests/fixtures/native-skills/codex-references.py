@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise generated host routes without invoking a model or changing logins."""
 import re
+import os
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,44 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_staged_review_filters_and_retains_successful_answers(self):
+        text = (ROOT / '.claude/skills/skill-staged-review/SKILL.md').read_text()
+        block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
+                     if 'REVIEW_OUTPUT_DIR=$(mktemp' in b)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'scripts/lib').mkdir(parents=True)
+            (root / 'bin').mkdir()
+            (root / 'scripts/lib/consultative-advisors.sh').write_text(
+                'octo_provider_allowed() { [[ ",$OCTO_ALLOWED_PROVIDERS," == *",$1,"* ]]; }\n'
+                'octo_launch_advisors() { printf "successful codex review" > "$3/${4}codex.md"; }\n')
+            launcher = root / 'scripts/orchestrate.sh'
+            launcher.write_text('#!/bin/bash\nprintf "failed agy partial"\nexit 1\n')
+            launcher.chmod(0o755)
+            for name in ('codex', 'agy'):
+                binary = root / 'bin' / name
+                binary.write_text('#!/bin/bash\nexit 0\n')
+                binary.chmod(0o755)
+            for allowed in ('codex', 'codex,agy', ''):
+                env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(root), DIFF_CONTENT='fixture diff',
+                           OCTO_ALLOWED_PROVIDERS=allowed, PATH=str(root / 'bin') + ':' + os.environ['PATH'])
+                result = subprocess.run(['/bin/bash', '-eu', '-c', block], env=env,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertNotIn('failed agy partial', result.stdout)
+                if 'codex' in allowed:
+                    self.assertIn('successful codex review', result.stdout)
+                else:
+                    self.assertIn('No allowed external provider', result.stdout)
+                if 'agy' in allowed:
+                    self.assertIn('review incomplete', result.stdout)
+                    self.assertIn('Provider review incomplete: agy', result.stderr)
+                else:
+                    self.assertNotIn('Provider review incomplete', result.stderr)
+                output = next(line.split('=', 1)[1] for line in result.stdout.splitlines()
+                              if line.startswith('REVIEW_OUTPUT_DIR='))
+                shutil.rmtree(output)
+
     def test_finish_branch_resolves_real_default_refs_before_review(self):
         text = (ROOT / '.claude/skills/skill-finish-branch/SKILL.md').read_text()
         block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
