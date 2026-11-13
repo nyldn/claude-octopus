@@ -178,11 +178,11 @@ Read validation file and present:
 - Critical issues (must fix before ship)
 - Warnings (should fix)
 
-**If FAILED with critical issues:**
+**If FAILED, missing, incomplete, or unreadable:**
 ```markdown
 ## Audit Failed - Cannot Ship
 
-Critical issues must be resolved before shipping:
+The required audit must pass before shipping. Report its failure reasons:
 
 1. [Issue 1 from validation]
 2. [Issue 2 from validation]
@@ -190,7 +190,9 @@ Critical issues must be resolved before shipping:
 Resolve issues and run `/octo:ship` again.
 ```
 
-**STOP if critical issues found.**
+**STOP for every failed audit, even if it lists no critical issues.** Do not
+capture a shipped state, archive the project, create a shipped checkpoint, or
+report completion until the required audit has passed.
 
 ---
 
@@ -325,11 +327,22 @@ EOF
 
 #### Step 2: Create Shipped Checkpoint
 
+A tag records committed files only. After generating the delivery records above,
+review their diff and preserve all delivered work in a user-authorized commit.
+Do not commit unrelated changes automatically. If committing is not authorized,
+stop with delivery finalization pending. Never claim the tag includes dirty or
+ignored files; report any intentionally untracked delivery artifacts separately.
+
 ```bash
-# Create git checkpoint tag
+SHIP_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+if [[ -n "$SHIP_STATUS" ]]; then
+  echo "Checkpoint pending: review and commit delivered work before tagging." >&2
+  exit 1
+fi
+# Create git checkpoint tag only after the delivered revision is committed.
 CHECKPOINT_TAG="octo-checkpoint-shipped-${ARCHIVE_TIMESTAMP}"
 
-git tag -a "$CHECKPOINT_TAG" -m "Project shipped - $(date '+%Y-%m-%d %H:%M:%S')"
+git tag -a "$CHECKPOINT_TAG" -m "Project shipped - $(date '+%Y-%m-%d %H:%M:%S')" || exit 1
 
 echo "Checkpoint created: $CHECKPOINT_TAG"
 ```

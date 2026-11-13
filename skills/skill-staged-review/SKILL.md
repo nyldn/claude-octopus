@@ -177,6 +177,9 @@ DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/nul
 
 **If external providers are available — dispatch focused reviews through Octopus routing:**
 ```bash
+# Keep each run's outputs separate. Carry this exact directory into collection
+# and read only files inside it; never search another review's output files.
+REVIEW_OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-staged-review.XXXXXX") || exit 1
 providers=()
 command -v codex >/dev/null 2>&1 && providers+=(codex)
 command -v agy >/dev/null 2>&1 && providers+=(agy)
@@ -194,7 +197,7 @@ for provider in "${providers[@]}"; do
 Report ONLY high-confidence issues. Do NOT flag style preferences.
 
 DIFF:
-${DIFF_CONTENT}" > "/tmp/octopus-review-${safe_provider}.md" 2>/dev/null &
+${DIFF_CONTENT}" > "${REVIEW_OUTPUT_DIR:?}/${safe_provider}.md" 2>/dev/null &
 done
 ```
 

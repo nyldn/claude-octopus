@@ -163,9 +163,12 @@ working tree. Preserve any unrelated changes separately.
 ### Step 5: Preserve LESSONS.md
 
 ```bash
-# Save current LESSONS.md if it exists
+# Create a private backup for this rollback only. Carry both values into the
+# restore shell; never infer the directory from another rollback's files.
+LESSONS_BACKUP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-rollback-lessons.XXXXXX") || exit 1
+LESSONS_PRESERVED=false
 if [ -f ".octo/LESSONS.md" ]; then
-  cp .octo/LESSONS.md /tmp/LESSONS_PRESERVED.md
+  cp .octo/LESSONS.md "$LESSONS_BACKUP_DIR/LESSONS.md" || exit 1
   LESSONS_PRESERVED=true
 fi
 ```
@@ -181,12 +184,18 @@ if [[ -n "$ROLLBACK_STATUS" ]]; then
 fi
 
 # Restore files from checkpoint (does NOT move HEAD)
-git checkout $CHECKPOINT_TAG -- .
+git checkout "$CHECKPOINT_TAG" -- . || exit 1
 
 # Restore preserved LESSONS.md
-if [ "$LESSONS_PRESERVED" = "true" ]; then
-  cp /tmp/LESSONS_PRESERVED.md .octo/LESSONS.md
+if [ "${LESSONS_PRESERVED:?Restore the backup state for this rollback}" = "true" ]; then
+  mkdir -p .octo || exit 1
+  cp "${LESSONS_BACKUP_DIR:?Restore the private backup path for this rollback}/LESSONS.md" .octo/LESSONS.md || exit 1
 fi
+# Remove only this invocation's backup after successful restoration. On failure,
+# retain it and report its path so recovery remains possible.
+rmdir "${LESSONS_BACKUP_DIR:?}" 2>/dev/null || {
+  rm "$LESSONS_BACKUP_DIR/LESSONS.md" && rmdir "$LESSONS_BACKUP_DIR"
+}
 ```
 
 **Important:** This uses `git checkout <tag> -- .` which:
