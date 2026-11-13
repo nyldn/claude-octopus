@@ -83,7 +83,20 @@ run_scenario() {
     unset RESEARCH_RUN_DIR RESEARCH_RUN_ID RESEARCH_TASK_GROUP RESEARCH_PROMPT RESEARCH_INTENSITY
 }
 
+# Exercise repaired publication through the actual invocation gate.
+export OCTOPUS_WORKFLOW_INVOCATION_ID='repair-marker'
+marker="$TEST_ROOT/$OCTOPUS_WORKFLOW_INVOCATION_ID"
+touch "$marker"
 run_scenario "fixed" "$ELIDED_LINE" "$GOOD_LINE"
+
+test_case "a repaired synthesis retains invocation framing for the real validator"
+if CLAUDE_PLUGIN_DATA="$TEST_ROOT" OCTOPUS_HOST=codex CODEX_SESSION_ID= CODEX_TASK_ID= \
+    "$SCRIPT_DIR/../../scripts/helpers/workflow-result.sh" probe "$marker" "$scenario_status" >/dev/null; then
+    test_pass
+else
+    test_fail "repaired synthesis was published but rejected by the workflow validator"
+fi
+unset OCTOPUS_WORKFLOW_INVOCATION_ID
 
 test_case "an elided citation is repaired once and the synthesis is published"
 if [[ "$scenario_status" -eq 0 && "$agent_calls" -eq 2 ]] \

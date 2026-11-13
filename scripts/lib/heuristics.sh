@@ -266,9 +266,14 @@ probe_synthesis_repair() {
     [[ -n "$findings" ]] || return 1
 
     log WARN "Probe synthesis failed evidence verification; asking '$agent' for one repair pass"
-    local numbered_draft repair_prompt repaired
-    numbered_draft=$(awk '{ printf "%d\t%s\n", NR, $0 }' "$draft_file")
-    repair_prompt="The research synthesis below failed mechanical evidence verification. Return the complete corrected document and nothing else: no preamble and no code fence around it.
+    local numbered_draft repair_prompt repaired header footer
+    # Framing belongs to the launcher, not the model performing citation repair.
+    header=$(head -n 4 "$draft_file")
+    footer=$(tail -n 2 "$draft_file")
+    numbered_draft=$(awk 'NR > 4 { lines[NR] = $0 } END {
+        for (i = 5; i < NR - 2; i++) printf "%d\t%s\n", i, lines[i]
+    }' "$draft_file")
+    repair_prompt="The research synthesis body below failed mechanical evidence verification. Return the complete corrected body and nothing else: no preamble and no code fence around it. The launcher preserves its title, invocation metadata, task header and completion footer separately; do not return those framing lines.
 
 Fix every listed finding and keep all other content, structure and headings. Do not add new claims.
 - missing_citation: the line makes a claim without a valid citation. Add a catalog ID as [source:S001], cite a workspace-relative path with line numbers (src/app.ts:42, src/app.ts:40-48 or src/app.ts:12,40), or mark the claim [inference]. A bare :42, a basename that is not a workspace path, or a path elided after its first mention is not a citation: repeat the full path on every line that cites it.
@@ -297,7 +302,9 @@ ${numbered_draft}"
         rm -f "$normalized"
         return 1
     fi
-    if ! mv "$normalized" "$draft_file"; then
+    repaired=$(cat "$normalized")
+    if ! printf '%s\n\n%s\n\n%s\n' "$header" "$repaired" "$footer" > "$normalized" \
+       || ! mv "$normalized" "$draft_file"; then
         rm -f "$normalized"
         return 1
     fi
