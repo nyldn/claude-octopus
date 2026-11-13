@@ -186,7 +186,8 @@ fi
 # Restore files from checkpoint (does NOT move HEAD)
 # No-overlay also removes tracked files added after the checkpoint. Keep lessons
 # out of both index and worktree restoration so accumulated knowledge survives.
-git checkout --no-overlay "$CHECKPOINT_TAG" -- . ':(exclude).octo/LESSONS.md' || exit 1
+# Run checkout from the repository root even when this shell is in a subdirectory.
+git -C "$(git rev-parse --show-toplevel)" checkout --no-overlay "$CHECKPOINT_TAG" -- . ':(exclude).octo/LESSONS.md' || exit 1
 
 # Restore preserved LESSONS.md
 if [ "$LESSONS_PRESERVED" = "true" ]; then
@@ -194,7 +195,7 @@ if [ "$LESSONS_PRESERVED" = "true" ]; then
 fi
 ```
 
-**Important:** This uses `git checkout --no-overlay <tag> -- . ':(exclude).octo/LESSONS.md'` which:
+**Important:** This runs `git checkout --no-overlay <tag> -- . ':(exclude).octo/LESSONS.md'` from the repository root, which:
 - Restores tracked files to checkpoint state, including additions and deletions
 - Preserves current `.octo/LESSONS.md` in both the index and working tree
 - Does NOT move HEAD or change branch

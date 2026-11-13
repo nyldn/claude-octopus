@@ -38,6 +38,9 @@ with tempfile.TemporaryDirectory() as temporary:
     lessons = repo / '.octo/LESSONS.md'
     lessons.parent.mkdir()
     lessons.write_text('checkpoint lessons\n')
+    nested = repo / 'nested'
+    nested.mkdir()
+    (nested / 'inside.txt').write_text('nested checkpoint\n')
     git('add', '.')
     git('commit', '-qm', 'checkpoint')
     git('tag', 'octo-checkpoint-fixture')
@@ -46,6 +49,7 @@ with tempfile.TemporaryDirectory() as temporary:
     added = repo / 'added since checkpoint.txt'
     added.write_text('remove this file on rollback\n')
     lessons.write_text('current lessons must survive\n')
+    (nested / 'inside.txt').write_text('nested current\n')
     git('add', '-A')
     git('commit', '-qm', 'current')
     head = git('rev-parse', 'HEAD')
@@ -79,11 +83,12 @@ with tempfile.TemporaryDirectory() as temporary:
     untracked.unlink()
     git('reset', '--hard', '-q', 'HEAD')
     for step in (2, 4, 6):
-        result = subprocess.run(['bash', '-c', recipe(step)], cwd=repo, env=env,
+        result = subprocess.run(['bash', '-c', recipe(step)], cwd=nested if step == 6 else repo, env=env,
                                 capture_output=True, timeout=5)
         assert result.returncode == 0, (step, result.stdout, result.stderr)
         checks += 1
     assert path.read_text() == 'checkpoint\n'
+    assert (nested / 'inside.txt').read_text() == 'nested checkpoint\n'
     assert not added.exists(), 'rollback retained a tracked file absent from the checkpoint'
     assert removed.read_text() == 'restore this file\n'
     assert lessons.read_text() == 'current lessons must survive\n'
@@ -101,11 +106,12 @@ with tempfile.TemporaryDirectory() as temporary:
     checks += 1
     git('commit', '-qm', 'preserve restored state')
     for step in (2, 6):
-        result = subprocess.run(['bash', '-c', recipe(step)], cwd=repo, env=recovery_env,
+        result = subprocess.run(['bash', '-c', recipe(step)], cwd=nested if step == 6 else repo, env=recovery_env,
                                 capture_output=True, timeout=5)
         assert result.returncode == 0, (step, result.stdout, result.stderr)
         checks += 1
     assert path.read_text() == 'current commit\n'
+    assert (nested / 'inside.txt').read_text() == 'nested current\n'
     assert added.read_text() == 'remove this file on rollback\n'
     assert not removed.exists(), 'safety recovery retained a file absent from its checkpoint'
     assert lessons.read_text() == 'current lessons must survive\n'
