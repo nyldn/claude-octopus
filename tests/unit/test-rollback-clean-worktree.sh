@@ -35,6 +35,11 @@ with tempfile.TemporaryDirectory() as temporary:
     path.write_text('checkpoint\n')
     removed = repo / 'removed since checkpoint.txt'
     removed.write_text('restore this file\n')
+    newline = repo / 'ignored\nlocal.txt'
+    newline.write_text('checkpoint newline path\n')
+    historical = repo / 'historical'
+    historical.mkdir()
+    (historical / 'config.env').write_text('checkpoint config\n')
     lessons = repo / '.octo/LESSONS.md'
     lessons.parent.mkdir()
     lessons.write_text('checkpoint lessons\n')
@@ -46,6 +51,9 @@ with tempfile.TemporaryDirectory() as temporary:
     git('tag', 'octo-checkpoint-fixture')
     path.write_text('current commit\n')
     removed.unlink()
+    newline.unlink()
+    (historical / 'config.env').unlink()
+    historical.rmdir()
     added = repo / 'added since checkpoint.txt'
     added.write_text('remove this file on rollback\n')
     lessons.write_text('current lessons must survive\n')
@@ -82,6 +90,27 @@ with tempfile.TemporaryDirectory() as temporary:
             checks += 1
     untracked.unlink()
     git('reset', '--hard', '-q', 'HEAD')
+    # Ignored local files do not appear in the ordinary clean-tree guard.
+    (repo / '.git/info/exclude').write_text('*\n')
+    cache = repo / 'unrelated.cache'
+    cache.write_text('keep ignored cache\n')
+    for collision in (removed, newline, historical, removed / 'local.env'):
+        collision.parent.mkdir(exist_ok=True)
+        collision.write_text('ignored local data\n')
+        assert not git('status', '--porcelain=v1', '--untracked-files=all')
+        before_index = git('diff', '--cached', '--binary')
+        result = subprocess.run(['bash', '-c', recipe(6)], cwd=nested, env=env,
+                                capture_output=True, timeout=5)
+        assert result.returncode != 0, ('rollback overwrote ignored local files', collision)
+        assert b'ignored local files' in result.stderr, result.stderr
+        assert collision.read_text() == 'ignored local data\n'
+        assert git('diff', '--cached', '--binary') == before_index
+        assert path.read_text() == 'current commit\n'
+        assert git('rev-parse', 'HEAD') == head and git('tag', '-l') == clean_tags
+        checks += 1
+        collision.unlink()
+        if collision.parent == removed:
+            removed.rmdir()
     for step in (2, 4, 6):
         result = subprocess.run(['bash', '-c', recipe(step)], cwd=nested if step == 6 else repo, env=env,
                                 capture_output=True, timeout=5)
@@ -92,6 +121,7 @@ with tempfile.TemporaryDirectory() as temporary:
     assert not added.exists(), 'rollback retained a tracked file absent from the checkpoint'
     assert removed.read_text() == 'restore this file\n'
     assert lessons.read_text() == 'current lessons must survive\n'
+    assert cache.read_text() == 'keep ignored cache\n'
     assert git('show', ':.octo/LESSONS.md') == b'current lessons must survive\n'
     assert not git('diff', '--cached', 'octo-checkpoint-fixture', '--', '.', ':(exclude).octo/LESSONS.md')
     checks += 1

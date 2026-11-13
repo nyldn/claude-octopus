@@ -187,7 +187,34 @@ fi
 # No-overlay also removes tracked files added after the checkpoint. Keep lessons
 # out of both index and worktree restoration so accumulated knowledge survives.
 # Run checkout from the repository root even when this shell is in a subdirectory.
-git -C "$(git rev-parse --show-toplevel)" checkout --no-overlay "$CHECKPOINT_TAG" -- . ':(exclude).octo/LESSONS.md' || exit 1
+ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
+# Ordinary status omits ignored local files. Refuse collisions before any write,
+# including file/directory replacements; NUL-delimited paths retain newlines.
+python3 -I - "$ROLLBACK_ROOT" "$CHECKPOINT_TAG" <<'PY_IGNORED' || exit 1
+from bisect import bisect_left
+import subprocess
+import sys
+
+root, checkpoint = sys.argv[1:]
+ignored = set(subprocess.check_output([
+    'git', '-C', root, 'ls-files', '--others', '--ignored', '--exclude-standard', '-z',
+]).split(b'\0')) - {b''}
+ordered = sorted(ignored)
+targets = subprocess.check_output([
+    'git', '-C', root, 'ls-tree', '-r', '--name-only', '-z', checkpoint, '--',
+]).split(b'\0')
+for target in targets:
+    if not target or target == b'.octo/LESSONS.md' or target.startswith(b'.octo/LESSONS.md/'):
+        continue
+    parts = target.split(b'/')
+    prefixes = (b'/'.join(parts[:length]) for length in range(1, len(parts) + 1))
+    descendant = bisect_left(ordered, target + b'/')
+    if any(path in ignored for path in prefixes) or (
+        descendant < len(ordered) and ordered[descendant].startswith(target + b'/')
+    ):
+        sys.exit('Rollback would overwrite ignored local files. Preserve them before retrying.')
+PY_IGNORED
+git -C "$ROLLBACK_ROOT" checkout --no-overlay "$CHECKPOINT_TAG" -- . ':(exclude).octo/LESSONS.md' || exit 1
 
 # Restore preserved LESSONS.md
 if [ "$LESSONS_PRESERVED" = "true" ]; then
