@@ -306,6 +306,7 @@ fake_orch="$TEST_TMP_DIR/orch-sync-failed"
 cat > "$fake_orch" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' 'answer printed before provider failure'
+printf '%s\n' 'provider failure diagnostic' >&2
 exit 7
 SH
 chmod +x "$fake_orch"
@@ -314,7 +315,8 @@ out="$TEST_TMP_DIR/sync-failed"
 mkdir -p "$out"
 rc=0
 count="$(octo_launch_advisors "$fake_orch" agy "$out" t- x 1 2>"$out/error")" || rc=$?
-if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-agy.md" ]]; then
+if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-agy.md" ]] && \
+   grep -q "provider failure diagnostic" "$out/error"; then
     test_pass
 else
     test_fail "rc=$rc count='$count'"
@@ -540,7 +542,7 @@ else
 fi
 
 test_case "late synchronous jobs do not keep the caller stderr pipe open"
-if python3 - "$PROJECT_ROOT" <<'PY_PIPE'
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR/stderr-capture.err" <<'PY_PIPE'
 import os, signal, subprocess, sys, tempfile, time
 from pathlib import Path
 with tempfile.TemporaryDirectory() as temporary:
@@ -559,6 +561,7 @@ with tempfile.TemporaryDirectory() as temporary:
         started = time.monotonic()
         result = subprocess.run(['bash', '-c', command, 'fixture', sys.argv[1], str(orch), str(output)],
                                 capture_output=True, text=True, timeout=5)
+        Path(sys.argv[2]).write_text(result.stderr)
         assert result.returncode != 0
         assert time.monotonic() - started < 5
         assert 'late diagnostic' not in result.stderr
@@ -568,5 +571,6 @@ with tempfile.TemporaryDirectory() as temporary:
             except ProcessLookupError: pass
 PY_PIPE
 then test_pass; else test_fail "a late spawn retained the caller stderr pipe"; fi
+cleanup_retained_advisor_files "$TEST_TMP_DIR/stderr-capture.err"
 
 test_summary

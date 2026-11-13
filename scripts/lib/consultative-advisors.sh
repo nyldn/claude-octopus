@@ -295,6 +295,13 @@ octo_launch_advisors() {
            _octo_advisor_collect "${advisor_events[$index]}" "${advisor_spawn_out[$index]}" \
                "$response_file" "$deadline"; then
             successful_count=$((successful_count + 1))
+        elif ! kill -0 "$pid" 2>/dev/null; then
+            # The launcher has exited, so its stderr is closed. Preserve failure
+            # diagnostics before cleanup without following a still-running job.
+            local completed_stderr="${advisor_spawn_out[$index]%.spawn}.stderr"
+            if [[ -s "$completed_stderr" ]]; then
+                cat "$completed_stderr" >&2
+            fi
         fi
         index=$((index + 1))
     done
