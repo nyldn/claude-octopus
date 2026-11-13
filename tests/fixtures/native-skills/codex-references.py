@@ -31,7 +31,7 @@ class CodexReferences(unittest.TestCase):
             (root / 'bin').mkdir()
             (root / 'scripts/lib/consultative-advisors.sh').write_text(
                 'octo_provider_allowed() { [[ ",$OCTO_ALLOWED_PROVIDERS," == *",$1,"* ]]; }\n'
-                'octo_launch_advisors() { printf "successful codex review" > "$3/${4}codex.md"; }\n')
+                'octo_launch_advisors() { [[ "$OCTOPUS_ADVISOR_WAIT_SECONDS" == 600 ]] || return 2; [[ "$2" != agy ]] || return 1; printf "successful codex review" > "$3/${4}codex.md"; }\n')
             launcher = root / 'scripts/orchestrate.sh'
             launcher.write_text('#!/bin/bash\nprintf "failed agy partial"\nexit 1\n')
             launcher.chmod(0o755)

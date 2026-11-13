@@ -201,17 +201,12 @@ DIFF:
 ${DIFF_CONTENT}"
 collector_pids=()
 for provider in ${providers[@]+"${providers[@]}"}; do
-  if [[ "$provider" == codex ]]; then
-    # The collector assigns a unique task ID, waits for the worker's terminal
-    # lifecycle event, verifies SUCCESS and extracts the result body.
-    OCTOPUS_ADVISOR_WAIT_SECONDS=600 octo_launch_advisors \
-      "$REVIEW_ROOT/scripts/orchestrate.sh" "$provider" "$REVIEW_OUTPUT_DIR" \
-      'review-' "$REVIEW_PROMPT" 1 > "$REVIEW_OUTPUT_DIR/codex-count.txt" &
-  else
-    # Antigravity's routed spawn path returns the answer synchronously.
-    "$REVIEW_ROOT/scripts/orchestrate.sh" spawn "$provider" "$REVIEW_PROMPT" \
-      > "$REVIEW_OUTPUT_DIR/review-agy.md" &
-  fi
+  # Both asynchronous workers and synchronous Antigravity dispatch use the
+  # collector deadline. Late jobs retain lifecycle evidence and count as
+  # incomplete, so they cannot block presentation of completed reviews.
+  OCTOPUS_ADVISOR_WAIT_SECONDS=600 octo_launch_advisors \
+    "$REVIEW_ROOT/scripts/orchestrate.sh" "$provider" "$REVIEW_OUTPUT_DIR" \
+    'review-' "$REVIEW_PROMPT" 1 > "$REVIEW_OUTPUT_DIR/${provider}-count.txt" &
   collector_pids+=("$!")
 done
 review_failed=false
