@@ -284,11 +284,12 @@ body_has_enforcement() {
 }
 
 generated_enforcement_block() {
-    cat <<'EOF'
+    local host="${1:-Codex}"
+    cat <<EOF
 
 ## Execution Contract (MANDATORY - CANNOT SKIP)
 
-This generated Codex skill preserves an enforced workflow contract from the source skill.
+This generated ${host} skill preserves an enforced workflow contract from the source skill.
 
 **PROHIBITED:**
 - Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
@@ -554,6 +555,12 @@ write_native_skill() {
     # Preserve native frontmatter and tools. Only a compatibility alias changes name.
     awk -v name="$name" '!renamed && /^name:/ { print "name: " name; renamed=1; next } { print }' \
         "$file" > "$target/SKILL.md"
+    # Canonical preserved entries carry their contract in their own resources.
+    # Do not append generated text to a tree that is itself an authored input.
+    if [[ "$name" != flow-discover && "$name" != skill-refine ]] &&
+       source_has_enforced_execution "$file" && ! body_has_enforcement "$file"; then
+        generated_enforcement_block "Claude Code" | sed '${/^$/d;}' >> "$target/SKILL.md"
+    fi
 }
 
 # --- Main ---

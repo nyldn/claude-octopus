@@ -28,14 +28,6 @@ paths:
 
 Invokes the security-auditor persona for thorough security analysis during the `ink` (deliver) phase. Supports both quick OWASP scanning and full adversarial red/blue team testing.
 
-## EXECUTION CONTRACT (MANDATORY)
-
-Run the selected audit through the installed orchestrator within the user's
-approved scope and provider constraints. Inspect the returned artifact before
-reporting findings. A refused, failed, or missing provider result is incomplete;
-report the gap instead of claiming the audit passed. Redact credentials before
-sharing evidence or sending it to a provider.
-
 ## Usage
 
 ```bash

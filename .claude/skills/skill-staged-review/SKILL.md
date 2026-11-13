@@ -22,14 +22,6 @@ Separates **spec compliance** (did you build the right thing?) from **code quali
 
 ---
 
-## EXECUTION CONTRACT (MANDATORY)
-
-Check the intent contract before code-quality review. Run the required provider
-review through the installed orchestrator within the user's provider and billing
-constraints. Inspect its output before recording a verdict. Failed launches,
-missing output, and partial specification evidence leave the review incomplete.
-Do not mark either stage complete without its evidence.
-
 ## Stage 1: Spec Compliance
 
 Validates the implementation against the intent contract.

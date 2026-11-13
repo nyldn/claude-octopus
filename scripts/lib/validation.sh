@@ -84,61 +84,21 @@ validate_external_url() {
 
     # Extract protocol
     local protocol="${url%%://*}"
-    if [[ "$protocol" != "https" || "$url" != https://* ]]; then
+    if [[ "$protocol" != "https" ]]; then
         echo "ERROR: Only HTTPS URLs are allowed (got: $protocol)" >&2
         return 1
     fi
 
-    # Accept a plain DNS/IPv4 authority only. Userinfo, encoded authority,
-    # backslashes and bracketed IPv6 can change which host a client connects to.
-    local authority="${url#https://}" hostname port
-    authority="${authority%%[/?#]*}"
-    if [[ "$url" == *[[:space:][:cntrl:]]* || "$url" == *\\* ||
-          "$url" == *\#* || -z "$authority" ||
-          "$authority" == *[@%\[\]]* ]]; then
-        echo "ERROR: Unsupported or ambiguous URL authority" >&2
-        return 1
-    fi
-    hostname="${authority%%:*}"
-    if [[ "$authority" == *:* ]]; then
-        port="${authority#*:}"
-        if [[ ! "$port" =~ ^[0-9]{1,5}$ ]] ||
-           (( 10#$port < 1 || 10#$port > 65535 )); then
-            echo "ERROR: Invalid URL port" >&2
-            return 1
-        fi
-    fi
-    hostname=$(printf '%s' "$hostname" | tr '[:upper:]' '[:lower:]')
-    hostname="${hostname%.}"
-    if [[ ! "$hostname" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ||
-          "$hostname" == *..* ]]; then
-        echo "ERROR: Invalid URL hostname" >&2
-        return 1
-    fi
-    # Reject numeric shorthand and noncanonical IPv4 accepted by URL clients.
-    if [[ "$hostname" =~ ^[0-9.]+$ ]]; then
-        local octets octet
-        octets="${hostname//./ }"
-        local -a parts
-        read -r -a parts <<< "$octets"
-        if [[ ${#parts[@]} -ne 4 ]]; then
-            echo "ERROR: Noncanonical IP address" >&2
-            return 1
-        fi
-        for octet in "${parts[@]}"; do
-            if [[ ! "$octet" =~ ^(0|[1-9][0-9]{0,2})$ ]] || (( 10#$octet > 255 )); then
-                echo "ERROR: Noncanonical IP address" >&2
-                return 1
-            fi
-        done
-    elif [[ "$hostname" =~ (^|\.)0x[0-9a-f]+($|\.) ]]; then
-        echo "ERROR: Noncanonical IP address" >&2
-        return 1
-    fi
+    # Extract hostname (remove protocol, path, port)
+    local hostname="${url#*://}"
+    hostname="${hostname%%/*}"
+    hostname="${hostname%%:*}"
+    hostname="${hostname%%\?*}"
+    hostname=$(echo "$hostname" | tr '[:upper:]' '[:lower:]')
 
     # Reject localhost and loopback
     case "$hostname" in
-        localhost|*.localhost|127.*|::1|0.*)
+        localhost|127.0.0.1|::1|0.0.0.0)
             echo "ERROR: Localhost URLs are not allowed" >&2
             return 1
             ;;

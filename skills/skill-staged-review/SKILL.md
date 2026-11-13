@@ -22,14 +22,6 @@ Separates **spec compliance** (did you build the right thing?) from **code quali
 
 ---
 
-## EXECUTION CONTRACT (MANDATORY)
-
-Check the intent contract before code-quality review. Run the required provider
-review through the installed orchestrator within the user's provider and billing
-constraints. Inspect its output before recording a verdict. Failed launches,
-missing output, and partial specification evidence leave the review incomplete.
-Do not mark either stage complete without its evidence.
-
 ## Stage 1: Spec Compliance
 
 Validates the implementation against the intent contract.
@@ -343,3 +335,12 @@ fi
 **Behavior:**
 - Auto-posts when running inside `/octo:deliver` or `/octo:embrace` workflows
 - Asks user first when invoked standalone via `/octo:staged-review`
+
+## Execution Contract (MANDATORY - CANNOT SKIP)
+
+This generated Claude Code skill preserves an enforced workflow contract from the source skill.
+
+**PROHIBITED:**
+- Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
+- Do not claim provider output or validation artifacts exist without checking the actual files or command output.
+- Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
