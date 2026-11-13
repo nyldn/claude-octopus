@@ -2079,7 +2079,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
 
             tokens_out=$(octo_estimate_tokens_for_file "$raw_output" 2>/dev/null || echo 0)
             update_agent_status "$agent_type" "failed" "$elapsed_ms" "$_estimated_cost" "$_eff_timeout" "$task_id" "${phase:-unknown}" "$result_file"
-            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$_quota_reason" "$elapsed_ms" "$result_file" "${role:-none}" || true
+            type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" "$tokens_out" "$_quota_reason" "$elapsed_ms" "$result_file" "${role:-none}" "$_contract_seat_id" || true
             if ! octo_spawn_contract_finish "$_contract_seat_id" failed "$result_file" "$temp_errors" \
                 "$_quota_reason" "$exit_code" "$elapsed_ms" >/dev/null 2>&1; then
                 exit_code=74
