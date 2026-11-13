@@ -557,6 +557,7 @@ with tempfile.TemporaryDirectory() as temporary:
                     + 'time.sleep(8)\n')
     orch.chmod(0o755)
     command = 'source "$1/scripts/lib/consultative-advisors.sh"; OCTOPUS_ADVISOR_WAIT_SECONDS=1 octo_launch_advisors "$2" agy "$3" answer- prompt 1'
+    Path(sys.argv[2]).touch()
     try:
         started = time.monotonic()
         result = subprocess.run(['bash', '-c', command, 'fixture', sys.argv[1], str(orch), str(output)],
@@ -565,6 +566,10 @@ with tempfile.TemporaryDirectory() as temporary:
         assert result.returncode != 0
         assert time.monotonic() - started < 5
         assert 'late diagnostic' not in result.stderr
+    except subprocess.TimeoutExpired as error:
+        captured = error.stderr or b''
+        Path(sys.argv[2]).write_text(captured.decode(errors='replace') if isinstance(captured, bytes) else captured)
+        raise
     finally:
         if pidfile.exists():
             try: os.kill(int(pidfile.read_text()), signal.SIGTERM)
