@@ -108,7 +108,8 @@ with tempfile.TemporaryDirectory(prefix='release-readonly-', dir=sys.argv[2]) as
     (root / 'README.md').write_text('Version-' + version + '\n')
     (root / 'CHANGELOG.md').write_text('## [' + version + '] - 2026-01-01\n\nFixture release.\n')
     (root / 'commands/fixture.md').write_text('---\ncommand: fixture\n---\n')
-    (root / 'skills/flow-fixture/SKILL.md').write_text('---\nname: flow-fixture\n---\n')
+    (root / 'skills/flow-fixture/SKILL.md').write_text(
+        '---\nname: flow-fixture\ndescription: Native release fixture\ndisable-model-invocation: true\n---\n')
     binaries = Path(temporary) / 'bin'
     binaries.mkdir()
     cli = r'''

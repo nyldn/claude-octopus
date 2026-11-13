@@ -41,7 +41,8 @@ class DevelopCheckpoint(unittest.TestCase):
             source = (ROOT / tree / 'flow-develop/SKILL.md').read_text()
             section = source.split('## Post-Development: Checkpoint', 1)[1]
             block = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-            for mode in ('clean', 'staged', 'unstaged', 'untracked', 'failed-check', 'changed-commit',
+            for mode in ('clean', 'staged', 'unstaged', 'untracked', 'hidden-untracked',
+                         'hidden-untracked-during-check', 'failed-check', 'changed-commit',
                          'changed-worktree', 'tag-collision', 'missing-command'):
                 with self.subTest(tree=tree, mode=mode), tempfile.TemporaryDirectory() as directory:
                     base = Path(directory)
@@ -79,7 +80,9 @@ class DevelopCheckpoint(unittest.TestCase):
                         code.write_text('value = 3\n')
                         if mode == 'staged':
                             git('add', 'code.py')
-                    if mode == 'untracked':
+                    if mode.startswith('hidden-untracked'):
+                        git('config', 'status.showUntrackedFiles', 'no')
+                    if mode in ('untracked', 'hidden-untracked'):
                         (project / 'new.py').write_text('preserve this new implementation\n')
                     tag = 'octo-checkpoint-post-develop-fixture-time'
                     if mode == 'tag-collision':
@@ -90,6 +93,7 @@ class DevelopCheckpoint(unittest.TestCase):
                         'assert Path("code.py").read_text() == "value = 2\\n"\n'
                         'Path(' + repr(str(checked)) + ').touch()\n'
                         'mode = os.environ["CHECK_MODE"]\n'
+                        'if mode == "hidden-untracked-during-check": Path("new.py").write_text("preserve new work\\n")\n'
                         'if mode == "failed-check": raise SystemExit(19)\n'
                         'if mode in ("changed-commit", "changed-worktree"):\n'
                         '    Path("code.py").write_text("value = 3\\n")\n'
@@ -112,10 +116,10 @@ class DevelopCheckpoint(unittest.TestCase):
                             self.assertEqual(git('rev-parse', tag + '^{commit}'), git('rev-parse', 'HEAD^'))
                         else:
                             self.assertEqual(git('tag', '--list', tag), b'')
-                        if mode in ('staged', 'unstaged', 'untracked'):
+                        if mode in ('staged', 'unstaged', 'untracked', 'hidden-untracked'):
                             self.assertEqual(git('status', '--porcelain=v1', '--untracked-files=all'), before)
                             self.assertFalse(checked.exists())
-                            if mode != 'untracked':
+                            if mode not in ('untracked', 'hidden-untracked'):
                                 self.assertEqual(code.read_text(), 'value = 3\n')
 
 

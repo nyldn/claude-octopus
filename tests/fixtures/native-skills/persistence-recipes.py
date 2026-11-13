@@ -167,6 +167,31 @@ class PersistenceRecipes(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(path.read_text(), saved)
 
+    def test_issue_initialization_rejects_symlinked_parent(self):
+        outside = self.base / 'outside'
+        outside.mkdir()
+        parent = self.project / '.octo'
+        for tree in TREES:
+            for state in ('empty', 'existing', 'dangling'):
+                with self.subTest(tree=tree, state=state):
+                    target = outside / 'ISSUES.md'
+                    target.unlink(missing_ok=True)
+                    if state == 'existing':
+                        target.write_text('preserve outside issues')
+                    selected = outside if state != 'dangling' else self.base / 'missing outside'
+                    parent.symlink_to(selected, target_is_directory=True)
+                    source = block(tree, 'skill-issues', 'mkdir -p .octo')
+                    result = self.run_block(source)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertTrue(parent.is_symlink())
+                    if state == 'existing':
+                        self.assertEqual(target.read_text(), 'preserve outside issues')
+                    else:
+                        self.assertFalse(target.exists())
+                    if state == 'dangling':
+                        self.assertFalse(selected.exists())
+                    parent.unlink()
+
     def test_issue_initialization_rejects_nonregular_existing_paths(self):
         for tree in TREES:
             with self.subTest(tree=tree):

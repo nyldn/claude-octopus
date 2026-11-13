@@ -295,13 +295,16 @@ Use `/octo:issues list` to see all open issues.
 
 ```bash
 # Create .octo directory if needed
-mkdir -p .octo
+[[ ! -L .octo ]] || { echo "Issue directory is a symlink; stop before updating it." >&2; exit 1; }
+mkdir -p .octo || exit 1
 
 # Render the template portably and preserve any existing issue file.
 ISSUES_TEMPLATE="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/config/templates/ISSUES.md.template"
 python3 - "$ISSUES_TEMPLATE" "$PWD" <<'PY_ISSUES'
 from pathlib import Path
 import sys
+if Path('.octo').is_symlink():
+    raise SystemExit('Issue directory is a symlink; stop before updating it.')
 destination = Path('.octo/ISSUES.md')
 if destination.is_symlink() or (destination.exists() and not destination.is_file()):
     raise SystemExit('Existing issue path is not a regular file; stop before updating it.')

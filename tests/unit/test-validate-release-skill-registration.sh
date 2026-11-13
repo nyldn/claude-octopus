@@ -81,7 +81,8 @@ with tempfile.TemporaryDirectory(dir=temp_root) as temporary:
     for name in ('one', 'pack/two'):
         path = fixture / 'skills' / name
         path.mkdir(parents=True)
-        (path / 'SKILL.md').write_text('---\nname: ' + name.split('/')[-1] + '\ndescription: Fixture\n---\nNative skill\n')
+        (path / 'SKILL.md').write_text('---\nname: ' + name.split('/')[-1] +
+            '\ndescription: Fixture\ndisable-model-invocation: true\n---\nNative skill\n')
     manifest = fixture / '.claude-plugin/plugin.json'
     valid = [['./skills/one/', './skills/pack/two/'], './skills/', ['./skills/'],
              ['./skills/one', './skills/pack/'], ['./skills/', './skills/one/']]

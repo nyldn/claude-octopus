@@ -848,7 +848,7 @@ After development completes:
 
 ```bash
 DEVELOP_VERIFIED_HEAD=$(git rev-parse HEAD) || exit 1
-DEVELOP_CHECK_STATUS=$(git status --porcelain) || exit 1
+DEVELOP_CHECK_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
 [[ -z "$DEVELOP_CHECK_STATUS" ]] || { echo "Commit or preserve implementation changes before creating a recoverable checkpoint." >&2; exit 1; }
 if ! declare -p DEVELOP_CHECK_COMMAND >/dev/null 2>&1 || [[ ${#DEVELOP_CHECK_COMMAND[@]} -eq 0 ]]; then
     echo "Restore the project's documented checks as DEVELOP_CHECK_COMMAND arguments." >&2
@@ -856,7 +856,7 @@ if ! declare -p DEVELOP_CHECK_COMMAND >/dev/null 2>&1 || [[ ${#DEVELOP_CHECK_COM
 fi
 "${DEVELOP_CHECK_COMMAND[@]}" || { echo "Project checks failed; no checkpoint was created." >&2; exit 1; }
 DEVELOP_CURRENT_HEAD=$(git rev-parse HEAD) || exit 1
-DEVELOP_CHECK_STATUS=$(git status --porcelain) || exit 1
+DEVELOP_CHECK_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
 if [[ "$DEVELOP_CURRENT_HEAD" != "$DEVELOP_VERIFIED_HEAD" || -n "$DEVELOP_CHECK_STATUS" ]]; then
     echo "Source changed during verification; repeat checks on the current clean commit." >&2
     exit 1
