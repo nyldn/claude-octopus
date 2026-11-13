@@ -310,7 +310,9 @@ for url in 'https' 'https://' 'http://example.com/' 'https://localhost/' 'https:
     test_case "Reject unsafe URL: $url"
     if validate_external_url "$url" >/dev/null 2>&1; then test_fail "unsafe URL accepted"; else test_pass; fi
 done
-for url in 'https://example.com/' 'https://example.com:443/a?x=y' 'https://8.8.8.8/'; do
+for url in 'https://example.com/' 'https://example.com:443/a?x=y' 'https://8.8.8.8/' \
+    'https://0xdead.example.com/' 'https://127.example.com/' 'https://0.example.com/' \
+    'https://10.example.com/' 'https://192.168.example.com/' 'https://169.254.example.com/'; do
     test_case "Accept public URL: $url"
     if result=$(validate_external_url "$url") && [[ "$result" == "$url" ]]; then test_pass; else test_fail "public URL rejected"; fi
 done

@@ -91,7 +91,7 @@ validate_external_url() {
 
     # Accept a plain DNS/IPv4 authority only. Userinfo, encoded authority,
     # backslashes and bracketed IPv6 can change which host a client connects to.
-    local authority="${url#https://}" hostname port
+    local authority="${url#https://}" hostname port is_ipv4=false
     authority="${authority%%[/?#]*}"
     if [[ "$url" == *[[:space:][:cntrl:]]* || "$url" == *\\* ||
           "$url" == *\#* || -z "$authority" ||
@@ -131,29 +131,32 @@ validate_external_url() {
                 return 1
             fi
         done
-    elif [[ "$hostname" =~ (^|\.)0x[0-9a-f]+($|\.) ]]; then
+        is_ipv4=true
+    elif [[ "$hostname" =~ ^(0x[0-9a-f]+|[0-9]+)(\.(0x[0-9a-f]+|[0-9]+))*$ ]]; then
         echo "ERROR: Noncanonical IP address" >&2
         return 1
     fi
 
     # Reject localhost and loopback
     case "$hostname" in
-        localhost|*.localhost|127.*|::1|0.*)
+        localhost|*.localhost)
             echo "ERROR: Localhost URLs are not allowed" >&2
             return 1
             ;;
     esac
 
-    # Reject private IP ranges (RFC 1918)
-    if [[ "$hostname" =~ ^10\. ]] || \
-       [[ "$hostname" =~ ^192\.168\. ]] || \
-       [[ "$hostname" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]; then
+    # Apply numeric ranges only after recognizing canonical IPv4.
+    if [[ "$is_ipv4" == true ]] && {
+       [[ "$hostname" == 127.* || "$hostname" == 0.* ]] ||
+       [[ "$hostname" =~ ^10\. ]] ||
+       [[ "$hostname" =~ ^192\.168\. ]] ||
+       [[ "$hostname" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]; }; then
         echo "ERROR: Private IP addresses are not allowed" >&2
         return 1
     fi
 
     # Reject link-local and metadata endpoints
-    if [[ "$hostname" =~ ^169\.254\. ]] || \
+    if { [[ "$is_ipv4" == true ]] && [[ "$hostname" =~ ^169\.254\. ]]; } || \
        [[ "$hostname" == "metadata.google.internal" ]] || \
        [[ "$hostname" =~ ^fd[0-9a-f]{2}: ]] || \
        [[ "$hostname" =~ ^fe80: ]]; then
