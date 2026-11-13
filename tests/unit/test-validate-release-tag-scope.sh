@@ -90,7 +90,7 @@ with tempfile.TemporaryDirectory(prefix='release-readonly-', dir=sys.argv[2]) as
     audit = root / 'scripts/helpers/audit-provider-contracts.sh'
     audit.write_text('#!/usr/bin/env bash\nprintf "SUMMARY fixture audit passed\\n"\n')
     audit.chmod(0o755)
-    for directory in ['.claude-plugin', '.codex-plugin', '.cursor-plugin', '.factory-plugin', 'commands', 'skills/flow-fixture']:
+    for directory in ['.claude-plugin', '.codex-plugin', '.cursor-plugin', '.factory-plugin', 'commands', 'skills/flow-fixture', '.claude/skills/flow-fixture', 'codex-skills/flow-fixture']:
         (root / directory).mkdir(parents=True)
     version = '99.1.0'
     plugin = {'name': 'octo', 'description': 'Native fixture plugin', 'version': version, 'commands': ['./commands/fixture.md'],
@@ -110,6 +110,13 @@ with tempfile.TemporaryDirectory(prefix='release-readonly-', dir=sys.argv[2]) as
     (root / 'commands/fixture.md').write_text('---\ncommand: fixture\n---\n')
     (root / 'skills/flow-fixture/SKILL.md').write_text(
         '---\nname: flow-fixture\ndescription: Native release fixture\ndisable-model-invocation: true\n---\n')
+    fixture_skill = (root / 'skills/flow-fixture/SKILL.md').read_text()
+    (root / '.claude/skills/flow-fixture/SKILL.md').write_text(fixture_skill)
+    (root / 'codex-skills/flow-fixture/SKILL.md').write_text(fixture_skill)
+    codex_manifest = root / '.codex-plugin/plugin.json'
+    codex_data = json.loads(codex_manifest.read_text())
+    codex_data['skills'] = './codex-skills/'
+    codex_manifest.write_text(json.dumps(codex_data, indent=2))
     binaries = Path(temporary) / 'bin'
     binaries.mkdir()
     cli = r'''

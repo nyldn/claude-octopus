@@ -186,17 +186,24 @@ kill "$unrelated"; wait "$unrelated" 2>/dev/null || true
 test_case "interruption cancels only the pool and retains unfinished evidence"
 prepare interrupted
 (
-    INERT_SLEEP=10 council_run_seat_pool independent-advice responses
+    INERT_PREPARE_FIRST=1 INERT_SLEEP=20 council_run_seat_pool independent-advice responses
 ) &
 runner=$!
-for attempt in {1..100}; do
-    [[ -s "$COUNCIL_RUN_DIR/responses/01-two.md.partial" ]] && break
+# Both workers must reach dispatch before testing cancellation evidence.
+# Provider preparation can finish in a different order under CI load.
+ready=false
+for attempt in {1..300}; do
+    if [[ -s "$COUNCIL_RUN_DIR/responses/00-one.md.partial" &&
+          -s "$COUNCIL_RUN_DIR/responses/01-two.md.partial" ]]; then
+        ready=true
+        break
+    fi
     sleep 0.05
 done
 kill -TERM "$runner"
 rc=0
 wait "$runner" || rc=$?
-if [[ "$rc" == 143 && -s "$COUNCIL_RUN_DIR/responses/00-one.md.partial" && ! -e "$COUNCIL_RUN_DIR/responses/00-one.md" && -s "$COUNCIL_RUN_DIR/responses/01-two.md.pool-result" ]]; then test_pass; else test_fail "interrupted pool rc=$rc"; fi
+if [[ "$ready" == true && "$rc" == 143 && -s "$COUNCIL_RUN_DIR/responses/00-one.md.partial" && ! -e "$COUNCIL_RUN_DIR/responses/00-one.md" && -s "$COUNCIL_RUN_DIR/responses/01-two.md.pool-result" ]]; then test_pass; else test_fail "interrupted pool rc=$rc"; fi
 
 test_case "aggregate deadline stops queued seats and cancels active seats"
 prepare deadline
