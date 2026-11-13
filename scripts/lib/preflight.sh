@@ -17,13 +17,49 @@ fi
 
 # Bootstrap utilities must not change identity when a probe enters the project.
 _octo_preflight_system_tool() {
-    local candidate
+    local candidate directory root current home remaining entry reader="" target hops
     case "$1" in env|bash|date) ;; *) return 1 ;; esac
     for candidate in "/usr/bin/$1" "/bin/$1"; do
         if [[ -x "$candidate" ]]; then
             printf '%s\n' "$candidate"
             return 0
         fi
+    done
+    # Bootstrap link inspection uses a known host utility, never a project PATH.
+    for directory in /usr/bin /bin /run/current-system/sw/bin /nix/var/nix/profiles/default/bin; do
+        if [[ -x "$directory/readlink" ]]; then reader="$directory/readlink"; break; fi
+    done
+    # Resolve PATH tools before testing the project boundary. If link inspection
+    # is unavailable, regular external executables remain usable.
+    current="$(pwd -P)" || return 1
+    home="$(cd "${HOME:-/}" 2>/dev/null && pwd -P)" || return 1
+    [[ "$current" != "$home" ]] || current=""
+    remaining="${PATH:-}"
+    while [[ -n "$remaining" ]]; do
+        entry="${remaining%%:*}"
+        if [[ "$remaining" == *:* ]]; then remaining="${remaining#*:}"; else remaining=""; fi
+        [[ "$entry" == /* ]] || continue
+        directory="$(cd "$entry" 2>/dev/null && pwd -P)" || continue
+        candidate="$directory/$1"
+        for ((hops=0; hops<16; hops++)); do
+            directory="$(cd "${candidate%/*}" 2>/dev/null && pwd -P)" || break
+            candidate="$directory/${candidate##*/}"
+            [[ -L "$candidate" ]] || break
+            [[ -n "$reader" ]] || break
+            target="$("$reader" "$candidate")" || break
+            if [[ "$target" == /* ]]; then candidate="$target"; else candidate="$directory/$target"; fi
+        done
+        directory="$(cd "${candidate%/*}" 2>/dev/null && pwd -P)" || continue
+        candidate="$directory/${candidate##*/}"
+        [[ -f "$candidate" && -x "$candidate" && ! -L "$candidate" ]] || continue
+        for root in "${PROJECT_ROOT:-}" "$current"; do
+            [[ -n "$root" ]] || continue
+            root="$(cd "$root" 2>/dev/null && pwd -P)" || return 1
+            case "$candidate" in "$root"|"${root%/}"/*) candidate=""; break ;; esac
+        done
+        [[ -n "$candidate" ]] || continue
+        printf '%s\n' "$candidate"
+        return 0
     done
     return 1
 }

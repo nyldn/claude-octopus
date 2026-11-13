@@ -976,7 +976,7 @@ probe_discover() {
         local resumed_synthesis="${RESULTS_DIR}/probe-synthesis-${task_group}.md"
         if [[ -s "$resumed_synthesis" ]] \
            && [[ "$(research_manifest_value "$RESEARCH_RUN_DIR/manifest.json" status)" == completed ]]; then
-            echo -e "${GREEN}✓${NC} Research run already complete: $resumed_synthesis"
+            log INFO "✓ Research run already complete: $resumed_synthesis"
             return 0
         fi
     fi

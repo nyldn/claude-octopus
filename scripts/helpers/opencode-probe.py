@@ -46,7 +46,7 @@ def main():
     mode, project, *args = sys.argv[1:]
     if mode == "parse-login":
         return parse_login(project)
-    roots = {Path(project).resolve()}
+    roots = {Path(project).resolve()} if project else set()
     if Path.cwd().resolve() != Path.home().resolve():
         roots.add(Path.cwd().resolve())
     selected = shutil.which("opencode")

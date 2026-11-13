@@ -19,6 +19,90 @@ ROOT = Path(os.environ.get("OCTO_TEST_ROOT", Path(__file__).resolve().parents[3]
 from .fixture import OpenCodeFixture
 
 class OpenCodeCases5(OpenCodeFixture):
+    def test_projectless_home_admission_preserves_explicit_home_boundary(self):
+            home = Path(self.env["HOME"])
+            bindir = home / "tools"
+            bindir.mkdir()
+            cli = bindir / "opencode"
+            cli.write_bytes(self.cli.read_bytes())
+            cli.chmod(0o755)
+            python = bindir / "python3"
+            python.write_text("#!/bin/sh\nexec " + shlex.quote(sys.executable) + ' "$@"\n')
+            python.chmod(0o755)
+            self.env.update(PATH=str(bindir) + ":" + self.env["PATH"], OCTOPUS_PYTHON=str(python))
+            for version, explicit in product(("1.18.34", "2.0.23"), (False, True)):
+                with self.subTest(version=version, explicit_project=explicit):
+                    self.env["CLI_VERSION"] = version
+                    self.marker.unlink(missing_ok=True)
+                    if explicit:
+                        self.env["PROJECT_ROOT"] = str(home)
+                    else:
+                        self.env.pop("PROJECT_ROOT", None)
+                    result = self.shell('source "$PLUGIN_DIR/scripts/lib/auth.sh"; _octo_opencode_has_saved_login', root=home)
+                    self.assertEqual(result.returncode, 125 if explicit else 0, result.stderr)
+                    if explicit:
+                        self.assertFalse(self.marker.exists())
+                    else:
+                        self.assertEqual(self.marker.read_text(), "calledcalled")
+            self.env["PROJECT_ROOT"] = "/"
+            self.marker.unlink(missing_ok=True)
+            result = self.shell('source "$PLUGIN_DIR/scripts/lib/auth.sh"; _octo_opencode_has_saved_login', root=home)
+            self.assertEqual(result.returncode, 125, result.stderr)
+            self.assertFalse(self.marker.exists())
+
+    def test_preflight_accepts_external_path_tools_without_system_paths(self):
+            project = self.base / "project"
+            project_bin = project / "bin"
+            project_bin.mkdir(parents=True)
+            external = self.base / "external"
+            external.mkdir()
+            linked = self.base / "project-link"
+            linked.symlink_to(project_bin, target_is_directory=True)
+            final_links = self.base / "final-links"
+            final_links.mkdir()
+            external_links = self.base / "external-links"
+            external_links.mkdir()
+            for name in ("env", "bash", "date"):
+                for directory in (project_bin, external):
+                    tool = directory / name
+                    tool.write_text('#!/bin/sh\nprintf executed >> "$PROBE_MARKER"\nexit 99\n')
+                    tool.chmod(0o755)
+                (final_links / name).symlink_to(project_bin / name)
+                (external_links / name).symlink_to(external / name)
+            self.env.update(PROJECT_ROOT=str(project), TOOL_PATH=f"bin:{project_bin}:{linked}:{final_links}:{external}")
+            source = (ROOT / "scripts/lib/preflight.sh").read_text()
+            function = source.split('_octo_preflight_system_tool() {', 1)[1].split('\n}', 1)[0]
+            # Model a host where both conventional system directories are absent.
+            function = function.replace('"/usr/bin/$1" "/bin/$1"',
+                                        shlex.quote(str(self.base / 'absent-one')) + '/"$1" ' +
+                                        shlex.quote(str(self.base / 'absent-two')) + '/"$1"')
+            script = '_octo_preflight_system_tool() {' + function + '\n}\nPATH="$TOOL_PATH"\n'
+            for name in ("env", "bash", "date"):
+                result = self.shell(script + f'_octo_preflight_system_tool {name}', root=project)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), str((external / name).resolve()))
+            result = self.shell(script + '_octo_preflight_system_tool python3', root=project)
+            self.assertNotEqual(result.returncode, 0)
+            self.env["TOOL_PATH"] = f"bin:{project_bin}:{linked}:{final_links}"
+            result = self.shell(script + '_octo_preflight_system_tool bash', root=project)
+            self.assertNotEqual(result.returncode, 0)
+            self.env["TOOL_PATH"] = str(external_links)
+            result = self.shell(script + '_octo_preflight_system_tool bash', root=project)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), str((external / 'bash').resolve()))
+            chain = self.base / 'chain'
+            chain.mkdir()
+            (chain / 'bash').symlink_to('1')
+            for index in range(1, 16):
+                (chain / str(index)).symlink_to(str(index + 1) if index < 15 else '../project/bin/bash')
+            self.env["TOOL_PATH"] = str(chain)
+            result = self.shell(script + '_octo_preflight_system_tool bash', root=project)
+            self.assertNotEqual(result.returncode, 0, 'the last relative link escaped the project boundary')
+            self.env.update(TOOL_PATH=str(external), PROJECT_ROOT='/')
+            result = self.shell(script + '_octo_preflight_system_tool bash', root=project)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(self.marker.exists(), "tool lookup executed a candidate")
+
     def test_static_sqlite_store_requires_live_confirmation_without_cli(self):
             (self.data / "opencode.db").touch()
             result = self.readiness("static")
@@ -448,7 +532,7 @@ squeeze_test fixture
             script = r"""
 source scripts/lib/research-evidence.sh
 source scripts/lib/workflows.sh
-log() { :; }
+log() { printf '[%s] %s\n' "$1" "$2"; }
 octopus_phase_banner() { :; }
 preflight_check() { printf admission >> "$PROBE_MARKER"; return 1; }
 RESULTS_DIR="$SAVED_RESULTS"
@@ -473,7 +557,7 @@ probe_discover fixture
                     self.assertEqual(self.marker.exists(), not returns_saved)
                     self.assertEqual(synthesis.exists(), saved)
                     if returns_saved:
-                        self.assertIn(str(synthesis), result.stdout)
+                        self.assertIn("[INFO] ✓ Research run already complete: " + str(synthesis), result.stdout)
             # A fresh, rejected run must not create durable evidence.
             self.env.update(OCTOPUS_RESEARCH_RUN_ID="fresh", OCTOPUS_RESEARCH_RESUME="false")
             result = self.shell(script)

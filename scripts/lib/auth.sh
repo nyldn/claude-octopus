@@ -357,10 +357,12 @@ _octo_opencode_probe_python() (
     done
     [[ -x "$candidate" && ! -L "$candidate" ]] || return 125
     current="$(pwd -P)"
-    project="$(cd "${PROJECT_ROOT:-$PWD}" 2>/dev/null && pwd -P)" || project="$current"
-    case "$candidate" in
-        "$project"|"$project"/*) return 125 ;;
-    esac
+    if [[ -n "${PROJECT_ROOT:-}" ]]; then
+        project="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P)" || project="$current"
+        case "$candidate" in
+            "$project"|"${project%/}"/*) return 125 ;;
+        esac
+    fi
     if [[ "$current" != "$(cd "$HOME" 2>/dev/null && pwd -P)" ]]; then
         case "$candidate" in "$current"|"$current"/*) return 125 ;; esac
     fi
@@ -387,7 +389,7 @@ _octo_opencode_run_probe() (
         printf '%s\n' 'OpenCode admission refused: a capable Python interpreter outside the project is required' >&2
         return 125
     }
-    local -a cmd_array=("$python" -I "${_auth_lib_dir}/../helpers/opencode-probe.py" "$mode" "${PROJECT_ROOT:-$PWD}" "$@")
+    local -a cmd_array=("$python" -I "${_auth_lib_dir}/../helpers/opencode-probe.py" "$mode" "${PROJECT_ROOT:-}" "$@")
     if [[ "${OCTOPUS_TANGLE_EXECUTION_BOUNDARY:-false}" == true ||
           "${OCTOPUS_TANGLE_WRITE_SCOPE_MODE:-strict}" == adaptive ]]; then
         declare -f octopus_tangle_apply_execution_boundary >/dev/null 2>&1 || source "${_auth_lib_dir}/spawn.sh" || return 125

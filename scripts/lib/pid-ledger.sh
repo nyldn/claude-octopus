@@ -28,7 +28,7 @@ _octo_pid_python_capable() (
     # dispatch acknowledgement inherited from their caller.
     unset OCTOPUS_AUTO_PEER_DISPATCH_MARKER OCTO_EVENT_LOG || return 1
     OCTOPUS_TIMEOUT_KILL_GRACE=2 \
-        run_with_timeout --portable-supervisor 1 "$1" "$_OCTO_PID_LEDGER_HELPER" capability \
+        run_with_timeout --portable-supervisor 1 "$1" -E -s "$_OCTO_PID_LEDGER_HELPER" capability \
         </dev/null >/dev/null 2>&1
 )
 
