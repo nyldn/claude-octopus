@@ -10,21 +10,19 @@ disable-model-invocation: true
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
 
-## Execution Contract (MANDATORY - CANNOT SKIP)
-
-This generated Codex skill preserves an enforced workflow contract from the source skill.
-
-**PROHIBITED:**
-- Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
-- Do not claim provider output or validation artifacts exist without checking the actual files or command output.
-- Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
-
-
 # Security Audit Skill
 
 **Your first output line MUST be:** `🐙 **CLAUDE OCTOPUS ACTIVATED** - Security Audit`
 
 Invokes the security-auditor persona for thorough security analysis during the `ink` (deliver) phase. Supports both quick OWASP scanning and full adversarial red/blue team testing.
+
+## EXECUTION CONTRACT (MANDATORY)
+
+Run the selected audit through the installed orchestrator within the user's
+approved scope and provider constraints. Inspect the returned artifact before
+reporting findings. A refused, failed, or missing provider result is incomplete;
+report the gap instead of claiming the audit passed. Redact credentials before
+sharing evidence or sending it to a provider.
 
 ## Usage
 

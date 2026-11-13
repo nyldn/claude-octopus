@@ -119,7 +119,7 @@ def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
         if not data.get(field):
             errors.append(f"{rel(root, manifest)}: missing required field: {field}")
 
-    if data.get("name") == "claude-octopus":
+    if data.get("name") in {"octo", "claude-octopus"}:
         authored = root / ".claude" / "skills"
         if (not authored.is_dir() or not authored.resolve().is_relative_to(root)
                 or not any(authored.rglob("SKILL.md"))):
@@ -177,6 +177,10 @@ def validate_json_files(root: Path, errors: list[str]) -> None:
 def validate_skills(root: Path, errors: list[str]) -> int:
     checked = 0
     if (root / ".codex-plugin" / "plugin.json").is_file():
+        manifest = root / ".codex-plugin" / "plugin.json"
+        data = validate_json(root, manifest, errors)
+        if isinstance(data, dict) and data.get("skills") != "./codex-skills/":
+            errors.append(".codex-plugin/plugin.json: skills must target ./codex-skills/")
         codex = root / "codex-skills"
         if not codex.is_dir() or not codex.resolve().is_relative_to(root):
             errors.append("codex-skills/: missing or unsafe required generated skill directory")

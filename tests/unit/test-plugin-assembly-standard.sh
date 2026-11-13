@@ -254,7 +254,14 @@ with tempfile.TemporaryDirectory() as directory:
     generated.parent.mkdir(parents=True)
     generated.write_text(valid)
     assert validate().returncode == 0
-    manifest.write_text(json.dumps({'name': 'claude-octopus', 'version': '0.0.0',
+    codex_data = json.loads(codex_manifest.read_text())
+    codex_data['skills'] = './skills/'
+    codex_manifest.write_text(json.dumps(codex_data))
+    result = validate()
+    assert result.returncode != 0 and 'skills must target ./codex-skills/' in result.stderr
+    codex_data['skills'] = './codex-skills/'
+    codex_manifest.write_text(json.dumps(codex_data))
+    manifest.write_text(json.dumps({'name': 'octo', 'version': '0.0.0',
                                    'description': 'fixture', 'skills': './native/demo'}))
     result = validate()
     assert result.returncode != 0 and '.claude/skills/: missing or unsafe required Octopus command catalog' in result.stderr, result.stderr
