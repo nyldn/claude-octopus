@@ -295,7 +295,7 @@ or rerun the workflow to recover a shell variable.
 
 ### STEP 6: Update State (MANDATORY - Post-Execution)
 
-**After synthesis is verified, record implementation details in state:**
+**After synthesis is verified, record the proposed implementation approach in state:**
 
 ```bash
 # Extract key implementation decisions from synthesis
@@ -316,9 +316,10 @@ fi
   "develop" \
   "$implementation_approach"
 
-# Update metrics
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
 ```
+
+Record phase completion only in the verified post-development checkpoint below,
+after the user accepts the plan and implementation succeeds.
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
 
@@ -788,33 +789,56 @@ Tangle workflows typically cost 0.02-0.10 USD per task depending on complexity a
 ## Post-Development: Checkpoint
 
 After development completes:
-1. Run fresh targeted tests for the changed behavior through
-   `skill-verification-gate`; stop if they fail.
-2. Create checkpoint: `git tag octo-checkpoint-post-develop-$(date +%Y%m%d-%H%M%S)`
+1. Commit the intended implementation paths under the user's existing authority,
+   preserving unrelated changes. Use the scoped commit preparation contract in
+   `skill-finish-branch`. If committing is not authorized, preserve the work and
+   report the checkpoint as pending. Do not tag an older commit instead.
+2. Resolve the project's documented checks through `skill-verification-gate`
+   and record their arguments in `DEVELOP_CHECK_COMMAND`, a Bash array such as
+   `DEVELOP_CHECK_COMMAND=(make test)`. Run the block below from the project.
+   It checks the clean commit before and after those fresh checks, then tags
+   that exact commit. A failed check or changed source stops checkpoint creation.
 3. Update `.octo/STATE.md` with completion and add a history entry with files modified.
 
 ```bash
-# Enter this block only after fresh targeted tests pass.
+DEVELOP_VERIFIED_HEAD=$(git rev-parse HEAD) || exit 1
+DEVELOP_CHECK_STATUS=$(git status --porcelain) || exit 1
+[[ -z "$DEVELOP_CHECK_STATUS" ]] || { echo "Commit or preserve implementation changes before creating a recoverable checkpoint." >&2; exit 1; }
+if ! declare -p DEVELOP_CHECK_COMMAND >/dev/null 2>&1 || [[ ${#DEVELOP_CHECK_COMMAND[@]} -eq 0 ]]; then
+    echo "Restore the project's documented checks as DEVELOP_CHECK_COMMAND arguments." >&2
+    exit 1
+fi
+"${DEVELOP_CHECK_COMMAND[@]}" || { echo "Project checks failed; no checkpoint was created." >&2; exit 1; }
+DEVELOP_CURRENT_HEAD=$(git rev-parse HEAD) || exit 1
+DEVELOP_CHECK_STATUS=$(git status --porcelain) || exit 1
+if [[ "$DEVELOP_CURRENT_HEAD" != "$DEVELOP_VERIFIED_HEAD" || -n "$DEVELOP_CHECK_STATUS" ]]; then
+    echo "Source changed during verification; repeat checks on the current clean commit." >&2
+    exit 1
+fi
 checkpoint_tag="octo-checkpoint-post-develop-$(date +%Y%m%d-%H%M%S)"
-git tag "$checkpoint_tag" -m "Post-develop checkpoint from embrace workflow"
+git tag "$checkpoint_tag" "$DEVELOP_VERIFIED_HEAD" -m "Post-develop checkpoint from embrace workflow" || exit 1
 echo "📌 Created checkpoint: $checkpoint_tag"
 
 # Update state only after verification and checkpoint creation succeed.
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
   --status "complete" \
-  --history "Develop phase completed"
+  --history "Develop phase completed at $DEVELOP_VERIFIED_HEAD" || exit 1
 
 # Record files modified in this phase
-modified_files=$(git diff --name-only HEAD~1 2>/dev/null || echo "See git log")
+modified_files=$(git show --format= --name-only "$DEVELOP_VERIFIED_HEAD") || exit 1
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
-  --history "Files modified: $modified_files"
+  --history "Files in checkpoint commit: $modified_files" || exit 1
+
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" \
+  update_metrics "phases_completed" "1" || exit 1
 ```
 
 
 ## Terminal State
 
-The Develop phase is complete ONLY when the implementation exists, the post-develop
-checkpoint tag is created, and targeted tests pass fresh (see `skill-verification-gate`).
+The Develop phase is complete ONLY when the implementation is committed, fresh
+targeted tests pass on that clean commit, and the post-develop checkpoint tag
+references the same commit (see `skill-verification-gate`).
 Then invoke `flow-deliver` for validation. Do NOT declare the work done from here —
 completion claims belong to the Deliver phase after review.
 

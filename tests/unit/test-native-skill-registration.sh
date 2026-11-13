@@ -586,4 +586,11 @@ else
     test_fail "persistence recipe lost run evidence, literal data or allocation decisions"
 fi
 
+test_case "development checkpoints contain the exact committed implementation that passed checks"
+if python3 "$SCRIPT_DIR/../fixtures/native-skills/develop-checkpoint.py" "$PROJECT_ROOT"; then
+    test_pass
+else
+    test_fail "development checkpoint omitted implementation or accepted failed/stale checks"
+fi
+
 test_summary
