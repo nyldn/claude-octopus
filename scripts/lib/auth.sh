@@ -360,7 +360,7 @@ _octo_opencode_probe_python() (
     if [[ -n "${PROJECT_ROOT:-}" ]]; then
         project="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P)" || project="$current"
         case "$candidate" in
-            "$project"|"${project%/}"/*) return 125 ;;
+            "$project"|"${project%/}/"*) return 125 ;;
         esac
     fi
     if [[ "$current" != "$(cd "$HOME" 2>/dev/null && pwd -P)" ]]; then

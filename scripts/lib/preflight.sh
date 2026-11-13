@@ -55,7 +55,7 @@ _octo_preflight_system_tool() {
         for root in "${PROJECT_ROOT:-}" "$current"; do
             [[ -n "$root" ]] || continue
             root="$(cd "$root" 2>/dev/null && pwd -P)" || return 1
-            case "$candidate" in "$root"|"${root%/}"/*) candidate=""; break ;; esac
+            case "$candidate" in "$root"|"${root%/}/"*) candidate=""; break ;; esac
         done
         [[ -n "$candidate" ]] || continue
         printf '%s\n' "$candidate"
