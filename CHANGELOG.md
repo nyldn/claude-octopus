@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- Council grounding checks a later source claim even when an earlier clause
+  describes the reviewer's own estimate or calculation.
 - Rollback history requires the exact target and safety checkpoint tags in each
   shell call and updates the repository state file when run from a subdirectory.
   It refuses symlinked state paths so restored checkpoints cannot redirect the
