@@ -41,8 +41,9 @@ summary to distinguish success, partial results and failure.
 
 For repeated rounds, use `--pool DIR --supersede-key KEY` to follow the latest
 matching round across session pools. A round already finished when first seen
-waits for a possible replacement for `--settle SECONDS`, default 60. A round
-observed running returns when it finishes. `--since EPOCH` filters creation
+is held until the invocation's `--settle SECONDS` window ends, default 60,
+subject to the wait timeout. A round observed running returns when it finishes.
+`--since EPOCH` filters creation
 seconds and skips that hold; use `--run-dir` when one exact run matters.
 
 The foreground timeout defaults to 570 seconds. Exit 2 means the wait timed out
