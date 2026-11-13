@@ -36,7 +36,7 @@ class WorkflowResultTest(unittest.TestCase):
         self.engine.write_text(f'#!{sys.executable} -I\n' + '''import os,json
 from pathlib import Path
 import sys
-phase = sys.argv[1]
+phase = next(arg for arg in sys.argv[1:] if not arg.startswith("--"))
 if phase == "define" and os.environ.get("FIXTURE_RESEARCH_CAPTURE"):
     research = sys.argv[3] if len(sys.argv) > 3 else ""
     source = os.environ.get("FIXTURE_RESEARCH_MUTATE")
@@ -46,11 +46,13 @@ if phase == "define" and os.environ.get("FIXTURE_RESEARCH_CAPTURE"):
         else:
             Path(source).write_text("unverified replacement")
     Path(os.environ["FIXTURE_RESEARCH_CAPTURE"]).write_text(json.dumps({"path": research, "content": Path(research).read_text() if research else ""}))
-prefix = {"define":"grasp-consensus", "develop":"tangle-validation", "deliver":"delivery", "ink":"delivery"}[phase]
+prefix = {"probe":"probe-synthesis", "define":"grasp-consensus", "develop":"tangle-validation", "deliver":"delivery", "ink":"delivery"}[phase]
 directory = Path(os.environ["FIXTURE_RESULTS"])
 mode = os.environ.get("FIXTURE_MODE", "complete")
 if mode != "missing":
-    if phase == "define":
+    if phase == "probe":
+        text = "# PROBE Phase Synthesis\\n## Original Task: fixture\\nCurrent findings\\n*Synthesized from " + ("0" if mode == "invalid" else "2") + " research threads (task group: fixture)* [inference]\\n"
+    elif phase == "define":
         text = "# Consensus\\n*Consensus built from multiple agent perspectives (task group: fixture; synthesizer: " + ("none" if mode == "invalid" else "codex") + ")*\\n"
     elif phase == "develop":
         text = "# TANGLE Phase Validation Report\\n<!-- octopus-task-bytes: 7 -->\\n## Task: fixture\\n## Generated: fixture\\n\\n### Quality Gate: " + ("UNKNOWN" if mode == "invalid" else "PASSED") + "\\n"
@@ -71,15 +73,64 @@ sys.exit(1 if mode == "failed" else 0)
         self.env.pop('OCTOPUS_PROJECT_PERSISTENCE', None)
         self.env.update(HOME=str(self.home), CLAUDE_PLUGIN_DATA=str(self.workspace),
                         CLAUDE_CODE_SESSION_ID='session-a', FIXTURE_RESULTS=str(self.results),
-                        TMPDIR=str(self.home), OCTOPUS_WORKFLOW_INVOCATION_ID='marker')
+                        TMPDIR=str(self.home), OCTOPUS_WORKFLOW_INVOCATION_ID='marker',
+                        research_intensity='quick', research_question='fixture',
+                        focus_choice='technical', format_choice='summary')
 
     def skill_command(self, phase, generated=False):
-        name = 'skill-ship' if phase == 'ink' else 'flow-' + phase
+        name = ('octopus-research' if generated else 'skill-deep-research') if phase == 'probe' else (
+            'skill-ship' if phase == 'ink' else 'flow-' + phase)
         path = ROOT / ('skills' if generated else '.claude/skills') / name / 'SKILL.md'
         blocks = re.findall(r'```bash\n(.*?)\n```', path.read_text(), re.S)
         return next(block for block in blocks
                     if re.search(r'orchestrate\.sh[" ]+ ' + phase + r' ', block)
-                    or 'orchestrate.sh ' + phase + ' ' in block)
+                    or 'orchestrate.sh ' + phase + ' ' in block
+                    or phase == 'probe' and 'orchestrate.sh' in block and '--intensity=' in block)
+
+    def test_research_only_accepts_its_current_successful_invocation(self):
+        for generated in (False, True):
+            for mode in ('complete', 'failed', 'missing', 'foreign', 'invalid'):
+                with self.subTest(generated=generated, mode=mode):
+                    result = self.run_skill('probe', mode, generated)
+                    if mode == 'complete':
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertIn('probe-synthesis-current.md', result.stdout)
+                    else:
+                        self.assertNotEqual(result.returncode, 0, result.stdout)
+                        self.assertNotIn('VALIDATION PASSED', result.stdout)
+
+    def test_research_does_not_search_other_sessions(self):
+        for generated in (False, True):
+            for directory in (self.workspace / 'results', self.workspace / 'results/session-b'):
+                directory.mkdir(exist_ok=True)
+                self.env['FIXTURE_RESULTS'] = str(directory)
+                result = self.run_skill('probe', generated=generated)
+                self.assert_rejected(result, 'does not belong to this invocation')
+
+    def test_actual_probe_writer_binds_its_invocation(self):
+        self.actual_probe_report()
+        result = self.validator(self.actual_probe_report, 'probe')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('probe-synthesis-fixture.md', result.stdout)
+
+    def actual_probe_report(self):
+        script = r'''
+source "$FIXTURE_ROOT/scripts/lib/heuristics.sh"
+log() { :; }
+probe_result_file_is_usable() { return 0; }
+probe_synthesis_byte_length() { printf '0'; }
+probe_synthesis_budget_bytes() { printf '4096'; }
+build_probe_synthesis_context() { printf 'current research'; }
+_aggregate_pick_synth_agent() { printf 'fixture'; }
+run_agent_sync() { printf 'current findings'; }
+get_cache_key() { printf 'fixture'; }
+report_probe_cache_result() { :; }
+guard_output() { :; }
+printf 'current provider findings' > "$RESULTS_DIR/fixture-probe-fixture-1.md"
+synthesize_probe_results fixture 'Current question' 1
+'''
+        subprocess.run(['bash', '-c', script], check=True, capture_output=True,
+                       env=dict(self.env, FIXTURE_ROOT=str(ROOT), RESULTS_DIR=str(self.results)))
 
     def run_skill(self, phase, mode='complete', generated=False):
         self.env['FIXTURE_MODE'] = mode

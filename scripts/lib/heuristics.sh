@@ -684,6 +684,7 @@ $results"
 
     cat > "$draft_file" << EOF
 # PROBE Phase Synthesis
+<!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
 ## Discovery Summary - $(date)
 ## Original Task: $prompt_summary
 

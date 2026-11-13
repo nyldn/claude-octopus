@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- Deep research validates the current invocation's completed synthesis in the
+  active host session instead of accepting an unrelated recent report.
 - Checkpoint rollback refuses uncommitted or untracked work before preview,
   safety tagging and restoration, so a tag cannot be mistaken for a backup of
   changes that exist only in the working tree or index.
