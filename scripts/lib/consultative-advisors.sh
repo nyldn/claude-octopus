@@ -272,7 +272,8 @@ octo_launch_advisors() {
         : > "$event_log"
         OCTOPUS_AGENT_LIFECYCLE_HOOK="$hook" OCTO_ADVISOR_EVENT_LOG="$event_log" \
             OCTO_ADVISOR_PREV_HOOK="$prev_hook" \
-            "$orchestrator" spawn "$advisor" "$prompt" > "$spawn_out" &
+            "$orchestrator" spawn "$advisor" "$prompt" > "$spawn_out" \
+                2> "${aux_dir}/${index}-${safe_advisor}.stderr" &
         advisor_pids[$index]=$!
         advisor_files[$index]="$response_file"
         advisor_events[$index]="$event_log"
