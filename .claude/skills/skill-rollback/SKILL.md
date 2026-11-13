@@ -184,7 +184,9 @@ if [[ -n "$ROLLBACK_STATUS" ]]; then
 fi
 
 # Restore files from checkpoint (does NOT move HEAD)
-git checkout $CHECKPOINT_TAG -- .
+# No-overlay also removes tracked files added after the checkpoint. Keep lessons
+# out of both index and worktree restoration so accumulated knowledge survives.
+git checkout --no-overlay "$CHECKPOINT_TAG" -- . ':(exclude).octo/LESSONS.md' || exit 1
 
 # Restore preserved LESSONS.md
 if [ "$LESSONS_PRESERVED" = "true" ]; then
@@ -192,8 +194,9 @@ if [ "$LESSONS_PRESERVED" = "true" ]; then
 fi
 ```
 
-**Important:** This uses `git checkout <tag> -- .` which:
-- Restores all files to checkpoint state
+**Important:** This uses `git checkout --no-overlay <tag> -- . ':(exclude).octo/LESSONS.md'` which:
+- Restores tracked files to checkpoint state, including additions and deletions
+- Preserves current `.octo/LESSONS.md` in both the index and working tree
 - Does NOT move HEAD or change branch
 - Preserves current commit history
 - Allows immediate commit of the restored state

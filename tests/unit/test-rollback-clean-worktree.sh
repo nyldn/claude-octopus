@@ -33,11 +33,21 @@ with tempfile.TemporaryDirectory() as temporary:
     git('init', '-q')
     path = repo / 'file with spaces.txt'
     path.write_text('checkpoint\n')
+    removed = repo / 'removed since checkpoint.txt'
+    removed.write_text('restore this file\n')
+    lessons = repo / '.octo/LESSONS.md'
+    lessons.parent.mkdir()
+    lessons.write_text('checkpoint lessons\n')
     git('add', '.')
     git('commit', '-qm', 'checkpoint')
     git('tag', 'octo-checkpoint-fixture')
     path.write_text('current commit\n')
-    git('commit', '-qam', 'current')
+    removed.unlink()
+    added = repo / 'added since checkpoint.txt'
+    added.write_text('remove this file on rollback\n')
+    lessons.write_text('current lessons must survive\n')
+    git('add', '-A')
+    git('commit', '-qm', 'current')
     head = git('rev-parse', 'HEAD')
     clean_tags = git('tag', '-l')
     for state in ('unstaged', 'staged', 'staged deletion', 'untracked'):
@@ -74,6 +84,12 @@ with tempfile.TemporaryDirectory() as temporary:
         assert result.returncode == 0, (step, result.stdout, result.stderr)
         checks += 1
     assert path.read_text() == 'checkpoint\n'
+    assert not added.exists(), 'rollback retained a tracked file absent from the checkpoint'
+    assert removed.read_text() == 'restore this file\n'
+    assert lessons.read_text() == 'current lessons must survive\n'
+    assert git('show', ':.octo/LESSONS.md') == b'current lessons must survive\n'
+    assert not git('diff', '--cached', 'octo-checkpoint-fixture', '--', '.', ':(exclude).octo/LESSONS.md')
+    checks += 1
     assert git('rev-parse', 'HEAD') == head
     safety = git('tag', '-l', 'octo-checkpoint-pre-rollback-*').decode().strip()
     recovery_env = dict(env, CHECKPOINT_TAG=safety)
@@ -90,6 +106,10 @@ with tempfile.TemporaryDirectory() as temporary:
         assert result.returncode == 0, (step, result.stdout, result.stderr)
         checks += 1
     assert path.read_text() == 'current commit\n'
+    assert added.read_text() == 'remove this file on rollback\n'
+    assert not removed.exists(), 'safety recovery retained a file absent from its checkpoint'
+    assert lessons.read_text() == 'current lessons must survive\n'
+    checks += 1
 print(f'{checks} dirty, clean and recovery rollback recipe cases passed')
 PY
 then test_pass; else test_fail "rollback modified user work or rejected a clean restore"; fi
