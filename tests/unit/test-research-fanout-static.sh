@@ -40,8 +40,10 @@ for line in Path(sys.argv[1]).read_text().splitlines():
     if ' --intensity=' not in line:
         continue
     words = shlex.split(line.rstrip(' \\'))
+    if words and words[0].startswith('OCTOPUS_WORKFLOW_INVOCATION_ID='):
+        words = words[1:]
     if (words and words[0].endswith('/scripts/orchestrate.sh')
-            and words[1:3] == ['--intensity=<quick|standard|deep>', 'probe']):
+            and words[1:3] == ['--intensity=${research_intensity:?}', 'probe']):
         break
 else:
     raise AssertionError('intensity must precede probe in the shell arguments')
