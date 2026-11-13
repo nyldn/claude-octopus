@@ -19,6 +19,12 @@
   rebinding and redirects remain separate work. See
   [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
 
+- Checkpoint rollback refuses uncommitted or untracked work before preview,
+  safety tagging and restoration, so a tag cannot be mistaken for a backup of
+  changes that exist only in the working tree or index. See
+  [#1307](https://github.com/nyldn/claude-octopus/pull/1307). Other runtime
+  findings in [#1304](https://github.com/nyldn/claude-octopus/issues/1304) remain open.
+
 - OpenCode debates admit the Claude moderator before proposals; successful
   quorum debates need no moderator. Squeeze verifies its required providers
   and stops on empty phases or failed fallbacks. Completed research resumes
