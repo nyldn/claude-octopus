@@ -11,6 +11,11 @@
 
 ### Fixed
 
+- Rollback history requires the exact target and safety checkpoint tags in each
+  shell call and updates the repository state file when run from a subdirectory.
+  It refuses symlinked state paths so restored checkpoints cannot redirect the
+  history append into another file.
+
 - Deep research validates the current invocation's completed synthesis in the
   active host session instead of accepting an unrelated recent report.
 - Checkpoint rollback removes tracked files added after the checkpoint and
