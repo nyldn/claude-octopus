@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- Deep research validates the current invocation's completed synthesis in the
+  active host session instead of accepting an unrelated recent report.
 - Checkpoint rollback removes tracked files added after the checkpoint and
   restores deleted files from any subdirectory. It refuses collisions with
   ignored local files or replacements of the protected lessons directory while

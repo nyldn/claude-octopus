@@ -83,7 +83,20 @@ run_scenario() {
     unset RESEARCH_RUN_DIR RESEARCH_RUN_ID RESEARCH_TASK_GROUP RESEARCH_PROMPT RESEARCH_INTENSITY
 }
 
+# Exercise repaired publication through the actual invocation gate.
+export OCTOPUS_WORKFLOW_INVOCATION_ID='repair-marker'
+marker="$TEST_ROOT/$OCTOPUS_WORKFLOW_INVOCATION_ID"
+touch "$marker"
 run_scenario "fixed" "$ELIDED_LINE" "$GOOD_LINE"
+
+test_case "a repaired synthesis retains invocation framing for the real validator"
+if CLAUDE_PLUGIN_DATA="$TEST_ROOT" OCTOPUS_HOST=codex CODEX_SESSION_ID= CODEX_TASK_ID= \
+    "$SCRIPT_DIR/../../scripts/helpers/workflow-result.sh" probe "$marker" "$scenario_status" >/dev/null; then
+    test_pass
+else
+    test_fail "repaired synthesis was published but rejected by the workflow validator"
+fi
+unset OCTOPUS_WORKFLOW_INVOCATION_ID
 
 test_case "an elided citation is repaired once and the synthesis is published"
 if [[ "$scenario_status" -eq 0 && "$agent_calls" -eq 2 ]] \
@@ -165,5 +178,25 @@ if [[ "$scenario_status" -eq 0 && "$agent_calls" -eq 1 && -f "$synthesis_file" ]
 else
     test_fail "expected no repair for a passing synthesis (status=$scenario_status calls=$agent_calls)"
 fi
+
+export OCTOPUS_WORKFLOW_INVOCATION_ID='tmp.2Yzpq4LrS'
+run_scenario "invocation-metadata" "$GOOD_LINE" "$GOOD_LINE"
+test_case "digit-leading invocation metadata passes the real verifier without a repair"
+if [[ "$scenario_status" -eq 0 && "$agent_calls" -eq 1 ]] \
+   && grep -qFx '<!-- octopus-workflow-invocation: tmp.2Yzpq4LrS -->' "$synthesis_file" \
+   && grep -q '"status": "passed"' "$OCTOPUS_RESEARCH_ROOT/run-invocation-metadata/verification.json"; then
+    test_pass
+else
+    test_fail "invocation metadata triggered a false evidence failure (status=$scenario_status calls=$agent_calls)"
+fi
+run_scenario "provider-metadata" '<!-- octopus-workflow-invocation: tmp.2Yzpq4LrS -->' \
+    '<!-- octopus-workflow-invocation: tmp.2Yzpq4LrS -->'
+test_case "provider comments cannot use invocation syntax to bypass claim checks"
+if [[ "$scenario_status" -ne 0 && "$agent_calls" -eq 2 && ! -f "$synthesis_file" ]]; then
+    test_pass
+else
+    test_fail "provider content bypassed the evidence verifier"
+fi
+unset OCTOPUS_WORKFLOW_INVOCATION_ID
 
 test_summary
