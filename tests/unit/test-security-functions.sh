@@ -302,6 +302,7 @@ source "$PROJECT_ROOT/scripts/lib/validation.sh"
 for url in 'https' 'https://' 'http://example.com/' 'https://localhost/' 'https://127.0.0.1/' \
     'https://10.2.3.4/' 'https://192.168.1.2/' 'https://169.254.169.254/' \
     'https://example.com@127.0.0.1/' 'https://127.0.0.1#x/' 'https://[::1]/' \
+    'https://user@example.com/' 'https://example.com/#section' \
     'https://[::ffff:127.0.0.1]/' 'https://127.1/' 'https://2130706433/' \
     'https://0177.0.0.1/' 'https://0x7f000001/' 'https://127.0.0.2/' \
     'https://localhost./' 'https://foo.localhost/' 'https://%31%32%37.0.0.1/' \
