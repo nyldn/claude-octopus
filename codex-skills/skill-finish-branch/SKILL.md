@@ -91,10 +91,15 @@ DIFF_FILES=$(git diff --name-only "${MERGE_BASE:?Restore the verified merge base
 **Always run a quick review — this is automatic, not optional:**
 
 ```bash
+# Validate in this shell before launching any reviewer. A failed expansion
+# inside the reviewer prompt alone would not stop the outer command.
+: "${MERGE_BASE:?Restore the verified merge base}"
+REVIEW_DIFF=$(git diff "$MERGE_BASE..HEAD") || exit 1
+
 # Quick review via orchestrate.sh (uses available providers)
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
-$(git diff "${MERGE_BASE:?Restore the verified merge base}..HEAD" | head -500)"
+$(printf '%s\n' "$REVIEW_DIFF" | head -500)"
 ```
 
 **If critical issues found:** Present them and ask whether to fix or ship anyway.

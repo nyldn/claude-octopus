@@ -56,6 +56,46 @@ class CodexReferences(unittest.TestCase):
                         self.assertIn('REVIEW_REACHED|base.txt|', result.stdout)
                         self.assertIn('1 file changed', result.stdout)
 
+    def test_finish_branch_does_not_dispatch_without_a_verified_diff(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
+            block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
+                         if '# Quick review via orchestrate.sh' in b)
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                plugin = root / 'plugin/scripts'
+                plugin.mkdir(parents=True)
+                runner = plugin / 'orchestrate.sh'
+                runner.write_text('#!/bin/bash\nprintf "%s" "$3" > "$REVIEW_CAPTURE"\n')
+                runner.chmod(0o755)
+                env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
+                           GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+                           GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid',
+                           CLAUDE_PLUGIN_ROOT=str(plugin.parent), REVIEW_CAPTURE=str(root / 'review'))
+                env.pop('MERGE_BASE', None)
+                def git(*args):
+                    return subprocess.check_output(['git', '-C', temporary, *args], env=env,
+                                                   stderr=subprocess.DEVNULL, text=True).strip()
+                git('init', '-q', '-b', 'main')
+                git('commit', '-q', '--allow-empty', '-m', 'base')
+                base = git('rev-parse', 'HEAD')
+                (root / 'change.txt').write_text('verified change\n')
+                git('add', 'change.txt')
+                git('commit', '-qm', 'feature')
+                for merge_base in (None, 'missing-base', base):
+                    with self.subTest(tree=tree, merge_base=merge_base):
+                        call_env = dict(env)
+                        if merge_base is not None:
+                            call_env['MERGE_BASE'] = merge_base
+                        result = subprocess.run(['/bin/bash', '-c', block], cwd=root, env=call_env,
+                                                capture_output=True, text=True, timeout=5)
+                        if merge_base != base:
+                            self.assertNotEqual(result.returncode, 0, result.stderr)
+                            self.assertFalse((root / 'review').exists(), 'reviewer received no verified diff')
+                        else:
+                            self.assertEqual(result.returncode, 0, result.stderr)
+                            self.assertIn('+verified change', (root / 'review').read_text())
+
     def test_staged_review_filters_and_retains_successful_answers(self):
         text = (ROOT / '.claude/skills/skill-staged-review/SKILL.md').read_text()
         block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
