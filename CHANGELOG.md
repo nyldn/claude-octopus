@@ -14,6 +14,9 @@
 - Parallel workflow summaries restore the work-package count in each shell,
   so every worker's result is included after resuming aggregation.
 
+- Debate state preserves quotes, newlines, backslashes and Unicode in questions
+  and clarifying answers, so saved debates remain readable by JSON consumers.
+
 - Quick tasks commit only their selected files, preserve unrelated staged work,
   and stop before recording completion when staging or committing fails.
 
