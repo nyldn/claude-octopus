@@ -6,7 +6,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Rollback worktree preservation"
 test_case "dirty worktrees stop before preview, safety tag and restore"
-if python3 - "$PROJECT_ROOT" <<'PY'
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY'
 import os
 from pathlib import Path
 import re
@@ -24,7 +24,7 @@ def recipe(step, prepare=True):
     return recipe(5) + '\n' + script if step == 6 and prepare else script
 
 checks = 0
-with tempfile.TemporaryDirectory() as temporary:
+with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     repo = Path(temporary) / 'repo'
     repo.mkdir()
     backups = Path(temporary) / 'backups'
@@ -223,8 +223,63 @@ with tempfile.TemporaryDirectory() as temporary:
         assert git('ls-files', '-v', '--', '.octo/LESSONS.md') == before_flags
         assert git('rev-parse', 'HEAD').decode().strip() == protected_head
         checks += 1
+    # History runs in a fresh shell after restoration, often from a subdirectory.
+    state = repo / '.octo/STATE.md'
+    state.write_text('fixture state\n')
+    for target, safety_tag in (('', ''), ('octo-checkpoint-fixture', ''),
+                               ('missing-target', safety), ('octo-checkpoint-fixture', 'missing-safety')):
+        before = state.read_bytes()
+        result = subprocess.run(['bash', '-c', recipe(7)], cwd=repo,
+                                env=dict(env, CHECKPOINT_TAG=target, SAFETY_CHECKPOINT_TAG=safety_tag),
+                                capture_output=True, timeout=5)
+        assert result.returncode != 0, ('history accepted missing recovery context', target, safety_tag)
+        assert state.read_bytes() == before, 'invalid context changed rollback history'
+        checks += 1
+    result = subprocess.run(['bash', '-c', recipe(7)], cwd=nested,
+                            env=dict(env, SAFETY_CHECKPOINT_TAG=safety),
+                            capture_output=True, timeout=5)
+    assert result.returncode == 0, result.stderr
+    history = state.read_text()
+    assert '- **Target:** octo-checkpoint-fixture\n' in history, history
+    assert '- **Safety checkpoint:** ' + safety + '\n' in history, history
+    assert not (nested / '.octo/STATE.md').exists()
+    checks += 1
+    # Checkpoints can track symlinks, including a state path outside the repo.
+    evil_tag = 'octo-checkpoint-$(id)'
+    git('tag', evil_tag)
+    with tempfile.TemporaryDirectory(dir=sys.argv[2]) as outside:
+        victim = Path(outside) / 'STATE.md'
+        victim.write_text('outside shell file must remain unchanged\n')
+        before = victim.read_bytes()
+        state.unlink()
+        state.symlink_to(victim)
+        result = subprocess.run(['bash', '-c', recipe(7)], cwd=nested,
+                                env=dict(env, CHECKPOINT_TAG=evil_tag, SAFETY_CHECKPOINT_TAG=safety),
+                                capture_output=True, timeout=5)
+        assert result.returncode != 0, 'history followed a symlinked state file'
+        assert victim.read_bytes() == before, 'history corrupted an external file'
+        state.unlink()
+        checks += 1
+        saved = repo / 'saved-octo'
+        state.parent.rename(saved)
+        state.parent.symlink_to(outside)
+        result = subprocess.run(['bash', '-c', recipe(7)], cwd=nested,
+                                env=dict(env, SAFETY_CHECKPOINT_TAG=safety),
+                                capture_output=True, timeout=5)
+        assert result.returncode != 0, 'history followed a symlinked .octo directory'
+        assert victim.read_bytes() == before
+        state.parent.unlink()
+        saved.rename(state.parent)
+        checks += 1
+    os.mkfifo(state)
+    result = subprocess.run(['bash', '-c', recipe(7)], cwd=nested,
+                            env=dict(env, SAFETY_CHECKPOINT_TAG=safety),
+                            capture_output=True, timeout=5)
+    assert result.returncode != 0, 'history accepted a non-regular state file'
+    state.unlink()
+    checks += 1
 # Two simultaneous rollback preparations must retain different lesson bytes.
-with tempfile.TemporaryDirectory() as temporary:
+with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     paths = []
     for number in (1, 2):
         project = Path(temporary) / str(number)
@@ -233,7 +288,8 @@ with tempfile.TemporaryDirectory() as temporary:
         (project / '.octo/LESSONS.md').write_text(f'project {number} lessons')
         result = subprocess.run(['bash', '-eu', '-c', recipe(5) +
                                  '\nprintf "%s" "$LESSONS_BACKUP_DIR"'],
-                                cwd=project, capture_output=True, text=True, check=True)
+                                cwd=project, env=dict(os.environ, TMPDIR=temporary),
+                                capture_output=True, text=True, check=True)
         paths.append(Path(result.stdout.splitlines()[-1]))
     assert paths[0] != paths[1]
     for number, backup in enumerate(paths, 1):
