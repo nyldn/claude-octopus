@@ -146,6 +146,34 @@ with tempfile.TemporaryDirectory() as temporary:
     assert not removed.exists(), 'safety recovery retained a file absent from its checkpoint'
     assert lessons.read_text() == 'current lessons must survive\n'
     checks += 1
+    git('commit', '-qm', 'preserve recovered state')
+    protected_head = git('rev-parse', 'HEAD').decode().strip()
+    for kind in ('file', 'symlink'):
+        lessons.unlink()
+        lessons.parent.rmdir()
+        if kind == 'file':
+            lessons.parent.write_text('checkpoint replaces lessons directory\n')
+        else:
+            lessons.parent.symlink_to('historical')
+        git('add', '-f', '--', '.octo')
+        git('add', '-A')
+        git('commit', '-qm', 'checkpoint with lessons ancestor ' + kind)
+        tag = 'octo-checkpoint-ancestor-' + kind
+        git('tag', tag)
+        git('reset', '--hard', '-q', protected_head)
+        before_tree = git('write-tree')
+        before_status = git('status', '--porcelain=v1', '--untracked-files=all')
+        result = subprocess.run(['bash', '-c', recipe(6)], cwd=nested,
+                                env=dict(env, CHECKPOINT_TAG=tag),
+                                capture_output=True, timeout=5)
+        assert result.returncode != 0, ('rollback replaced protected lessons directory', kind)
+        assert b'protected lessons' in result.stderr, result.stderr
+        assert lessons.read_text() == 'current lessons must survive\n'
+        assert git('show', ':.octo/LESSONS.md') == b'current lessons must survive\n'
+        assert git('write-tree') == before_tree
+        assert git('status', '--porcelain=v1', '--untracked-files=all') == before_status
+        assert git('rev-parse', 'HEAD').decode().strip() == protected_head
+        checks += 1
 print(f'{checks} dirty, clean and recovery rollback recipe cases passed')
 PY
 then test_pass; else test_fail "rollback modified user work or rejected a clean restore"; fi

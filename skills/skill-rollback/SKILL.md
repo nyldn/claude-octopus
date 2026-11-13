@@ -189,6 +189,7 @@ ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
 # including file/directory replacements; NUL-delimited paths retain newlines.
 python3 -I - "$ROLLBACK_ROOT" "$CHECKPOINT_TAG" <<'PY_IGNORED' || exit 1
 from bisect import bisect_left
+import os
 import subprocess
 import sys
 
@@ -201,6 +202,8 @@ targets = subprocess.check_output([
     'git', '-C', root, 'ls-tree', '-r', '--name-only', '-z', checkpoint, '--',
 ]).split(b'\0')
 for target in targets:
+    if target == b'.octo' and os.path.lexists(os.path.join(root, '.octo', 'LESSONS.md')):
+        sys.exit('Rollback would replace the protected lessons directory. Preserve lessons before retrying.')
     if not target or target == b'.octo/LESSONS.md' or target.startswith(b'.octo/LESSONS.md/'):
         continue
     parts = target.split(b'/')
