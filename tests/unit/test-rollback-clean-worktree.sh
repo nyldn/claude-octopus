@@ -206,6 +206,27 @@ with tempfile.TemporaryDirectory() as temporary:
         assert git('ls-files', '-v', '--', '.octo/LESSONS.md') == before_flags
         assert git('rev-parse', 'HEAD').decode().strip() == protected_head
         checks += 1
+    # History runs in a fresh shell after restoration, often from a subdirectory.
+    state = repo / '.octo/STATE.md'
+    state.write_text('fixture state\n')
+    for target, safety_tag in (('', ''), ('octo-checkpoint-fixture', ''),
+                               ('missing-target', safety), ('octo-checkpoint-fixture', 'missing-safety')):
+        before = state.read_bytes()
+        result = subprocess.run(['bash', '-c', recipe(7)], cwd=repo,
+                                env=dict(env, CHECKPOINT_TAG=target, SAFETY_CHECKPOINT_TAG=safety_tag),
+                                capture_output=True, timeout=5)
+        assert result.returncode != 0, ('history accepted missing recovery context', target, safety_tag)
+        assert state.read_bytes() == before, 'invalid context changed rollback history'
+        checks += 1
+    result = subprocess.run(['bash', '-c', recipe(7)], cwd=nested,
+                            env=dict(env, SAFETY_CHECKPOINT_TAG=safety),
+                            capture_output=True, timeout=5)
+    assert result.returncode == 0, result.stderr
+    history = state.read_text()
+    assert '- **Target:** octo-checkpoint-fixture\n' in history, history
+    assert '- **Safety checkpoint:** ' + safety + '\n' in history, history
+    assert not (nested / '.octo/STATE.md').exists()
+    checks += 1
 print(f'{checks} dirty, clean and recovery rollback recipe cases passed')
 PY
 then test_pass; else test_fail "rollback modified user work or rejected a clean restore"; fi

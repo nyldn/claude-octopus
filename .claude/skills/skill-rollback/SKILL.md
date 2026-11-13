@@ -149,18 +149,20 @@ fi
 # Generate timestamp
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
-# Create safety checkpoint
-git tag -a "octo-checkpoint-pre-rollback-$TIMESTAMP" -m "Safety checkpoint before rollback to $CHECKPOINT_TAG"
+# Create safety checkpoint and retain the exact name for the history step.
+SAFETY_CHECKPOINT_TAG="octo-checkpoint-pre-rollback-$TIMESTAMP"
+git tag -a "$SAFETY_CHECKPOINT_TAG" -m "Safety checkpoint before rollback to $CHECKPOINT_TAG" || exit 1
+printf 'Safety checkpoint: %s\n' "$SAFETY_CHECKPOINT_TAG"
 ```
 
 Report:
 ```
-Created safety checkpoint: octo-checkpoint-pre-rollback-$TIMESTAMP
+Created safety checkpoint: $SAFETY_CHECKPOINT_TAG
 
 After restoration, review and commit the restored changes before using this
 command to return to the safety checkpoint. It requires a clean index and
 working tree. Preserve any unrelated changes separately.
-  /octo:rollback octo-checkpoint-pre-rollback-$TIMESTAMP
+  /octo:rollback $SAFETY_CHECKPOINT_TAG
 ```
 
 ### Step 5: Preserve LESSONS.md
@@ -238,15 +240,28 @@ fi
 
 ### Step 7: Update STATE.md (If Exists)
 
+Restore `CHECKPOINT_TAG` to the exact target used by the successful Step 6
+restoration and `SAFETY_CHECKPOINT_TAG` to the exact name printed by Step 4.
+Carry these literal values into this shell call even when earlier shell
+variables no longer exist. Do not reconstruct the safety tag from a new clock
+value or select a different tag by age. If either value is unavailable, report
+that history was not updated rather than writing an incomplete recovery entry.
+
 ```bash
-if [ -f ".octo/STATE.md" ]; then
-  # Append rollback entry to history
-  echo "" >> .octo/STATE.md
-  echo "## Rollback - $(date '+%Y-%m-%d %H:%M')" >> .octo/STATE.md
-  echo "" >> .octo/STATE.md
-  echo "- **Target:** $CHECKPOINT_TAG" >> .octo/STATE.md
-  echo "- **Safety checkpoint:** octo-checkpoint-pre-rollback-$TIMESTAMP" >> .octo/STATE.md
-  echo "- **Reason:** User requested rollback" >> .octo/STATE.md
+ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
+ROLLBACK_STATE="$ROLLBACK_ROOT/.octo/STATE.md"
+if [ -f "$ROLLBACK_STATE" ]; then
+  : "${CHECKPOINT_TAG:?Restore the exact target used by Step 6}" \
+    "${SAFETY_CHECKPOINT_TAG:?Restore the exact safety tag printed by Step 4}"
+  # Exact tag refs reject branch-name matches and missing recovery checkpoints.
+  git rev-parse --verify "refs/tags/${CHECKPOINT_TAG}^{commit}" >/dev/null || exit 1
+  git rev-parse --verify "refs/tags/${SAFETY_CHECKPOINT_TAG}^{commit}" >/dev/null || exit 1
+  {
+    printf '\n## Rollback - %s\n\n' "$(date '+%Y-%m-%d %H:%M')"
+    printf -- '- **Target:** %s\n' "$CHECKPOINT_TAG"
+    printf -- '- **Safety checkpoint:** %s\n' "$SAFETY_CHECKPOINT_TAG"
+    printf -- '- **Reason:** User requested rollback\n'
+  } >> "$ROLLBACK_STATE" || exit 1
 fi
 ```
 
@@ -259,7 +274,7 @@ Rollback Complete
 **Files restored:** N files
 **LESSONS.md:** Preserved (not rolled back)
 
-**Safety checkpoint created:** `octo-checkpoint-pre-rollback-$TIMESTAMP`
+**Safety checkpoint created:** `$SAFETY_CHECKPOINT_TAG`
 
 ### Next Steps
 
@@ -272,7 +287,7 @@ Rollback Complete
    changes. The recovery command requires a clean index and working tree.
    Preserve unrelated changes separately; do not bypass the clean-tree gate.
    ```bash
-   /octo:rollback octo-checkpoint-pre-rollback-$TIMESTAMP
+   /octo:rollback $SAFETY_CHECKPOINT_TAG
    ```
 ```
 
