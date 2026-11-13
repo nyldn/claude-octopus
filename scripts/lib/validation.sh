@@ -84,36 +84,79 @@ validate_external_url() {
 
     # Extract protocol
     local protocol="${url%%://*}"
-    if [[ "$protocol" != "https" ]]; then
+    if [[ "$protocol" != "https" || "$url" != https://* ]]; then
         echo "ERROR: Only HTTPS URLs are allowed (got: $protocol)" >&2
         return 1
     fi
 
-    # Extract hostname (remove protocol, path, port)
-    local hostname="${url#*://}"
-    hostname="${hostname%%/*}"
-    hostname="${hostname%%:*}"
-    hostname="${hostname%%\?*}"
-    hostname=$(echo "$hostname" | tr '[:upper:]' '[:lower:]')
+    # Accept a plain DNS/IPv4 authority only. Userinfo, encoded authority,
+    # backslashes and bracketed IPv6 can change which host a client connects to.
+    local authority="${url#https://}" hostname port is_ipv4=false
+    authority="${authority%%[/?#]*}"
+    if [[ "$url" == *[[:space:][:cntrl:]]* || "$url" == *\\* ||
+          "$url" == *\#* || -z "$authority" ||
+          "$authority" == *[@%\[\]]* ]]; then
+        echo "ERROR: Unsupported or ambiguous URL authority" >&2
+        return 1
+    fi
+    hostname="${authority%%:*}"
+    if [[ "$authority" == *:* ]]; then
+        port="${authority#*:}"
+        if [[ ! "$port" =~ ^[0-9]{1,5}$ ]] ||
+           (( 10#$port < 1 || 10#$port > 65535 )); then
+            echo "ERROR: Invalid URL port" >&2
+            return 1
+        fi
+    fi
+    hostname=$(printf '%s' "$hostname" | tr '[:upper:]' '[:lower:]')
+    hostname="${hostname%.}"
+    if [[ ! "$hostname" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ||
+          "$hostname" == *..* ]]; then
+        echo "ERROR: Invalid URL hostname" >&2
+        return 1
+    fi
+    # Reject numeric shorthand and noncanonical IPv4 accepted by URL clients.
+    if [[ "$hostname" =~ ^[0-9.]+$ ]]; then
+        local octets octet
+        octets="${hostname//./ }"
+        local -a parts
+        read -r -a parts <<< "$octets"
+        if [[ ${#parts[@]} -ne 4 ]]; then
+            echo "ERROR: Noncanonical IP address" >&2
+            return 1
+        fi
+        for octet in "${parts[@]}"; do
+            if [[ ! "$octet" =~ ^(0|[1-9][0-9]{0,2})$ ]] || (( 10#$octet > 255 )); then
+                echo "ERROR: Noncanonical IP address" >&2
+                return 1
+            fi
+        done
+        is_ipv4=true
+    elif [[ "$hostname" =~ ^(0x[0-9a-f]+|[0-9]+)(\.(0x[0-9a-f]+|[0-9]+))*$ ]]; then
+        echo "ERROR: Noncanonical IP address" >&2
+        return 1
+    fi
 
     # Reject localhost and loopback
     case "$hostname" in
-        localhost|127.0.0.1|::1|0.0.0.0)
+        localhost|*.localhost)
             echo "ERROR: Localhost URLs are not allowed" >&2
             return 1
             ;;
     esac
 
-    # Reject private IP ranges (RFC 1918)
-    if [[ "$hostname" =~ ^10\. ]] || \
-       [[ "$hostname" =~ ^192\.168\. ]] || \
-       [[ "$hostname" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]; then
+    # Apply numeric ranges only after recognizing canonical IPv4.
+    if [[ "$is_ipv4" == true ]] && {
+       [[ "$hostname" == 127.* || "$hostname" == 0.* ]] ||
+       [[ "$hostname" =~ ^10\. ]] ||
+       [[ "$hostname" =~ ^192\.168\. ]] ||
+       [[ "$hostname" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]; }; then
         echo "ERROR: Private IP addresses are not allowed" >&2
         return 1
     fi
 
     # Reject link-local and metadata endpoints
-    if [[ "$hostname" =~ ^169\.254\. ]] || \
+    if { [[ "$is_ipv4" == true ]] && [[ "$hostname" =~ ^169\.254\. ]]; } || \
        [[ "$hostname" == "metadata.google.internal" ]] || \
        [[ "$hostname" =~ ^fd[0-9a-f]{2}: ]] || \
        [[ "$hostname" =~ ^fe80: ]]; then

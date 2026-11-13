@@ -60,8 +60,8 @@ test_validate_url_function_exists() {
 test_url_rejects_http() {
     info "\n=== Testing: URL validation rejects HTTP ==="
 
-    # Static analysis: verify the function checks for https
-    if grep -A 20 'validate_external_url()' "$ORCHESTRATE_SH" | grep -qi 'https\|http.*reject\|http.*error'; then
+    # Execute the production guard.
+    if ! validate_external_url "http://example.com/" >/dev/null 2>&1; then
         pass "HTTP URLs are rejected (HTTPS required)"
     else
         fail "HTTP URLs should be rejected"
@@ -74,7 +74,7 @@ test_url_rejects_http() {
 test_url_rejects_localhost() {
     info "\n=== Testing: URL validation rejects localhost ==="
 
-    if grep -A 30 'validate_external_url()' "$ORCHESTRATE_SH" | grep -qi 'localhost'; then
+    if ! validate_external_url "https://localhost/" >/dev/null 2>&1; then
         pass "localhost URLs are rejected"
     else
         fail "localhost URLs should be rejected"
@@ -87,7 +87,7 @@ test_url_rejects_localhost() {
 test_url_rejects_loopback() {
     info "\n=== Testing: URL validation rejects loopback IP ==="
 
-    if grep -A 30 'validate_external_url()' "$ORCHESTRATE_SH" | grep -q '127\.0\.0\.1'; then
+    if ! validate_external_url "https://127.0.0.1/" >/dev/null 2>&1; then
         pass "127.0.0.1 URLs are rejected"
     else
         fail "127.0.0.1 URLs should be rejected"
@@ -100,7 +100,7 @@ test_url_rejects_loopback() {
 test_url_rejects_private_10() {
     info "\n=== Testing: URL validation rejects 10.x.x.x private IPs ==="
 
-    if grep -A 55 'validate_external_url()' "$ORCHESTRATE_SH" | grep -qF '^10\.'; then
+    if ! validate_external_url "https://10.2.3.4/" >/dev/null 2>&1; then
         pass "10.x.x.x private IPs are rejected"
     else
         fail "10.x.x.x private IPs should be rejected"
@@ -113,7 +113,7 @@ test_url_rejects_private_10() {
 test_url_rejects_private_192() {
     info "\n=== Testing: URL validation rejects 192.168.x.x private IPs ==="
 
-    if grep -A 55 'validate_external_url()' "$ORCHESTRATE_SH" | grep -qF '192'; then
+    if ! validate_external_url "https://192.168.1.2/" >/dev/null 2>&1; then
         pass "192.168.x.x private IPs are rejected"
     else
         fail "192.168.x.x private IPs should be rejected"
@@ -126,7 +126,7 @@ test_url_rejects_private_192() {
 test_url_rejects_metadata() {
     info "\n=== Testing: URL validation rejects cloud metadata endpoints ==="
 
-    if grep -A 55 'validate_external_url()' "$ORCHESTRATE_SH" | grep -q '169.*254'; then
+    if ! validate_external_url "https://169.254.169.254/" >/dev/null 2>&1; then
         pass "Cloud metadata endpoints (169.254.169.254) are rejected"
     else
         fail "Cloud metadata endpoints should be rejected"
@@ -296,6 +296,26 @@ cd "$PROJECT_ROOT"
 test_validate_url_function_exists
 test_transform_twitter_function_exists
 test_wrap_content_function_exists
+
+# Exercise the source-safe production URL validator without network access.
+source "$PROJECT_ROOT/scripts/lib/validation.sh"
+for url in 'https' 'https://' 'http://example.com/' 'https://localhost/' 'https://127.0.0.1/' \
+    'https://10.2.3.4/' 'https://192.168.1.2/' 'https://169.254.169.254/' \
+    'https://example.com@127.0.0.1/' 'https://127.0.0.1#x/' 'https://[::1]/' \
+    'https://user@example.com/' 'https://example.com/#section' \
+    'https://[::ffff:127.0.0.1]/' 'https://127.1/' 'https://2130706433/' \
+    'https://0177.0.0.1/' 'https://0x7f000001/' 'https://127.0.0.2/' \
+    'https://localhost./' 'https://foo.localhost/' 'https://%31%32%37.0.0.1/' \
+    'https://example.com:0/' 'https://example.com:65536/' 'https://example.com:abc/'; do
+    test_case "Reject unsafe URL: $url"
+    if validate_external_url "$url" >/dev/null 2>&1; then test_fail "unsafe URL accepted"; else test_pass; fi
+done
+for url in 'https://example.com/' 'https://example.com:443/a?x=y' 'https://8.8.8.8/' \
+    'https://0xdead.example.com/' 'https://127.example.com/' 'https://0.example.com/' \
+    'https://10.example.com/' 'https://192.168.example.com/' 'https://169.254.example.com/'; do
+    test_case "Accept public URL: $url"
+    if result=$(validate_external_url "$url") && [[ "$result" == "$url" ]]; then test_pass; else test_fail "public URL rejected"; fi
+done
 
 # URL validation tests
 test_url_rejects_http
