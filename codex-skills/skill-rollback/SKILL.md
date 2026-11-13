@@ -165,10 +165,11 @@ working tree. Preserve any unrelated changes separately.
 ```bash
 # Create a private backup for this rollback only. Carry both values into the
 # restore shell; never infer the directory from another rollback's files.
+ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
 LESSONS_BACKUP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-rollback-lessons.XXXXXX") || exit 1
 LESSONS_PRESERVED=false
-if [ -f ".octo/LESSONS.md" ]; then
-  cp .octo/LESSONS.md "$LESSONS_BACKUP_DIR/LESSONS.md" || exit 1
+if [ -f "$ROLLBACK_ROOT/.octo/LESSONS.md" ]; then
+  cp "$ROLLBACK_ROOT/.octo/LESSONS.md" "$LESSONS_BACKUP_DIR/LESSONS.md" || exit 1
   LESSONS_PRESERVED=true
 fi
 printf 'LESSONS_BACKUP_DIR=%s\nLESSONS_PRESERVED=%s\n' "$LESSONS_BACKUP_DIR" "$LESSONS_PRESERVED"
@@ -199,13 +200,46 @@ if [[ "$LESSONS_PRESERVED" == true && ( ! -f "$LESSONS_BACKUP_DIR/LESSONS.md" ||
 fi
 
 # Restore files from checkpoint (does NOT move HEAD)
-git checkout "$CHECKPOINT_TAG" -- . || exit 1
+# No-overlay also removes tracked files added after the checkpoint. Keep lessons
+# out of both index and worktree restoration so accumulated knowledge survives.
+# Run checkout from the repository root even when this shell is in a subdirectory.
+ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
+# Ordinary status omits ignored local files. Refuse collisions before any write,
+# including file/directory replacements; NUL-delimited paths retain newlines.
+python3 -I - "$ROLLBACK_ROOT" "$CHECKPOINT_TAG" <<'PY_IGNORED' || exit 1
+from bisect import bisect_left
+import os
+import subprocess
+import sys
 
-# Restore preserved LESSONS.md
-if [ "${LESSONS_PRESERVED:?Restore the backup state for this rollback}" = "true" ]; then
-  mkdir -p .octo || exit 1
-  cp "${LESSONS_BACKUP_DIR:?Restore the private backup path for this rollback}/LESSONS.md" .octo/LESSONS.md || exit 1
-fi
+root, checkpoint = sys.argv[1:]
+lessons_tracked = bool(subprocess.check_output([
+    'git', '-C', root, 'ls-files', '-z', '--', '.octo/LESSONS.md',
+]))
+# Embedded repositories may be returned as a single directory entry ending in /.
+ignored = {path.rstrip(b'/') for path in subprocess.check_output([
+    'git', '-C', root, 'ls-files', '--others', '--ignored', '--exclude-standard', '-z',
+]).split(b'\0') if path}
+ordered = sorted(ignored)
+targets = subprocess.check_output([
+    'git', '-C', root, 'ls-tree', '-r', '--name-only', '-z', checkpoint, '--',
+]).split(b'\0')
+for target in targets:
+    if target == b'.octo' and (lessons_tracked or os.path.lexists(os.path.join(root, '.octo', 'LESSONS.md'))):
+        sys.exit('Rollback would replace the protected lessons directory. Preserve lessons before retrying.')
+    if not target or target == b'.octo/LESSONS.md' or target.startswith(b'.octo/LESSONS.md/'):
+        continue
+    parts = target.split(b'/')
+    prefixes = (b'/'.join(parts[:length]) for length in range(1, len(parts) + 1))
+    descendant = bisect_left(ordered, target + b'/')
+    if any(path in ignored for path in prefixes) or (
+        descendant < len(ordered) and ordered[descendant].startswith(target + b'/')
+    ):
+        sys.exit('Rollback would overwrite ignored local files. Preserve them before retrying.')
+PY_IGNORED
+git -C "$ROLLBACK_ROOT" checkout --no-overlay "$CHECKPOINT_TAG" -- . ':(exclude).octo/LESSONS.md' || exit 1
+
+# Lessons remain excluded from checkout; do not reopen or overwrite their path.
 # Remove only this invocation's backup after successful restoration. On failure,
 # retain it and report its path so recovery remains possible.
 rmdir "${LESSONS_BACKUP_DIR:?}" 2>/dev/null || {
@@ -213,8 +247,9 @@ rmdir "${LESSONS_BACKUP_DIR:?}" 2>/dev/null || {
 }
 ```
 
-**Important:** This uses `git checkout <tag> -- .` which:
-- Restores all files to checkpoint state
+**Important:** This runs `git checkout --no-overlay <tag> -- . ':(exclude).octo/LESSONS.md'` from the repository root, which:
+- Restores tracked files to checkpoint state, including additions and deletions
+- Preserves current `.octo/LESSONS.md` in both the index and working tree
 - Does NOT move HEAD or change branch
 - Preserves current commit history
 - Allows immediate commit of the restored state
