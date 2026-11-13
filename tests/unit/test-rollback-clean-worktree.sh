@@ -190,6 +190,22 @@ with tempfile.TemporaryDirectory() as temporary:
         assert git('status', '--porcelain=v1', '--untracked-files=all') == before_status
         assert git('rev-parse', 'HEAD').decode().strip() == protected_head
         checks += 1
+    git('update-index', '--skip-worktree', '--', '.octo/LESSONS.md')
+    lessons.unlink()
+    for kind in ('file', 'symlink'):
+        before_tree = git('write-tree')
+        before_flags = git('ls-files', '-v', '--', '.octo/LESSONS.md')
+        result = subprocess.run(['bash', '-c', recipe(6)], cwd=nested,
+                                env=dict(env, CHECKPOINT_TAG='octo-checkpoint-ancestor-' + kind),
+                                capture_output=True, timeout=5)
+        assert result.returncode != 0, ('rollback removed index-only lessons', kind)
+        assert b'protected lessons' in result.stderr, result.stderr
+        assert not lessons.exists()
+        assert git('show', ':.octo/LESSONS.md') == b'current lessons must survive\n'
+        assert git('write-tree') == before_tree
+        assert git('ls-files', '-v', '--', '.octo/LESSONS.md') == before_flags
+        assert git('rev-parse', 'HEAD').decode().strip() == protected_head
+        checks += 1
 print(f'{checks} dirty, clean and recovery rollback recipe cases passed')
 PY
 then test_pass; else test_fail "rollback modified user work or rejected a clean restore"; fi

@@ -194,6 +194,9 @@ import subprocess
 import sys
 
 root, checkpoint = sys.argv[1:]
+lessons_tracked = bool(subprocess.check_output([
+    'git', '-C', root, 'ls-files', '-z', '--', '.octo/LESSONS.md',
+]))
 # Embedded repositories may be returned as a single directory entry ending in /.
 ignored = {path.rstrip(b'/') for path in subprocess.check_output([
     'git', '-C', root, 'ls-files', '--others', '--ignored', '--exclude-standard', '-z',
@@ -203,7 +206,7 @@ targets = subprocess.check_output([
     'git', '-C', root, 'ls-tree', '-r', '--name-only', '-z', checkpoint, '--',
 ]).split(b'\0')
 for target in targets:
-    if target == b'.octo' and os.path.lexists(os.path.join(root, '.octo', 'LESSONS.md')):
+    if target == b'.octo' and (lessons_tracked or os.path.lexists(os.path.join(root, '.octo', 'LESSONS.md'))):
         sys.exit('Rollback would replace the protected lessons directory. Preserve lessons before retrying.')
     if not target or target == b'.octo/LESSONS.md' or target.startswith(b'.octo/LESSONS.md/'):
         continue
