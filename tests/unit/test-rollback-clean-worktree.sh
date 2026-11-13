@@ -10,6 +10,7 @@ if python3 - "$PROJECT_ROOT" <<'PY'
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -94,6 +95,21 @@ with tempfile.TemporaryDirectory() as temporary:
     (repo / '.git/info/exclude').write_text('*\n')
     cache = repo / 'unrelated.cache'
     cache.write_text('keep ignored cache\n')
+    # Git reports an ignored embedded repository as one trailing-slash entry.
+    git('init', '-q', str(historical))
+    embedded_file = historical / 'config.env'
+    embedded_file.write_text('uncommitted embedded repository data\n')
+    before_tree = git('write-tree')
+    result = subprocess.run(['bash', '-c', recipe(6)], cwd=nested, env=env,
+                            capture_output=True, timeout=5)
+    assert result.returncode != 0, 'rollback overwrote an ignored embedded repository'
+    assert b'ignored local files' in result.stderr, result.stderr
+    assert embedded_file.read_text() == 'uncommitted embedded repository data\n'
+    assert (historical / '.git/HEAD').is_file()
+    assert git('write-tree') == before_tree
+    assert git('rev-parse', 'HEAD') == head and git('tag', '-l') == clean_tags
+    checks += 1
+    shutil.rmtree(historical)
     for collision in (removed, newline, historical, removed / 'local.env'):
         collision.parent.mkdir(exist_ok=True)
         collision.write_text('ignored local data\n')

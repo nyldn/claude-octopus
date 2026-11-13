@@ -194,9 +194,10 @@ import subprocess
 import sys
 
 root, checkpoint = sys.argv[1:]
-ignored = set(subprocess.check_output([
+# Embedded repositories may be returned as a single directory entry ending in /.
+ignored = {path.rstrip(b'/') for path in subprocess.check_output([
     'git', '-C', root, 'ls-files', '--others', '--ignored', '--exclude-standard', '-z',
-]).split(b'\0')) - {b''}
+]).split(b'\0') if path}
 ordered = sorted(ignored)
 targets = subprocess.check_output([
     'git', '-C', root, 'ls-tree', '-r', '--name-only', '-z', checkpoint, '--',
