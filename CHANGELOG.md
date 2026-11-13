@@ -4,6 +4,24 @@
 
 ## [11.24.0] - 2026-11-13
 
+This batch protects local work during quick tasks and rollback, verifies current
+research and Council evidence, and supports OpenCode 2.x dispatch. Configured
+Antigravity capacity fallbacks are opt-in; existing model choices remain intact.
+
+Merged changes: [#1301](https://github.com/nyldn/claude-octopus/pull/1301),
+[#1257](https://github.com/nyldn/claude-octopus/pull/1257),
+[#1306](https://github.com/nyldn/claude-octopus/pull/1306),
+[#1307](https://github.com/nyldn/claude-octopus/pull/1307),
+[#1308](https://github.com/nyldn/claude-octopus/pull/1308),
+[#1309](https://github.com/nyldn/claude-octopus/pull/1309),
+[#1310](https://github.com/nyldn/claude-octopus/pull/1310),
+[#1311](https://github.com/nyldn/claude-octopus/pull/1311),
+[#1312](https://github.com/nyldn/claude-octopus/pull/1312),
+[#1313](https://github.com/nyldn/claude-octopus/pull/1313) and
+[#1314](https://github.com/nyldn/claude-octopus/pull/1314).
+These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
+which remains open for outstanding runtime safety work.
+
 ### Added
 
 - `OCTOPUS_AGY_FALLBACK_MODELS` lists Gemini models for agy to retry, in
@@ -15,15 +33,32 @@
 
 - External URL validation rejects ambiguous authorities, including userinfo,
   fragments, bracketed IPv6, numeric IP shorthand and invalid ports, before
-  existing local/private-address checks. Public HTTPS URLs still pass. DNS
+  existing local/private-address checks. Public HTTPS controls still pass. DNS
   rebinding and redirects remain separate work. See
   [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
 
+- Quick tasks commit only their selected files, preserve unrelated staged work,
+  and stop before recording completion when staging or committing fails.
+
+- Quota and authentication failures update the original provider seat in agent
+  summaries instead of leaving duplicate entries that still show it running.
+
+- Council grounding checks a later source claim even when an earlier clause
+  describes the reviewer's own estimate or calculation.
+- Rollback history requires the exact target and safety checkpoint tags in each
+  shell call and updates the repository state file when run from a subdirectory.
+  It refuses symlinked state paths so restored checkpoints cannot redirect the
+  history append into another file.
+
+- Deep research validates the current invocation's completed synthesis in the
+  active host session instead of accepting an unrelated recent report.
+- Checkpoint rollback removes tracked files added after the checkpoint and
+  restores deleted files from any subdirectory. It refuses collisions with
+  ignored local files or replacements of the protected lessons directory while
+  retaining current lessons and commit history.
 - Checkpoint rollback refuses uncommitted or untracked work before preview,
   safety tagging and restoration, so a tag cannot be mistaken for a backup of
-  changes that exist only in the working tree or index. See
-  [#1307](https://github.com/nyldn/claude-octopus/pull/1307). Other runtime
-  findings in [#1304](https://github.com/nyldn/claude-octopus/issues/1304) remain open.
+  changes that exist only in the working tree or index.
 
 - OpenCode debates admit the Claude moderator before proposals; successful
   quorum debates need no moderator. Squeeze verifies its required providers

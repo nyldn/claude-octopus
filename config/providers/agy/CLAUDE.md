@@ -24,7 +24,8 @@ Prompts larger than 100KB (Linux caps one argv string at 128KB) stay in the
 cached temp file; agy is pointed at it with `--add-dir` and a read-this-file
 `--print` instruction.
 
-When `OCTOPUS_AGY_MODEL` is set to a non-empty value other than `default`,
+When `OCTOPUS_AGY_MODEL` is set to a non-empty value other than `default` or
+`agy/default`,
 Octopus adds the model override before the prompt:
 
 ```bash
@@ -33,12 +34,15 @@ agy --sandbox --print-timeout "${OCTOPUS_AGY_PRINT_TIMEOUT:-5m0s}" --model "$OCT
 
 Octopus dispatches through `scripts/helpers/agy-exec.sh`, which is the command
 returned for `agy|agy-research|antigravity` by `scripts/lib/dispatch.sh`.
-`agy-exec.sh` reads `OCTOPUS_AGY_MODEL` (default `Claude Sonnet 4.6 (Thinking)`)
-and `OCTOPUS_AGY_PRINT_TIMEOUT` (default `5m0s`). Antigravity display model
-names with spaces are passed as a single argv element.
+`agy-exec.sh` reads `OCTOPUS_AGY_MODEL` (default `default`) and
+`OCTOPUS_AGY_PRINT_TIMEOUT` (default `5m0s`). An unset or empty model setting,
+`default`, and `agy/default` all omit `--model`, preserving the model selected
+in the Antigravity CLI. Explicit display model names with spaces are passed
+as a single argv element.
 
-Set `OCTOPUS_AGY_MODEL=default` to omit `--model` and use the Antigravity CLI
-default. Set `OCTOPUS_AGY_PRINT_TIMEOUT` to override the print-mode wait time.
+Set `OCTOPUS_AGY_MODEL=default` or `OCTOPUS_AGY_MODEL=agy/default` to omit
+`--model` and use the Antigravity CLI selection. Set `OCTOPUS_AGY_PRINT_TIMEOUT`
+to override the print-mode wait time.
 
 Set `OCTOPUS_AGY_FALLBACK_MODELS` to a comma list of `agy models` IDs or labels
 (for example `Gemini 4 Carbon (High),Gemini 4 Argon (High)`) to retry a prompt
@@ -48,7 +52,8 @@ an empty answer. Any other failure stops the loop. Only Gemini models are used, 
 seat stays a Google vendor. A council records the model that answered as the
 seat's `model` in `summary.json`, with `model_fallback.from` naming the busy one.
 
-When `OCTOPUS_AGY_MODEL` is non-empty and not `default`, Octopus adds:
+When `OCTOPUS_AGY_MODEL` is non-empty and neither `default` nor `agy/default`,
+Octopus adds:
 
 ```bash
 --model "$OCTOPUS_AGY_MODEL"

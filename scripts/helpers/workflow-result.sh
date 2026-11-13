@@ -28,7 +28,7 @@ import stat
 import sys
 
 phase, marker, directory = sys.argv[1:]
-prefixes = {"define": "grasp-consensus", "develop": "tangle-validation", "deliver": "delivery", "ink": "delivery"}
+prefixes = {"probe": "probe-synthesis", "define": "grasp-consensus", "develop": "tangle-validation", "deliver": "delivery", "ink": "delivery"}
 try:
     prefix = prefixes[phase]
     started = pathlib.Path(marker).stat().st_mtime_ns
@@ -75,7 +75,11 @@ try:
         # Provider output may be truncated mid-character. Keep byte offsets intact
         # for task framing and replace invalid text only when interpreting content.
         text = data.decode("utf-8", errors="replace")
-        if phase == "define":
+        if phase == "probe":
+            footer = next(iter(text.rstrip().splitlines()[-1:]), "")
+            valid = bool(data.startswith(b"# PROBE Phase Synthesis\n") and re.fullmatch(
+                r"\*Synthesized from [1-9][0-9]* research threads \(task group: [A-Za-z0-9._-]+\)\* \[inference\]", footer))
+        elif phase == "define":
             # Grasp has no status heading. Its launcher footer identifies the
             # synthesizer, or explicitly records a failed auto-consensus as none.
             footer = next(iter(text.rstrip().splitlines()[-1:]), "")

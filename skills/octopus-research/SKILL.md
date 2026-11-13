@@ -119,9 +119,23 @@ Research Parameters:
 
 **You MUST execute this command via the native shell command tool:**
 
+Set `research_intensity` to the resolved value and `research_question` to the
+question with routing tokens removed. Use the installation that loaded this
+skill. If neither host root variable is set, replace the fallback below with
+the absolute root derived from this loaded skill's path.
+
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" --intensity=<quick|standard|deep> probe \
-  "<user's research question> (focus: ${focus_choice}; output: ${format_choice})"
+OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+RUN_MARKER=$(mktemp) || exit 1
+RUN_STATUS=0
+OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "$OCTO_ROOT/scripts/orchestrate.sh" --intensity="${research_intensity:?}" probe \
+  "${research_question:?} (focus: ${focus_choice}; output: ${format_choice})" || RUN_STATUS=$?
+REPORT_STATUS=0
+SYNTHESIS_FILE=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" probe "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
+rm -f "$RUN_MARKER"
+[[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
+echo "VALIDATION PASSED: $SYNTHESIS_FILE"
+cat "$SYNTHESIS_FILE"
 ```
 
 orchestrate.sh takes the intensity only as the `--intensity=` flag. It has no `--depth`, `--focus` or `--format` options, and a bracket token such as `[intensity=deep]` is not an option either: either form would be read as prompt text and the probe would run at standard intensity.
@@ -137,21 +151,13 @@ orchestrate.sh takes the intensity only as the `--intensity=` flag. It has no `-
 
 ### STEP 4: Verify Execution (MANDATORY - Validation Gate)
 
-**After orchestrate.sh completes, verify it succeeded:**
-
-```bash
-# Find the latest synthesis file (created within last 10 minutes)
-SYNTHESIS_FILE=$(find ~/.claude-octopus/results -name "probe-synthesis-*.md" -mmin -10 2>/dev/null | head -n1)
-
-if [[ -z "$SYNTHESIS_FILE" ]]; then
-  echo "❌ VALIDATION FAILED: No synthesis file found"
-  echo "orchestrate.sh did not execute properly"
-  exit 1
-fi
-
-echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
-cat "$SYNTHESIS_FILE"
-```
+Step 3 must exit successfully and validate a fresh synthesis owned by its
+invocation in the current host session's results directory. A failed command,
+missing report, another session's report, or a recent unrelated synthesis cannot
+pass. Use only the exact validated `SYNTHESIS_FILE` path printed by Step 3.
+Carry that literal path into later shell calls; never rediscover it by age or
+filename ordering. Cached or resumed reports without current invocation
+ownership require a fresh run before presenting them through this skill.
 
 **If validation fails:**
 1. Report error to user

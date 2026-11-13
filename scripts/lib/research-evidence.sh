@@ -955,6 +955,7 @@ research_verify_synthesis() {
     : > "$claims"; : > "$findings"
     local claim_count=0 failures=0 warnings=0 line_no=0 line plain_line ids id invalid groups group unique_groups
     local in_fence=false
+    local probe_header=false invocation_header_pattern='^<!-- octopus-workflow-invocation: [A-Za-z0-9._-]* -->$'
     local snapshot normalized number quote numbers quotes score source_json groups_json
     local project_root token resolved local_refs local_files local_ref local_json evidence_file unresolved_refs
     local local_index cached_index cache_bytes cached_bytes=0 cache_error=false
@@ -969,6 +970,12 @@ research_verify_synthesis() {
     fi
     while IFS= read -r line || [[ -n "$line" ]]; do
         line_no=$((line_no + 1))
+        [[ "$line_no" != 1 || "$line" != '# PROBE Phase Synthesis' ]] || probe_header=true
+        # Only the launcher's second-line identity is metadata. Provider comments
+        # elsewhere still receive the normal citation and numeric-claim checks.
+        if [[ "$line_no" == 2 && "$probe_header" == true && "$line" =~ $invocation_header_pattern ]]; then
+            continue
+        fi
         if [[ "$line" == '```'* ]]; then
             if [[ "$in_fence" == "true" ]]; then
                 in_fence=false

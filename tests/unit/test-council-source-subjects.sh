@@ -87,4 +87,47 @@ if jq -e '.verification_failed == false and .quotes_unverifiable_proposed == 0
 else
     test_fail "code-only proposal word escaped verification: $report"
 fi
+# A previous first-person calculation cannot excuse a new explicit source claim.
+for estimator in 'I estimate' 'we compute' 'I calculate'; do
+    for boundary in '.' ';' '!' '?'; do
+        test_case "#1304: an earlier $estimator clause cannot hide a later source claim after $boundary"
+        response="$TEST_TMP_DIR/estimate-source.md"
+        printf 'src/pricing.ts:1 reads `%s`.\nsrc/pricing.ts:1 %s the cost%s The file contains `8 + 10 + 0.5 = 18.5 KB`.\nVERDICT: APPROVE\n' \
+            "$real" "$estimator" "$boundary" > "$response"
+        report="$(council_response_quote_verification_json "$response" "$evidence")"
+        if jq -e '.quotes_checked == 2 and .quotes_verified == 1 and .quotes_attributed == 2
+                and .quotes_unverified == 1 and .fabricated == true' <<< "$report" >/dev/null; then
+            test_pass
+        else
+            test_fail "earlier estimate suppressed source verification: $report"
+        fi
+    done
+    test_case "#1304: $estimator in the current clause remains the seat's arithmetic"
+    printf 'src/pricing.ts:1 contains the baseline and %s `8 + 10 + 0.5 = 18.5 KB`.\nVERDICT: APPROVE\n' \
+        "$estimator" > "$response"
+    report="$(council_response_quote_verification_json "$response" "$evidence")"
+    if jq -e '.quotes_checked == 0 and .quotes_attributed == 0 and .fabricated == false' <<< "$report" >/dev/null; then
+        test_pass
+    else
+        test_fail "current-clause estimate misclassified as source: $report"
+    fi
+done
+
+# A first-person introduction cannot take ownership back from a later source
+# subject. Search offsets must retain the original start-of-gap anchor.
+for estimator in 'I estimate' 'we compute' 'I calculate'; do
+    for boundary in '.' ';' '!' '?'; do
+        test_case "a source subject after $boundary $estimator still owns its invented arithmetic"
+        printf 'src/pricing.ts:1 reads `%s`.\nsrc/pricing.ts:1%s %s the cost, but the file contains `8 + 10 + 0.5 = 18.5 KB`.\nVERDICT: APPROVE\n' \
+            "$real" "$boundary" "$estimator" > "$response"
+        report="$(council_response_quote_verification_json "$response" "$evidence")"
+        if jq -e '.quotes_checked == 2 and .quotes_verified == 1 and .quotes_attributed == 2
+                and .quotes_unverified == 1 and .fabricated == true' <<< "$report" >/dev/null; then
+            test_pass
+        else
+            test_fail "sentence boundary rebased the estimate anchor: $report"
+        fi
+    done
+done
+
 test_summary

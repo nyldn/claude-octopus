@@ -47,9 +47,12 @@ a configured Gemini model after a capacity error, with the answering model recor
 See [Council](docs/COUNCIL.md) and
 [Antigravity fallback configuration](config/providers/agy/CLAUDE.md).
 
-Checkpoint rollback stops before overwriting uncommitted or untracked work.
-Recovery guidance explains how to preserve the restored state before returning
-to the safety checkpoint.
+Quick tasks commit only their selected files and preserve unrelated staged work.
+Checkpoint rollback checks for unsaved changes before restoring the complete
+tracked checkpoint, keeps current lessons, and records the exact recovery tags.
+Research verifies the report produced by its current invocation. Provider quota
+and authentication failures update their original seat instead of leaving a
+stale running entry.
 
 External URL checks reject ambiguous authorities that could reach loopback
 services, including userinfo and bracketed IPv6 forms. This fixes authority
