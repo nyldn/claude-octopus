@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Quota and authentication failures update the original provider seat in agent
+  summaries instead of leaving duplicate entries that still show it running.
+
 - Council grounding checks a later source claim even when an earlier clause
   describes the reviewer's own estimate or calculation.
 - Rollback history requires the exact target and safety checkpoint tags in each
