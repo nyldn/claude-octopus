@@ -57,6 +57,8 @@ resolve_provider_to_agent() {
         cursor-agent|ollama)    agent="$provider" ;;
         commandcode|commandcode-research|commandcode-fast)
                                 agent="$provider" ;;
+        opencode|opencode-fast|opencode-research)
+                                agent="$provider" ;;
         *)                      return 1 ;;
     esac
 
@@ -84,6 +86,7 @@ agent_display_label() {
         copilot*) echo "Copilot" ;;
         cursor-agent) echo "Cursor Agent" ;;
         commandcode*) echo "Command Code" ;;
+        opencode|opencode-fast|opencode-research) echo "OpenCode" ;;
         ollama) echo "Ollama" ;;
         *) return 1 ;;
     esac

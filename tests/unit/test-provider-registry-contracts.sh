@@ -8,7 +8,7 @@ source "$PROJECT_ROOT/scripts/lib/provider-registry.sh"
 test_suite "Provider registry consumer contracts"
 
 test_case "health capability matches implemented health cases"
-expected="codex commandcode claude claude-sdk anthropic-api agy perplexity openrouter orcarouter atlascloud cheaperinference api-route litellm uberllm cursor-agent grok qwen ollama copilot vibe kimi"
+expected="codex commandcode claude claude-sdk anthropic-api agy perplexity opencode openrouter orcarouter atlascloud cheaperinference api-route litellm uberllm cursor-agent grok qwen ollama copilot vibe kimi"
 actual="$(octo_provider_ids health)"
 if [[ "$actual" == "$expected" ]]; then test_pass; else test_fail "health set drift: $actual"; fi
 

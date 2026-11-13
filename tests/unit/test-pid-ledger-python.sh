@@ -15,7 +15,7 @@ make_probe() {
     cat > "$path" <<EOF
 #!/usr/bin/env bash
 printf 'probe\n' >> "$counter"
-[[ "\${2:-}" == capability ]] || exit 64
+[[ "\${1:-}" == -E && "\${2:-}" == -s && "\${4:-}" == capability ]] || exit 64
 exit $result
 EOF
     chmod +x "$path"
@@ -149,7 +149,7 @@ capability_count="$TEST_TMP_DIR/capability-count"
 cleanup_count="$TEST_TMP_DIR/cleanup-count"
 cat > "$counting_python" <<EOF
 #!/usr/bin/env bash
-if [[ "\${2:-}" == capability ]]; then
+if [[ "\${4:-}" == capability ]]; then
     printf 'probe\n' >> "$capability_count"
 fi
 if [[ "\${1:-}" == */process_control.py ]]; then
@@ -242,5 +242,67 @@ else
     test_fail "Doctor capability results were incomplete: pass=$doctor_result fail=$doctor_failure"
 fi
 unset OCTOPUS_PYTHON
+
+test_case "capability validation does not publish a provider receipt or event"
+peer_marker="$TEST_TMP_DIR/capability-peer-marker"
+event_marker="$TEST_TMP_DIR/capability-events"
+capable=0
+OCTOPUS_AUTO_PEER_DISPATCH_MARKER="$peer_marker" OCTO_EVENT_LOG="$event_marker" \
+    _octo_pid_python_capable "$good_python" || capable=$?
+if [[ "$capable" -eq 0 && ! -e "$peer_marker" && ! -e "$event_marker" ]]; then
+    test_pass
+else
+    test_fail "capability validation was attributed to a provider dispatch"
+fi
+
+test_case "capability validation ignores Python startup hooks while retaining sibling imports"
+if "$real_python" -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY'
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+root, temporary = map(Path, sys.argv[1:])
+verified = 0
+for index, interpreter in enumerate(dict.fromkeys((sys.executable, '/usr/bin/python3'))):
+    if not Path(interpreter).is_file():
+        continue
+    clean_env = {key: value for key, value in os.environ.items() if not key.startswith('PYTHON')}
+    capability = subprocess.run([interpreter, '-E', '-s', str(root / 'scripts/helpers/pid-ledger.py'),
+                                 'capability'], env=clean_env, capture_output=True, text=True, timeout=10)
+    if capability.returncode:
+        assert interpreter != sys.executable, 'the selected interpreter lacks native process APIs'
+        print('Skipped optional Python without native process APIs: ' + interpreter)
+        continue
+    fixture = temporary / ('python-startup-' + str(index))
+    fixture.mkdir()
+    marker = fixture / 'startup-executed'
+    version = subprocess.check_output([interpreter, '-E', '-s', '-c',
+        'import sys; print("%d.%d" % sys.version_info[:2])'], text=True).strip()
+    userbase = fixture / 'userbase'
+    site = userbase / 'lib' / ('python' + version) / 'site-packages'
+    site.mkdir(parents=True)
+    hook = 'import os\nfrom pathlib import Path\nPath(os.environ["STARTUP_MARKER"]).touch()\n'
+    (site / 'usercustomize.py').write_text(hook)
+    (fixture / 'sitecustomize.py').write_text(hook)
+    env = dict(os.environ, PYTHONUSERBASE=str(userbase), PYTHONPATH=str(fixture),
+               STARTUP_MARKER=str(marker), MISTRAL_API_KEY='inert-fixture')
+    env.pop('PYTHONHOME', None)
+    subprocess.run([interpreter, '-c', 'pass'], env=env, check=True)
+    assert marker.exists(), 'startup-hook control did not execute'
+    marker.unlink()
+    result = subprocess.run(['/bin/bash', '-c', 'source "$1/scripts/lib/pid-ledger.sh"; '
+                             '_octo_pid_python_capable "$2"', '_', str(root), interpreter],
+                            env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert not marker.exists(), 'capability validation executed a Python startup hook'
+    verified += 1
+assert verified, 'no capable interpreter exercised Python startup isolation'
+PY
+then
+    test_pass
+else
+    test_fail "capability validation executed startup code or lost its sibling imports"
+fi
 
 test_summary

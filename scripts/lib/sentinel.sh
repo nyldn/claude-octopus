@@ -157,7 +157,7 @@ advise_strategy() {
         return 0
     fi
 
-    preflight_check || return 1
+    preflight_check false "" non-roster-dispatch || return 1
     mkdir -p "$RESULTS_DIR"
 
     echo -e "${CYAN}🦑 Phase 1/4: Analyzing market and competitive landscape...${NC}"

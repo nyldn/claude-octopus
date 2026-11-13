@@ -900,6 +900,9 @@ spawn_agent() {
             return 1
         fi
         log INFO "[DRY-RUN] Would execute: $preview_cmd with role=${role:-none}"
+        if [[ "$agent_type" == opencode* ]]; then
+            log INFO "[DRY-RUN] OpenCode server mode and bounded Tangle availability are unchecked."
+        fi
         return 0
     fi
 
@@ -1266,7 +1269,7 @@ ${heuristic_ctx}"
         return 74
     fi
 
-    local _provider_for_health=""
+    local _provider_for_health="" _dispatch_workdir="$PWD"
     case "$agent_type" in
         codex*) _provider_for_health="codex" ;;
         gemini*|agy*|antigravity) _provider_for_health="agy" ;;
@@ -1274,17 +1277,22 @@ ${heuristic_ctx}"
         claude-sdk*) _provider_for_health="claude-sdk" ;;
         claude*) _provider_for_health="claude" ;;
         openrouter*) _provider_for_health="openrouter" ;;
+        opencode*)
+            _provider_for_health="opencode"
+            _dispatch_workdir="${PROJECT_ROOT:-$PWD}"
+            ;;
         perplexity*) _provider_for_health="perplexity" ;;
         cursor-agent*) _provider_for_health="cursor-agent" ;;
         kimi*) _provider_for_health="kimi" ;;
     esac
     if [[ -n "$_provider_for_health" ]] && declare -F check_provider_health >/dev/null 2>&1; then
-        local _health_diag
-        if ! _health_diag=$(check_provider_health "$_provider_for_health" "$model" 2>&1); then
+        local _health_diag _health_rc=0
+        _health_diag=$(cd "$_dispatch_workdir" && check_provider_health "$_provider_for_health" "$model" 2>&1) || _health_rc=$?
+        if [[ "$_health_rc" -ne 0 ]]; then
             octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
-                "Provider unavailable: $_health_diag" 1 "" >/dev/null 2>&1 || true
+                "Provider unavailable: $_health_diag" "$_health_rc" "" >/dev/null 2>&1 || true
             log WARN "Provider '$_provider_for_health' health check failed: $_health_diag"
-            return 1
+            return "$_health_rc"
         fi
     fi
 
@@ -1307,13 +1315,24 @@ ${heuristic_ctx}"
             "Prompt byte measurement failed" 1 "" >/dev/null 2>&1 || true
         return 1
     fi
-    if ! cmd=$(get_agent_command "$agent_type" "${phase:-}" "${role:-}" "$_prompt_bytes"); then
-        log ERROR "Unknown agent type: $agent_type"
-        log INFO "Available agents: $AVAILABLE_AGENTS"
+    # OpenCode's version-dependent server flags must describe the executable
+    # the worker will find after cd, including relative PATH entries and shims.
+    local OCTO_RESOLVED_COMMAND="" OCTO_COMMAND_DIAGNOSTIC="" _command_rc=0 _command_reason
+    octo_resolve_agent_command "$_dispatch_workdir" "$agent_type" "${phase:-}" "${role:-}" "$_prompt_bytes" || _command_rc=$?
+    if [[ "$_command_rc" -ne 0 ]]; then
+        _command_reason="Provider command unavailable"
+        if [[ "$_command_rc" -eq 125 ]]; then
+            _command_reason="${OCTO_COMMAND_DIAGNOSTIC:-Provider command refused}"
+            log WARN "Provider command refused for $agent_type"
+        else
+            log ERROR "Unknown agent type: $agent_type"
+            log INFO "Available agents: $AVAILABLE_AGENTS"
+        fi
         octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
-            "Provider command unavailable" 1 "" >/dev/null 2>&1 || true
-        return 1
+            "$_command_reason" "$_command_rc" "" >/dev/null 2>&1 || true
+        return "$_command_rc"
     fi
+    cmd="$OCTO_RESOLVED_COMMAND"
     if declare -f octo_dispatch_command_model >/dev/null 2>&1; then
         model="$(octo_dispatch_command_model "$cmd" "$model")"
     fi
@@ -1336,7 +1355,7 @@ ${heuristic_ctx}"
     case "$agent_type" in
         cursor-agent*|copilot*|qwen*) _plan_append_empty_prompt=true ;;
     esac
-    if ! build_provider_env "$agent_type"; then
+    if ! build_provider_env "$agent_type" "$model"; then
         octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
             "Provider environment construction failed" 74 "" >/dev/null 2>&1 || true
         return 74

@@ -59,7 +59,9 @@ _is_cursor_agent_binary() {
     # or spawn an interactive session, blocking every caller (cursor_agent_is_available,
     # preflight, doctor, smoke, build-fleet). Redirect stdin to /dev/null too.
     probe_timeout="${OCTOPUS_CURSOR_AGENT_PROBE_TIMEOUT:-3}"
-    version_output=$(_cursor_agent_run_with_timeout "$probe_timeout" agent --version </dev/null) || return 1
+    # MCP can forward OpenCode's key before provider-child filtering runs.
+    version_output=$(unset MISTRAL_API_KEY || exit 1
+        _cursor_agent_run_with_timeout "$probe_timeout" agent --version </dev/null) || return 1
     # Cursor Agent versions look like: 2026.04.14-ee4b43a
     [[ "$version_output" =~ ^20[0-9]{2}\. ]] && return 0
     return 1
@@ -164,7 +166,8 @@ _cursor_agent_session_probe() {
     status_timeout="${OCTOPUS_CURSOR_AGENT_STATUS_TIMEOUT:-15}"
     # Keep whatever was printed even on a non-zero exit; the verdict is the
     # boolean, not the exit status.
-    status_output=$(_cursor_agent_run_with_timeout "$status_timeout" agent status --format json </dev/null 2>/dev/null) || true
+    status_output=$(unset MISTRAL_API_KEY || exit 1
+        _cursor_agent_run_with_timeout "$status_timeout" agent status --format json </dev/null 2>/dev/null) || true
     if grep -Ec '"isAuthenticated"[[:space:]]*:[[:space:]]*true' >/dev/null <<< "$status_output"; then
         _CURSOR_AGENT_SESSION_AUTH_CACHE="yes"
         _cursor_agent_auth_cache_write yes

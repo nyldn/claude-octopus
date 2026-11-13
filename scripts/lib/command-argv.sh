@@ -4,6 +4,23 @@
 [[ -n "${_OCTOPUS_COMMAND_ARGV_LOADED:-}" ]] && return 0
 _OCTOPUS_COMMAND_ARGV_LOADED=true
 
+# Resolve in the worker directory and retain launcher diagnostics separately
+# from argv. Call directly so both results survive without losing the status.
+octo_resolve_agent_command() {
+    local directory="$1" diagnostic_file rc=0
+    shift
+    OCTO_RESOLVED_COMMAND="" OCTO_COMMAND_DIAGNOSTIC=""
+    diagnostic_file="$(mktemp "${TMPDIR:-/tmp}/octopus-command.XXXXXX")" || return 74
+    # Outputs are read by the caller after this function returns.
+    # shellcheck disable=SC2034
+    OCTO_RESOLVED_COMMAND="$(cd "$directory" && get_agent_command "$@" 2>"$diagnostic_file")" || rc=$?
+    cat "$diagnostic_file" >&2
+    # shellcheck disable=SC2034
+    OCTO_COMMAND_DIAGNOSTIC="$(head -c 4096 "$diagnostic_file")"
+    rm -f "$diagnostic_file"
+    return "$rc"
+}
+
 # Parse quoting and escaped whitespace without eval, expansion, or operator
 # interpretation. The result is returned in OCTO_COMMAND_ARGV.
 octo_dispatch_command_to_argv() {

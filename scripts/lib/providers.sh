@@ -46,19 +46,20 @@ fi
 # command when the CLI is waiting on auth, Keychain, or a broken hook. The
 # dedicated runner keeps its termination grace inside the configured total cap
 # whether providers.sh is loaded by the orchestrator or sourced on its own.
-_octo_bare_auth_probe() {
+_octo_bare_auth_probe() (
+    unset MISTRAL_API_KEY || return 1
     local probe_timeout term_timeout kill_grace
     read -r probe_timeout term_timeout kill_grace <<< \
         "$(_octo_bare_probe_budget "${OCTOPUS_BARE_PROBE_TIMEOUT:-5}")"
 
-    if [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" == "true" ]]; then
+    if _octo_skip_discovery_probes; then
         return 125
     fi
 
     printf 'x\n' | _octo_run_bare_probe_with_timeout \
         "$probe_timeout" "$term_timeout" "$kill_grace" \
         claude --bare --print --model claude-haiku-4-5-20251001
-}
+)
 
 # Version comparison utility
 version_compare() {
@@ -89,13 +90,15 @@ version_compare() {
     return 1
 }
 
-_octo_host_version_output() {
+_octo_host_version_output() (
+    # Host metadata probes do not use the credential forwarded for OpenCode.
+    unset MISTRAL_API_KEY || return 1
     local total_timeout term_timeout kill_grace
     read -r total_timeout term_timeout kill_grace <<< \
         "$(_octo_bare_probe_budget "${OCTOPUS_VERSION_PROBE_TIMEOUT:-5}")"
     _octo_run_bare_probe_with_timeout \
         "$total_timeout" "$term_timeout" "$kill_grace" "$1" --version </dev/null
-}
+)
 
 detect_claude_code_version() {
     _octo_host_version_probe_attempted=false
@@ -162,11 +165,12 @@ detect_claude_code_version() {
     local -a _claude_capability_cmd
     local _claude_capability_help="" _claude_capability_timeout
     read -r -a _claude_capability_cmd <<< "${OCTOPUS_CLAUDE_BIN:-claude}"
-    if [[ "${OCTOPUS_SKIP_PROVIDER_PROBES:-false}" != "true" &&
-       "${#_claude_capability_cmd[@]}" -gt 0 ]] &&
+    if ! _octo_skip_discovery_probes &&
+       [[ "${#_claude_capability_cmd[@]}" -gt 0 ]] &&
        command -v "${_claude_capability_cmd[0]}" >/dev/null 2>&1; then
         _claude_capability_timeout="$(_octo_bare_probe_timeout "${OCTOPUS_BARE_PROBE_TIMEOUT:-5}")"
-        _claude_capability_help="$(_octo_run_bare_probe_with_timeout \
+        _claude_capability_help="$(unset MISTRAL_API_KEY || exit 1
+            _octo_run_bare_probe_with_timeout \
             "$_claude_capability_timeout" "$_claude_capability_timeout" 0 \
             "${_claude_capability_cmd[@]}" --help 2>/dev/null || true)"
         if grep -c -- '--effort' <<< "$_claude_capability_help" >/dev/null 2>&1; then
@@ -728,7 +732,8 @@ detect_enterprise_backend() {
     # Auth CLI detection (v2.1.41+): parse `claude auth status` output
     if [[ "$SUPPORTS_AUTH_CLI" == "true" ]]; then
         local auth_output
-        auth_output=$(claude auth status 2>/dev/null || true)
+        auth_output=$(unset MISTRAL_API_KEY || exit 1
+            claude auth status 2>/dev/null || true)
         if [[ "$auth_output" == *"bedrock"* || "$auth_output" == *"Bedrock"* ]]; then
             OCTOPUS_BACKEND="bedrock"
             OCTOPUS_AUTH_REFRESH_INTERVAL="${OCTOPUS_AUTH_REFRESH_INTERVAL:-150}"
@@ -807,7 +812,9 @@ _commandcode_auth_mode() {
         printf '%s\n' "api-key"
         return 0
     fi
-    if "$cc_bin" status --json >/dev/null 2>&1; then
+    # OpenCode's MCP transport may forward this key. Health probes run before
+    # dispatch filtering, so isolate the unrelated CLI without changing the parent.
+    if (unset MISTRAL_API_KEY && "$cc_bin" status --json) >/dev/null 2>&1; then
         printf '%s\n' "cli"
         return 0
     fi
@@ -1118,6 +1125,19 @@ check_provider_health() {
                 return 1
             fi
             ;;
+        opencode)
+            local opencode_health_rc=0
+            command -v opencode >/dev/null 2>&1 || opencode_health_rc=1
+            if [[ "$opencode_health_rc" -eq 0 ]]; then
+                _octo_opencode_has_saved_login || opencode_health_rc=$?
+            fi
+            [[ "$opencode_health_rc" -ne 125 ]] || return 125
+            if [[ "$opencode_health_rc" -ne 0 ]]; then
+                declare -f _utils_log >/dev/null 2>&1 || source "${_providers_lib_dir}/utils.sh" || return 1
+                _utils_log ERROR "opencode: no confirmed login (run: opencode auth login)"
+                return 1
+            fi
+            ;;
         vibe)
             if ! command -v vibe &>/dev/null; then
                 echo "vibe CLI not found in PATH" >&2
@@ -1359,7 +1379,7 @@ detect_providers() {
         local claude_auth="oauth"
         # v8.8: Use claude auth status for reliable auth verification
         if [[ "$SUPPORTS_AUTH_CLI" == "true" ]]; then
-            if claude auth status &>/dev/null; then
+            if (unset MISTRAL_API_KEY && claude auth status) &>/dev/null; then
                 claude_auth="verified"
             else
                 claude_auth="oauth"  # Fallback: assume oauth in Claude Code context
@@ -1459,7 +1479,7 @@ detect_providers() {
             copilot_auth="env-token"
         elif [[ -f "${HOME}/.copilot/config.json" ]]; then
             copilot_auth="keychain"
-        elif command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+        elif command -v gh &>/dev/null && (unset MISTRAL_API_KEY && gh auth status) &>/dev/null 2>&1; then
             copilot_auth="gh-cli"
         fi
         result="${result}copilot:${copilot_auth} "
@@ -1541,13 +1561,11 @@ detect_providers() {
     # Detect OpenCode CLI (v9.11.0 — multi-provider router)
     if { ! declare -f octo_provider_allowed >/dev/null 2>&1 || octo_provider_allowed opencode; } && command -v opencode &>/dev/null; then
         local opencode_auth="none"
-        if [[ -f "${HOME}/.local/share/opencode/auth.json" ]]; then
-            # Verify auth is actually valid via auth list (with timeout to prevent hang)
-            if timeout 3 opencode auth list &>/dev/null 2>&1; then
-                opencode_auth="multi"
-            else
-                opencode_auth="expired"
-            fi
+        if _octo_opencode_auth_store_present ||
+           _octo_opencode_environment_auth_present; then
+            # Discovery is local-only. A live readiness check confirms whether
+            # either CLI generation actually has a usable configured login.
+            opencode_auth="configured"
         fi
         result="${result}opencode:${opencode_auth} "
     fi

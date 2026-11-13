@@ -1168,8 +1168,9 @@ squeeze_test() {
         return 0
     fi
 
-    # Pre-flight validation
-    preflight_check || return 1
+    # Require every primary provider and the shared fallback before dispatch.
+    local OCTOPUS_PREFLIGHT_PROVIDERS=codex,agy,claude
+    preflight_check false "" non-roster-dispatch || return 1
 
     mkdir -p "$RESULTS_DIR" "$LOGS_DIR"
 
@@ -1211,8 +1212,13 @@ $prompt
 
 Focus on: input validation, auth checks, SQL injection prevention, XSS prevention, CSRF protection, secure defaults, least privilege, proper error handling.
 
-Output production-ready secure code with security comments." 180 "backend-architect" "squeeze") || true
+Output production-ready secure code with security comments." 180 "backend-architect" "squeeze") || { log ERROR "Squeeze fallback failed"; return 1; }
     }
+
+    if [[ ! "${blue_impl}" =~ [^[:space:]] ]]; then
+        log ERROR "Squeeze stopped: Blue Team implementation returned no output"
+        return 1
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════
     # Phase 2: Red Team Attack
@@ -1260,8 +1266,13 @@ You are RED TEAM (attacker/penetration tester). Find security vulnerabilities in
 $blue_impl
 
 For EACH vulnerability, document: VULN, CWE, LOCATION, ATTACK vector, PROOF (payload), SEVERITY.
-Find at least 5 issues. Check for injection, auth, XSS, CSRF, access control, misconfig." 180 "security-auditor" "squeeze") || true
+Find at least 5 issues. Check for injection, auth, XSS, CSRF, access control, misconfig." 180 "security-auditor" "squeeze") || { log ERROR "Squeeze fallback failed"; return 1; }
     }
+
+    if [[ ! "${red_attack}" =~ [^[:space:]] ]]; then
+        log ERROR "Squeeze stopped: Red Team review returned no output"
+        return 1
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════
     # Phase 3: Remediation
@@ -1300,8 +1311,13 @@ $blue_impl
 VULNERABILITIES FOUND:
 $red_attack
 
-For EACH vulnerability: apply the fix and add a comment. Output the COMPLETE fixed code." 180 "implementer" "squeeze") || true
+For EACH vulnerability: apply the fix and add a comment. Output the COMPLETE fixed code." 180 "implementer" "squeeze") || { log ERROR "Squeeze fallback failed"; return 1; }
     }
+
+    if [[ ! "${remediation}" =~ [^[:space:]] ]]; then
+        log ERROR "Squeeze stopped: remediation returned no output"
+        return 1
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════
     # Phase 4: Validation
@@ -1342,8 +1358,13 @@ Verify all vulnerabilities have been properly fixed. VULNERABILITIES: $red_attac
 
 REMEDIATED CODE: $remediation
 
-Create a checklist: FIXED or STILL PRESENT for each. Give FINAL VERDICT: SECURE or NEEDS MORE WORK." 120 "code-reviewer" "squeeze") || true
+Create a checklist: FIXED or STILL PRESENT for each. Give FINAL VERDICT: SECURE or NEEDS MORE WORK." 120 "code-reviewer" "squeeze") || { log ERROR "Squeeze fallback failed"; return 1; }
     }
+
+    if [[ ! "${validation}" =~ [^[:space:]] ]]; then
+        log ERROR "Squeeze stopped: validation returned no output"
+        return 1
+    fi
 
     # ═══════════════════════════════════════════════════════════════════════
     # Save results

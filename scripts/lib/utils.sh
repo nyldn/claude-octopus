@@ -12,7 +12,7 @@ source "${_utils_lib_dir}/command-argv.sh" || { echo "utils: failed to load comm
 
 # Internal log helper — uses orchestrate.sh's log() if available, falls back to stderr
 _utils_log() {
-    if type log &>/dev/null 2>&1; then
+    if declare -F log >/dev/null 2>&1; then
         log "$@"
     else
         echo "[$1] ${*:2}" >&2
@@ -485,6 +485,22 @@ _validate_claude_agent_command() {
 
 # Validate agent command to prevent command injection
 # Only allows whitelisted command prefixes
+_validate_opencode_env_command() {
+    local -a opencode_parts
+    octo_dispatch_command_to_argv "$1" || return 1
+    opencode_parts=("${OCTO_COMMAND_ARGV[@]}")
+    [[ "${#opencode_parts[@]}" -ge 4 ]] || return 1
+    [[ "${opencode_parts[0]}" == env && "${opencode_parts[1]}" == OPENCODE_PURE=1 &&
+       "${opencode_parts[2]}" == opencode && "${opencode_parts[3]}" == run ]] || return 1
+    local model_index=4
+    [[ "${opencode_parts[4]:-}" != --standalone ]] || model_index=5
+    [[ "${#opencode_parts[@]}" -eq "$model_index" ]] && return 0
+    [[ "${#opencode_parts[@]}" -eq $((model_index + 2)) ]] || return 1
+    [[ "${opencode_parts[$model_index]}" == -m && "${opencode_parts[$((model_index + 1))]}" != [-/]* ]] || return 1
+    _octopus_is_safe_openai_compatible_value "${opencode_parts[$((model_index + 1))]}" || return 1
+    return 0
+}
+
 validate_agent_command() {
     local cmd="$1"
     local cmd_executable="${cmd%%[[:space:]]*}"
@@ -526,6 +542,9 @@ validate_agent_command() {
         return 0
     fi
     if [[ "$cmd_executable" == "env" ]]; then
+        if _validate_opencode_env_command "$cmd"; then
+            return 0
+        fi
         if _validate_env_prefixed_shim_command "$cmd" "OCTOPUS_GROK_MODEL" "/scripts/helpers/grok-exec.sh" || \
            _validate_grok_env_command "$cmd"; then
             return 0

@@ -515,3 +515,134 @@ allowance can require a larger configured context budget.
 
 See the [thinking migration](MODEL-ROUTING-STRATEGY.md#sonnet-55-api-thinking-2026-10-01)
 for the current CLI and Agent SDK limitation and the API compatibility rules.
+
+### OpenCode CLI generations
+
+Octopus uses a bounded version check at real dispatch. OpenCode 1.x runs
+`env OPENCODE_PURE=1 opencode run -m <provider/model>`, preserving its
+plugin-hang protection without the removed `--pure` flag. OpenCode 2.x adds
+`--standalone` to keep tool execution in a private server inside the selected
+process boundary. Unknown versions and disabled probes refuse real dispatch;
+dry-run previews launch no CLI. No equivalent 2.x plugin-disable guarantee is
+claimed. Authenticated tool execution and cancellation still require live
+acceptance on the target host.
+Automatic routing displays the resolved model without constructing a dispatch
+command or probing the CLI. Actual dispatch still performs its version and
+login checks. Lazy compatibility helpers resolve from their library directory,
+including when a library was sourced by bare filename before changing directory.
+
+Static discovery recognizes `auth.json`, `opencode.db` and channel-specific
+`opencode-*.db` files under `${XDG_DATA_HOME:-~/.local/share}/opencode`, plus
+`OPENCODE_DB` overrides. A relative override resolves under that data directory.
+The MCP adapter preserves `OPENCODE_DB` and `XDG_DATA_HOME` so its OpenCode
+child discovers the same login store. It also preserves `OPENCODE_CONFIG_DIR`
+so the login check and private server use the caller's custom configuration.
+The explicit `OPENCODE_CONFIG` file selector is forwarded as well. This preserves
+custom provider files supported by the [upstream configuration loader](https://github.com/anomalyco/opencode/blob/v1.18.34/packages/opencode/src/config/config.ts).
+Isolated Codex children do not receive these OpenCode settings.
+
+The live check runs OpenCode's login listing and requires a listed credential or
+environment connection. Provider acceptance is established when OpenCode
+dispatches a task; a listed revoked credential can pass this listing check.
+
+Store presence is configuration evidence only. A SQLite-only installation
+needs explicit live confirmation. Broad preflight scans, roster inspection and
+readiness dashboards remain static. Selecting an OpenCode seat for dispatch
+performs bounded login confirmation, including SQLite-only and environment-only
+logins. A running workflow also confirms OpenCode when the user pins it in the
+council roster. A broad discovery cache cannot replace those checks, and dispatch
+confirmation does not populate the broad cache or replace it on failure. Explicit live readiness checks
+remain available without dispatching a model task.
+Automatic research supplies a separate dispatch context before it selects a
+fleet. Without a pinned roster, that entrypoint also confirms an OpenCode
+candidate's SQLite or environment connection listing. Empty or failed listings
+and explicit probe skips remain rejected; quota exclusions and provider allowlists still apply. This
+confirmation cannot consume or overwrite broad discovery cache evidence.
+Standalone preflight and unrelated workflow inspection remain static.
+
+Single-agent probes also supply dispatch context, so a pinned OpenCode roster
+confirms SQLite or environment logins even when the selected seat uses another
+provider. Standalone roster inspection remains static. Fixed-panel dispatch
+confirms its selected OpenCode login after static panel inspection, before deciding panel
+readiness. An explicitly selected OpenCode seat is checked even when it is absent
+from the panel, and a failed login blocks admission. Static discovery reports
+supported environment credentials as configured, matching static readiness;
+this remains configuration evidence rather than a confirmed login.
+Other panel providers retain their static readiness results; a static
+panel receipt cannot replace OpenCode login confirmation at dispatch.
+Existing quota and run-local health exclusions also apply when an OpenCode
+login needs live confirmation, including SQLite-only and environment-only
+logins. An excluded seat cannot clear its stop mark through a login check.
+The MCP adapter forwards `MISTRAL_API_KEY` for environment-only OpenCode
+connections as well. A configured key still needs a successful private-server
+connection-listing check; forwarding it alone does not establish account or model access.
+Unrelated provider children exclude this Mistral credential while retaining
+their own authentication, including CLI and shell-function routes. OpenCode
+and Vibe retain access to it. CommandCode's login health probe also excludes the
+ambient Mistral key before dispatch filtering. Claude host version, status and
+capability-help and authentication probes also exclude it while preserving the
+parent environment. Cursor version and session-status probes also exclude the
+forwarded Mistral key, preserving Cursor authentication and the parent shell.
+Copilot capability checks and its GitHub authentication fallback exclude that
+key as well, including authentication-method reporting.
+OpenCode version probes omit forwarded API keys, tokens, passwords and secrets.
+Login probes retain credentials for environment-only login and omit the unrelated
+search credential. Both probes require the selected executable and helper Python
+to resolve outside the project and disable project configuration. Login probes
+enter a private directory after resolving the executable. A project-owned
+executable, including a symlink target, or a project-owned configuration selector
+refuses admission. An external `OCTOPUS_PYTHON` pin remains effective.
+Custom configuration and saved-login paths outside the project remain effective.
+Inline configuration is omitted during admission because it can name project
+plugins. These restrictions apply to admission, not the eventual model task.
+OpenCode dispatch admission also confirms statically available seats.
+Both admission checks select OpenCode from the worker's project directory.
+Synchronous, background and direct `probe-single` dispatch check health before
+launching a model task. Direct probes include the standard, fast and research
+OpenCode seats.
+`empathize` and `synthesize` choose their own seats and ignore the council roster
+during admission. An explicit preflight panel still applies to those workflows.
+Debates with OpenCode admit their resolved participants through a separate panel,
+alongside any explicit preflight panel. They do not use the council roster.
+
+Version detection for command construction runs in the worker's project directory.
+Login checks resolve that executable there, then run outside project configuration.
+Relative paths to an installed executable outside the project remain supported.
+Bounded Tangle applies its filesystem boundary before running either probe and
+refuses admission if that boundary is unavailable. OpenCode 1.x retains bounded
+dispatch. OpenCode 2.x bounded Tangle dispatch is
+unavailable: its private server needs writable session state in the same SQLite
+store as saved credentials, outside the writable worktree. Command construction
+refuses this path before starting a private login server or model task, including
+adaptive write scope. Refusals retain exit 125 and the launcher diagnostic in
+background execution records; direct probes also retain the failure status.
+Other workflows retain standalone dispatch. Supporting bounded Tangle still
+requires a saved-login-preserving state design and session-creation acceptance
+on a capable host. Do not switch to the shared server or broaden writable host
+mounts to work around that limitation.
+
+Live checks use bounded version and login commands. OpenCode 1.x must report a
+positive credential or environment-variable count. OpenCode 2.x checks
+`auth list --standalone --format json` for `credential` or `environment` connections,
+using the same private-server environment as dispatch. Empty, failed and
+unrecognized listings fail closed. Both listing formats use Python 3's standard
+library through an interpreter vetted to be outside the project. Parsing clears
+forwarded credentials after the login probe. Account metadata is never printed. Checks
+neither prove model entitlement nor make a model request. Octopus does not open
+or modify credential databases itself; OpenCode manages its own storage.
+
+Compatibility sources checked on 2026-11-03:
+[1.18.34 flag implementation](https://github.com/anomalyco/opencode/blob/v1.18.34/packages/opencode/src/index.ts),
+[2.0.23 login listing](https://github.com/anomalyco/opencode/blob/v2.0.23/packages/cli/src/commands/handlers/auth/list.ts),
+[private-server commands](https://dev.opencode.ai/v2/docs/cli/commands/),
+and [provider storage](https://github.com/anomalyco/opencode/blob/v2.0.23/services/www/src/docs/content/cli/providers.mdx).
+
+MCP also preserves `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` and `XDG_STATE_HOME`,
+matching the [OpenCode 2.0.23 global roots](https://github.com/anomalyco/opencode/blob/v2.0.23/packages/util/src/global-roots.ts)
+(checked 2026-11-11). Login checks and workers keep these custom roots; isolated
+Codex workers exclude them. GitHub authentication discovery excludes the ambient
+Mistral key. OpenCode workers explicitly using OpenAI, Anthropic, Google,
+OpenCode or OpenRouter model namespaces exclude it. Mistral workers, default
+models and custom provider aliases retain it. This does not isolate
+credential-bearing login probes from project plugins or establish the safety
+of bounded OpenCode execution.

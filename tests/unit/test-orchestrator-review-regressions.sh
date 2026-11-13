@@ -191,7 +191,14 @@ EOF
 chmod +x "$ledger_python"
 OCTOPUS_PYTHON="$ledger_python"
 export OCTOPUS_PYTHON
-wait() { printf '%s\n' "$*" >> "$waited"; return 0; }
+# Record workflow waits for the fixture identity. Supervisor children need real waits.
+wait() {
+    if [[ "${1:-}" == "$$" ]]; then
+        printf '%s\n' "$*" >> "$waited"
+        return 0
+    fi
+    builtin wait "$@"
+}
 for workflow in probe tangle scoped; do
     for registration in legacy mismatch valid memory-mismatch memory-missing; do
         [[ "$workflow" != scoped || "$registration" != memory-* ]] || continue

@@ -135,7 +135,8 @@ if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" || "${CLAUDE_CODE_WEB:-}" == "true" ||
     export CLAUDE_OCTOPUS_AUTONOMY="${CLAUDE_OCTOPUS_AUTONOMY:-${OCTOPUS_AUTONOMY:-autonomous}}"
     export OCTOPUS_AUTONOMY="${OCTOPUS_AUTONOMY:-$CLAUDE_OCTOPUS_AUTONOMY}"
     export OCTOPUS_REMOTE_STATUSLINE="${OCTOPUS_REMOTE_STATUSLINE:-minimal}"
-    export OCTOPUS_SKIP_PROVIDER_PROBES="${OCTOPUS_SKIP_PROVIDER_PROBES:-true}"
+    # Discovery applies its remote default without disabling selected dispatch.
+    # Preserve the user's explicit probe setting, including an explicit skip.
 fi
 
 # Keep debug flag defined even when nounset is enabled by sourced scripts.
@@ -762,7 +763,7 @@ CODEX_SUBAGENT_PREAMBLE="You are running as a non-interactive subagent dispatche
 
 "
 
-AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context agy agy-research antigravity codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek orcarouter openai-compatible openai-tools openai-compatible-agent perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research kimi kimi-research cursor-agent vibe vibe-research"
+AVAILABLE_AGENTS="codex codex-standard codex-max codex-mini codex-general codex-spark codex-reasoning codex-large-context agy agy-research antigravity codex-review claude claude-sonnet claude-opus claude-opus-fast openrouter openrouter-glm5 openrouter-kimi openrouter-deepseek orcarouter openai-compatible openai-tools openai-compatible-agent perplexity perplexity-fast ollama copilot copilot-research qwen qwen-research kimi kimi-research cursor-agent vibe vibe-research opencode opencode-fast opencode-research"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # USAGE TRACKING & COST REPORTING (v4.1)
@@ -1394,11 +1395,11 @@ check_claude_version() {
     # Try to get version from claude command
     if command -v claude &>/dev/null; then
         # Try different version flag formats
-        current_version=$(claude --version 2>/dev/null | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        current_version=$( (unset MISTRAL_API_KEY && claude --version) 2>/dev/null | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+')
 
         if [[ -z "$current_version" ]]; then
             # Try alternative: claude version
-            current_version=$(claude version 2>/dev/null | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+')
+            current_version=$( (unset MISTRAL_API_KEY && claude version) 2>/dev/null | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+')
         fi
 
         if [[ -z "$current_version" ]]; then

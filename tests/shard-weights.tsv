@@ -8,6 +8,9 @@
 # Use completed framework duration reports, with runner slowest-suite overrides.
 # Keep the larger of the previous weight and observed macOS duration. Incomplete
 # or unobserved suites retain their previous weights; unlisted/new suites use 1.
+# OpenCode refresh: passing 566s suite in macOS shard5, hosted run43311911903,
+# 2026-11-12, commit95ec4899a0c39014ddb615e40d234eeac142fbaa. That shard
+# exhausted its 1200s budget; this is suite timing, not passing release evidence.
 # Entries equal to the default 1 are omitted. These weights guide shard selection;
 # they are not a wall-time benchmark.
 # Refresh: completed PASS suites from hosted macOS shards 1 and 3 in run
@@ -287,5 +290,8 @@ unit/test-migrate-stale-gpt5-line.sh	2
 unit/test-research-lock-admission.sh	3
 unit/test-tangle-retry-feedback.sh	2
 unit/test-validate-release-tag-scope.sh	3
+# Initial OpenCode weight used 117.13s for 81 local macOS cases. The current
+# weight uses the passing 101-case hosted duration recorded above.
+unit/test-opencode-v2.sh	566
 unit/test-council-diff-short-circuit.sh	28
 unit/test-council-source-claim-modifiers.sh	7

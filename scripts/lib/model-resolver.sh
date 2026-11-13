@@ -1059,7 +1059,7 @@ is_agent_available_v2() {
             [[ -z "$cc_bin" ]] && command -v command-code &>/dev/null && cc_bin="command-code"
             [[ -z "$cc_bin" ]] && command -v cmd &>/dev/null && cc_bin="cmd"
             [[ -n "$cc_bin" ]] && { [[ -x "$cc_bin" ]] || command -v "$cc_bin" &>/dev/null; } && \
-                { [[ -n "${COMMAND_CODE_API_KEY:-}" ]] || "$cc_bin" status --json &>/dev/null; }
+                { [[ -n "${COMMAND_CODE_API_KEY:-}" ]] || (unset MISTRAL_API_KEY && "$cc_bin" status --json) &>/dev/null; }
             ;;
         atlascloud|atlascloud-*)
             if [[ -z "${ATLASCLOUD_API_KEY:-}" ]] && declare -f resolve_provider_env >/dev/null 2>&1; then
