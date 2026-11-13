@@ -429,7 +429,7 @@ ${QUESTION}
 EOF
 
 # Encode user text as JSON data rather than shell-generated JSON syntax.
-python3 - "$DEBATE_DIR/state.json" "$DEBATE_ID" "$QUESTION" "$ROUNDS" \
+python3 -I - "$DEBATE_DIR/state.json" "$DEBATE_ID" "$QUESTION" "$ROUNDS" \
   "$ADVISORS" "$USER_GOAL" "$USER_PRIORITY" "$USER_CONSTRAINTS" <<'PY_DEBATE_STATE' || exit 1
 from datetime import datetime, timezone
 from pathlib import Path

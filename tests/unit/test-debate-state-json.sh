@@ -6,7 +6,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Debate state JSON"
 test_case "debate state preserves user text and rejects invalid round counts"
-if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY'
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY'
 import json
 import os
 from pathlib import Path
@@ -26,16 +26,24 @@ for tree in ('.claude/skills', 'skills'):
     for advisors in ('codex, agy', ''):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as directory:
             home = Path(directory)
+            shadow = home / 'python-path'
+            shadow.mkdir()
+            for target in (home / 'datetime.py', home / 'pathlib.py', home / 'json.py',
+                           shadow / 'sitecustomize.py', shadow / 'usercustomize.py'):
+                target.write_text("open('SHADOW_MODULE_EXECUTED', 'w').write('unexpected import')\n"
+                                  "raise RuntimeError('untrusted Python module imported')\n")
             context = dict(goal='Keep "quotes" and \\paths\nnext line',
                            priority='Unicode café and 🐙',
                            constraints='Keep ${HOME} and $(touch SHOULD_NOT_RUN) literal')
             question = 'Should we use "Redis"?\nCompare \\paths and tabs\there.'
             env = dict(os.environ, HOME=directory, CLAUDE_CODE_SESSION='fixture',
+                       PYTHONPATH=str(shadow),
                        QUESTION=question, ROUNDS='3', STYLE='thorough', ADVISORS=advisors,
                        USER_GOAL=context['goal'], USER_PRIORITY=context['priority'],
                        USER_CONSTRAINTS=context['constraints'])
             result = subprocess.run(['/bin/bash', '-eu', '-c', recipe], cwd=home,
                                     env=env, capture_output=True, text=True, timeout=5)
+            assert not (home / 'SHADOW_MODULE_EXECUTED').exists(), (tree, result.stderr)
             assert result.returncode == 0, (tree, result.stderr)
             state_file = next(home.rglob('state.json'))
             state = json.loads(state_file.read_text(encoding='utf-8'))
