@@ -52,7 +52,8 @@ Checkpoint rollback checks for unsaved changes before restoring the complete
 tracked checkpoint, keeps current lessons, and records the exact recovery tags.
 Research verifies the report produced by its current invocation. Provider quota
 and authentication failures update their original seat instead of leaving a
-stale running entry.
+stale running entry. Debate state keeps quoted and multiline questions readable
+when saved as JSON.
 
 External URL checks reject ambiguous authorities that could reach loopback
 services, including userinfo and bracketed IPv6 forms. This fixes authority

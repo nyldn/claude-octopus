@@ -17,8 +17,9 @@ Merged changes: [#1301](https://github.com/nyldn/claude-octopus/pull/1301),
 [#1310](https://github.com/nyldn/claude-octopus/pull/1310),
 [#1311](https://github.com/nyldn/claude-octopus/pull/1311),
 [#1312](https://github.com/nyldn/claude-octopus/pull/1312),
-[#1313](https://github.com/nyldn/claude-octopus/pull/1313) and
-[#1314](https://github.com/nyldn/claude-octopus/pull/1314).
+[#1313](https://github.com/nyldn/claude-octopus/pull/1313),
+[#1314](https://github.com/nyldn/claude-octopus/pull/1314) and
+[#1315](https://github.com/nyldn/claude-octopus/pull/1315).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
 which remains open for outstanding runtime safety work.
 
@@ -36,6 +37,9 @@ which remains open for outstanding runtime safety work.
   existing local/private-address checks. Public HTTPS controls still pass. DNS
   rebinding and redirects remain separate work. See
   [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
+
+- Debate state preserves quotes, newlines, backslashes and Unicode in questions
+  and clarifying answers, so saved debates remain readable by JSON consumers.
 
 - Quick tasks commit only their selected files, preserve unrelated staged work,
   and stop before recording completion when staging or committing fails.
