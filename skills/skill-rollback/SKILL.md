@@ -154,7 +154,9 @@ Report:
 ```
 Created safety checkpoint: octo-checkpoint-pre-rollback-$TIMESTAMP
 
-You can return to current state with:
+After restoration, review and commit the restored changes before using this
+command to return to the safety checkpoint. It requires a clean index and
+working tree. Preserve any unrelated changes separately.
   /octo:rollback octo-checkpoint-pre-rollback-$TIMESTAMP
 ```
 
@@ -225,7 +227,9 @@ Rollback Complete
    ```bash
    git add -A && git commit -m "chore: rollback to $CHECKPOINT_TAG"
    ```
-3. Or return to previous state:
+3. To return to the safety checkpoint, first review and commit the restored
+   changes. The recovery command requires a clean index and working tree.
+   Preserve unrelated changes separately; do not bypass the clean-tree gate.
    ```bash
    /octo:rollback octo-checkpoint-pre-rollback-$TIMESTAMP
    ```

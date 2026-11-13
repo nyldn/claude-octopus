@@ -75,7 +75,22 @@ with tempfile.TemporaryDirectory() as temporary:
         checks += 1
     assert path.read_text() == 'checkpoint\n'
     assert git('rev-parse', 'HEAD') == head
-print(f'{checks} dirty and clean rollback recipe cases passed')
+    safety = git('tag', '-l', 'octo-checkpoint-pre-rollback-*').decode().strip()
+    recovery_env = dict(env, CHECKPOINT_TAG=safety)
+    # Restoration stages changes. Returning to the safety checkpoint requires
+    # preserving that restored state in a commit before another rollback.
+    result = subprocess.run(['bash', '-c', recipe(2)], cwd=repo, env=recovery_env,
+                            capture_output=True, timeout=5)
+    assert result.returncode != 0 and path.read_text() == 'checkpoint\n'
+    checks += 1
+    git('commit', '-qm', 'preserve restored state')
+    for step in (2, 6):
+        result = subprocess.run(['bash', '-c', recipe(step)], cwd=repo, env=recovery_env,
+                                capture_output=True, timeout=5)
+        assert result.returncode == 0, (step, result.stdout, result.stderr)
+        checks += 1
+    assert path.read_text() == 'current commit\n'
+print(f'{checks} dirty, clean and recovery rollback recipe cases passed')
 PY
 then test_pass; else test_fail "rollback modified user work or rejected a clean restore"; fi
 test_summary
