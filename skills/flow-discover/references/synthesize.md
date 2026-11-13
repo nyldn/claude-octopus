@@ -4,15 +4,33 @@
 
 **Use this exact structure** (structured research report format):
 
-1. **Executive Summary** — 2-3 sentence overview answering the original question directly
-2. **Key Findings** — Top 3-5 actionable insights, ranked by relevance to the original question
-3. **Themes & Patterns** — Where multiple sources agree, grouped by theme
-4. **Conflicts & Trade-offs** — Where sources disagree, with your reasoned resolution
-5. **Gaps** — What's still unknown and needs more research
-6. **Priority Matrix** — Rank findings by impact (High/Medium/Low) and effort (Low/Medium/High) in a table
-7. **Recommended Approach** — Specific next steps based on findings
-8. **Sources** — List each source with provider attribution and what it contributed
-9. **Methodology** — Brief note on providers used, intensity level, and research approach
+## Executive Summary
+
+2-3 sentence overview answering the original question directly
+## Key Findings
+
+Top 3-5 actionable insights, ranked by relevance to the original question
+## Themes & Patterns
+
+Where multiple sources agree, grouped by theme
+## Conflicts & Trade-offs
+
+Where sources disagree, with your reasoned resolution
+## Gaps
+
+What's still unknown and needs more research
+## Priority Matrix
+
+Rank findings by impact (High/Medium/Low) and effort (Low/Medium/High) in a table
+## Recommended Approach
+
+Specific next steps based on findings
+## Sources
+
+List each source with provider attribution and what it contributed
+## Methodology
+
+Brief note on providers used, intensity level, and research approach
 
 **Quality rules:**
 - Every claim MUST cite its source provider or be explicitly marked as `[inference]`

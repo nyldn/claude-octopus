@@ -60,14 +60,34 @@ fi
 
 ---
 
-### Step 2: Multi-Provider Diff Review
+### Step 2: Determine the base branch and review the diff
+
+Resolve the base before computing any diff. Carry the verified `BASE_REF` and local `BASE_BRANCH`
+into each later shell invocation.
+
+```bash
+BASE_REF=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
+if [[ -z "$BASE_REF" ]]; then
+  for candidate in main master; do
+    if git rev-parse --verify "$candidate^{commit}" >/dev/null 2>&1; then
+      BASE_REF="$candidate"
+      break
+    fi
+  done
+fi
+[[ -n "$BASE_REF" ]] && git rev-parse --verify "$BASE_REF^{commit}" >/dev/null 2>&1 || {
+  echo "Cannot determine the base branch; ask the user before reviewing or merging." >&2
+  exit 1
+}
+BASE_BRANCH="${BASE_REF#origin/}"
+```
 
 **Run a quick multi-provider review of the changes before shipping.** This catches issues before they reach PR reviewers.
 
 ```bash
 # Get the diff summary
-DIFF_STAT=$(git diff --stat $(git merge-base HEAD main)..HEAD)
-DIFF_FILES=$(git diff --name-only $(git merge-base HEAD main)..HEAD)
+DIFF_STAT=$(git diff --stat $(git merge-base HEAD "${BASE_REF:?Restore the verified base ref}")..HEAD)
+DIFF_FILES=$(git diff --name-only $(git merge-base HEAD "${BASE_REF:?Restore the verified base ref}")..HEAD)
 ```
 
 **Always run a quick review — this is automatic, not optional:**
@@ -76,7 +96,7 @@ DIFF_FILES=$(git diff --name-only $(git merge-base HEAD main)..HEAD)
 # Quick review via orchestrate.sh (uses available providers)
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
-$(git diff $(git merge-base HEAD main)..HEAD | head -500)"
+$(git diff $(git merge-base HEAD "${BASE_REF:?Restore the verified base ref}")..HEAD | head -500)"
 ```
 
 **If critical issues found:** Present them and ask whether to fix or ship anyway.
@@ -84,13 +104,9 @@ $(git diff $(git merge-base HEAD main)..HEAD | head -500)"
 
 ---
 
-### Step 3: Determine Base Branch & Version
+### Step 3: Determine the version
 
 ```bash
-# Identify the base branch
-BASE_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
-[[ -z "$BASE_BRANCH" ]] && BASE_BRANCH="main"
-
 # Check for VERSION file
 VERSION_FILE=""
 for f in VERSION version.txt package.json; do
@@ -124,7 +140,7 @@ AskUserQuestion({
 
 ```bash
 # Generate changelog entry from commits
-COMMITS=$(git log --oneline $(git merge-base HEAD $BASE_BRANCH)..HEAD)
+COMMITS=$(git log --oneline $(git merge-base HEAD "${BASE_REF:?Restore the verified base ref}")..HEAD)
 # Prepend to CHANGELOG.md if it exists
 ```
 
@@ -149,14 +165,14 @@ Which option? (1-4)
 
 ---
 
-### Step 4: Execute Choice
+### Step 6: Execute choice
 
-#### Option 1: Merge Locally
+#### Option 2: Merge Locally
 
 ```bash
 # Get current branch name
 FEATURE_BRANCH=$(git branch --show-current)
-BASE_BRANCH="main"  # or detected base
+: "${BASE_BRANCH:?Restore the verified base branch}"
 
 # Switch to base branch
 git checkout $BASE_BRANCH
@@ -185,7 +201,7 @@ Ready to push when you want: git push origin $BASE_BRANCH
 
 ---
 
-#### Option 2: Create PR
+#### Option 1: Create PR
 
 ```bash
 # Get branch info
@@ -287,9 +303,10 @@ Work has been permanently discarded.
 
 ---
 
-### Step 5: Cleanup (If Using Worktrees)
+### Step 7: Cleanup (If Using Worktrees)
 
-**For Options 1, 2, 4:** Check if in a worktree and clean up:
+**After Merge locally or confirmed Discard only:** Check if in a worktree and clean up.
+Keep the checkout after Create PR so review changes can be made.
 
 ```bash
 # Check if current directory is a worktree
@@ -307,7 +324,7 @@ if git worktree list | grep -q "$(pwd)"; then
 fi
 ```
 
-**For Option 3:** Keep worktree intact.
+**After Create PR or Keep as-is:** Keep the worktree intact.
 
 ---
 
@@ -315,8 +332,8 @@ fi
 
 | Option | Merge | Push | Keep Branch | Cleanup |
 |--------|-------|------|-------------|---------|
-| 1. Merge locally | ✓ | - | Delete | ✓ |
-| 2. Create PR | - | ✓ | Keep | - |
+| 2. Merge locally | ✓ | - | Delete | ✓ |
+| 1. Create PR | - | ✓ | Keep | - |
 | 3. Keep as-is | - | - | Keep | - |
 | 4. Discard | - | - | Delete | ✓ |
 
@@ -334,7 +351,7 @@ After completing octopus workflows, use this skill:
 # → Invoke finishing-branch skill
 # → Verify tests
 # → Present options
-# → Execute Option 2 (Create PR)
+# → Execute Option 1 (Create PR)
 ```
 
 ### With Octopus Validation

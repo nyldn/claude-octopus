@@ -329,7 +329,12 @@ Read the validation file and present:
 
 #### Post to PR (v8.44.0)
 
-After presenting the report, check if the current branch has an open PR and post the validation summary as a PR comment:
+After presenting the report, decide whether posting is authorized. For standalone
+requests, ask before posting. Review-only requests stop after the report. An
+explicitly authorized automatic workflow may post without asking again.
+Set `OCTO_POST_VALIDATION=1` only after establishing that authorization in the
+conversation; otherwise leave it unset. Run the following block only when posting
+is authorized:
 
 ```bash
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
@@ -341,7 +346,7 @@ if [[ -n "$CURRENT_BRANCH" && "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" !
     fi
 fi
 
-if [[ -n "$PR_NUM" ]]; then
+if [[ "${OCTO_POST_VALIDATION:-0}" == "1" && -n "$PR_NUM" ]]; then
     # Extract summary section from validation file for PR comment
     REVIEW_SUMMARY=$(head -60 "$VALIDATION_FILE")
 
@@ -869,7 +874,12 @@ Retain STEP 4's verified absolute `OCTO_ROOT` in the host context for these
 continuations. In a fresh shell, assign that exact value again. Do not choose a
 stable link or another installation during handoff.
 
-**Load the doc-sync source after delivery has been explicitly requested:**
+For a review-only request, stop after presenting the findings. Do not load or run
+doc-sync, ship, or branch cleanup. For standalone delivery, offer doc-sync and wait
+for the user's acceptance. Run it automatically only when the user's workflow
+already authorizes documentation edits and commits.
+
+**After doc-sync is authorized, load its source:**
 ```
 Read ${OCTO_ROOT}/.claude/skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
 ```

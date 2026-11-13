@@ -14,7 +14,10 @@ A `/octo:council` run has finished and the user asks "so what did the council de
 
 ## Steps
 
-1. **Locate artifacts.** Find the newest council output under `~/.claude-octopus/results/` (look for `summary.json` and per-seat verdict files). If none exist within the session window, say so; never invent a verdict.
+1. **Locate artifacts.** Use the user's explicit `summary.json` path or run identity when supplied.
+   Validate and read that run's artifacts; if missing or invalid, stop and report
+   that failure instead of selecting another run. Only when neither a path nor a
+   run identity was supplied, find the newest council output under `~/.claude-octopus/results/` (look for `summary.json` and per-seat verdict files). If none exist within the session window, say so; never invent a verdict.
 2. **Check roster validity.** From `summary.json`, confirm each seat's real provider and model (the agy seat records its resolved model, not `default`). Flag same-lineage panels: two seats backed by the same model family weaken the verdict's independence.
 3. **Tally the verdicts.** Report the raw count (APPROVE / REJECT / ABSTAIN / REVISE) and whether quorum was met. A malformed or missing verdict from a seat counts as ABSTAIN, and the SubagentStop gate (`hooks/subagent-stop-gate.sh`) may have flagged it; check the gate's usage log for quality scores.
 4. **Surface dissent.** Quote the strongest dissenting argument verbatim. A 2-1 split with a substantive dissent is a weaker mandate than 3-0; say which one this is.

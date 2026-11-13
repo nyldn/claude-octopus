@@ -14,6 +14,13 @@ host, use the exposed equivalent and follow that host's tool rules. Do not inven
 an `Agent` tool or unsupported arguments. Launch providers strictly in the runtime
 `FLEET_OUTPUT` sequence.
 
+Before substituting prompt values into the shell template below, shell-quote each
+value as a complete argument. For the shown single-quoted form, replace every
+embedded apostrophe with `'\''` before wrapping the value in single quotes. Apply
+this to both `<perspective_prompt>` and `<original_prompt>`, including prompts
+containing apostrophes, newlines, dollar signs, or command substitutions. Never
+insert unescaped prompt text into shell source.
+
 For each perspective in the fleet, the Claude Code call is:
 
 ```
