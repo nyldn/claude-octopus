@@ -118,8 +118,10 @@ class CodexReferences(unittest.TestCase):
 [[ "$REVIEW_MODE" != launch-failure ]] || exit 67
 if [[ "$REVIEW_MODE" == unrecorded ]]; then echo 424242; exit 0; fi
 (
-  export OCTOPUS_AGENT_PID=$BASHPID OCTOPUS_AGENT_RESULT_FILE="$REVIEW_RESULT"
-  "$OCTOPUS_AGENT_LIFECYCLE_HOOK" spawned
+  # Delay child startup deliberately. The parent must register the worker first.
+  sleep 0.1
+  while [[ ! -s "$REVIEW_REGISTERED" ]]; do sleep 0.01; done
+  export OCTOPUS_AGENT_PID="$(cat "$REVIEW_REGISTERED")" OCTOPUS_AGENT_RESULT_FILE="$REVIEW_RESULT"
   sleep 0.2
   if [[ "$REVIEW_MODE" != missing ]]; then
     printf '# Started: fixture\n## Output\n```\n' > "$REVIEW_RESULT"
@@ -130,14 +132,19 @@ if [[ "$REVIEW_MODE" == unrecorded ]]; then echo 424242; exit 0; fi
   [[ "$REVIEW_MODE" != failed ]] || export OCTOPUS_AGENT_STATUS=failed
   "$OCTOPUS_AGENT_LIFECYCLE_HOOK" completed
 ) >/dev/null 2>&1 &
-echo "$!"
+worker=$!
+OCTOPUS_AGENT_PID="$worker" OCTOPUS_AGENT_RESULT_FILE="$REVIEW_RESULT" \
+  "$OCTOPUS_AGENT_LIFECYCLE_HOOK" spawned
+printf '%s' "$worker" > "$REVIEW_REGISTERED"
+echo "$worker"
 ''')
                     runner.chmod(0o755)
                     env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
                                GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
                                GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid',
                                CLAUDE_PLUGIN_ROOT=str(scripts.parent), REVIEW_MODE=mode,
-                               REVIEW_RESULT=str(root / 'provider-result.md'), TMPDIR=temporary)
+                               REVIEW_RESULT=str(root / 'provider-result.md'),
+                               REVIEW_REGISTERED=str(root / 'registered'), TMPDIR=temporary)
                     def git(*args):
                         return subprocess.check_output(['git', '-C', temporary, *args], env=env,
                                                        stderr=subprocess.DEVNULL, text=True).strip()
