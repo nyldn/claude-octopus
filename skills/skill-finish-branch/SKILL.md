@@ -67,7 +67,8 @@ into each later shell invocation.
 
 ```bash
 BASE_REF=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
-if [[ -z "$BASE_REF" ]]; then
+if [[ -z "$BASE_REF" ]] || ! git rev-parse --verify "$BASE_REF^{commit}" >/dev/null 2>&1; then
+  BASE_REF=""
   for candidate in main master; do
     if git rev-parse --verify "$candidate^{commit}" >/dev/null 2>&1; then
       BASE_REF="$candidate"

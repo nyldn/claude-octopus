@@ -171,6 +171,7 @@ if [ -f ".octo/LESSONS.md" ]; then
   cp .octo/LESSONS.md "$LESSONS_BACKUP_DIR/LESSONS.md" || exit 1
   LESSONS_PRESERVED=true
 fi
+printf 'LESSONS_BACKUP_DIR=%s\nLESSONS_PRESERVED=%s\n' "$LESSONS_BACKUP_DIR" "$LESSONS_PRESERVED"
 ```
 
 ### Step 6: Execute Rollback
@@ -180,6 +181,20 @@ fi
 ROLLBACK_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
 if [[ -n "$ROLLBACK_STATUS" ]]; then
   echo "Rollback requires a clean working tree and index. Preserve your changes before retrying." >&2
+  exit 1
+fi
+
+# Validate all recovery state before touching checkpoint files.
+case "${LESSONS_PRESERVED:-}" in
+  true|false) ;;
+  *) echo "Missing backup state; restore the printed Step 5 values before retrying." >&2; exit 1 ;;
+esac
+if [[ -z "${LESSONS_BACKUP_DIR:-}" || ! -d "$LESSONS_BACKUP_DIR" || -L "$LESSONS_BACKUP_DIR" ]]; then
+  printf 'Invalid backup directory: %s\n' "${LESSONS_BACKUP_DIR:-unset}" >&2
+  exit 1
+fi
+if [[ "$LESSONS_PRESERVED" == true && ( ! -f "$LESSONS_BACKUP_DIR/LESSONS.md" || -L "$LESSONS_BACKUP_DIR/LESSONS.md" ) ]]; then
+  printf 'Missing preserved lessons; recovery backup: %s\n' "$LESSONS_BACKUP_DIR" >&2
   exit 1
 fi
 

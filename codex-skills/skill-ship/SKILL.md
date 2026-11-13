@@ -304,16 +304,16 @@ ls -la "$ARCHIVE_DIR"
 #### Step 1: Update STATE.md
 
 ```bash
-# Update status to shipped
-sed -i '' 's/^status:.*/status: shipped/' .octo/STATE.md 2>/dev/null || \
-    sed -i 's/^status:.*/status: shipped/' .octo/STATE.md
+# Record pending finalization; do not claim shipment before checkpoint creation
+sed -i '' 's/^status:.*/status: delivery_pending/' .octo/STATE.md 2>/dev/null || \
+    sed -i 's/^status:.*/status: delivery_pending/' .octo/STATE.md
 
 # Append history entry
 cat >> .octo/STATE.md << EOF
 
 ## History - $(date '+%Y-%m-%d %H:%M')
 
-- **Event:** Project shipped
+- **Event:** Delivery finalization pending
 - **Archive:** .octo/archive/${ARCHIVE_TIMESTAMP}/
 - **Validation:** ${VALIDATION_FILE}
 
@@ -340,6 +340,26 @@ CHECKPOINT_TAG="octo-checkpoint-shipped-${ARCHIVE_TIMESTAMP}"
 git tag -a "$CHECKPOINT_TAG" -m "Project shipped - $(date '+%Y-%m-%d %H:%M:%S')" || exit 1
 
 echo "Checkpoint created: $CHECKPOINT_TAG"
+# Only successful checkpoint creation permits the shipped transition.
+python3 - "$CHECKPOINT_TAG" <<'PY_STATE'
+from pathlib import Path
+import re, sys
+path = Path('.octo/STATE.md')
+text = re.sub(r'^status:.*$', 'status: shipped', path.read_text(), flags=re.M)
+text += '\n- **Event:** Project shipped\n- **Checkpoint:** ' + sys.argv[1] + '\n'
+temporary = path.with_name('STATE.md.ship-pending')
+try:
+    with temporary.open('x') as output:
+        output.write(text)
+    temporary.replace(path)
+except Exception:
+    # The old state still says pending; do not report finalization as complete.
+    raise
+PY_STATE
+if [[ $? -ne 0 ]]; then
+  echo "Checkpoint exists, but shipment state remains pending; repair the state before reporting completion." >&2
+  exit 1
+fi
 ```
 
 #### Step 3: Count Metrics

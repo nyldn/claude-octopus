@@ -68,6 +68,19 @@ with tempfile.TemporaryDirectory() as temporary:
             checks += 1
     untracked.unlink()
     git('reset', '--hard', '-q', 'HEAD')
+    # Missing recovery context must stop before checkout changes any bytes.
+    for invalid in ({}, {'LESSONS_PRESERVED': 'true'},
+                    {'LESSONS_PRESERVED': 'true', 'LESSONS_BACKUP_DIR': '/nonexistent/rollback-fixture'}):
+        invalid_env = dict(env)
+        invalid_env.pop('LESSONS_PRESERVED', None)
+        invalid_env.update(invalid)
+        before = git('status', '--porcelain=v1')
+        result = subprocess.run(['bash', '-c', recipe(6)], cwd=repo, env=invalid_env,
+                                capture_output=True, timeout=5)
+        assert result.returncode != 0
+        assert path.read_text() == 'current commit\n'
+        assert git('status', '--porcelain=v1') == before
+        checks += 1
     for step in (2, 4, 6):
         result = subprocess.run(['bash', '-c', (recipe(5) + '\n' if step == 6 else '') + recipe(step)], cwd=repo, env=env,
                                 capture_output=True, timeout=5)
@@ -100,7 +113,7 @@ with tempfile.TemporaryDirectory() as temporary:
         result = subprocess.run(['bash', '-eu', '-c', recipe(5) +
                                  '\nprintf "%s" "$LESSONS_BACKUP_DIR"'],
                                 cwd=project, capture_output=True, text=True, check=True)
-        paths.append(Path(result.stdout))
+        paths.append(Path(result.stdout.splitlines()[-1]))
     assert paths[0] != paths[1]
     for number, backup in enumerate(paths, 1):
         assert (backup / 'LESSONS.md').read_text() == f'project {number} lessons'

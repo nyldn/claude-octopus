@@ -180,14 +180,15 @@ DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/nul
 # Keep each run's outputs separate. Carry this exact directory into collection
 # and read only files inside it; never search another review's output files.
 REVIEW_OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-review-results.XXXXXX") || exit 1
+printf 'REVIEW_OUTPUT_DIR=%s\n' "$REVIEW_OUTPUT_DIR"
 providers=()
 command -v codex >/dev/null 2>&1 && providers+=(codex)
 command -v agy >/dev/null 2>&1 && providers+=(agy)
 
-for provider in "${providers[@]}"; do
-  safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
-    "Review this code diff for LOGIC, CORRECTNESS, and SECURITY issues. Focus on:
+# Resolve the installed root once and retain it with the printed output directory.
+REVIEW_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+source "$REVIEW_ROOT/scripts/lib/consultative-advisors.sh" || exit 1
+REVIEW_PROMPT="Review this code diff for LOGIC, CORRECTNESS, and SECURITY issues. Focus on:
 1. Logic bugs and off-by-one errors
 2. Unhandled error paths
 3. Race conditions or concurrency issues
@@ -197,7 +198,34 @@ for provider in "${providers[@]}"; do
 Report ONLY high-confidence issues. Do NOT flag style preferences.
 
 DIFF:
-${DIFF_CONTENT}" > "${REVIEW_OUTPUT_DIR:?}/${safe_provider}.md" 2>/dev/null &
+${DIFF_CONTENT}"
+collector_pids=()
+for provider in "${providers[@]}"; do
+  if [[ "$provider" == codex ]]; then
+    # The collector assigns a unique task ID, waits for the worker's terminal
+    # lifecycle event, verifies SUCCESS and extracts the result body.
+    OCTOPUS_ADVISOR_WAIT_SECONDS=600 octo_launch_advisors \
+      "$REVIEW_ROOT/scripts/orchestrate.sh" "$provider" "$REVIEW_OUTPUT_DIR" \
+      'review-' "$REVIEW_PROMPT" 1 > "$REVIEW_OUTPUT_DIR/codex-count.txt" &
+  else
+    # Antigravity's routed spawn path returns the answer synchronously.
+    "$REVIEW_ROOT/scripts/orchestrate.sh" spawn "$provider" "$REVIEW_PROMPT" \
+      > "$REVIEW_OUTPUT_DIR/review-agy.md" &
+  fi
+  collector_pids+=("$!")
+done
+review_failed=false
+for collector_pid in "${collector_pids[@]}"; do
+  wait "$collector_pid" || review_failed=true
+done
+if [[ "$review_failed" == true ]]; then
+  printf 'Review incomplete; retain lifecycle evidence in %s\n' "$REVIEW_OUTPUT_DIR" >&2
+  exit 1
+fi
+for provider in "${providers[@]}"; do
+  answer="$REVIEW_OUTPUT_DIR/review-${provider}.md"
+  [[ -s "$answer" ]] || { printf 'Review answer missing: %s\n' "$answer" >&2; exit 1; }
+  cat "$answer"
 done
 ```
 

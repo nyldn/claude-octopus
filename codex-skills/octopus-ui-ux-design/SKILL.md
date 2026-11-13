@@ -299,6 +299,7 @@ For each issue found, state: what's wrong, why it matters, and what to do instea
 # Create a private output directory before launching critiques. Carry its exact
 # path into subsequent shells and use it for every critique read.
 CRITIQUE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-design-critique.XXXXXX") || exit 1
+printf 'CRITIQUE_DIR=%s\n' "$CRITIQUE_DIR"
 # Check provider availability
 providers=()
 command -v codex >/dev/null 2>&1 && providers+=(codex)

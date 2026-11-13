@@ -24,7 +24,7 @@ class CodexReferences(unittest.TestCase):
         text = (ROOT / '.claude/skills/skill-finish-branch/SKILL.md').read_text()
         block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
                      if 'BASE_REF=$(git symbolic-ref' in b)
-        for branch, remote_head in [('master', False), ('trunk', True)]:
+        for branch, remote_head in [('master', False), ('trunk', True), ('main', 'stale')]:
             with self.subTest(branch=branch), tempfile.TemporaryDirectory() as temporary:
                 subprocess.run(['git', 'init', '-q', '-b', branch, temporary], check=True)
                 def git(*args):
@@ -32,13 +32,15 @@ class CodexReferences(unittest.TestCase):
                                           capture_output=True, text=True)
                 git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
                     'commit', '-q', '--allow-empty', '-m', 'base')
-                if remote_head:
+                if remote_head == 'stale':
+                    git('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/missing')
+                elif remote_head:
                     git('update-ref', 'refs/remotes/origin/' + branch, 'HEAD')
                     git('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/' + branch)
                 result = subprocess.run(['/bin/bash', '-eu', '-c', block + '\nprintf "%s|%s" "$BASE_REF" "$BASE_BRANCH"'],
                                         cwd=temporary, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(result.stdout, ('origin/' + branch if remote_head else branch) + '|' + branch)
+                self.assertEqual(result.stdout, ('origin/' + branch if remote_head is True else branch) + '|' + branch)
 
     def test_check_reports_only_the_missing_generated_tree_without_writing(self):
         for missing in (('codex',), ('native',), ('codex', 'native')):
