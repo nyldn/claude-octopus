@@ -59,6 +59,26 @@ class CodexReferences(unittest.TestCase):
         ], input=source, text=True)
         self.assertEqual(result, expected)
 
+    def test_delivery_continuations_load_the_host_specific_entries(self):
+        names = ("skill-doc-sync", "skill-ship", "skill-finish-branch")
+        source = "\n".join(
+            "Read ${OCTO_ROOT}/.claude/skills/" + name + "/SKILL.md and execute it."
+            for name in names
+        ) + "\n"
+        result = subprocess.check_output([
+            "/bin/bash", "-eu", "-c",
+            'source "$1"; adapt_shared_paths_for_codex', "fixture", str(GENERATOR)
+        ], input=source, text=True)
+        self.assertEqual(result, source.replace(".claude/skills/", "codex-skills/"))
+        native = (ROOT / "skills/flow-deliver/SKILL.md").read_text()
+        codex = (ROOT / "codex-skills/flow-deliver/SKILL.md").read_text()
+        for name in names:
+            with self.subTest(name=name):
+                self.assertIn(".claude/skills/" + name + "/SKILL.md", native)
+                self.assertNotIn(".claude/skills/" + name + "/SKILL.md", codex)
+                self.assertIn("codex-skills/" + name + "/SKILL.md", codex)
+                self.assertTrue((ROOT / "codex-skills" / name / "SKILL.md").is_file())
+
     def test_user_routes_reach_installed_skills(self):
         routes = {
             "parallel": "flow-parallel", "quick": "octopus-quick",

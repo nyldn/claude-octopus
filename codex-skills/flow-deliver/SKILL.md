@@ -819,7 +819,7 @@ After validation passes (go decision), run documentation synchronization to keep
 
 **Load the doc-sync source after delivery has been explicitly requested:**
 ```
-Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
+Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/codex-skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
 ```
 
 The doc-sync skill will:
@@ -842,9 +842,9 @@ After delivery validation and doc-sync complete, route according to the user's e
 request:
 
 - **Ship requested:** update `.octo/STATE.md`, then read and follow
-  `.claude/skills/skill-ship/SKILL.md` from the stable plugin root.
+  `codex-skills/skill-ship/SKILL.md` from the stable plugin root.
 - **Branch wrap-up requested:** read and follow
-  `.claude/skills/skill-finish-branch/SKILL.md` from the stable plugin root.
+  `codex-skills/skill-finish-branch/SKILL.md` from the stable plugin root.
 - **Review only:** deliver the synthesized findings and stop. Do not update the project
   to a ready-to-ship state or display a shipping instruction.
 
@@ -870,7 +870,7 @@ echo "📦 **Project ready! Run \`/octo:ship\` to finalize and archive.**"
 After that block succeeds, perform the requested finalization immediately:
 
 ```text
-Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
+Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/codex-skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
 ```
 
 Do not stop after displaying the command. The ship-requested branch is incomplete until
