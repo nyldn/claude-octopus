@@ -263,8 +263,16 @@ import subprocess
 import sys
 
 root, temporary = map(Path, sys.argv[1:])
+verified = 0
 for index, interpreter in enumerate(dict.fromkeys((sys.executable, '/usr/bin/python3'))):
     if not Path(interpreter).is_file():
+        continue
+    clean_env = {key: value for key, value in os.environ.items() if not key.startswith('PYTHON')}
+    capability = subprocess.run([interpreter, '-E', '-s', str(root / 'scripts/helpers/pid-ledger.py'),
+                                 'capability'], env=clean_env, capture_output=True, text=True, timeout=10)
+    if capability.returncode:
+        assert interpreter != sys.executable, 'the selected interpreter lacks native process APIs'
+        print('Skipped optional Python without native process APIs: ' + interpreter)
         continue
     fixture = temporary / ('python-startup-' + str(index))
     fixture.mkdir()
@@ -288,6 +296,8 @@ for index, interpreter in enumerate(dict.fromkeys((sys.executable, '/usr/bin/pyt
                             env=env, capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
     assert not marker.exists(), 'capability validation executed a Python startup hook'
+    verified += 1
+assert verified, 'no capable interpreter exercised Python startup isolation'
 PY
 then
     test_pass

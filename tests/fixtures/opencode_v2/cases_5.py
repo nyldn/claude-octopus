@@ -99,8 +99,8 @@ class OpenCodeCases5(OpenCodeFixture):
             result = self.shell(script + '_octo_preflight_system_tool bash', root=project)
             self.assertNotEqual(result.returncode, 0, 'the last relative link escaped the project boundary')
             self.env.update(TOOL_PATH=str(external), PROJECT_ROOT='/')
-            result = self.shell(script + '_octo_preflight_system_tool bash', root=project)
-            self.assertNotEqual(result.returncode, 0)
+            result = self.shell(script + 'set -x\n_octo_preflight_system_tool bash', root=project)
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertFalse(self.marker.exists(), "tool lookup executed a candidate")
 
     def test_static_sqlite_store_requires_live_confirmation_without_cli(self):
