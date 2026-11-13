@@ -243,23 +243,51 @@ Carry these literal values into this shell call even when earlier shell
 variables no longer exist. Do not reconstruct the safety tag from a new clock
 value or select a different tag by age. If either value is unavailable, report
 that history was not updated rather than writing an incomplete recovery entry.
+Symlinked state paths and non-regular files are refused before any append.
 
 ```bash
 ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
-ROLLBACK_STATE="$ROLLBACK_ROOT/.octo/STATE.md"
-if [ -f "$ROLLBACK_STATE" ]; then
-  : "${CHECKPOINT_TAG:?Restore the exact target used by Step 6}" \
-    "${SAFETY_CHECKPOINT_TAG:?Restore the exact safety tag printed by Step 4}"
-  # Exact tag refs reject branch-name matches and missing recovery checkpoints.
-  git rev-parse --verify "refs/tags/${CHECKPOINT_TAG}^{commit}" >/dev/null || exit 1
-  git rev-parse --verify "refs/tags/${SAFETY_CHECKPOINT_TAG}^{commit}" >/dev/null || exit 1
-  {
-    printf '\n## Rollback - %s\n\n' "$(date '+%Y-%m-%d %H:%M')"
-    printf -- '- **Target:** %s\n' "$CHECKPOINT_TAG"
-    printf -- '- **Safety checkpoint:** %s\n' "$SAFETY_CHECKPOINT_TAG"
-    printf -- '- **Reason:** User requested rollback\n'
-  } >> "$ROLLBACK_STATE" || exit 1
-fi
+python3 -I - "$ROLLBACK_ROOT" "${CHECKPOINT_TAG:-}" "${SAFETY_CHECKPOINT_TAG:-}" <<'PY_HISTORY' || exit 1
+from contextlib import ExitStack
+from datetime import datetime
+import os
+import stat
+import subprocess
+import sys
+
+root, target, safety = sys.argv[1:]
+try:
+    with ExitStack() as opened:
+        descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        opened.callback(os.close, descriptor)
+        # Pin each repository-owned component. Never follow a restored symlink,
+        # including one swapped in between directory lookup and the append.
+        for name, flags in (
+            (".octo", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW),
+            ("STATE.md", os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK),
+        ):
+            try:
+                descriptor = os.open(name, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                sys.exit(0)  # History remains optional when its state path is absent.
+            opened.callback(os.close, descriptor)
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("rollback state must be a regular file")
+        if not target or not safety:
+            raise ValueError("restore the exact target from Step 6 and safety tag from Step 4")
+        for tag in (target, safety):
+            ref = "refs/tags/" + tag
+            subprocess.run(["git", "-C", root, "check-ref-format", ref], check=True)
+            subprocess.run(["git", "-C", root, "rev-parse", "--verify", ref + "^{commit}"],
+                           check=True, stdout=subprocess.DEVNULL)
+        entry = (f"\n## Rollback - {datetime.now():%Y-%m-%d %H:%M}\n\n"
+                 f"- **Target:** {target}\n- **Safety checkpoint:** {safety}\n"
+                 "- **Reason:** User requested rollback\n")
+        with os.fdopen(os.dup(descriptor), "a", encoding="utf-8") as history:
+            history.write(entry)
+except (OSError, ValueError, subprocess.CalledProcessError) as error:
+    sys.exit("Rollback history was not updated: " + str(error))
+PY_HISTORY
 ```
 
 ### Step 8: Report Success

@@ -13,6 +13,8 @@
 
 - Rollback history requires the exact target and safety checkpoint tags in each
   shell call and updates the repository state file when run from a subdirectory.
+  It refuses symlinked state paths so restored checkpoints cannot redirect the
+  history append into another file.
 
 - Checkpoint rollback removes tracked files added after the checkpoint and
   restores deleted files from any subdirectory. It refuses collisions with
