@@ -83,8 +83,15 @@ Available checkpoints:
 ### Step 2: Show What Will Be Affected
 
 ```bash
+# A tag records HEAD only; never overwrite work absent from that checkpoint.
+ROLLBACK_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+if [[ -n "$ROLLBACK_STATUS" ]]; then
+  echo "Rollback requires a clean working tree and index. Preserve your changes before retrying." >&2
+  exit 1
+fi
+
 # Get list of files that will be changed
-git diff --name-status HEAD $CHECKPOINT_TAG
+git diff --name-status HEAD "$CHECKPOINT_TAG"
 ```
 
 Present clearly:
@@ -123,9 +130,22 @@ Any other input will cancel.
 
 ### Step 4: Create Safety Checkpoint
 
+The preview requires a clean index and working tree, including untracked files
+reported by Git. A safety tag records committed files only. Preserve changes
+with a commit or another user-selected recovery method before retrying. Do not
+stash, commit or discard unrelated work automatically. Recheck after confirmation
+and immediately before restoration because the user may have edited files.
+
 Before any rollback, create a pre-rollback checkpoint:
 
 ```bash
+# A tag records HEAD only; never overwrite work absent from that checkpoint.
+ROLLBACK_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+if [[ -n "$ROLLBACK_STATUS" ]]; then
+  echo "Rollback requires a clean working tree and index. Preserve your changes before retrying." >&2
+  exit 1
+fi
+
 # Generate timestamp
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
@@ -137,7 +157,9 @@ Report:
 ```
 Created safety checkpoint: octo-checkpoint-pre-rollback-$TIMESTAMP
 
-You can return to current state with:
+After restoration, review and commit the restored changes before using this
+command to return to the safety checkpoint. It requires a clean index and
+working tree. Preserve any unrelated changes separately.
   /octo:rollback octo-checkpoint-pre-rollback-$TIMESTAMP
 ```
 
@@ -154,6 +176,13 @@ fi
 ### Step 6: Execute Rollback
 
 ```bash
+# A tag records HEAD only; never overwrite work absent from that checkpoint.
+ROLLBACK_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+if [[ -n "$ROLLBACK_STATUS" ]]; then
+  echo "Rollback requires a clean working tree and index. Preserve your changes before retrying." >&2
+  exit 1
+fi
+
 # Restore files from checkpoint (does NOT move HEAD)
 git checkout $CHECKPOINT_TAG -- .
 
@@ -201,7 +230,9 @@ Rollback Complete
    ```bash
    git add -A && git commit -m "chore: rollback to $CHECKPOINT_TAG"
    ```
-3. Or return to previous state:
+3. To return to the safety checkpoint, first review and commit the restored
+   changes. The recovery command requires a clean index and working tree.
+   Preserve unrelated changes separately; do not bypass the clean-tree gate.
    ```bash
    /octo:rollback octo-checkpoint-pre-rollback-$TIMESTAMP
    ```
@@ -213,6 +244,7 @@ Rollback Complete
 
 | Measure | Implementation |
 |---------|----------------|
+| **Reject uncommitted work** | Check Git status before preview, tagging and restoration |
 | **Always create safety checkpoint** | Pre-rollback tag created BEFORE any file changes |
 | **Preserve LESSONS.md** | Copy before rollback, restore after |
 | **Require explicit confirmation** | Must type "ROLLBACK" exactly |
