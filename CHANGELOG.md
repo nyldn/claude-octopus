@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.24.0] - 2026-11-13
+
 ### Added
 
 - `OCTOPUS_AGY_FALLBACK_MODELS` lists Gemini models for agy to retry, in
@@ -10,6 +12,12 @@
   a busy model no longer stops the council. Non-Gemini entries are skipped.
 
 ### Fixed
+
+- External URL validation rejects ambiguous authorities, including userinfo,
+  fragments, bracketed IPv6, numeric IP shorthand and invalid ports, before
+  existing local/private-address checks. Public HTTPS URLs still pass. DNS
+  rebinding and redirects remain separate work. See
+  [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
 
 - OpenCode debates admit the Claude moderator before proposals; successful
   quorum debates need no moderator. Squeeze verifies its required providers

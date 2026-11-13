@@ -36,20 +36,20 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-UberLLM can now run as its own OpenAI-compatible provider seat with an explicit
-model choice. Gateway seats remain outside Council voting. Named presets keep
-their own endpoint, credential and model settings when the generic slot is configured.
-See [provider setup](docs/PROVIDERS.md#uberllm-setup).
+OpenCode 2.x dispatch uses its supported private-server mode and recognizes saved
+SQLite and environment logins. Existing OpenCode 1.x protection remains available.
+OpenCode 2.x is still unavailable in bounded Tangle runs. See
+[OpenCode compatibility](docs/PROVIDERS.md#opencode-cli-generations).
 
-Managed Tangle checks the output artifacts a task declares without requiring
-read-only context files to appear again in the response. Research summaries keep
-each seat's result when another seat times out, and quota or authentication
-failures retain their cause instead of appearing as timeouts.
+Council reviews verify source quotations more accurately and keep waiting for
+the current round when an earlier one has already finished. Antigravity can retry
+a configured Gemini model after a capacity error, with the answering model recorded.
+See [Council](docs/COUNCIL.md) and
+[Antigravity fallback configuration](config/providers/agy/CLAUDE.md).
 
-Council reviews distinguish a reviewer's proposed test inputs from source
-quotations. Quote verification bounds optional refinement while preserving the
-source checks that determine whether a review can count toward quorum.
-See [Council grounding](docs/COUNCIL.md).
+External URL checks reject ambiguous authorities that could reach loopback
+services, including userinfo and bracketed IPv6 forms. This fixes authority
+parsing; DNS rebinding and redirect validation remain outside this change.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.23.0 — UberLLM seats, isolated presets and accurate run results.**
