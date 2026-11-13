@@ -55,19 +55,40 @@ agent do differently because this exists?
 ### Invocation: explicit by default
 
 Every shipped command and skill carries `disable-model-invocation: true`.
-Claude Code therefore keeps Octopus out of model context until the user chooses
-an `/octo:*` command. This is a hard platform gate, not a prose reminder.
+In Claude Code, the user chooses an `/octo:*` command or names a skill explicitly.
+The Codex generator also writes `policy.allow_implicit_invocation: false` to each
+skill's `agents/openai.yaml`; Codex users invoke the installed `$skill-name`.
+Do not depend on automatic activation for either host.
 
-Command bodies that need reusable instructions load the entire source file
-directly from
-`${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/<name>/SKILL.md`; they do not call
-the Skill tool. `${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}` is the stable, self-healed path
-available to model tool calls; `CLAUDE_PLUGIN_ROOT` is a hook/runtime variable
-and may be absent from that context. The command must treat the loaded body as
-the active instructions in the current conversation, follow its steps in order,
-and pass the user's text as workflow arguments rather than executable path
-content. This keeps explicit commands composable without reopening automatic
-model invocation.
+Use the absolute entry path supplied by the host to derive the plugin root.
+Resolve symlinks first, then walk upward from that file's directory. At each
+ancestor containing the selected host's plugin manifest, check its registration:
+
+1. Claude Code: read `.claude-plugin/plugin.json`. Expand each declared `skills`
+   path beneath that ancestor and append `SKILL.md`. Require the resolved loaded
+   entry to equal one of those existing registered files.
+2. Codex: read `.codex-plugin/plugin.json`. Expand the declared `skills` directory
+   beneath that ancestor. Require the loaded entry to be the existing
+   `<skills-directory>/<registered-name>/SKILL.md`, with the skill directory an
+   immediate child of that declared directory.
+3. Accept exactly one matching ancestor as the plugin root. Reject paths outside
+   the root, missing registered entries, and zero or ambiguous matches. Stop if
+   the host does not expose the loaded entry's absolute path; do not guess from
+   the current directory, a cache name, or an unrelated environment variable.
+
+Before loading another skill, construct its host-registered path under that
+verified root and confirm its complete `SKILL.md` exists. Load the complete
+host-specific `SKILL.md` entry. For this repository's current Codex manifest,
+the registered path pattern is `codex-skills/<registered-name>/SKILL.md`, such
+as `codex-skills/skill-authoring/SKILL.md`; derive the directory from the
+manifest rather than assuming this package layout elsewhere.
+
+Treat the loaded body as instructions in the current conversation. Follow its
+steps in order and pass the user's text as workflow arguments, never executable
+path content. Do not invoke the current skill recursively. `.claude/skills/`
+contains development sources; it is not the Codex discovery directory. Do not
+assume a hook's environment variables or a fallback checkout identify the plugin
+that supplied the loaded entry.
 
 Plain-language routing is a separate, legacy-compatible opt-in controlled by
 `OCTOPUS_AUTO_ROUTER_MODE=suggest|invoke`. Its default is `off`. New skills must
@@ -124,8 +145,8 @@ A body that names the orchestrator script directly is required by
 `tests/unit/test-mandatory-compliance.sh` to carry a `MANDATORY COMPLIANCE` block
 and a `PROHIBITED` list. That is deliberate for skills that dispatch providers
 and spend money. It is dead weight on an advisory skill — so if a skill only
-advises, refer to workflows by their `/octo:` command names and skip the
-ceremony rather than adding a compliance block nobody needs.
+advises, name the registered workflow skill and omit a dispatch contract. Add
+one when the skill actually dispatches providers.
 
 ## Provider Or Data Priority
 
@@ -158,8 +179,14 @@ When reviewing, report:
 - Every step has a criterion the agent can evaluate.
 - No trigger phrase collides with `hooks/user-prompt-submit.sh` or an existing
   skill's description.
-- The skill is registered in `.claude-plugin/plugin.json` and `make sync` is
-  clean.
-- It declares `disable-model-invocation: true`, and any command that composes it
-  loads its source file directly.
-- `tests/unit/test-explicit-activation.sh` passes.
+- The native entry is registered in `.claude-plugin/plugin.json`. The Codex
+  entry is under the skills directory declared in `.codex-plugin/plugin.json`,
+  with matching `name` and `agents/openai.yaml` metadata. `make sync-check` passes.
+- It declares `disable-model-invocation: true`; the generated Codex interface has
+  `policy.allow_implicit_invocation: false`. Composing commands load the verified
+  host-specific entry directly.
+- `tests/unit/test-native-skill-registration.sh`,
+  `tests/unit/test-codex-manifest.sh`, and
+  `tests/unit/test-explicit-activation.sh` pass. These static checks do not prove
+  invocation on an installed host. Record Claude and Codex discovery and
+  explicit-invocation results separately when that acceptance is required.

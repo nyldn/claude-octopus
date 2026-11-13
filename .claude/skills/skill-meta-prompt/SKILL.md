@@ -14,7 +14,7 @@ trigger: |
   - "generate a meta-prompt", "help me write a prompt"
   - "prompt engineering", "better prompt"
   - "create instructions for [task]"
-  
+
   DO NOT use for:
   - Direct task execution (just do the task)
   - Simple questions (just answer)

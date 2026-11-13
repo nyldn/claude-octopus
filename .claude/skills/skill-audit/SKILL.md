@@ -15,7 +15,7 @@ trigger: |
   - "scan for issues" or "find all instances of X"
 
   DO NOT activate for:
-  - Security audits (use skill-security-audit)
+  - Security audits (use octopus-security-audit)
   - Code reviews (use skill-code-review)
   - Simple grep/search operations
 ---
@@ -52,7 +52,7 @@ and migration and rollback steps.
 - Identify inconsistencies across codebase
 
 **Do NOT use for:**
-- Security vulnerability scanning (use skill-security-audit)
+- Security vulnerability scanning (use octopus-security-audit)
 - Code quality review (use skill-code-review)
 - Single file searches (use Grep/Glob directly)
 - Performance profiling
@@ -426,11 +426,11 @@ Large audit with many items?
 → Loop through sections of the app
 ```
 
-### With skill-security-audit
+### With octopus-security-audit
 
 ```
 Audit includes security concerns?
-→ Delegate security-specific checks to skill-security-audit
+→ Delegate security-specific checks to octopus-security-audit
 → Use skill-audit for functional checks
 ```
 

@@ -124,7 +124,11 @@ STRIP_KEYS="agent|aliases|category|context|cost_optimization|created|execution_m
 
 if [[ "${1:-}" == "--clean" ]]; then
   log INFO "Cleaning generated skills and cursor command directories..."
-  rm -rf "$SKILLS_OUT" "$COMMANDS_OUT"
+  # Keep the hand-maintained shared sources in skills/ while removing only
+  # generated native/Codex output. Reuse the generator's preservation list.
+  source "$SCRIPT_DIR/build-codex-skills.sh"
+  prepare_target_dir "$NATIVE_OUTPUT_DIR"
+  rm -rf "$OUTPUT_DIR" "$COMMANDS_OUT"
   log INFO "Done."
   exit 0
 fi

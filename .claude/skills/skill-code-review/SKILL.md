@@ -5,8 +5,6 @@ aliases:
   - review
   - code-review
 description: Expert multi-AI code review with inline PR comments — use for thorough quality and security analysis
-context: fork
-agent: Explore
 execution_mode: enforced
 pre_execution_contract:
   - visual_indicators_displayed

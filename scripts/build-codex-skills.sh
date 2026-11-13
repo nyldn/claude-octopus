@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# build-codex-skills.sh — Generate portable root skills/ from .claude/skills/
+# build-codex-skills.sh — Generate native skills/ and codex-skills/ from .claude/skills/
 #
 # Transforms Claude Code skill files (.claude/skills/*.md or
 # .claude/skills/*/SKILL.md) into Codex CLI
-# compatible directory structure (skills/<name>/SKILL.md) with adapted
+# compatible directory structure (codex-skills/<name>/SKILL.md) with adapted
 # frontmatter, host preamble, and Codex interface metadata.
 #
 # Usage:
@@ -14,7 +14,7 @@
 #   --verbose   Show per-skill processing details
 #
 # Codex skill format requirements:
-#   - Directory per skill: skills/<name>/SKILL.md
+#   - Directory per skill: codex-skills/<name>/SKILL.md
 #   - Frontmatter: name (max 64 chars), description (max 1024 chars)
 #   - Name charset: a-zA-Z0-9_- (colons added by auto-namespacing)
 #   - Invocation: $skill-name (not /skill-name)
@@ -27,7 +27,8 @@ export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SKILLS_DIR="$PLUGIN_ROOT/.claude/skills"
-OUTPUT_DIR="$PLUGIN_ROOT/skills"
+OUTPUT_DIR="$PLUGIN_ROOT/codex-skills"
+NATIVE_OUTPUT_DIR="$PLUGIN_ROOT/skills"
 CHECK_MODE=false
 VERBOSE=false
 
@@ -297,18 +298,118 @@ This generated Codex skill preserves an enforced workflow contract from the sour
 EOF
 }
 
+adapt_shared_paths_for_codex() {
+    # Keep .claude/skills source paths intact while routing loaded entries and
+    # phase resources to this host's generated tree. Bare inline directory
+    # names describe source roots rather than a file to load.
+    sed -E \
+        -e 's@(^|[^[:alnum:]_.:/-])skills/([^`]|$)@\1codex-skills/\2@g' \
+        -e 's@(\$\{?OCTO_ROOT\}?)/skills/([^`]|$)@\1/codex-skills/\2@g'
+}
+
+# Translate only commands with an installed skill equivalent. Keep unknown
+# commands, URLs, file paths, and executable examples literal. A chat skill
+# invocation is not a shell command or a replacement for a program string.
+adapt_skill_references_for_codex() {
+    awk '
+        BEGIN {
+            skill["parallel"] = "flow-parallel"
+            skill["discover"] = "flow-discover"
+            skill["define"] = "flow-define"
+            skill["develop"] = "flow-develop"
+            skill["deliver"] = "flow-deliver"
+            skill["spec"] = "flow-spec"
+            skill["quick"] = "octopus-quick"
+            skill["research"] = "octopus-research"
+            skill["security"] = "octopus-security-audit"
+            skill["design-ui-ux"] = "octopus-ui-ux-design"
+            skill["setup"] = "sys-configure"
+            skill["review"] = "skill-code-review"
+            skill["debate"] = "skill-debate"
+            skill["docs"] = "skill-doc-delivery"
+            skill["deck"] = "skill-deck"
+            skill["prd"] = "skill-prd"
+            skill["brainstorm"] = "skill-thought-partner"
+            skill["km"] = "skill-knowledge-work"
+            skill["debug"] = "skill-debug"
+            skill["tdd"] = "skill-tdd"
+            skill["factory"] = "skill-factory"
+            skill["refine"] = "skill-refine"
+            skill["resume"] = "skill-resume"
+            skill["staged-review"] = "skill-staged-review"
+            skill["status"] = "skill-status"
+            skill["issues"] = "skill-issues"
+            skill["ship"] = "skill-ship"
+            skill["rollback"] = "skill-rollback"
+            skill["extract"] = "skill-extract"
+            skill["council"] = "skill-council"
+            skill["multi"] = "skill-parallel-agents"
+            skill["skill-doctor"] = "skill-doctor"
+        }
+        {
+            marker = $0
+            sub(/^[ \t]*/, "", marker)
+            if (marker ~ /^```/ || marker ~ /^~~~/) {
+                char = substr(marker, 1, 1)
+                run = 0
+                while (substr(marker, run + 1, 1) == char) run++
+                language = substr(marker, run + 1)
+                sub(/[ \t]*$/, "", language)
+                if (!fenced) {
+                    fenced = 1
+                    fence_char = char
+                    fence_length = run
+                    prose_fence = language == "" || language == "text" || language == "markdown"
+                } else if (char == fence_char && run >= fence_length && language == "") {
+                    fenced = 0
+                }
+                print
+                next
+            }
+            if (fenced && !prose_fence) {
+                print
+                next
+            }
+            rest = $0
+            out = ""
+            while (match(rest, /\/octo:[a-z][a-z0-9-]*/)) {
+                prefix = substr(rest, 1, RSTART - 1)
+                command = substr(rest, RSTART, RLENGTH)
+                tail = substr(rest, RSTART + RLENGTH)
+                name = substr(command, 7)
+                before = substr(prefix, length(prefix), 1)
+                after = substr(tail, 1, 1)
+                if (name in skill && before !~ /[[:alnum:]_.\/:~-]/ && after !~ /[[:alnum:]_.\/:~-]/) {
+                    command = "$" skill[name]
+                }
+                out = out prefix command
+                rest = tail
+            }
+            print out rest
+        }
+    '
+}
+
+# Adapt narrator/tool references while preserving explicitly labelled native
+# call examples, whose argument names must remain valid for their own host.
+adapt_host_context_for_codex() {
+    adapt_shared_paths_for_codex | adapt_skill_references_for_codex | sed -E \
+        -e 's/Bash tool/native shell command tool/g' \
+        -e 's/Agent tool/host subagent tool/g' \
+        -e 's/Task tool/host subagent tool/g' \
+        -e 's/TodoWrite/task plan tool/g' \
+        -e 's/You \(Claude\)/You (the host model)/g' \
+        -e 's/Claude Synthesizes/Host Synthesizes/g' \
+        -e 's/if \[\[ -n "\$\{PLAN_MODE_ACTIVE\}" \]\] \|\| claude-code plan status 2>\/dev\/null \| grep -q "active"; then/if [[ -n "${PLAN_MODE_ACTIVE:-}" ]]; then/g'
+}
+
 adapt_body_for_codex() {
     local file="$1"
     if source_has_enforced_execution "$file" && ! body_has_enforcement "$file"; then
         generated_enforcement_block
     fi
 
-    extract_body "$file" | sed -E \
-        -e 's/Bash tool/native shell command tool/g' \
-        -e 's/Agent tool/host subagent tool/g' \
-        -e 's/Task tool/host subagent tool/g' \
-        -e 's/TodoWrite/task plan tool/g' \
-        -e 's/run_in_background/background execution/g' \
+    extract_body "$file" | adapt_host_context_for_codex | sed -E \
         -e 's/codex exec --skip-git-repo-check --full-auto/codex exec --skip-git-repo-check/g' \
         -e 's/codex exec --full-auto/codex exec --skip-git-repo-check/g' \
         -e 's/, or deprecated `--full-auto`//g' \
@@ -330,9 +431,9 @@ host_preamble() {
     cat <<'PREAMBLE'
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
+> For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
 PREAMBLE
 }
@@ -352,6 +453,8 @@ When a generated skill references a host tool, use the active Codex equivalent:
 | native shell command tool | use the available Codex shell execution tool |
 | host subagent tool | use `spawn_agent`, `wait_agent`, and `close_agent` only when those tools are available and the user has authorized delegation |
 | task plan tool | use Codex task planning/status tools when present |
+| `AskUserQuestion` | use the active host question tool, or ask in the conversation and wait for the answer |
+| Claude-native call examples such as `Agent(run_in_background: true)` | translate the call to the available host tool and its documented arguments; never invent a Codex argument with the same spelling |
 | `/octo:*` command examples | use the installed skill name or run `scripts/orchestrate.sh` directly |
 
 Provider and model availability must be checked at runtime. If `OCTO_ALLOWED_PROVIDERS` is set, treat providers outside that list as unavailable even when installed. If a skill names a provider that is missing or disallowed in the current Codex session, mark it unavailable and continue only with available providers.
@@ -418,27 +521,39 @@ _preserve_find_args() {
 }
 
 prepare_target_dir() {
-    local target_dir="$1"
-
-    if [[ "$target_dir" == "$OUTPUT_DIR" ]]; then
+    local target_dir="$1" d host="${2:-codex}"
+    if [[ "$target_dir" == "$NATIVE_OUTPUT_DIR" ]]; then
         mkdir -p "$target_dir"
         local -a keep=()
-        while IFS= read -r a; do keep+=("$a"); done < <(_preserve_find_args)
+        while IFS= read -r d; do keep+=("$d"); done < <(_preserve_find_args)
         find "$target_dir" -mindepth 1 -maxdepth 1 -type d "${keep[@]}" -exec rm -rf {} +
         find "$target_dir" -mindepth 1 -maxdepth 1 -type f -delete
     else
         rm -rf "$target_dir"
         mkdir -p "$target_dir"
-        local d
         for d in "${PRESERVED_SKILL_DIRS[@]}"; do
-            if [[ -d "$OUTPUT_DIR/$d" ]]; then
+            if [[ -d "$NATIVE_OUTPUT_DIR/$d" ]]; then
                 mkdir -p "$target_dir/$d"
-                cp -R "$OUTPUT_DIR/$d/." "$target_dir/$d/"
+                cp -R "$NATIVE_OUTPUT_DIR/$d/." "$target_dir/$d/"
             fi
         done
+        # Copied shared blocks and resource files also belong to this host tree.
+        if [[ "$host" == codex ]]; then
+            local file
+            while IFS= read -r file; do
+                adapt_host_context_for_codex < "$file" > "$file.tmp"
+                mv "$file.tmp" "$file"
+            done < <(find "$target_dir" -type f -name '*.md')
+        fi
     fi
+}
 
-    write_codex_adapter_block "$target_dir"
+write_native_skill() {
+    local file="$1" target="$2" name="$3"
+    mkdir -p "$target"
+    # Preserve native frontmatter and tools. Only a compatibility alias changes name.
+    awk -v name="$name" '!renamed && /^name:/ { print "name: " name; renamed=1; next } { print }' \
+        "$file" > "$target/SKILL.md"
 }
 
 # --- Main ---
@@ -447,15 +562,14 @@ main() {
     local skipped=0
     local errors=0
 
-    # Check source ownership before preparing or deleting generated outputs.
+    # Validate canonical inputs before cleaning either generated output tree.
     local canonical
     for canonical in skill-refine flow-discover; do
-        if [[ ! -e "$OUTPUT_DIR/$canonical" && ! -e "$SKILLS_DIR/$canonical" ]]; then
-            continue
-        fi
-        if [[ ! -f "$OUTPUT_DIR/$canonical/SKILL.md" ]]; then
-            printf 'Missing canonical skill entry: %s\n' "$OUTPUT_DIR/$canonical/SKILL.md" >&2
-            return 1
+        if [[ -e "$NATIVE_OUTPUT_DIR/$canonical" || -e "$SKILLS_DIR/$canonical" ]]; then
+            [[ -f "$NATIVE_OUTPUT_DIR/$canonical/SKILL.md" ]] || {
+                printf 'Missing canonical skill entry: %s\n' "$NATIVE_OUTPUT_DIR/$canonical/SKILL.md" >&2
+                return 1
+            }
         fi
     done
 
@@ -467,27 +581,32 @@ main() {
         mkdir -p "$check_output"
     fi
 
-    local target_dir="$OUTPUT_DIR"
-    $CHECK_MODE && target_dir="$check_output"
+    local target_dir="$OUTPUT_DIR" native_target="$NATIVE_OUTPUT_DIR"
+    if $CHECK_MODE; then
+        target_dir="$check_output"
+        native_target="$tmp_dir/native-skills"
+    fi
 
     prepare_target_dir "$target_dir"
+    prepare_target_dir "$native_target" native
+    write_codex_adapter_block "$target_dir"
 
-    # Both hosts load phase resources from root skills/. Only the entry copy
-    # lives under .claude; do not delete or adapt the canonical phase files.
+    # Canonical root entries own their native bytes and phase resources.
+    # Refresh the source entry before generating the separate Codex adaptation.
     for canonical in skill-refine flow-discover; do
         # A partial source fixture may contain neither canonical skill. If either
         # side exists, require the canonical root copy rather than losing it.
-        if [[ ! -e "$OUTPUT_DIR/$canonical" && ! -e "$SKILLS_DIR/$canonical" ]]; then
+        if [[ ! -e "$NATIVE_OUTPUT_DIR/$canonical" && ! -e "$SKILLS_DIR/$canonical" ]]; then
             continue
         fi
         if $CHECK_MODE; then
-            cmp -s "$OUTPUT_DIR/$canonical/SKILL.md" "$SKILLS_DIR/$canonical/SKILL.md" || {
+            cmp -s "$NATIVE_OUTPUT_DIR/$canonical/SKILL.md" "$SKILLS_DIR/$canonical/SKILL.md" || {
                 echo "CHECK: .claude/skills/$canonical is stale; run skill sync" >&2
                 return 1
             }
         else
             mkdir -p "$SKILLS_DIR/$canonical"
-            cp "$OUTPUT_DIR/$canonical/SKILL.md" "$SKILLS_DIR/$canonical/SKILL.md"
+            cp "$NATIVE_OUTPUT_DIR/$canonical/SKILL.md" "$SKILLS_DIR/$canonical/SKILL.md"
         fi
     done
 
@@ -496,9 +615,6 @@ main() {
 
         local basename
         basename=$(source_skill_basename "$file")
-
-        # These skills are canonical under root skills/, including phase resources.
-        case "$basename" in skill-refine|skill-refine.md|flow-discover|flow-discover.md) continue ;; esac
 
         # Skip templates
         for pattern in $SKIP_PATTERNS; do
@@ -537,6 +653,7 @@ main() {
         local codex_short_desc
         codex_short_desc="$(ui_short_description "$description" "$codex_display_name")"
 
+        write_native_skill "$file" "$native_target/$codex_name" "$codex_name"
         write_skill "$file" "$target_dir/$codex_name" "$codex_name" "$codex_desc" "$codex_display_name" "$codex_short_desc"
 
         ((count++)) || true
@@ -557,6 +674,7 @@ main() {
             local alias_short_desc
             alias_short_desc="$(ui_short_description "$alias_desc" "$alias_display_name")"
 
+            write_native_skill "$file" "$native_target/$alias_name" "$alias_name"
             write_skill "$file" "$target_dir/$alias_name" "$alias_name" "$alias_desc" "$alias_display_name" "$alias_short_desc"
             ((count++)) || true
             $VERBOSE && echo "  OK: $basename → skills/$alias_name/SKILL.md (compat alias)"
@@ -566,16 +684,22 @@ main() {
     echo "build-codex-skills: $count skills generated, $skipped skipped, $errors errors"
 
     if $CHECK_MODE; then
-        if [[ -d "$OUTPUT_DIR" ]]; then
-            if diff -rq "$check_output" "$OUTPUT_DIR" >/dev/null 2>&1; then
-                echo "CHECK: skills/ is up to date"
-                return 0
-            else
-                echo "CHECK: skills/ is out of date — run scripts/build-codex-skills.sh" >&2
-                return 1
-            fi
+        local missing_tree=false
+        if [[ ! -d "$OUTPUT_DIR" ]]; then
+            printf 'CHECK: Codex skill tree does not exist: %s\n' "$OUTPUT_DIR" >&2
+            missing_tree=true
+        fi
+        if [[ ! -d "$NATIVE_OUTPUT_DIR" ]]; then
+            printf 'CHECK: native skill tree does not exist: %s\n' "$NATIVE_OUTPUT_DIR" >&2
+            missing_tree=true
+        fi
+        $missing_tree && return 1
+        if diff -rq "$check_output" "$OUTPUT_DIR" >/dev/null 2>&1 &&
+           diff -rq "$native_target" "$NATIVE_OUTPUT_DIR" >/dev/null 2>&1; then
+            echo "CHECK: native and Codex skills/ is up to date"
+            return 0
         else
-            echo "CHECK: skills/ does not exist — run scripts/build-codex-skills.sh" >&2
+            echo "CHECK: native and Codex skills/ is out of date — run scripts/build-codex-skills.sh" >&2
             return 1
         fi
     fi

@@ -1,30 +1,26 @@
 ---
 name: skill-staged-review
-description: "Use when a PR or feature needs both specification and code-quality review"
 disable-model-invocation: true
+aliases:
+  - staged-review
+  - two-stage-review
+description: "Use when a PR or feature needs both specification and code-quality review"
+trigger: |
+  Use when completing a major feature, preparing a PR, or when user says
+  "staged review", "full review", "review against spec", or "two-stage review".
+  Do NOT use for quick code checks — use skill-code-review instead.
+execution_mode: enforced
+validation_gates:
+  - stage1_complete
+  - stage2_complete
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
-
-## Execution Contract (MANDATORY - CANNOT SKIP)
-
-This generated Codex skill preserves an enforced workflow contract from the source skill.
-
-**PROHIBITED:**
-- Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
-- Do not claim provider output or validation artifacts exist without checking the actual files or command output.
-- Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
-
 
 # Two-Stage Review Pipeline
 
 Separates **spec compliance** (did you build the right thing?) from **code quality**
 (did you build it right?). Stage 1 must pass before Stage 2 runs.
 
+---
 
 ## Stage 1: Spec Compliance
 
@@ -101,6 +97,7 @@ For each boundary in the intent contract:
 **If user chooses to fix:** Stop review, list specific fixes needed.
 **If user chooses to proceed:** Note the overrides and continue to Stage 2.
 
+---
 
 ## Stage 2: Code Quality
 
@@ -239,6 +236,7 @@ done
 [Non-blocking suggestions for improvement]
 ```
 
+---
 
 ## Combined Report
 
@@ -264,6 +262,7 @@ After both stages complete, present the unified report:
 [If PASS: ready for merge/ship]
 ```
 
+---
 
 ## When to Use Each Review Type
 
@@ -273,6 +272,7 @@ After both stages complete, present the unified report:
 | **skill-staged-review** | Major feature completion | Spec compliance + code quality |
 | **skill-verification-gate** | Before any completion claim | Evidence of passing |
 
+---
 
 ## Error Handling
 
@@ -284,6 +284,7 @@ After both stages complete, present the unified report:
 | Stage 1 failures | Ask user: fix or override |
 | Stage 2 blocking issues | Must fix before merge |
 
+---
 
 ## The Bottom Line
 
@@ -294,6 +295,7 @@ Stage 1 gates Stage 2. Both must pass for overall PASS.
 
 **Build the right thing, then build it right.**
 
+---
 
 ## Post Results to PR (v8.44.0)
 
@@ -317,6 +319,7 @@ if [[ -n "$PR_NUM" ]]; then
 
 ${COMBINED_REPORT}
 
+---
 *Staged review by Claude Octopus (/octo:staged-review)*"
     if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
             --repo "$REPO_SLUG" pr-comment "$PR_NUM" - <<< "$COMMENT_BODY"; then

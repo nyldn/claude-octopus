@@ -547,8 +547,8 @@ done
 echo ""
 echo "=== 7. Skill Frontmatter ==="
 
-# context: fork on heavy skills
-for skill in skill-prd skill-code-review skill-debate skill-deep-research; do
+# Debate keeps its fork; provider workflows need a writable execution context.
+for skill in skill-debate; do
     skill_path="$(resolve_claude_skill_path "$skill")"
     if [[ -f "$skill_path" ]] && grep -q '^context: fork' "$skill_path"; then
         pass "$skill.md has context: fork"
@@ -557,19 +557,13 @@ for skill in skill-prd skill-code-review skill-debate skill-deep-research; do
     fi
 done
 
-# agent field on specialized skills
-if grep -q '^agent: Plan' "$(resolve_claude_skill_path "skill-prd")"; then
-    pass "skill-prd.md has agent: Plan"
-else
-    fail "skill-prd.md agent" "missing agent: Plan"
-fi
-
-for skill in skill-code-review skill-deep-research; do
+# Read-only built-in agents cannot dispatch providers or write their reports.
+for skill in skill-prd skill-code-review skill-deep-research flow-discover flow-define skill-ui-ux-design; do
     skill_path="$(resolve_claude_skill_path "$skill")"
-    if [[ -f "$skill_path" ]] && grep -q '^agent: Explore' "$skill_path"; then
-        pass "$skill.md has agent: Explore"
+    if [[ -f "$skill_path" ]] && ! grep -qE '^agent: (Explore|Plan)$|^context: fork$' "$skill_path"; then
+        pass "$skill.md preserves a writable execution context"
     else
-        fail "$skill.md agent" "missing agent: Explore"
+        fail "$skill.md execution context" "missing skill or read-only workflow assignment"
     fi
 done
 

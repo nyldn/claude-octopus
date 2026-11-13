@@ -11,6 +11,10 @@
 
 ### Fixed
 
+- Claude Code discovers native skill instructions while Codex loads its own
+  adapted entries. Registered names, manual invocation and the starter pack
+  remain available in both hosts.
+
 - Council quota classification requires a terminal marker validated against
   complete stdout. A truncated diagnostic tail cannot establish a session
   limit. Quote checks retain patch-introduction ownership and reuse elision

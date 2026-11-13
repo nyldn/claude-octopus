@@ -1,24 +1,30 @@
 ---
 name: skill-finish-branch
-description: "Wrap up a branch — run tests, create PR, merge or discard — use when implementation is done"
 disable-model-invocation: true
+description: "Wrap up a branch — run tests, create PR, merge or discard — use when implementation is done"
+trigger: |
+  EXPLICITLY USE when user requests task completion with git operations:
+  - "commit and push" or "git commit and push"
+  - "complete all tasks and commit and push"
+  - "proceed with all todos in sequence and push"
+  - "save and commit" or "wrap this up and push"
+  - "I'm done with this feature" or "ready to merge"
+  - "create PR for this work"
+
+  DO NOT activate for:
+  - Individual file commits (use built-in git tools)
+  - Work in progress without tests passing
+  - Exploratory commits
+  - Simple "git status" or "git diff" commands
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
+paths:
+  - ".git/**"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
-
-## Execution Contract (MANDATORY - CANNOT SKIP)
-
-This generated Codex skill preserves an enforced workflow contract from the source skill.
-
-**PROHIBITED:**
-- Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
-- Do not claim provider output or validation artifacts exist without checking the actual files or command output.
-- Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
-
 
 # Finishing a Development Branch
 
@@ -30,6 +36,7 @@ Full ship pipeline: tests → multi-provider review → version bump → changel
 
 **Core principle:** Verify tests → Review diff → Bump version → Update changelog → Present options → Execute choice → Clean up.
 
+---
 
 ## The Process
 
@@ -51,6 +58,7 @@ fi
 
 **If tests pass:** Continue to Step 2.
 
+---
 
 ### Step 2: Multi-Provider Diff Review
 
@@ -74,6 +82,7 @@ $(git diff $(git merge-base HEAD main)..HEAD | head -500)"
 **If critical issues found:** Present them and ask whether to fix or ship anyway.
 **If clean:** Continue to Step 3. Show a brief `✓ Review clean — no issues found`.
 
+---
 
 ### Step 3: Determine Base Branch & Version
 
@@ -89,6 +98,7 @@ for f in VERSION version.txt package.json; do
 done
 ```
 
+---
 
 ### Step 4: Version Bump & Changelog (Optional)
 
@@ -118,6 +128,7 @@ COMMITS=$(git log --oneline $(git merge-base HEAD $BASE_BRANCH)..HEAD)
 # Prepend to CHANGELOG.md if it exists
 ```
 
+---
 
 ### Step 5: Present Options
 
@@ -136,6 +147,7 @@ Which option? (1-4)
 
 **Keep options concise.** Don't add explanations unless asked.
 
+---
 
 ### Step 4: Execute Choice
 
@@ -171,6 +183,7 @@ git branch -d $FEATURE_BRANCH
 Ready to push when you want: git push origin $BASE_BRANCH
 ```
 
+---
 
 #### Option 2: Create PR
 
@@ -213,6 +226,7 @@ fi
 Branch preserved for review process.
 ```
 
+---
 
 #### Option 3: Keep As-Is
 
@@ -232,6 +246,7 @@ When ready, you can:
 
 **Do NOT clean up anything.**
 
+---
 
 #### Option 4: Discard
 
@@ -270,6 +285,7 @@ git push origin --delete $FEATURE_BRANCH 2>/dev/null || true
 Work has been permanently discarded.
 ```
 
+---
 
 ### Step 5: Cleanup (If Using Worktrees)
 
@@ -293,6 +309,7 @@ fi
 
 **For Option 3:** Keep worktree intact.
 
+---
 
 ## Quick Reference
 
@@ -303,6 +320,7 @@ fi
 | 3. Keep as-is | - | - | Keep | - |
 | 4. Discard | - | - | Delete | ✓ |
 
+---
 
 ## Integration with Claude Octopus
 
@@ -328,6 +346,7 @@ After completing octopus workflows, use this skill:
 # If validation passes, proceed with finishing-branch
 ```
 
+---
 
 ## Red Flags - Never Do
 
@@ -339,6 +358,7 @@ After completing octopus workflows, use this skill:
 | Delete remote branch silently | Affects collaborators |
 | Proceed when tests fail | Corrupts main branch |
 
+---
 
 ## Common Mistakes
 
@@ -349,6 +369,7 @@ After completing octopus workflows, use this skill:
 | Deleting without confirmation | Require typed "discard" |
 | Cleaning up worktree on "keep" | Only cleanup for options 1, 2, 4 |
 
+---
 
 ## The Bottom Line
 

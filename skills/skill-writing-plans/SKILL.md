@@ -1,14 +1,19 @@
 ---
 name: skill-writing-plans
-description: "Create zero-context implementation plans with bite-sized tasks — use for multi-step feature planning"
 disable-model-invocation: true
+description: Create zero-context implementation plans with bite-sized tasks — use for multi-step feature planning
+trigger: |
+  Invoke explicitly when you have a spec or requirements for a multi-step task.
+  Example requests include "plan how to implement X", "create implementation plan",
+  "break down this feature into tasks".
+  Use BEFORE writing any implementation code.
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Writing Plans
 
@@ -27,6 +32,7 @@ do not invoke the current command recursively or add provider calls from a seat.
 
 **The user asked for a plan, not an implementation. Write the plan first.**
 
+---
 
 **Your first output line MUST be:** `🐙 **CLAUDE OCTOPUS ACTIVATED** - Implementation Planning`
 
@@ -57,6 +63,7 @@ overwrite another claim. When the tracker fails, save an explicitly unfiled
 proposal in existing plan storage, stop tracker writes, and never fabricate IDs
 or migrate a database.
 
+---
 
 ## Plan Document Structure
 
@@ -73,6 +80,7 @@ or migrate a database.
 
 **Estimated Time:** [X tasks × 5 min = Y minutes]
 
+---
 
 ## Prerequisites
 
@@ -81,6 +89,7 @@ or migrate a database.
 - [ ] [Files that must exist]
 ```
 
+---
 
 ## Task Granularity
 
@@ -93,6 +102,7 @@ or migrate a database.
 | "Implement minimal code to pass" | "Add the feature" |
 | "Commit with message" | "Finish the feature" |
 
+---
 
 ## Task Template
 
@@ -155,8 +165,10 @@ git add tests/exact/path/to/test.spec.ts exact/path/to/new-file.ts
 git commit -m "feat(component): add specific functionality"
 ```
 
+---
 ```
 
+---
 
 ## Example: Complete Task
 
@@ -238,6 +250,7 @@ git commit -m "feat(validators): add email validation with tests"
 ```
 ```
 
+---
 
 ## Integration with Claude Octopus
 
@@ -288,6 +301,7 @@ mkdir -p docs/plans
 # docs/plans/2026-01-17-user-authentication.md
 ```
 
+---
 
 ## Checklist for Good Plans
 
@@ -298,6 +312,7 @@ mkdir -p docs/plans
 - [ ] TDD: test before implementation
 - [ ] Commit after each task
 
+---
 
 ## Common Mistakes
 
@@ -310,6 +325,7 @@ mkdir -p docs/plans
 | Large tasks (30+ min) | Break into 2-5 min steps |
 | No verification | Add "Run X, expect Y" |
 
+---
 
 ## When to Create Plans
 
@@ -322,6 +338,7 @@ mkdir -p docs/plans
 | Complex refactoring | Yes |
 | Config change | No |
 
+---
 
 ## Related Skills
 
@@ -329,6 +346,7 @@ mkdir -p docs/plans
 - **verification-before-completion** - Verify each step
 - **finishing-branch** - After all tasks complete
 
+---
 
 ## The Bottom Line
 

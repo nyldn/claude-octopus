@@ -1,14 +1,16 @@
 ---
 name: octopus-quick
-description: "Quick execution for ad-hoc tasks without full workflow overhead — use for small, self-contained requests"
 disable-model-invocation: true
+effort: low
+description: Quick execution for ad-hoc tasks without full workflow overhead — use for small, self-contained requests
+aliases:
+  - quick
+  - quick-mode
+  - adhoc
+trigger: |
+  Use this skill when user says "quick fix", "ad-hoc task", or explicitly
+  requests fast execution without full workflow overhead.
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Quick Mode - Lightweight Task Execution ⚡
 
@@ -60,6 +62,7 @@ Fast-track execution for small tasks that don't need full Double Diamond workflo
 
 **Use full workflows for complex work to ensure quality.**
 
+---
 
 ## Execution Flow
 
@@ -81,6 +84,7 @@ User Request → Direct Implementation → Atomic Commit → Summary
 - ✅ Summary generation (stored in .claude-octopus/quick/)
 - ✅ Change documentation
 
+---
 
 ## Usage
 
@@ -106,6 +110,7 @@ Task: "fix typo in README.md line 42"
 /octo:quick "remove console.log statements"
 ```
 
+---
 
 ## Implementation
 
@@ -186,12 +191,14 @@ $(git rev-parse HEAD)
 ## Timestamp
 $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
+---
 *Executed in Quick Mode - minimal overhead execution*
 EOF
 
 echo "📝 Summary saved to: $summary_file"
 ```
 
+---
 
 ## Complete Example
 
@@ -239,6 +246,7 @@ echo "📝 Summary saved to: $summary_file"
    📋 Summary: .claude-octopus/quick/20260129-143045-summary.md
    ```
 
+---
 
 ## Benefits of Quick Mode
 
@@ -263,6 +271,7 @@ echo "📝 Summary saved to: $summary_file"
 - Doesn't over-engineer simple changes
 - Reserves full workflows for complex work
 
+---
 
 ## When Quick Mode Isn't Enough
 
@@ -290,6 +299,7 @@ Would you like me to switch to a full workflow?
 - Performance implications
 - Breaking changes
 
+---
 
 ## Directory Structure
 
@@ -310,6 +320,7 @@ Each summary includes:
 - Commit hash
 - Timestamp
 
+---
 
 ## Comparison: Quick Mode vs Full Workflow
 
@@ -324,6 +335,7 @@ Each summary includes:
 | **Best For** | Simple fixes | Complex features |
 | **When to Use** | Known solution | Unknown solution |
 
+---
 
 ## Best Practices
 
@@ -341,6 +353,7 @@ Each summary includes:
 - ❌ Use quick mode for security-sensitive changes
 - ❌ Force quick mode when full workflow is appropriate
 
+---
 
 ## Troubleshooting
 
@@ -356,6 +369,7 @@ Each summary includes:
 ### "Multiple files need changes"
 → Consider /octo:develop for coordinated multi-file changes.
 
+---
 
 ## Summary
 

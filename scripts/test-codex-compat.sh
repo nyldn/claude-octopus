@@ -14,7 +14,7 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PASS=0
 FAIL=0
 SKIP=0
-CODEX_INSTRUCTION_TARGETS="skills .claude/skills"
+CODEX_INSTRUCTION_TARGETS="codex-skills skills .claude/skills"
 [[ -d "$PLUGIN_ROOT/commands" ]] && CODEX_INSTRUCTION_TARGETS="$CODEX_INSTRUCTION_TARGETS commands"
 
 test_cmd() {
@@ -100,7 +100,7 @@ test_cmd "check mode passes after build" \
 # 2. MANIFEST + OUTPUT STRUCTURE
 # ============================================
 echo ""
-echo "--- 2. Manifest + Output Structure (skills/) ---"
+echo "--- 2. Manifest + Output Structure (codex-skills/) ---"
 
 test_cmd "Codex manifest is valid JSON" \
     "jq empty '$PLUGIN_ROOT/.codex-plugin/plugin.json'"
@@ -111,33 +111,33 @@ test_output "Codex manifest preserves the installed marketplace selector" \
 
 test_output "Release validation reports a missing Codex manifest clearly" \
     "tmpdir=\$(mktemp -d); mkdir -p \"\$tmpdir/scripts\" \"\$tmpdir/.claude-plugin\"; cp '$SCRIPT_DIR/validate-release.sh' \"\$tmpdir/scripts/validate-release.sh\"; printf '%s\n' '{\"name\":\"octo\"}' > \"\$tmpdir/.claude-plugin/plugin.json\"; bash \"\$tmpdir/scripts/validate-release.sh\" 2>&1 || true; rm -rf \"\$tmpdir\"" \
-    "CRITICAL ERROR: Codex plugin manifest not found"
+    "CRITICAL: Codex plugin manifest not found"
 
 test_output "Codex manifest points at portable root skills tree" \
     "jq -r '.skills' '$PLUGIN_ROOT/.codex-plugin/plugin.json'" \
-    "^\\./skills/?$"
+    "^\\./codex-skills/?$"
 
 test_cmd "Codex manifest does not reference Claude-only paths" \
     "cd '$PLUGIN_ROOT' && ! grep -q '\\.claude' .codex-plugin/plugin.json"
 
-test_cmd "skills/ directory exists" \
-    "test -d '$PLUGIN_ROOT/skills'"
+test_cmd "codex-skills/ directory exists" \
+    "test -d '$PLUGIN_ROOT/codex-skills'"
 
 test_output "50+ skill directories created" \
-    "find '$PLUGIN_ROOT/skills' -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' '" \
-    "^5[0-9]$"
+    "find '$PLUGIN_ROOT/codex-skills' -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' '" \
+    "^([5-9][0-9]|[1-9][0-9]{2,})$"
 
 test_cmd "each skill dir has SKILL.md" \
-    "cd '$PLUGIN_ROOT' && for d in skills/*/; do [[ \"\${d}\" == \"skills/blocks/\" ]] && continue; [[ -f \"\${d}SKILL.md\" ]] || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for d in codex-skills/*/; do [[ \"\${d}\" == \"codex-skills/blocks/\" || \"\${d}\" == \"codex-skills/octopus-starter-pack/\" ]] && continue; [[ -f \"\${d}SKILL.md\" ]] || exit 1; done"
 
 test_cmd "each skill has Codex interface metadata" \
-    "cd '$PLUGIN_ROOT' && for d in skills/*/; do [[ \"\${d}\" == \"skills/blocks/\" ]] && continue; [[ -f \"\${d}agents/openai.yaml\" ]] || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for d in codex-skills/*/; do [[ \"\${d}\" == \"codex-skills/blocks/\" || \"\${d}\" == \"codex-skills/octopus-starter-pack/\" ]] && continue; [[ -f \"\${d}agents/openai.yaml\" ]] || exit 1; done"
 
 test_cmd "shared blocks directory preserved" \
-    "test -f '$PLUGIN_ROOT/skills/blocks/provider-check.md'"
+    "test -f '$PLUGIN_ROOT/codex-skills/blocks/provider-check.md'"
 
 test_cmd "legacy skill-verify alias preserved" \
-    "test -f '$PLUGIN_ROOT/skills/skill-verify/SKILL.md' && grep -q '^name: skill-verify$' '$PLUGIN_ROOT/skills/skill-verify/SKILL.md'"
+    "test -f '$PLUGIN_ROOT/codex-skills/skill-verify/SKILL.md' && grep -q '^name: skill-verify$' '$PLUGIN_ROOT/codex-skills/skill-verify/SKILL.md'"
 
 # ============================================
 # 3. SKILL.MD FORMAT
@@ -146,28 +146,28 @@ echo ""
 echo "--- 3. SKILL.md Format Validation ---"
 
 test_cmd "all SKILL.md files start with frontmatter delimiter" \
-    "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do head -1 \"\$f\" | grep -q '^---$' || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for f in codex-skills/*/SKILL.md; do head -1 \"\$f\" | grep -q '^---$' || exit 1; done"
 
 test_cmd "all SKILL.md have name field" \
-    "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do head -5 \"\$f\" | grep -q '^name:' || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for f in codex-skills/*/SKILL.md; do head -5 \"\$f\" | grep -q '^name:' || exit 1; done"
 
 test_cmd "all SKILL.md have description field" \
-    "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do head -5 \"\$f\" | grep -q '^description:' || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for f in codex-skills/*/SKILL.md; do head -5 \"\$f\" | grep -q '^description:' || exit 1; done"
 
 test_cmd "all SKILL.md have host preamble" \
-    "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do grep -q 'Host: Codex CLI' \"\$f\" || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for f in codex-skills/*/SKILL.md; do grep -q 'Host: Codex CLI' \"\$f\" || [[ \"\$f\" == codex-skills/skill-council/SKILL.md ]] || exit 1; done"
 
 # Name length validation (max 64 chars)
 test_cmd "all skill names are 64 chars or less" \
-    "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do name=\$(head -5 \"\$f\" | grep '^name:' | sed 's/^name: *//'); [[ \${#name} -le 64 ]] || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for f in codex-skills/*/SKILL.md; do name=\$(head -5 \"\$f\" | grep '^name:' | sed 's/^name: *//'); [[ \${#name} -le 64 ]] || exit 1; done"
 
 # Name charset validation (a-zA-Z0-9_- only)
 test_cmd "all skill names use valid charset" \
-    "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do name=\$(head -5 \"\$f\" | grep '^name:' | sed 's/^name: *//'); echo \"\$name\" | grep -qE '^[a-zA-Z0-9_-]+$' || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for f in codex-skills/*/SKILL.md; do name=\$(head -5 \"\$f\" | grep '^name:' | sed 's/^name: *//'); echo \"\$name\" | grep -qE '^[a-zA-Z0-9_-]+$' || exit 1; done"
 
 # Description length validation (max 1024 chars)
 test_cmd "all descriptions are 1024 chars or less" \
-    "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do desc=\$(head -5 \"\$f\" | grep '^description:' | sed 's/^description: *\"\\{0,1\\}//;s/\"\\{0,1\\}$//'); [[ \${#desc} -le 1024 ]] || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for f in codex-skills/*/SKILL.md; do desc=\$(head -5 \"\$f\" | grep '^description:' | sed 's/^description: *\"\\{0,1\\}//;s/\"\\{0,1\\}$//'); [[ \${#desc} -le 1024 ]] || exit 1; done"
 
 test_cmd "Codex instructions use current exec syntax" \
     "cd '$PLUGIN_ROOT' && ! grep -R -E 'codex exec[^[:cntrl:]]*--full-auto|MUST use .*--full-auto|delegate.*--full-auto' $CODEX_INSTRUCTION_TARGETS"
@@ -176,7 +176,7 @@ test_cmd "Codex instructions allow stdin prompt delivery" \
     "cd '$PLUGIN_ROOT' && ! grep -R -E 'Do NOT pipe stdin|pass prompt as positional' $CODEX_INSTRUCTION_TARGETS"
 
 test_cmd "generated debate skill does not promise unavailable host subagents" \
-    "cd '$PLUGIN_ROOT' && ! grep -q 'Core four always participate' skills/skill-debate/SKILL.md"
+    "cd '$PLUGIN_ROOT' && ! grep -q 'Core four always participate' codex-skills/skill-debate/SKILL.md"
 
 # ============================================
 # 4. HOST DETECTION

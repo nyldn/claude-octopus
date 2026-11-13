@@ -8,8 +8,6 @@ aliases:
   - ui-design
   - ux-design
 description: "Design UI/UX systems with style guides, palettes, typography, and component specs for new interfaces"
-context: fork
-agent: Explore
 task_management: true
 execution_mode: enforced
 pre_execution_contract:

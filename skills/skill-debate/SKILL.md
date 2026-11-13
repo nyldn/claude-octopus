@@ -1,14 +1,31 @@
 ---
 name: skill-debate
-description: "Structured multi-provider AI debates between Claude and available advisors — use for critical decisions"
 disable-model-invocation: true
+effort: high
+user-invocable: true
+aliases:
+  - debate
+description: Structured multi-provider AI debates between Claude and available advisors — use for critical decisions
+context: fork
+trigger: |
+  EXPLICITLY USE when user says:
+  - "/debate <question>"
+  - "run a debate about X"
+  - "I want Antigravity and Codex to review X"
+  - "debate whether X or Y"
+
+  Supports flags:
+  - -r/--rounds N (1-10 rounds)
+  - -d/--debate-style (quick, thorough, adversarial, collaborative)
+  - -m/--moderator-style (transparent, guided, authoritative)
+  - -a/--advisors (comma-separated list)
+  - -o/--out-dir PATH
+  - -p/--path PATH
+  - -c/--context-file FILE
+  - -w/--max-words N
+  - -t/--topic NAME
+  - -s/--synthesize (generate deliverable from consensus)
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # AI Debate Hub Skill v4.8
 
@@ -33,16 +50,17 @@ disable-model-invocation: true
 Participants:
 🔴 Codex CLI - Technical implementation perspective
 🟡 Antigravity CLI - Ecosystem and strategic perspective
-🟠 Sonnet 5 - Pragmatic implementer perspective if host subagents are available
-🐙 current host model - Moderator and synthesis
+🟠 Sonnet 5 - Pragmatic implementer perspective
+🐙 Claude (Opus) - Moderator and synthesis
 🟢 Copilot CLI - GitHub-native perspective (if available)
 🟤 Qwen CLI - Alternative model perspective (if available)
 ```
 
-**Core participants are selected from available providers.** Codex (🔴), Antigravity (🧭), Sonnet (🟠), current host model (🐙), and other detected providers can participate based on routing and availability.
+**Core participants are selected from available providers.** Codex (🔴), Antigravity (🧭), Sonnet (🟠), Claude/Opus (🐙), and other detected providers can participate based on routing and availability.
 
 **This is NOT optional.** Users need to see which AI providers are active. External API calls (🔴 🟡) use provider API keys. Sonnet (🟠), Copilot (🟢), and Qwen (🟤) are included with existing subscriptions.
 
+---
 
 ## CRITICAL: External CLI Syntax (v0.101.0+)
 
@@ -68,8 +86,9 @@ provider-specific flags for Codex, Antigravity, and other advisors.
 - `codex -y` / `codex --yes` — NEVER EXISTED
 - `codex "prompt"` without `exec` — launches interactive TUI, hangs
 
+---
 
-You are current host model, a **participant and moderator** in a multi-provider AI debate system. You consult external advisors (Codex, Antigravity, and other available providers) via CLI, contribute your own analysis, and synthesize all perspectives for the user. If the host exposes subagents, include Sonnet as an independent analyst.
+You are Claude (Opus), a **participant and moderator** in a multi-provider AI debate system. You consult external advisors (Codex, Antigravity, and other available providers) via CLI, contribute your own analysis, and synthesize all perspectives for the user. If the host exposes subagents, include Sonnet as an independent analyst.
 
 **CRITICAL: You are NOT just an orchestrator. You are an active participant with your own voice and opinions.**
 
@@ -82,6 +101,7 @@ access and model family separately from provider transport. A reviewer without
 artifact access contributes questions, not approval. Preserve evidence-backed
 minority findings even when the vote count favors another design.
 
+---
 
 ## How Users Invoke This Skill
 
@@ -116,6 +136,7 @@ Users can mention files naturally - you resolve them to full paths:
 - `Run a debate about the database schema design`
 - `I want Antigravity and Codex to review this PR`
 
+---
 
 ## Flags
 
@@ -151,6 +172,7 @@ Users can mention files naturally - you resolve them to full paths:
 - `--rounds` must be 1-10
 - Error on `--rounds 0` or `--rounds 11+`
 
+---
 
 ## Your Role: Participant + Moderator
 
@@ -193,11 +215,12 @@ This is a **provider debate** with selected advisor voices plus you as moderator
 **Key responsibilities:**
 1. **Set up the debate**: Create folder structure, write context.md
 2. **Consult external advisors**: Dispatch Antigravity/Codex through Octopus routing for each round
-3. **Launch allowed Sonnet**: Dispatch Sonnet via host subagent tool only when the provider allowlist permits it
+3. **Launch allowed Sonnet**: Dispatch Sonnet via Agent tool only when the provider allowlist permits it
 4. **Contribute your analysis**: Write your own perspective to rounds/r00N_claude.md
 5. **Moderate**: Ensure advisors stay on topic, follow word limits
 6. **Synthesize**: Combine all four perspectives into actionable recommendations
 
+---
 
 ## Claude-Octopus Enhancements
 
@@ -250,6 +273,7 @@ Export debates to professional formats via the document-delivery skill:
 - DOCX reports
 - PDF documents
 
+---
 
 ## Implementation Steps
 
@@ -257,7 +281,7 @@ When the user invokes `/octo:debate`:
 
 ### Step 1: Check Provider Availability & Display Banner
 
-**MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
+**MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 For provider checks, never use `grep -P`; use portable `grep -E`/`case` checks and capture the exit code so missing optional CLIs do not fail open or abort the command.
 
 ```bash
@@ -276,8 +300,8 @@ Provider Availability:
 🟡 Antigravity CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🤖 Grok CLI (xAI): [Available ✓ / Not installed ✗]
-🟠 Sonnet 5: available only when this Codex session exposes a compatible host subagent tool
-🐙 current host model: Available ✓ (Moderator and participant)
+🟠 Sonnet 5: Available ✓ (via Agent tool — no extra cost)
+🐙 Claude (Opus): Available ✓ (Moderator and participant)
 ```
 
 > **🧭 Antigravity availability:** Antigravity CLI = the `agy` binary; judge availability only via `command -v agy` (as `check-providers.sh` does), never from the `antigravity` desktop shortcut.
@@ -427,7 +451,7 @@ EOF
 
 For each round, iterate the runtime advisor list and dispatch through Octopus. The launch
 waits for every advisor to finish, often several minutes, so run the block with
-`background execution: true`; a foreground 600000 ms timeout stops it after 10 minutes, while
+`run_in_background: true`; a foreground 600000 ms timeout stops it after 10 minutes, while
 the launcher waits up to `OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). Each answer lands in
 `${DEBATE_DIR}/rounds/r001_<advisor>.md`, with any character other than a letter, digit,
 `_` or `-` in the advisor name replaced by `_` (`codex:model` gives `r001_codex_model.md`).
@@ -449,9 +473,9 @@ if ! SUCCESSFUL_EXTERNAL_ADVISORS=$(octo_launch_advisors "$ORCH" "$ADVISORS" \
 fi
 ```
 
-#### 5.2: Launch optional host subagent (Pragmatic Implementer)
+#### 5.2: Launch Sonnet (Pragmatic Implementer)
 
-Dispatch Sonnet via the host subagent tool only when `HOST_CLAUDE_ALLOWED=true` and the
+Dispatch Sonnet via the Agent tool only when `HOST_CLAUDE_ALLOWED=true` and the
 host exposes subagents. If Claude is disallowed, skip this step. Set
 `HOST_ADVISOR_SUCCESS=1` only after the allowed Sonnet task completes with usable
 output; otherwise set it to `0`. Sonnet can run in parallel with the external
@@ -460,7 +484,7 @@ advisor calls.
 ```
 Agent(
   model: "sonnet",
-  background execution: true,
+  run_in_background: true,
   description: "Sonnet: debate round 1",
   prompt: "You are a PRAGMATIC IMPLEMENTER participating in a structured AI debate.
 YOUR ROLE: You are the person who would actually have to BUILD this. You care about what ships, what works, and what you'll be debugging at 2am. Ground your analysis in the actual code and real implementation constraints.
@@ -487,7 +511,7 @@ fi
 
 **WHY Sonnet and not just more Opus?** Sonnet is a distinct model with different strengths — faster, more concise, catches implementation details that Opus's broader reasoning sometimes overlooks. Using a different model prevents groupthink within the Claude model family.
 
-**Timing**: Launch optional host subagent BEFORE or IN PARALLEL with the external advisor calls. By the time the CLI calls return, Sonnet is usually done too. Check for completion before proceeding to 5.3.
+**Timing**: Launch Sonnet BEFORE or IN PARALLEL with the external advisor calls. By the time the CLI calls return, Sonnet is usually done too. Check for completion before proceeding to 5.3.
 
 #### 5.3: Write Your Analysis (Opus)
 Use the Read tool to read all advisor responses, then write your independent analysis:
@@ -500,7 +524,7 @@ done
 
 # Write your analysis as moderator
 cat > "${DEBATE_DIR}/rounds/r001_claude.md" <<EOF
-# current host model Analysis - Round 1
+# Claude (Opus) Analysis - Round 1
 
 [Your independent analysis here, considering but not just summarizing the three advisor perspectives. Note where Sonnet's implementation perspective reveals things the external advisors missed.]
 EOF
@@ -553,7 +577,7 @@ cat > "${DEBATE_DIR}/synthesis.md" <<EOF
 ### 🟠 Sonnet's Perspective
 [Key points from Sonnet across all rounds — especially implementation feasibility and gotchas]
 
-### 🐙 current host model Perspective
+### 🐙 Claude (Opus) Perspective
 [Your key points across all rounds]
 
 ## Areas of Agreement
@@ -601,6 +625,7 @@ If the user passed `--synthesize` (or `-s`), generate a concrete deliverable aft
 
 IMPORTANT: The deliverable is a PROPOSAL. Never auto-apply changes without user approval.
 
+---
 
 ## Example Usage
 
@@ -612,7 +637,7 @@ Claude:
 1. Creates debate folder at ~/.claude-octopus/debates/${SESSION_ID}/042-redis-vs-memcached/
 2. Writes context.md with question
 3. Round 1:
-   - Launches Sonnet via Agent(model: sonnet, background execution: true) when the provider allowlist permits it
+   - Launches Sonnet via Agent(model: sonnet, run_in_background: true) when the provider allowlist permits it
    - Calls orchestrate.sh spawn for each runtime advisor selected by build-fleet.sh, such as codex and agy
    - Waits for Sonnet completion
    - Writes own analysis (Opus) considering all advisor perspectives
@@ -630,7 +655,7 @@ Claude:
 3. Round 1 (Sonnet launched in background first, then selected external advisors in parallel):
    - 🟠 Sonnet: Implementation feasibility analysis of auth.ts
    - External advisors selected by build-fleet.sh, such as 🔴 Codex or 🧭 Antigravity depending on availability
-   - 🐙 current host model: Your independent analysis considering all advisors
+   - 🐙 Claude (Opus): Your independent analysis considering all advisors
 4. Round 2:
    - 🟠 Sonnet: Responds to other participants' points
    - External advisors challenge each other's points
@@ -641,6 +666,7 @@ Claude:
 7. Present results with cost tracking
 ```
 
+---
 
 ## Quality Checklist
 
@@ -654,6 +680,7 @@ Before completing a debate, ensure:
 - [ ] Results presented to user in chat
 - [ ] Debate folder path provided to user
 
+---
 
 ## Integration with Other Skills
 
@@ -671,6 +698,7 @@ Knowledge mode "deliberate" phase → Run /octo:debate to get multiple perspecti
 → Use synthesis for final decision
 ```
 
+---
 
 ## Quality Gates for Responses
 
@@ -709,5 +737,6 @@ After debate completes, export results via document-delivery skill:
 - **License**: MIT
 - **Enhancements**: Claude-Octopus integration (session-aware storage, quality gates, cost tracking, document export, provider debate with Sonnet)
 
+---
 
 **Ready to debate!** Users can invoke with `/octo:debate <question>` or natural language.
