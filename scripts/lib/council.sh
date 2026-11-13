@@ -4264,8 +4264,9 @@ def attribution(token, gap):
     # A source verb in this bounded clause still attributes the quote when
     # ordinary modifiers follow it. A new sentence or a proposal ends that claim.
     start = clause_start(gap, len(gap))
+    # Keep ^ anchored to the original gap when skipping earlier clauses.
     source_clause = ((SOURCE_SUBJECT.search(gap, start) if start else SOURCE_VERB.search(gap))
-                     and not re.search(r"(?:^|[,;:]|\b(?:and|but|so|while)\b)\s*(?:I|we)\s+(?:estimate|compute|calculate)\b", gap[start:], re.I))
+                     and not re.compile(r"(?:^|[,;:]|\b(?:and|but|so|while)\b)\s*(?:I|we)\s+(?:estimate|compute|calculate)\b", re.I).search(gap, start))
     if proposes(gap) or (not source_clause and any(
             word.lower() not in GAP_WORDS for word in re.findall(r"[A-Za-z]+", gap))):
         return None
