@@ -113,12 +113,13 @@ class CodexReferences(unittest.TestCase):
                 runner = scripts / 'orchestrate.sh'
                 runner.write_text('#!/bin/bash\nprintf "dispatched" > "$REVIEW_CAPTURE"\n')
                 runner.chmod(0o755)
-                subprocess.run(['git', 'init', '-q', '-b', 'main', temporary], check=True)
+                env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
+                           MERGE_BASE='HEAD', CLAUDE_PLUGIN_ROOT=str(scripts.parent),
+                           REVIEW_CAPTURE=str(capture))
+                subprocess.run(['git', 'init', '-q', '-b', 'main', temporary], env=env, check=True)
                 subprocess.run(['git', '-c', 'user.name=Fixture', '-c',
                                 'user.email=fixture@example.invalid', 'commit', '-q',
-                                '--allow-empty', '-m', 'base'], cwd=root, check=True)
-                env = dict(os.environ, MERGE_BASE='HEAD', CLAUDE_PLUGIN_ROOT=str(scripts.parent),
-                           REVIEW_CAPTURE=str(capture))
+                                '--allow-empty', '-m', 'base'], cwd=root, env=env, check=True)
                 result = subprocess.run(['/bin/bash', '-c', block], cwd=root, env=env,
                                         capture_output=True, text=True, timeout=5)
                 self.assertNotEqual(result.returncode, 0, result.stderr)
@@ -169,10 +170,11 @@ class CodexReferences(unittest.TestCase):
                      if 'BASE_REF=$(git symbolic-ref' in b)
         for branch, remote_head in [('master', False), ('trunk', True), ('main', 'stale')]:
             with self.subTest(branch=branch), tempfile.TemporaryDirectory() as temporary:
-                subprocess.run(['git', 'init', '-q', '-b', branch, temporary], check=True)
+                env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1')
+                subprocess.run(['git', 'init', '-q', '-b', branch, temporary], env=env, check=True)
                 def git(*args):
                     return subprocess.run(['git', '-C', temporary, *args], check=True,
-                                          capture_output=True, text=True)
+                                          env=env, capture_output=True, text=True)
                 git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
                     'commit', '-q', '--allow-empty', '-m', 'base')
                 if remote_head == 'stale':
@@ -181,7 +183,7 @@ class CodexReferences(unittest.TestCase):
                     git('update-ref', 'refs/remotes/origin/' + branch, 'HEAD')
                     git('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/' + branch)
                 result = subprocess.run(['/bin/bash', '-eu', '-c', block + '\nprintf "%s|%s" "$BASE_REF" "$BASE_BRANCH"'],
-                                        cwd=temporary, capture_output=True, text=True)
+                                        cwd=temporary, env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout, ('origin/' + branch if remote_head is True else branch) + '|' + branch)
 
