@@ -66,7 +66,9 @@ class CodexReferences(unittest.TestCase):
                 plugin = root / 'plugin/scripts'
                 plugin.mkdir(parents=True)
                 runner = plugin / 'orchestrate.sh'
-                runner.write_text('#!/bin/bash\nprintf "%s" "$3" > "$REVIEW_CAPTURE"\n')
+                (plugin / 'lib').symlink_to(ROOT / 'scripts/lib', target_is_directory=True)
+                runner.write_text('#!/bin/bash\nprintf "%s" "$3" > "$REVIEW_CAPTURE"\n'
+                                  'printf "Completed synchronous review\\n"\n')
                 runner.chmod(0o755)
                 env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
                            GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
@@ -99,6 +101,62 @@ class CodexReferences(unittest.TestCase):
                         else:
                             self.assertEqual(result.returncode, 0, result.stderr)
                             self.assertTrue('+TAIL_REQUIRES_REVIEW' in capture.read_text(), 'diff tail was omitted')
+
+    def test_finish_branch_collects_completed_reviews_before_continuing(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
+            block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
+                         if '# Quick review via orchestrate.sh' in b)
+            for mode in ('success', 'failed', 'missing', 'empty', 'unrecorded', 'launch-failure'):
+                with self.subTest(tree=tree, mode=mode), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    scripts = root / 'plugin/scripts'
+                    scripts.mkdir(parents=True)
+                    (scripts / 'lib').symlink_to(ROOT / 'scripts/lib', target_is_directory=True)
+                    runner = scripts / 'orchestrate.sh'
+                    runner.write_text('''#!/bin/bash
+[[ "$REVIEW_MODE" != launch-failure ]] || exit 67
+if [[ "$REVIEW_MODE" == unrecorded ]]; then echo 424242; exit 0; fi
+(
+  export OCTOPUS_AGENT_PID=$BASHPID OCTOPUS_AGENT_RESULT_FILE="$REVIEW_RESULT"
+  "$OCTOPUS_AGENT_LIFECYCLE_HOOK" spawned
+  sleep 0.2
+  if [[ "$REVIEW_MODE" != missing ]]; then
+    printf '# Started: fixture\n## Output\n```\n' > "$REVIEW_RESULT"
+    [[ "$REVIEW_MODE" == empty ]] || printf 'Completed findings from this invocation\n' >> "$REVIEW_RESULT"
+    printf '```\n## Status: SUCCESS\n' >> "$REVIEW_RESULT"
+  fi
+  export OCTOPUS_AGENT_STATUS=completed
+  [[ "$REVIEW_MODE" != failed ]] || export OCTOPUS_AGENT_STATUS=failed
+  "$OCTOPUS_AGENT_LIFECYCLE_HOOK" completed
+) >/dev/null 2>&1 &
+echo "$!"
+''')
+                    runner.chmod(0o755)
+                    env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
+                               GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+                               GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid',
+                               CLAUDE_PLUGIN_ROOT=str(scripts.parent), REVIEW_MODE=mode,
+                               REVIEW_RESULT=str(root / 'provider-result.md'), TMPDIR=temporary)
+                    def git(*args):
+                        return subprocess.check_output(['git', '-C', temporary, *args], env=env,
+                                                       stderr=subprocess.DEVNULL, text=True).strip()
+                    git('init', '-q', '-b', 'main')
+                    git('commit', '-qm', 'base', '--allow-empty')
+                    env['MERGE_BASE'] = git('rev-parse', 'HEAD')
+                    (root / 'change.txt').write_text('review me\n')
+                    git('add', 'change.txt')
+                    git('commit', '-qm', 'feature')
+                    result = subprocess.run(['/bin/bash', '-c', block + '\necho REVIEW_CONTINUED'],
+                                            cwd=root, env=env, capture_output=True, text=True, timeout=10)
+                    if mode == 'success':
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertIn('Completed findings from this invocation', result.stdout)
+                        self.assertLess(result.stdout.index('Completed findings'),
+                                        result.stdout.index('REVIEW_CONTINUED'))
+                    else:
+                        self.assertNotEqual(result.returncode, 0, result.stdout)
+                        self.assertNotIn('REVIEW_CONTINUED', result.stdout)
 
     def test_finish_branch_rejects_an_empty_diff(self):
         for tree in ('.claude/skills', 'skills', 'codex-skills'):

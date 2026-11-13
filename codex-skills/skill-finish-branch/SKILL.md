@@ -107,9 +107,38 @@ if [[ "$REVIEW_DIFF_BYTES" -gt 65536 ]]; then
 fi
 
 # Quick review via orchestrate.sh (uses available providers)
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
+REVIEW_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+source "$REVIEW_ROOT/scripts/lib/consultative-advisors.sh" || exit 1
+REVIEW_OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-review-results.XXXXXX") || exit 1
+printf 'REVIEW_OUTPUT_DIR=%s\n' "$REVIEW_OUTPUT_DIR"
+# Preserve lifecycle evidence for a worker that outlives the bounded collection.
+REVIEW_EVENT_LOG="$REVIEW_OUTPUT_DIR/events"
+: > "$REVIEW_EVENT_LOG"
+cat > "$REVIEW_OUTPUT_DIR/lifecycle.sh" <<'REVIEW_HOOK'
+#!/usr/bin/env bash
+printf '%s\t%s\t%s\t%s\n' "${1:-}" "${OCTOPUS_AGENT_PID:-}" \
+  "${OCTOPUS_AGENT_STATUS:-}" "${OCTOPUS_AGENT_RESULT_FILE:-}" >> "$OCTO_BRANCH_REVIEW_EVENTS" || exit 1
+if [[ -n "${OCTO_BRANCH_REVIEW_PREV_HOOK:-}" && -x "$OCTO_BRANCH_REVIEW_PREV_HOOK" ]]; then
+  exec "$OCTO_BRANCH_REVIEW_PREV_HOOK" "$@"
+fi
+REVIEW_HOOK
+chmod +x "$REVIEW_OUTPUT_DIR/lifecycle.sh" || exit 1
+OCTO_BRANCH_REVIEW_EVENTS="$REVIEW_EVENT_LOG" OCTO_BRANCH_REVIEW_PREV_HOOK="" \
+  "$REVIEW_OUTPUT_DIR/lifecycle.sh" preflight || exit 1
+REVIEW_PREV_HOOK="${OCTOPUS_AGENT_LIFECYCLE_HOOK:-}"
+OCTOPUS_AGENT_LIFECYCLE_HOOK="$REVIEW_OUTPUT_DIR/lifecycle.sh" \
+OCTO_BRANCH_REVIEW_EVENTS="$REVIEW_EVENT_LOG" \
+OCTO_BRANCH_REVIEW_PREV_HOOK="$REVIEW_PREV_HOOK" \
+"$REVIEW_ROOT/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
-$REVIEW_DIFF" || exit 1
+$REVIEW_DIFF" > "$REVIEW_OUTPUT_DIR/spawn.txt" || exit 1
+if ! _octo_advisor_collect "$REVIEW_EVENT_LOG" "$REVIEW_OUTPUT_DIR/spawn.txt" \
+    "$REVIEW_OUTPUT_DIR/answer.md" "$(( $(date +%s) + 600 ))"; then
+  echo "Review incomplete; inspect $REVIEW_OUTPUT_DIR before retrying." >&2
+  exit 1
+fi
+# Read the completed answer before deciding whether findings permit continuation.
+cat "$REVIEW_OUTPUT_DIR/answer.md" || exit 1
 ```
 
 **If critical issues found:** Present them and ask whether to fix or ship anyway.
