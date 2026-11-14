@@ -225,4 +225,30 @@ for picker_state in loaded absent; do
     fi
 done
 
+for rejected_stage in review simplification synthesis; do
+    test_case "ink rejects context-budget failure during $rejected_stage without publishing completion"
+    if (
+        rm -f "$RESULTS_DIR"/delivery-*.md "$TEST_ROOT/budget-rejected"
+        SUPPORTS_BATCH_COMMAND=false
+        [[ "$rejected_stage" != simplification ]] || SUPPORTS_BATCH_COMMAND=true
+        octo_provider_allowed() { return 0; }
+        _aggregate_pick_synth_agent() { echo claude-sonnet; }
+        run_agent_sync() {
+            local stage=review
+            [[ "${4:-}" != synthesizer ]] || stage=synthesis
+            [[ "$2" != 'Review the following code changes'* ]] || stage=simplification
+            if [[ "$stage" == "$rejected_stage" ]]; then
+                printf '%s\n' "$stage" > "$TEST_ROOT/budget-rejected"
+                return 78
+            fi
+            printf 'Completed %s\n' "$stage"
+        }
+        rc=0
+        ink_deliver "Audit the complete committed source" "$tangle_file" > "$TEST_ROOT/budget-output" 2>&1 || rc=$?
+        [[ "$rc" == 78 && "$(cat "$TEST_ROOT/budget-rejected")" == "$rejected_stage" ]] &&
+            ! compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null &&
+            ! grep -q 'Final document:' "$TEST_ROOT/budget-output"
+    ); then test_pass; else test_fail "budget rejection became a completed delivery at $rejected_stage"; fi
+done
+
 test_summary

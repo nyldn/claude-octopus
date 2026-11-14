@@ -6250,6 +6250,11 @@ Original task: $prompt
 
 Results:
 $all_results" "$ink_review_timeout" "code-reviewer" "ink") || {
+        local ink_review_status=$?
+        if [[ "$ink_review_status" -eq 78 ]]; then
+            log ERROR "Delivery review exceeded its context budget; complete source review is required"
+            return 78
+        fi
         sonnet_review="[Quality review unavailable]"
     }
 
@@ -6302,8 +6307,12 @@ Be specific — list files and line numbers. If the code is already clean, say s
 
 Code to review:
 ${all_results}"
-        local simplify_result
-        simplify_result=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-review-watchdog" run_agent_sync "claude-sonnet" "$simplify_prompt" 0 "code-reviewer" "ink") || true
+        local simplify_result simplify_status=0
+        simplify_result=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-review-watchdog" run_agent_sync "claude-sonnet" "$simplify_prompt" 0 "code-reviewer" "ink") || simplify_status=$?
+        if [[ "$simplify_status" -eq 78 ]]; then
+            log ERROR "Delivery simplification exceeded its context budget; complete source review is required"
+            return 78
+        fi
         if [[ -n "$simplify_result" ]]; then
             if [[ ${#simplify_result} -gt 12000 ]]; then
                 simplify_result="${simplify_result:0:12000}
@@ -6344,8 +6353,13 @@ $all_results"
     fi
     if [[ -n "$synth_agent" ]]; then
         log INFO "Step 2b: Synthesizing delivery via ${synth_agent}..."
-        if ! delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "$synth_agent" "$synthesis_prompt" 0 "synthesizer" "ink") || \
-            [[ ! "$delivery" =~ [^[:space:]] ]]; then
+        local ink_synthesis_status=0
+        delivery=$(OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="ink-delivery-watchdog" run_agent_sync "$synth_agent" "$synthesis_prompt" 0 "synthesizer" "ink") || ink_synthesis_status=$?
+        if [[ "$ink_synthesis_status" -eq 78 ]]; then
+            log ERROR "Delivery synthesis exceeded its context budget; complete source review is required"
+            return 78
+        fi
+        if [[ "$ink_synthesis_status" -ne 0 || ! "$delivery" =~ [^[:space:]] ]]; then
             log WARN "Synthesizer ${synth_agent} returned no usable delivery; using bounded fallback synthesis"
             delivery=$(build_ink_fallback_delivery "$prompt" "$sonnet_review" "$all_results")
         fi

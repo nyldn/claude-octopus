@@ -14,6 +14,8 @@
 - Shipping audits receive the complete confirmed committed change range and
   identify its base and delivered revisions. Dirty, empty, oversized or changing
   source stops the audit instead of accepting a summary without source evidence.
+  Context-budget rejection during review or synthesis blocks delivery completion
+  instead of producing a successful fallback report.
 
 - Advisory workers clear inherited and temporary Git environment values before
   dispatch, so a temporary repository selection cannot expose another checkout

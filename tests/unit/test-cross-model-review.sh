@@ -114,7 +114,7 @@ test_cross_model_assignment() {
 test_4x10_gate_in_ink_deliver() {
     test_case "4x10 gate check in ink_deliver"
 
-    if grep -A 100 "ink_deliver()" "$ALL_SRC" | grep -q "OCTOPUS_REVIEW_4X10"; then
+    if sed -n '/^ink_deliver()/,/^}/p' "$ALL_SRC" | grep -q "OCTOPUS_REVIEW_4X10"; then
         test_pass
     else
         test_fail "4x10 gate not in ink_deliver"
