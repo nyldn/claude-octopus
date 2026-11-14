@@ -15,6 +15,10 @@
   without a host export or matching hook session ID, so out-of-scope edits stay
   blocked after activation. Explicit hosts and Claude session IDs keep precedence.
 
+- Interrupted council launches retain a cancellation record for a seat stopped
+  during scheduler ownership transfer, so collection cannot mistake it for work
+  that was never launched.
+
 - Resuming tasks refreshes the queue and starts only an unblocked pending task.
   Fully blocked and empty queues report their state without starting work.
 
