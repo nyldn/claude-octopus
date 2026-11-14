@@ -129,6 +129,7 @@ REVIEW_PREV_HOOK="${OCTOPUS_AGENT_LIFECYCLE_HOOK:-}"
 OCTOPUS_AGENT_LIFECYCLE_HOOK="$REVIEW_OUTPUT_DIR/lifecycle.sh" \
 OCTO_BRANCH_REVIEW_EVENTS="$REVIEW_EVENT_LOG" \
 OCTO_BRANCH_REVIEW_PREV_HOOK="$REVIEW_PREV_HOOK" \
+OCTOPUS_OVERSIZE_STRATEGY=fail \
 "$REVIEW_ROOT/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
 $REVIEW_DIFF" > "$REVIEW_OUTPUT_DIR/spawn.txt" || exit 1
@@ -144,7 +145,9 @@ cat "$REVIEW_OUTPUT_DIR/answer.md" || exit 1
 **If critical issues found:** Present them and ask whether to fix or ship anyway.
 **If clean:** Continue to Step 3. Show a brief `✓ Review clean — no issues found`.
 Only report a clean review after the reviewer has completed and covered the
-entire diff. An oversized diff or failed dispatch leaves review incomplete;
+entire diff. This dispatch rejects a prompt that exceeds its effective context
+budget, including added context, rather than summarizing or truncating the diff.
+An oversized diff or failed dispatch leaves review incomplete;
 stop this workflow until a complete review is available.
 
 

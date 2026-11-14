@@ -21,6 +21,58 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_finish_branch_keeps_the_dispatch_review_lossless(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
+            block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
+                         if '# Quick review via orchestrate.sh' in b)
+            with self.subTest(tree=tree), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                scripts = root / 'plugin/scripts'
+                scripts.mkdir(parents=True)
+                (scripts / 'lib').symlink_to(ROOT / 'scripts/lib', target_is_directory=True)
+                runner = scripts / 'orchestrate.sh'
+                runner.write_text('''#!/bin/bash
+source "$REVIEW_DISPATCH"
+log() { :; }
+get_provider_context_limit() { echo "$REVIEW_TEST_BUDGET"; }
+get_role_budget_proportion() { echo 100; }
+enforce_context_budget "$3" reviewer fixture > "$REVIEW_CAPTURE" || exit $?
+echo 'Completed synchronous review'
+''')
+                runner.chmod(0o755)
+                env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
+                           GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+                           GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid',
+                           CLAUDE_PLUGIN_ROOT=str(scripts.parent), TMPDIR=temporary,
+                           REVIEW_DISPATCH=str(ROOT / 'scripts/lib/dispatch.sh'),
+                           REVIEW_CAPTURE=str(root / 'review'))
+                def git(*args):
+                    return subprocess.check_output(['git', '-C', temporary, *args], env=env,
+                                                   stderr=subprocess.DEVNULL, text=True).strip()
+                git('init', '-q', '-b', 'main')
+                git('commit', '-qm', 'base', '--allow-empty')
+                env['MERGE_BASE'] = git('rev-parse', 'HEAD')
+                (root / 'change.txt').write_text('reviewed line\n' * 550 + 'TAIL_REQUIRES_REVIEW\n')
+                git('add', 'change.txt')
+                git('commit', '-qm', 'feature')
+                for budget in ('100', '10000'):
+                    for strategy in ('truncate', 'summarize'):
+                        with self.subTest(budget=budget, strategy=strategy):
+                            call_env = dict(env, REVIEW_TEST_BUDGET=budget,
+                                            OCTOPUS_OVERSIZE_STRATEGY=strategy)
+                            result = subprocess.run(['/bin/bash', '-c', block + '\necho REVIEW_CONTINUED'],
+                                                    cwd=root, env=call_env, capture_output=True,
+                                                    text=True, timeout=10)
+                            if budget == '100':
+                                self.assertNotEqual(result.returncode, 0, result.stdout)
+                                self.assertNotIn('REVIEW_CONTINUED', result.stdout)
+                                self.assertEqual((root / 'review').read_text(), '')
+                            else:
+                                self.assertEqual(result.returncode, 0, result.stderr)
+                                self.assertIn('+TAIL_REQUIRES_REVIEW', (root / 'review').read_text())
+                                self.assertIn('REVIEW_CONTINUED', result.stdout)
+
     def test_finish_branch_requires_a_common_ancestor_before_review(self):
         for tree in ('.claude/skills', 'skills', 'codex-skills'):
             text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
