@@ -252,6 +252,21 @@ import subprocess
 import sys
 
 root, checkpoint = sys.argv[1:]
+# A gitlink checkout does not restore the nested repository's working tree.
+# Refuse changed submodules before ordinary files or the index can be restored.
+submodule_trees = []
+for revision in (checkpoint, 'HEAD'):
+    submodules = {}
+    for entry in subprocess.check_output([
+        'git', '-C', root, 'ls-tree', '-r', '-z', revision, '--',
+    ]).split(b'\0'):
+        if entry:
+            metadata, path = entry.split(b'\t', 1)
+            if metadata.startswith(b'160000 ') and path != b'.octo/LESSONS.md':
+                submodules[path] = metadata
+    submodule_trees.append(submodules)
+if submodule_trees[0] != submodule_trees[1]:
+    sys.exit('Rollback requires manual submodule restoration. No project files were restored; preserve nested repository work before retrying.')
 lessons_tracked = bool(subprocess.check_output([
     'git', '-C', root, 'ls-files', '-z', '--', '.octo/LESSONS.md',
 ]))
@@ -292,6 +307,11 @@ rmdir "${LESSONS_BACKUP_DIR:?}" 2>/dev/null || {
 - Does NOT move HEAD or change branch
 - Preserves current commit history
 - Allows immediate commit of the restored state
+
+If the checkpoint adds, removes, moves or changes a submodule, restoration stops
+before modifying project files or the index. A gitlink alone cannot restore a
+nested working tree. Report the manual submodule work required and retain the
+safety checkpoint; do not claim that rollback completed.
 
 ### Step 7: Update STATE.md (If Exists)
 
