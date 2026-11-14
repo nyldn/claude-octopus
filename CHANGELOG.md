@@ -22,8 +22,9 @@ Merged changes: [#1301](https://github.com/nyldn/claude-octopus/pull/1301),
 [#1315](https://github.com/nyldn/claude-octopus/pull/1315),
 [#1316](https://github.com/nyldn/claude-octopus/pull/1316),
 [#1317](https://github.com/nyldn/claude-octopus/pull/1317),
-[#1318](https://github.com/nyldn/claude-octopus/pull/1318) and
-[#1319](https://github.com/nyldn/claude-octopus/pull/1319).
+[#1318](https://github.com/nyldn/claude-octopus/pull/1318),
+[#1319](https://github.com/nyldn/claude-octopus/pull/1319) and
+[#1320](https://github.com/nyldn/claude-octopus/pull/1320).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
 which remains open for outstanding runtime safety work.
 
@@ -41,6 +42,10 @@ which remains open for outstanding runtime safety work.
   existing local/private-address checks. Public HTTPS controls still pass. DNS
   rebinding and redirects remain separate work. See
   [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
+
+- Rollback stops before partially restoring checkpoints with changed submodules.
+  It reports the required manual restoration instead of treating a gitlink update
+  as a complete recovery of the nested working tree.
 
 - Rollback confirmation stays bound to the previewed repository, branch, revision
   and checkpoint. Changed context requires a new preview before any restoration.
