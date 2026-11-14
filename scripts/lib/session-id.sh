@@ -30,8 +30,19 @@ octo_extract_session_id_from_json() {
 octo_resolve_session_id() {
     local fallback="${1:-}"
     local hook_input="${2:-}"
-    local host="${OCTOPUS_HOST:-claude}"
+    local host="${OCTOPUS_HOST:-}"
     local sid=""
+
+    # Hooks run in separate processes from skill activation. Infer the same
+    # Codex identity without requiring activation's local host export to persist.
+    # Explicit hosts and Claude session IDs retain their existing precedence.
+    if [[ -z "$host" ]]; then
+        host=claude
+        if [[ -z "${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-${CLAUDE_CODE_SESSION:-}}}" &&
+              -n "${CODEX_SESSION_ID:-${CODEX_TASK_ID:-}}" ]]; then
+            host=codex
+        fi
+    fi
 
     case "$host" in
         codex)
