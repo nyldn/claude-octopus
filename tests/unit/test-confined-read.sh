@@ -24,6 +24,20 @@ target = root / "report.md"
 target.write_text("safe preview\n")
 assert reader.read_preview(str(root), str(target), 100, 80) == "safe preview\n"
 
+# Linux path descriptors need search permission, not directory-list permission.
+if hasattr(os, 'O_PATH') and os.geteuid() != 0:
+    ancestor = root.parent / 'search-only'
+    searchable_root = ancestor / 'readable'
+    searchable_root.mkdir(parents=True)
+    readable = searchable_root / 'report.md'
+    readable.write_text('reachable without listing ancestors')
+    ancestor.chmod(0o100)
+    try:
+        assert readable.read_text() == 'reachable without listing ancestors'
+        assert reader.read_preview(str(searchable_root), str(readable), 100, 80) == readable.read_text()
+    finally:
+        ancestor.chmod(0o700)
+
 def rejects(path):
     try:
         reader.read_preview(str(root), str(path), 100, 80)

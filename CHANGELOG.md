@@ -20,8 +20,9 @@ Merged changes: [#1301](https://github.com/nyldn/claude-octopus/pull/1301),
 [#1313](https://github.com/nyldn/claude-octopus/pull/1313),
 [#1314](https://github.com/nyldn/claude-octopus/pull/1314),
 [#1315](https://github.com/nyldn/claude-octopus/pull/1315),
-[#1316](https://github.com/nyldn/claude-octopus/pull/1316) and
-[#1317](https://github.com/nyldn/claude-octopus/pull/1317).
+[#1316](https://github.com/nyldn/claude-octopus/pull/1316),
+[#1317](https://github.com/nyldn/claude-octopus/pull/1317) and
+[#1318](https://github.com/nyldn/claude-octopus/pull/1318).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
 which remains open for outstanding runtime safety work.
 
@@ -39,6 +40,9 @@ which remains open for outstanding runtime safety work.
   existing local/private-address checks. Public HTTPS controls still pass. DNS
   rebinding and redirects remain separate work. See
   [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
+
+- Linux review previews and advisory copies can traverse execute-only ancestor
+  directories while retaining symlink rejection and descriptor identity checks.
 
 - Council waits retain a running-round observation when the producer finishes
   during a poll, so the new result is returned without an unnecessary settle delay.
