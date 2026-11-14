@@ -11,7 +11,7 @@
 
 ### Fixed
 
-- Factory rejects negated or ambiguous verdicts instead of treating them as passing holdout evidence.
+- Factory rejects negated or ambiguous verdicts and duplicate summary scores instead of accepting unreliable holdout evidence.
 
 - Factory rejects malformed holdout evaluations and scores outside the 0 to 1 range.
 - Satisfaction scoring uses the validated holdout value, including zero, and stops when it cannot save the score record.

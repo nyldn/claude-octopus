@@ -204,13 +204,13 @@ After all scenarios, output:
                 value = substr(line, RSTART + RLENGTH)
                 sub(/[[:space:]*]+$/, "", value)
                 sub(/[[:space:]]+\(pass=1[.]0, partial=0[.]5, fail=0[.]0, averaged\)$/, "", value)
-                found = 1
+                found++
                 score = value
             }
         }
         END {
             if (!found) exit 0
-            if (score !~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/) exit 1
+            if (found != 1 || score !~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/) exit 1
             print score
         }') || {
         log ERROR "Holdout evaluation contains an invalid explicit score"
