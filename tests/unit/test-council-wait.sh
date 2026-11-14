@@ -201,7 +201,7 @@ pool="$(mktemp -d "$TEST_TMP_DIR/key-flip-earlier.XXXXXX")"
 _mkrun "$pool" 20260101-050000-00f501 running yes "$key" 2 >/dev/null
 rd="$(_mkrun "$pool" 20260101-040000-00f500 finished yes "$key" 1)"
 printf '%s\n' 20260101-050000-00f501 > "$pool/latest-$slug"
-# Observe the actual finished-state check on the initial running round.
+# Observe the actual running-state check on the initial running round.
 real_jq="$(command -v jq)"
 barrier_bin="$pool/bin"; mkdir -p "$barrier_bin"
 observed="$pool/initial-running-observed"; flipped="$pool/pointer-flipped"
@@ -209,12 +209,12 @@ cat > "$barrier_bin/jq" <<'SH'
 #!/bin/bash
 "$WAITER_REAL_JQ" "$@"
 result=$?
-last=""; finished_filter=no
+last=""; running_filter=no
 for arg in "$@"; do
-    [[ "$arg" != *'.state == "finished"'* ]] || finished_filter=yes
+    [[ "$arg" != *'.state == "running"'* ]] || running_filter=yes
     last="$arg"
 done
-if [[ "$result" == 1 && "$finished_filter" == yes && "$last" == "$WAITER_RUNNING_STATUS" ]]; then
+if [[ "$result" == 0 && "$running_filter" == yes && "$last" == "$WAITER_RUNNING_STATUS" ]]; then
     : > "$WAITER_INITIAL_OBSERVED"
 fi
 exit "$result"
@@ -457,9 +457,16 @@ cat > "$pool/wait-bin/jq" <<'SH'
 #!/bin/bash
 rc=0
 "${COUNCIL_WAIT_REAL_JQ:?}" "$@" || rc=$?
-if [[ "$rc" -ne 0 && "${!#}" == "${COUNCIL_WAIT_NEXT_RUN:?}/run-status.json" ]] &&
+if [[ "${!#}" == "${COUNCIL_WAIT_NEXT_RUN:?}/run-status.json" && "$*" == *'.state == "'* ]] &&
         "${COUNCIL_WAIT_REAL_JQ}" -e '.state == "running"' "${!#}" >/dev/null; then
+    # Finish between the state read and its caller consuming the result. The
+    # waiter must retain a running observation even across that transition.
     : > "${COUNCIL_WAIT_RUNNING_OBSERVED:?}"
+    deadline=$((SECONDS + 10))
+    until [[ -e "${COUNCIL_WAIT_NEXT_RUN}/published" ]]; do
+        (( SECONDS < deadline )) || exit 94
+        /bin/sleep 0.01
+    done
 fi
 exit "$rc"
 SH

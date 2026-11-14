@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Council waits retain a running-round observation when the producer finishes
+  during a poll, so the new result is returned without an unnecessary settle delay.
+
 - Debate state preserves quotes, newlines, backslashes and Unicode in questions
   and clarifying answers, so saved debates remain readable by JSON consumers.
 
