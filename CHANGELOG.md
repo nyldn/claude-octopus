@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Rollback confirmation stays bound to the previewed repository, branch, revision
+  and checkpoint. Changed context requires a new preview before any restoration.
+
 - Linux review previews and advisory copies can traverse execute-only ancestor
   directories while retaining symlink rejection and descriptor identity checks.
 
