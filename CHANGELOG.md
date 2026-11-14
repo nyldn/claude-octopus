@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Rollback confirmation stays bound to the previewed repository, branch, revision
+  and checkpoint. Changed context requires a new preview before any restoration.
+
 - Council waits retain a running-round observation when the producer finishes
   during a poll, so the new result is returned without an unnecessary settle delay.
 

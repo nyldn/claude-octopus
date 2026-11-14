@@ -20,7 +20,9 @@ source = (root / '.claude/skills/skill-rollback/SKILL.md').read_text().split('##
 
 def recipe(step):
     section = source.split('### Step ' + str(step) + ':', 1)[1]
-    return re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    script = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    # Later steps carry the exact preview values into their shell.
+    return recipe(2) + '\n' + script if step in (4, 6) else script
 
 checks = 0
 with tempfile.TemporaryDirectory() as temporary:

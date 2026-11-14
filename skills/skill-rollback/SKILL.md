@@ -87,8 +87,16 @@ if [[ -n "$ROLLBACK_STATUS" ]]; then
   exit 1
 fi
 
-# Get list of files that will be changed
-git diff --name-status HEAD "$CHECKPOINT_TAG"
+# Bind confirmation to this repository, branch, revision and checkpoint commit.
+ROLLBACK_PREVIEW_ROOT=$(git rev-parse --show-toplevel) || exit 1
+ROLLBACK_PREVIEW_HEAD=$(git rev-parse --verify HEAD) || exit 1
+ROLLBACK_PREVIEW_REF=$(git symbolic-ref --quiet HEAD || true)
+ROLLBACK_TARGET_COMMIT=$(git rev-parse --verify "$CHECKPOINT_TAG^{commit}") || exit 1
+printf 'ROLLBACK_PREVIEW_ROOT=%s\nROLLBACK_PREVIEW_HEAD=%s\nROLLBACK_PREVIEW_REF=%s\nROLLBACK_TARGET_COMMIT=%s\n' \
+  "$ROLLBACK_PREVIEW_ROOT" "$ROLLBACK_PREVIEW_HEAD" "$ROLLBACK_PREVIEW_REF" "$ROLLBACK_TARGET_COMMIT"
+
+# Get list of files that will be changed across the complete repository.
+git -C "$ROLLBACK_PREVIEW_ROOT" diff --name-status "$ROLLBACK_PREVIEW_HEAD" "$ROLLBACK_TARGET_COMMIT"
 ```
 
 Present clearly:
@@ -128,7 +136,8 @@ Any other input will cancel.
 ### Step 4: Create Safety Checkpoint
 
 The preview requires a clean index and working tree, including untracked files
-reported by Git. A safety tag records committed files only. Preserve changes
+reported by Git. Carry all four printed Step 2 values into later shells.
+A safety tag records committed files only. Preserve changes
 with a commit or another user-selected recovery method before retrying. Do not
 stash, commit or discard unrelated work automatically. Recheck after confirmation
 and immediately before restoration because the user may have edited files.
@@ -143,12 +152,26 @@ if [[ -n "$ROLLBACK_STATUS" ]]; then
   exit 1
 fi
 
+# Restore Step 2's exact printed values in a fresh shell. Never refresh them
+# after confirmation; a changed context requires another preview and approval.
+: "${ROLLBACK_PREVIEW_ROOT:?Restore the confirmed preview root}"
+: "${ROLLBACK_PREVIEW_HEAD:?Restore the confirmed preview HEAD}"
+: "${ROLLBACK_PREVIEW_REF?Restore the confirmed preview branch, empty for detached HEAD}"
+: "${ROLLBACK_TARGET_COMMIT:?Restore the confirmed preview target commit}"
+if [[ "$(git rev-parse --show-toplevel)" != "$ROLLBACK_PREVIEW_ROOT" ||
+      "$(git rev-parse --verify HEAD)" != "$ROLLBACK_PREVIEW_HEAD" ||
+      "$(git symbolic-ref --quiet HEAD || true)" != "$ROLLBACK_PREVIEW_REF" ||
+      "$(git rev-parse --verify "$CHECKPOINT_TAG^{commit}")" != "$ROLLBACK_TARGET_COMMIT" ]]; then
+  echo "Rollback context changed; show a new preview and obtain confirmation again." >&2
+  exit 1
+fi
+
 # Generate timestamp
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
 # Create safety checkpoint and retain the exact name for the history step.
 SAFETY_CHECKPOINT_TAG="octo-checkpoint-pre-rollback-$TIMESTAMP"
-git tag -a "$SAFETY_CHECKPOINT_TAG" -m "Safety checkpoint before rollback to $CHECKPOINT_TAG" || exit 1
+git tag -a "$SAFETY_CHECKPOINT_TAG" "$ROLLBACK_PREVIEW_HEAD" -m "Safety checkpoint before rollback to $CHECKPOINT_TAG" || exit 1
 printf 'Safety checkpoint: %s\n' "$SAFETY_CHECKPOINT_TAG"
 ```
 
@@ -182,6 +205,20 @@ if [[ -n "$ROLLBACK_STATUS" ]]; then
   exit 1
 fi
 
+# Restore Step 2's exact printed values in a fresh shell. Never refresh them
+# after confirmation; a changed context requires another preview and approval.
+: "${ROLLBACK_PREVIEW_ROOT:?Restore the confirmed preview root}"
+: "${ROLLBACK_PREVIEW_HEAD:?Restore the confirmed preview HEAD}"
+: "${ROLLBACK_PREVIEW_REF?Restore the confirmed preview branch, empty for detached HEAD}"
+: "${ROLLBACK_TARGET_COMMIT:?Restore the confirmed preview target commit}"
+if [[ "$(git rev-parse --show-toplevel)" != "$ROLLBACK_PREVIEW_ROOT" ||
+      "$(git rev-parse --verify HEAD)" != "$ROLLBACK_PREVIEW_HEAD" ||
+      "$(git symbolic-ref --quiet HEAD || true)" != "$ROLLBACK_PREVIEW_REF" ||
+      "$(git rev-parse --verify "$CHECKPOINT_TAG^{commit}")" != "$ROLLBACK_TARGET_COMMIT" ]]; then
+  echo "Rollback context changed; show a new preview and obtain confirmation again." >&2
+  exit 1
+fi
+
 # Restore files from checkpoint (does NOT move HEAD)
 # No-overlay also removes tracked files added after the checkpoint. Keep lessons
 # out of both index and worktree restoration so accumulated knowledge survives.
@@ -189,7 +226,7 @@ fi
 ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
 # Ordinary status omits ignored local files. Refuse collisions before any write,
 # including file/directory replacements; NUL-delimited paths retain newlines.
-python3 -I - "$ROLLBACK_ROOT" "$CHECKPOINT_TAG" <<'PY_IGNORED' || exit 1
+python3 -I - "$ROLLBACK_ROOT" "$ROLLBACK_TARGET_COMMIT" <<'PY_IGNORED' || exit 1
 from bisect import bisect_left
 import os
 import subprocess
@@ -220,7 +257,7 @@ for target in targets:
     ):
         sys.exit('Rollback would overwrite ignored local files. Preserve them before retrying.')
 PY_IGNORED
-git -C "$ROLLBACK_ROOT" checkout --no-overlay "$CHECKPOINT_TAG" -- . ':(exclude).octo/LESSONS.md' || exit 1
+git -C "$ROLLBACK_ROOT" checkout --no-overlay "$ROLLBACK_TARGET_COMMIT" -- . ':(exclude).octo/LESSONS.md' || exit 1
 
 # Restore preserved LESSONS.md
 if [ "$LESSONS_PRESERVED" = "true" ]; then
