@@ -152,11 +152,21 @@ _octopus_repository_env_names() {
         GIT_LITERAL_PATHSPECS GIT_GLOB_PATHSPECS GIT_NOGLOB_PATHSPECS GIT_ICASE_PATHSPECS
 }
 
+_octopus_unset_repository_env_name() {
+    # Unsetting a temporary function-call assignment can expose an inherited
+    # value of the same name. Remove every visible layer in the dispatch subshell.
+    # A readonly binding must fail closed even when it has no value.
+    while :; do
+        unset "$1" 2>/dev/null || return 1
+        [[ -n "${!1+x}" ]] || return 0
+    done
+}
+
 _octopus_clear_repository_env() {
     local git_env_name clear_failed=false
 
     while IFS= read -r git_env_name; do
-        unset "$git_env_name" 2>/dev/null || clear_failed=true
+        _octopus_unset_repository_env_name "$git_env_name" || clear_failed=true
     done < <(_octopus_repository_env_names)
 
     # Git's command-scope config protocol uses numbered variable names. Clear
@@ -166,7 +176,7 @@ _octopus_clear_repository_env() {
     while IFS= read -r git_env_name; do
         case "$git_env_name" in
             GIT_CONFIG_KEY_*|GIT_CONFIG_VALUE_*|GIT_TRACE*|GIT_REDIRECT_STDIN|GIT_REDIRECT_STDOUT|GIT_REDIRECT_STDERR)
-                unset "$git_env_name" 2>/dev/null || clear_failed=true
+                _octopus_unset_repository_env_name "$git_env_name" || clear_failed=true
                 ;;
         esac
     done < <(compgen -v)
