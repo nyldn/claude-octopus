@@ -203,6 +203,7 @@ After all scenarios, output:
             if (match(line, /^score[*]*[[:space:]]*(:[[:space:]*]*|[[:space:]]+)/)) {
                 value = substr(line, RSTART + RLENGTH)
                 sub(/[[:space:]*]+$/, "", value)
+                sub(/[[:space:]]+\(pass=1[.]0, partial=0[.]5, fail=0[.]0, averaged\)$/, "", value)
                 found = 1
                 score = value
             }
@@ -393,7 +394,11 @@ Implement the specification above. Ensure all visible test scenarios pass."
     echo ""
     echo -e "${YELLOW}[6/7]${NC} Scoring satisfaction..."
     local score_result
-    score_result=$(score_satisfaction "$run_dir" "$satisfaction_target")
+    score_result=$(score_satisfaction "$run_dir" "$satisfaction_target" "$holdout_score") || {
+        local scoring_status=$?
+        unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+        return "$scoring_status"
+    }
     local composite verdict
     composite="${score_result%%|*}"
     verdict="${score_result#*|}"
@@ -435,7 +440,11 @@ Focus on fixing the failing scenarios. Do NOT restart from scratch — improve t
             unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
             return "$holdout_status"
         }
-        score_result=$(score_satisfaction "$run_dir" "$satisfaction_target")
+        score_result=$(score_satisfaction "$run_dir" "$satisfaction_target" "$holdout_score") || {
+            local scoring_status=$?
+            unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+            return "$scoring_status"
+        }
         composite="${score_result%%|*}"
         verdict="${score_result#*|}"
         echo -e "${GREEN}  ✓${NC} Retry score: $composite -> $verdict"

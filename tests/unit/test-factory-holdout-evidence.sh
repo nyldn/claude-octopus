@@ -176,7 +176,7 @@ for fallback in codex claude empty-success whitespace-success; do
     ); then test_pass; else test_fail "invalid provider output prevented $fallback fallback"; fi
 done
 
-for evaluation in verdicts integer-zero integer-one markdown-score; do
+for evaluation in verdicts integer-zero integer-one markdown-score prompt-score; do
     test_case "holdout preserves valid $evaluation evaluation"
     if (
         case_dir="$TEST_TMP_DIR/score-$evaluation"
@@ -188,11 +188,69 @@ for evaluation in verdicts integer-zero integer-one markdown-score; do
                 integer-zero) printf '**Verdict:** PASS\nScore: 0\n' ;;
                 integer-one) printf '**Verdict:** FAIL\nScore: 1\n' ;;
                 markdown-score) printf '**Score:** 0.75\n' ;;
+                prompt-score) printf '%s\n' '- Score: 0.75 (PASS=1.0, PARTIAL=0.5, FAIL=0.0, averaged)' ;;
             esac
         }
-        case "$evaluation" in verdicts) expected=0.50 ;; integer-zero) expected=0 ;; integer-one) expected=1 ;; markdown-score) expected=0.75 ;; esac
+        case "$evaluation" in verdicts) expected=0.50 ;; integer-zero) expected=0 ;; integer-one) expected=1 ;; markdown-score|prompt-score) expected=0.75 ;; esac
         result=$(run_holdout_tests "$case_dir") && [[ "$result" == "$expected" ]]
     ); then test_pass; else test_fail "valid $evaluation was rejected or used the wrong score"; fi
+done
+
+for consumer_case in integer-zero markdown-zero verdict-zero signed-zero retry-score score-write-failure; do
+    test_case "factory passes validated $consumer_case to the real satisfaction consumer"
+    if (
+        source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
+        case_dir="$TEST_TMP_DIR/consumer-$consumer_case"
+        mkdir -p "$case_dir"
+        cd "$case_dir"
+        printf '# Fixture spec\n' > spec.md
+        _BOX_TOP='' _BOX_MID='' _BOX_BOT='' MAGENTA='' CYAN=''
+        OCTOPUS_FACTORY_HOLDOUT_RATIO=0.20 OCTOPUS_FACTORY_MAX_RETRIES=1
+        assess_spec_maturity() { echo 'Mature|6|{}'; }
+        parse_factory_spec() { echo 0.85; }
+        score_nlspec_quality() { echo '100|PASS'; }
+        generate_factory_scenarios() {
+            printf '### Scenario 1: first\nGiven first input\n### Scenario 2: second\nGiven second input\n' | tee "$2/scenarios-all.md"
+            [[ "$consumer_case" != score-write-failure ]] || mkdir "$2/satisfaction-scores.json"
+        }
+        embrace_full_workflow() { :; }
+        generate_factory_report() { touch reported; }
+        run_agent_sync() {
+            if [[ "$1" == claude-sonnet ]]; then
+                echo scoring >> scoring-calls
+                printf 'behavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n'
+            elif [[ "$consumer_case" == retry-score && -e first-evaluation ]]; then
+                echo 'Score: 1'
+            else
+                touch first-evaluation
+                case "$consumer_case" in
+                    markdown-zero) echo '**Score:** 0.00' ;;
+                    verdict-zero) echo '**Verdict:** FAIL' ;;
+                    signed-zero) echo 'Score: +0.00' ;;
+                    *) echo 'Score: 0' ;;
+                esac
+            fi
+        }
+        retries=0
+        [[ "$consumer_case" != retry-score ]] || retries=1
+        rc=0
+        factory_run spec.md 0.20 "$retries" true > output 2>&1 || rc=$?
+        scores=$(find .octo/factory -name satisfaction-scores.json -type f)
+        if [[ "$consumer_case" == score-write-failure ]]; then
+            [[ "$rc" != 0 && ! -e reported ]]
+        else
+            [[ -n "$scores" && -e reported ]] &&
+            python3 - "$scores" "$consumer_case" "$rc" <<'PYCONSUMER'
+import json, sys
+score = json.load(open(sys.argv[1]))
+retry = sys.argv[2] == "retry-score"
+assert score["holdout_pass_rate"] == (1 if retry else 0), score
+assert score["verdict"] == ("PASS" if retry else "FAIL"), score
+assert int(sys.argv[3]) == 0, sys.argv[3]
+assert len(open("scoring-calls").readlines()) == (2 if retry else 1)
+PYCONSUMER
+        fi
+    ); then test_pass; else test_fail "validated score was lost in $consumer_case"; fi
 done
 
 test_summary

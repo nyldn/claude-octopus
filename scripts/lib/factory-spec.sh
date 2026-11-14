@@ -344,8 +344,10 @@ score_satisfaction() {
     local spec_content=""
     [[ -f "$run_dir/spec.md" ]] && spec_content=$(<"$run_dir/spec.md")
 
-    local holdout_score="0.50"
-    [[ -f "$run_dir/holdout-results.md" ]] && holdout_score=$(grep -oi 'score[: ]*[0-9]*\.[0-9]*' "$run_dir/holdout-results.md" | tail -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.50")
+    # Consume the score already validated by run_holdout_tests; raw provider
+    # formatting must not change the value used by the weighted consumer.
+    local holdout_score="${3:?validated holdout score required}"
+    holdout_score=$(awk -v score="$holdout_score" 'BEGIN { printf "%.15g", score }') || return 1
 
     # Multi-provider satisfaction scoring
     local scoring_prompt="You are evaluating whether an implementation satisfies its original specification.
@@ -399,7 +401,7 @@ justification: <2-3 sentences>"
     log INFO "Satisfaction score: $composite (target: $satisfaction_target) -> $verdict"
 
     # Write scores JSON
-    cat > "$run_dir/satisfaction-scores.json" << SCOREEOF
+    cat > "$run_dir/satisfaction-scores.json" << SCOREEOF || return 1
 {
   "behavior_coverage": $behavior_score,
   "constraint_adherence": $constraint_score,
