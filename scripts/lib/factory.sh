@@ -217,28 +217,34 @@ After all scenarios, output:
         return 1
     }
 
-    if [[ -z "$holdout_score" ]]; then
-        # Each declared verdict must contain one exact value. Negation and
-        # unfilled alternatives cannot establish passing evaluation evidence.
-        holdout_score=$(printf '%s\n' "$eval_result" | awk '
-            {
-                line = tolower($0)
-                sub(/^[[:space:]*-]+/, "", line)
-                if (line !~ /^verdict([*[:space:]]|:|$)/) next
-                sub(/^verdict[*]*[[:space:]]*:[[:space:]*]*/, "", line)
-                sub(/[[:space:]*]+$/, "", line)
-                if (line == "pass") points += 1
-                else if (line == "partial") points += 0.5
-                else if (line != "fail") invalid = 1
-                total++
-            }
-            END {
-                if (invalid || !total) exit 1
-                printf "%.2f\n", points / total
-            }') || {
-            log ERROR "Holdout evaluation contains no usable verdicts or an invalid verdict"
-            return 1
+    # Validate every declared verdict even when a numeric summary is present.
+    # Score-only responses remain supported; invalid declarations never do.
+    local verdict_score
+    verdict_score=$(printf '%s\n' "$eval_result" | awk '
+        {
+            line = tolower($0)
+            sub(/^[[:space:]*-]+/, "", line)
+            if (line !~ /^verdict([*[:space:]]|:|$)/) next
+            sub(/^verdict[*]*[[:space:]]*:[[:space:]*]*/, "", line)
+            sub(/[[:space:]*]+$/, "", line)
+            if (line == "pass") points += 1
+            else if (line == "partial") points += 0.5
+            else if (line != "fail") invalid = 1
+            total++
         }
+        END {
+            if (invalid) exit 1
+            if (total) printf "%.2f\n", points / total
+        }') || {
+        log ERROR "Holdout evaluation contains an invalid verdict"
+        return 1
+    }
+    if [[ -z "$holdout_score" ]]; then
+        if [[ -z "$verdict_score" ]]; then
+            log ERROR "Holdout evaluation contains no score or verdicts"
+            return 1
+        fi
+        holdout_score="$verdict_score"
     fi
 
     if ! awk -v score="$holdout_score" 'BEGIN { exit !(score >= 0 && score <= 1) }'; then
