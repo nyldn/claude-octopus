@@ -16,7 +16,9 @@ def read_preview(root, path, max_bytes, max_lines):
     components = path[len(root.rstrip(os.sep)) + 1:].split(os.sep)
     if any(part in ("", ".", "..") for part in components):
         raise ValueError("invalid path component")
-    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    # Linux O_PATH permits traversal of execute-only ancestors without listing
+    # them. Keep no-follow/type checks and the portable read-only fallback.
+    directory_flags = getattr(os, 'O_PATH', os.O_RDONLY) | os.O_DIRECTORY | os.O_NOFOLLOW
     directory = os.open(os.sep, directory_flags)
     try:
         for part in root.split(os.sep):

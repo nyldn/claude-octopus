@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Linux review previews and advisory copies can traverse execute-only ancestor
+  directories while retaining symlink rejection and descriptor identity checks.
+
 - Council waits retain a running-round observation when the producer finishes
   during a poll, so the new result is returned without an unnecessary settle delay.
 
