@@ -11,6 +11,12 @@ import unittest
 
 ROOT = Path(os.environ.get('WORKFLOW_SKILL_ROOT', Path(__file__).resolve().parents[2]))
 
+# Direct fixture children and extracted recipes must select only test repositories.
+for git_name in tuple(os.environ):
+    if git_name.startswith('GIT_'):
+        os.environ.pop(git_name)
+os.environ.update(GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1')
+
 
 class WorkflowResultTest(unittest.TestCase):
     def setUp(self):
@@ -71,11 +77,12 @@ sys.exit(1 if mode == "failed" else 0)
 ''')
         self.engine.chmod(0o755)
         self.env = {k: v for k, v in os.environ.items()
-                    if not k.startswith(('CLAUDE_', 'CODEX_', 'DROID_'))}
+                    if not k.startswith(('CLAUDE_', 'CODEX_', 'DROID_', 'GIT_'))}
         self.env.pop('OCTOPUS_STATE_PROJECT_ROOT', None)
         self.env.pop('OCTOPUS_WORKFLOW_STATE_DIR', None)
         self.env.pop('OCTOPUS_PROJECT_PERSISTENCE', None)
-        self.env.update(HOME=str(self.home), CLAUDE_PLUGIN_DATA=str(self.workspace),
+        self.env.update(GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
+                        HOME=str(self.home), CLAUDE_PLUGIN_DATA=str(self.workspace),
                         CLAUDE_CODE_SESSION_ID='session-a', FIXTURE_RESULTS=str(self.results),
                         TMPDIR=str(self.home), OCTOPUS_WORKFLOW_INVOCATION_ID='marker')
 
