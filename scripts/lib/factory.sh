@@ -50,7 +50,7 @@ ${line}"
     # Every case must contain test content before either partition is used.
     local scenario_block
     for scenario_block in "${scenario_blocks[@]}"; do
-        if ! printf '%s\n' "$scenario_block" | grep -Ec '^[[:space:]]*[^#[:space:]]' >/dev/null; then
+        if ! printf '%s\n' "$scenario_block" | grep -Ev '^[[:space:]]*</?external-cli-output([[:space:]][^>]*)?>[[:space:]]*$' | grep -Ec '^[[:space:]]*[^#[:space:]]' >/dev/null; then
             log ERROR "Factory scenario has no body content; split is incomplete"
             return 1
         fi
@@ -136,7 +136,7 @@ run_holdout_tests() {
         return 1
     fi
 
-    if ! grep -Ec '^[[:space:]]*[^#[:space:]]' "$holdout_file" >/dev/null; then
+    if ! grep -Ev '^[[:space:]]*</?external-cli-output([[:space:]][^>]*)?>[[:space:]]*$' "$holdout_file" | grep -Ec '^[[:space:]]*[^#[:space:]]' >/dev/null; then
         log ERROR "Holdout scenarios have no body content to evaluate"
         return 1
     fi
@@ -196,7 +196,25 @@ After all scenarios, output:
 
     # Extract score from evaluation
     local holdout_score
-    holdout_score=$(echo "$eval_result" | grep -oi 'score[: ]*[0-9]*\.[0-9]*' | tail -1 | grep -o '[0-9]*\.[0-9]*' || echo "")
+    holdout_score=$(printf '%s\n' "$eval_result" | awk '
+        {
+            line = tolower($0)
+            sub(/^[[:space:]*-]+/, "", line)
+            if (match(line, /^score[*]*[[:space:]]*(:[[:space:]*]*|[[:space:]]+)/)) {
+                value = substr(line, RSTART + RLENGTH)
+                sub(/[[:space:]*]+$/, "", value)
+                found = 1
+                score = value
+            }
+        }
+        END {
+            if (!found) exit 0
+            if (score !~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/) exit 1
+            print score
+        }') || {
+        log ERROR "Holdout evaluation contains an invalid explicit score"
+        return 1
+    }
 
     if [[ -z "$holdout_score" ]]; then
         # Fallback: count PASS/PARTIAL/FAIL verdicts

@@ -59,7 +59,7 @@ else
     test_fail 'valid holdout evaluation changed'
 fi
 
-for pipeline_case in single unstructured blank-visible blank-holdout visible-write-failure holdout-write-failure result-write-failure providers-empty providers-banner providers-malformed providers-score-range initial-failure retry-failure success; do
+for pipeline_case in single unstructured blank-visible blank-holdout wrapped-holdout visible-write-failure holdout-write-failure result-write-failure providers-empty providers-banner providers-malformed providers-score-range providers-negative providers-integer initial-failure retry-failure success; do
     test_case "factory handles $pipeline_case through an OR-list"
     if (
         case_dir="$TEST_TMP_DIR/pipeline-$pipeline_case"
@@ -80,8 +80,9 @@ for pipeline_case in single unstructured blank-visible blank-holdout visible-wri
                 [[ "$pipeline_case" == blank-visible ]] || printf 'Given first input\n'
                 if [[ "$pipeline_case" != single ]]; then
                     printf '### Scenario 2: second\n'
-                    [[ "$pipeline_case" == blank-holdout ]] || printf 'Given second input\n'
+                    [[ "$pipeline_case" == blank-holdout || "$pipeline_case" == wrapped-holdout ]] || printf 'Given second input\n'
                 fi
+                [[ "$pipeline_case" != wrapped-holdout ]] || printf '</external-cli-output>\n'
             fi | tee "$2/scenarios-all.md"
             case "$pipeline_case" in
                 visible-write-failure) mkdir "$2/scenarios-visible.md" ;;
@@ -112,6 +113,8 @@ for pipeline_case in single unstructured blank-visible blank-holdout visible-wri
                     providers-banner) echo '[Provider unavailable: fixture] Score: 1.00' ;;
                     providers-malformed) echo 'The provider returned no evaluation'; return 0 ;;
                     providers-score-range) echo 'Score: 1.25'; return 0 ;;
+                    providers-negative) printf '**Verdict:** PASS\nScore: -0.25\n'; return 0 ;;
+                    providers-integer) printf '**Verdict:** PASS\nScore: 2\n'; return 0 ;;
                 esac
                 return 42
             }
@@ -123,11 +126,11 @@ for pipeline_case in single unstructured blank-visible blank-holdout visible-wri
                 grep -q 'FACTORY COMPLETE' output
         else
             [[ "$rc" != 0 && ! -e reported ]] && ! grep -q 'FACTORY COMPLETE' output &&
-            if [[ "$pipeline_case" == single || "$pipeline_case" == unstructured || "$pipeline_case" == blank-visible || "$pipeline_case" == blank-holdout || "$pipeline_case" == visible-write-failure || "$pipeline_case" == holdout-write-failure ]]; then
+            if [[ "$pipeline_case" == single || "$pipeline_case" == unstructured || "$pipeline_case" == blank-visible || "$pipeline_case" == blank-holdout || "$pipeline_case" == wrapped-holdout || "$pipeline_case" == visible-write-failure || "$pipeline_case" == holdout-write-failure ]]; then
                 [[ ! -e embraced && ! -e scored ]]
             elif [[ "$pipeline_case" == providers-* ]]; then
                 [[ "$rc" != 0 && -e embraced && ! -e scored ]] &&
-                    if [[ "$pipeline_case" == providers-malformed || "$pipeline_case" == providers-score-range ]]; then
+                    if [[ "$pipeline_case" == providers-malformed || "$pipeline_case" == providers-score-range || "$pipeline_case" == providers-negative || "$pipeline_case" == providers-integer ]]; then
                         [[ "$(cat providers-tried)" == agy ]]
                     else
                         [[ "$(cat providers-tried)" == $'agy\ncodex\nclaude' ]]
@@ -171,6 +174,25 @@ for fallback in codex claude empty-success whitespace-success; do
                 [[ "$(cat "$case_dir/providers-tried")" == $'agy\ncodex' ]]
             fi
     ); then test_pass; else test_fail "invalid provider output prevented $fallback fallback"; fi
+done
+
+for evaluation in verdicts integer-zero integer-one markdown-score; do
+    test_case "holdout preserves valid $evaluation evaluation"
+    if (
+        case_dir="$TEST_TMP_DIR/score-$evaluation"
+        mkdir -p "$case_dir"
+        printf '### Scenario 1: independent check\nGiven valid input\n' > "$case_dir/scenarios-holdout.md"
+        run_agent_sync() {
+            case "$evaluation" in
+                verdicts) printf '**Verdict:** PASS\n**Verdict:** FAIL\n' ;;
+                integer-zero) printf '**Verdict:** PASS\nScore: 0\n' ;;
+                integer-one) printf '**Verdict:** FAIL\nScore: 1\n' ;;
+                markdown-score) printf '**Score:** 0.75\n' ;;
+            esac
+        }
+        case "$evaluation" in verdicts) expected=0.50 ;; integer-zero) expected=0 ;; integer-one) expected=1 ;; markdown-score) expected=0.75 ;; esac
+        result=$(run_holdout_tests "$case_dir") && [[ "$result" == "$expected" ]]
+    ); then test_pass; else test_fail "valid $evaluation was rejected or used the wrong score"; fi
 done
 
 test_summary
