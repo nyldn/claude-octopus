@@ -21,8 +21,9 @@ Merged changes: [#1301](https://github.com/nyldn/claude-octopus/pull/1301),
 [#1314](https://github.com/nyldn/claude-octopus/pull/1314),
 [#1315](https://github.com/nyldn/claude-octopus/pull/1315),
 [#1316](https://github.com/nyldn/claude-octopus/pull/1316),
-[#1317](https://github.com/nyldn/claude-octopus/pull/1317) and
-[#1318](https://github.com/nyldn/claude-octopus/pull/1318).
+[#1317](https://github.com/nyldn/claude-octopus/pull/1317),
+[#1318](https://github.com/nyldn/claude-octopus/pull/1318) and
+[#1319](https://github.com/nyldn/claude-octopus/pull/1319).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
 which remains open for outstanding runtime safety work.
 
@@ -40,6 +41,9 @@ which remains open for outstanding runtime safety work.
   existing local/private-address checks. Public HTTPS controls still pass. DNS
   rebinding and redirects remain separate work. See
   [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
+
+- Rollback confirmation stays bound to the previewed repository, branch, revision
+  and checkpoint. Changed context requires a new preview before any restoration.
 
 - Linux review previews and advisory copies can traverse execute-only ancestor
   directories while retaining symlink rejection and descriptor identity checks.

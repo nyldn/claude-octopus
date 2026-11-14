@@ -50,6 +50,8 @@ See [Council](docs/COUNCIL.md) and
 Quick tasks commit only their selected files and preserve unrelated staged work.
 Checkpoint rollback checks for unsaved changes before restoring the complete
 tracked checkpoint, keeps current lessons, and records the exact recovery tags.
+Confirmation is tied to the previewed repository, branch, revision and checkpoint;
+changing context requires another preview.
 Research verifies the report produced by its current invocation. Provider quota
 and authentication failures update their original seat instead of leaving a
 stale running entry. Debate state keeps quoted and multiline questions readable
