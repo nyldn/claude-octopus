@@ -173,13 +173,10 @@ echo "Stub detection complete: $STUB_ISSUES issues found"
 
 **Check provider availability and dispatch in parallel:**
 
-```bash
-# Get the diff for review
-DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/null || git diff)
-```
-
 **If external providers are available — dispatch focused reviews through Octopus routing:**
 ```bash
+# Capture in this shell so a fresh invocation receives the diff in its prompt.
+DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/null || git diff) || exit 1
 # Keep each run's outputs separate. Carry this exact directory into collection
 # and read only files inside it; never search another review's output files.
 REVIEW_OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-review-results.XXXXXX") || exit 1

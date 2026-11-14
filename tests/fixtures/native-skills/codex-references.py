@@ -21,6 +21,36 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_staged_review_captures_the_diff_in_a_fresh_dispatch_shell(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-staged-review/SKILL.md').read_text()
+            block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
+                         if 'REVIEW_OUTPUT_DIR=$(mktemp' in b)
+            with self.subTest(tree=tree), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / 'scripts/lib').mkdir(parents=True)
+                (root / 'bin').mkdir()
+                (root / 'scripts/lib/consultative-advisors.sh').write_text(
+                    'octo_provider_allowed() { [[ "$1" == codex ]]; }\n'
+                    'octo_launch_advisors() { printf "%s" "$5" > "$REVIEW_CAPTURE"; '
+                    'printf "completed review" > "$3/${4}codex.md"; }\n')
+                binary = root / 'bin/codex'
+                binary.write_text('#!/bin/bash\nexit 0\n')
+                binary.chmod(0o755)
+                env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(root), TMPDIR=temporary,
+                           REVIEW_CAPTURE=str(root / 'prompt'),
+                           PATH=str(root / 'bin') + ':' + os.environ['PATH'],
+                           GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1')
+                env.pop('DIFF_CONTENT', None)
+                subprocess.run(['git', 'init', '-q', '-b', 'main', temporary],
+                               env=env, check=True)
+                (root / 'change.txt').write_text('STAGED_CHANGE_REQUIRES_REVIEW\n')
+                subprocess.run(['git', 'add', 'change.txt'], cwd=root, env=env, check=True)
+                result = subprocess.run(['/bin/bash', '-c', block], cwd=root, env=env,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('+STAGED_CHANGE_REQUIRES_REVIEW', (root / 'prompt').read_text())
+
     def test_finish_branch_keeps_the_dispatch_review_lossless(self):
         for tree in ('.claude/skills', 'skills', 'codex-skills'):
             text = (ROOT / tree / 'skill-finish-branch/SKILL.md').read_text()
