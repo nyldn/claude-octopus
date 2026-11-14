@@ -184,7 +184,7 @@ for evaluation in verdicts partial-verdict integer-zero integer-one markdown-sco
         printf '### Scenario 1: independent check\nGiven valid input\n' > "$case_dir/scenarios-holdout.md"
         run_agent_sync() {
             case "$evaluation" in
-                verdicts) printf '**Verdict:** PASS\n**Verdict:** FAIL\n' ;;
+                verdicts) printf '### Scenario 1: first\n**Verdict:** PASS\n### Scenario 2: second\n**Verdict:** FAIL\n' ;;
                 partial-verdict) printf '%s\n' '- **Verdict:** **PARTIAL**' ;;
                 integer-zero) printf '**Verdict:** PASS\nScore: 0\n' ;;
                 integer-one) printf '**Verdict:** FAIL\nScore: 1\n' ;;
@@ -193,11 +193,12 @@ for evaluation in verdicts partial-verdict integer-zero integer-one markdown-sco
             esac
         }
         case "$evaluation" in verdicts|partial-verdict) expected=0.50 ;; integer-zero) expected=0 ;; integer-one) expected=1 ;; markdown-score|prompt-score) expected=0.75 ;; esac
+        [[ "$evaluation" != verdicts ]] || printf '### Scenario 2: second\nGiven second input\n' >> "$case_dir/scenarios-holdout.md"
         result=$(run_holdout_tests "$case_dir") && [[ "$result" == "$expected" ]]
     ); then test_pass; else test_fail "valid $evaluation was rejected or used the wrong score"; fi
 done
 
-for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict ambiguous-verdict mixed-negated mixed-ambiguous duplicate-score malformed-first-score signed-zero retry-score score-write-failure; do
+for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict ambiguous-verdict mixed-negated mixed-ambiguous incomplete-verdict duplicate-verdict wrong-verdict complete-verdict duplicate-score malformed-first-score signed-zero retry-score score-write-failure; do
     test_case "factory passes validated $consumer_case to the real satisfaction consumer"
     if (
         source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
@@ -211,7 +212,11 @@ for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict amb
         parse_factory_spec() { echo 0.85; }
         score_nlspec_quality() { echo '100|PASS'; }
         generate_factory_scenarios() {
-            printf '### Scenario 1: first\nGiven first input\n### Scenario 2: second\nGiven second input\n' | tee "$2/scenarios-all.md"
+            if [[ "$consumer_case" == *-verdict && "$consumer_case" != negated-verdict && "$consumer_case" != ambiguous-verdict ]]; then
+                for scenario in {1..10}; do printf '### Scenario %s: check\nGiven input %s\n' "$scenario" "$scenario"; done
+            else
+                printf '### Scenario 1: first\nGiven first input\n### Scenario 2: second\nGiven second input\n'
+            fi | tee "$2/scenarios-all.md"
             [[ "$consumer_case" != score-write-failure ]] || mkdir "$2/satisfaction-scores.json"
         }
         embrace_full_workflow() { :; }
@@ -231,6 +236,10 @@ for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict amb
                     ambiguous-verdict) echo '**Verdict:** PASS | PARTIAL | FAIL' ;;
                     mixed-negated) printf '**Verdict:** NOT PASS\nScore: 1.00\n' ;;
                     mixed-ambiguous) printf '**Verdict:** PASS | PARTIAL | FAIL\nScore: 1.00\n' ;;
+                    incomplete-verdict) printf '### Scenario 3: check\n**Verdict:** PASS\n' ;;
+                    complete-verdict) printf '### Scenario 3: check\n**Verdict:** PASS\n### Scenario 8: check\n**Verdict:** PASS\n' ;;
+                    duplicate-verdict) printf '### Scenario 3: check\n**Verdict:** PASS\n### Scenario 3: check\n**Verdict:** PASS\n' ;;
+                    wrong-verdict) printf '### Scenario 3: check\n**Verdict:** PASS\n### Scenario 9: check\n**Verdict:** PASS\n' ;;
                     duplicate-score) printf 'Score: 0.00\nScore: 1.00\n' ;;
                     malformed-first-score) printf 'Score: invalid\nScore: 1.00\n' ;;
                     signed-zero) echo 'Score: +0.00' ;;
@@ -243,7 +252,7 @@ for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict amb
         rc=0
         factory_run spec.md 0.20 "$retries" true > output 2>&1 || rc=$?
         scores=$(find .octo/factory -name satisfaction-scores.json -type f)
-        if [[ "$consumer_case" == negated-verdict || "$consumer_case" == ambiguous-verdict || "$consumer_case" == mixed-negated || "$consumer_case" == mixed-ambiguous || "$consumer_case" == duplicate-score || "$consumer_case" == malformed-first-score ]]; then
+        if [[ "$consumer_case" == negated-verdict || "$consumer_case" == ambiguous-verdict || "$consumer_case" == mixed-negated || "$consumer_case" == mixed-ambiguous || "$consumer_case" == incomplete-verdict || "$consumer_case" == duplicate-verdict || "$consumer_case" == wrong-verdict || "$consumer_case" == duplicate-score || "$consumer_case" == malformed-first-score ]]; then
             [[ "$rc" != 0 && ! -e reported && ! -e scoring-calls && -z "$scores" ]]
         elif [[ "$consumer_case" == score-write-failure ]]; then
             [[ "$rc" != 0 && ! -e reported ]]
@@ -253,8 +262,9 @@ for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict amb
 import json, sys
 score = json.load(open(sys.argv[1]))
 retry = sys.argv[2] == "retry-score"
-assert score["holdout_pass_rate"] == (1 if retry else 0), score
-assert score["verdict"] == ("PASS" if retry else "FAIL"), score
+perfect = retry or sys.argv[2] == "complete-verdict"
+assert score["holdout_pass_rate"] == (1 if perfect else 0), score
+assert score["verdict"] == ("PASS" if perfect else "FAIL"), score
 assert int(sys.argv[3]) == 0, sys.argv[3]
 assert len(open("scoring-calls").readlines()) == (2 if retry else 1)
 PYCONSUMER

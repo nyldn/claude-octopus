@@ -114,6 +114,41 @@ ${scenario_blocks[$i]}
     log INFO "Split complete: $run_dir/scenarios-visible.md ($visible_count), $run_dir/scenarios-holdout.md ($holdout_count)"
 }
 
+# Require one verdict per held-out scenario before deriving a score.
+_factory_validate_verdict_coverage() {
+    printf '%s\n' "$2" | awk '
+            FNR == NR {
+                if ($0 !~ /^### Scenario/) next
+                if ($0 !~ /^### Scenario[[:space:]]+[0-9]+([[:space:]:]|$)/) { invalid = 1; next }
+                id = $0
+                sub(/^### Scenario[[:space:]]+/, "", id)
+                sub(/[^0-9].*$/, "", id)
+                if (expected[id]++) invalid = 1
+                expected_count++
+                sole_id = id
+                next
+            }
+            {
+                line = tolower($0)
+                if (line ~ /^### scenario/) {
+                    if (line !~ /^### scenario[[:space:]]+[0-9]+([[:space:]:]|$)/) invalid = 1
+                    current = line
+                    sub(/^### scenario[[:space:]]+/, "", current)
+                    sub(/[^0-9].*$/, "", current)
+                }
+                sub(/^[[:space:]*-]+/, "", line)
+                if (line !~ /^verdict([*[:space:]]|:|$)/) next
+                id = current
+                if (id == "" && expected_count == 1) id = sole_id
+                if (!(id in expected) || seen[id]++) invalid = 1
+                observed++
+            }
+            END {
+                if (!expected_count || invalid || observed != expected_count) exit 1
+                for (id in expected) if (seen[id] != 1) exit 1
+            }' "$1" -
+}
+
 run_holdout_tests() {
     local run_dir="$1"
     local holdout_file="$run_dir/scenarios-holdout.md"
@@ -242,6 +277,12 @@ After all scenarios, output:
     if [[ -z "$holdout_score" ]]; then
         if [[ -z "$verdict_score" ]]; then
             log ERROR "Holdout evaluation contains no score or verdicts"
+            return 1
+        fi
+        # Verdict-derived scores need exactly one result for each held-out ID.
+        # A lone unheaded verdict is unambiguous only for a single scenario.
+        if ! _factory_validate_verdict_coverage "$holdout_file" "$eval_result"; then
+            log ERROR "Holdout verdict coverage is incomplete or ambiguous"
             return 1
         fi
         holdout_score="$verdict_score"
