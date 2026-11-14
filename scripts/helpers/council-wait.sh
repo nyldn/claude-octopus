@@ -220,7 +220,12 @@ while :; do
         resolution_rc=0
         run_dir="$(_resolve_run_dir)" || resolution_rc=$?
     fi
-    if [[ -n "$run_dir" ]] && _is_finished "$run_dir"; then
+    # Record running before checking completion. A producer can finish between
+    # the two reads; checking finished first would lose that running observation
+    # and incorrectly hold the new round as though it were already old.
+    if [[ -n "$run_dir" ]] && _is_running "$run_dir"; then
+        seen_running="$run_dir"
+    elif [[ -n "$run_dir" ]] && _is_finished "$run_dir"; then
         (( SECONDS <= deadline )) || break
         latest_dir="$run_dir" latest_rc=0
         if [[ -n "$KEY" ]]; then latest_dir="$(_resolve_run_dir)" || latest_rc=$?; fi
@@ -233,8 +238,6 @@ while :; do
             printf '%s/summary.json\n' "$run_dir"
             exit 0
         fi
-    elif [[ -n "$run_dir" ]] && _is_running "$run_dir"; then
-        seen_running="$run_dir"
     fi
     remaining=$(( deadline - SECONDS ))
     (( remaining > 0 )) || break
