@@ -12,6 +12,7 @@
 ### Fixed
 
 - Factory stops before implementation when generated scenarios leave no independent holdout.
+- Factory stops when writing visible or holdout scenario artifacts fails.
 - Missing or empty holdout evidence cannot earn a perfect score; evaluation failures stop Factory, including retries.
 
 - Freeze enforcement recovers the Codex session identity in later hook processes
