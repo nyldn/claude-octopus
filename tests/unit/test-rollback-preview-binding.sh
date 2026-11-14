@@ -48,7 +48,7 @@ for tree in ('.claude/skills', 'skills'):
                     if line.startswith(('ROLLBACK_PREVIEW_', 'ROLLBACK_TARGET_COMMIT=')):
                         name, value = line.split('=', 1)
                         env[name] = value
-                expected = {'ROLLBACK_PREVIEW_ROOT': str(repo),
+                expected = {'ROLLBACK_PREVIEW_ROOT': str(repo.resolve()),
                             'ROLLBACK_PREVIEW_HEAD': git('rev-parse', 'HEAD').decode().strip(),
                             'ROLLBACK_PREVIEW_REF': git('symbolic-ref', 'HEAD').decode().strip(),
                             'ROLLBACK_TARGET_COMMIT': git('rev-parse', env['CHECKPOINT_TAG'] + '^{commit}').decode().strip()}
