@@ -40,11 +40,11 @@ ${line}"
     fi
 
     local total=${#scenario_blocks[@]}
-    if [[ $total -eq 0 ]]; then
-        log WARN "No scenario blocks found, treating entire file as single scenario set"
+    if [[ $total -lt 2 ]]; then
+        log ERROR "Factory requires at least two structured scenarios for visible and holdout evidence"
         cp "$scenarios_file" "$run_dir/scenarios-visible.md"
         echo "# No structured scenarios to holdout" > "$run_dir/scenarios-holdout.md"
-        return 0
+        return 1
     fi
 
     # Calculate holdout count (minimum 1 if there are scenarios, max 20%)
@@ -110,19 +110,21 @@ run_holdout_tests() {
     local holdout_file="$run_dir/scenarios-holdout.md"
 
     if [[ ! -f "$holdout_file" ]]; then
-        log WARN "No holdout file found, skipping holdout evaluation"
-        echo "1.00"
-        return 0
+        log ERROR "No holdout file found; evaluation is incomplete"
+        return 1
     fi
 
     local holdout_content
     holdout_content=$(<"$holdout_file")
 
-    # If no real holdout scenarios, score perfect
+    # Missing scenarios cannot establish independent holdout evidence.
     if [[ "$holdout_content" == *"No structured scenarios to holdout"* ]]; then
-        log INFO "No holdout scenarios to evaluate"
-        echo "1.00"
-        return 0
+        log ERROR "No structured holdout scenarios to evaluate"
+        return 1
+    fi
+    if ! grep -q '^### Scenario' "$holdout_file"; then
+        log ERROR "Holdout set has no scenarios to evaluate"
+        return 1
     fi
 
     log INFO "Running holdout tests against implementation..."
@@ -307,7 +309,7 @@ factory_run() {
     # ── Phase 3: Split holdout ───────────────────────────────────────────
     echo ""
     echo -e "${YELLOW}[3/7]${NC} Splitting holdout scenarios (${holdout_ratio})..."
-    split_holdout_scenarios "$run_dir/scenarios-all.md" "$run_dir" "$holdout_ratio"
+    split_holdout_scenarios "$run_dir/scenarios-all.md" "$run_dir" "$holdout_ratio" || return $?
     local visible_count holdout_count
     visible_count=$(grep -c '### Scenario' "$run_dir/scenarios-visible.md" 2>/dev/null) || visible_count=0
     holdout_count=$(grep -c '### Scenario' "$run_dir/scenarios-holdout.md" 2>/dev/null) || holdout_count=0
@@ -346,7 +348,11 @@ Implement the specification above. Ensure all visible test scenarios pass."
     echo ""
     echo -e "${YELLOW}[5/7]${NC} Running holdout tests (blind evaluation)..."
     local holdout_score
-    holdout_score=$(run_holdout_tests "$run_dir")
+    holdout_score=$(run_holdout_tests "$run_dir") || {
+        local holdout_status=$?
+        unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+        return "$holdout_status"
+    }
     echo -e "${GREEN}  ✓${NC} Holdout score: $holdout_score"
 
     # ── Phase 6: Satisfaction scoring ────────────────────────────────────
@@ -390,7 +396,11 @@ Focus on fixing the failing scenarios. Do NOT restart from scratch — improve t
         embrace_full_workflow "$remediation_prompt"
 
         # Re-evaluate
-        holdout_score=$(run_holdout_tests "$run_dir")
+        holdout_score=$(run_holdout_tests "$run_dir") || {
+            local holdout_status=$?
+            unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+            return "$holdout_status"
+        }
         score_result=$(score_satisfaction "$run_dir" "$satisfaction_target")
         composite="${score_result%%|*}"
         verdict="${score_result#*|}"

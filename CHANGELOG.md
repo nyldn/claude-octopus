@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Factory stops before implementation when generated scenarios leave no independent holdout.
+- Missing or empty holdout evidence cannot earn a perfect score; evaluation failures stop Factory, including retries.
+
 - Freeze enforcement recovers the Codex session identity in later hook processes
   without a host export or matching hook session ID, so out-of-scope edits stay
   blocked after activation. Explicit hosts and Claude session IDs keep precedence.

@@ -142,6 +142,11 @@ cat "$REPORT_FILE"
 ```
 If validation fails: report error, show logs from `~/.claude-octopus/logs/`, DO NOT proceed, DO NOT substitute.
 
+Factory requires at least two structured generated scenarios so implementation
+has a visible case and evaluation has an independent holdout. Missing or empty
+holdout evidence stops the run without a score or completion report. Preserve
+evaluation failures, including on retries, instead of presenting a successful run.
+
 ### STEP 7: Read Scores and Present Results (MANDATORY)
 ```bash
 SCORES_FILE=$(find .octo/factory -name "satisfaction-scores.json" -mmin -60 2>/dev/null | sort -r | head -1)
