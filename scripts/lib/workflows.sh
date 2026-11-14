@@ -6023,6 +6023,7 @@ tangle_contextual_review_gate() {
     if octo_bool_enabled "${OCTOPUS_TANGLE_INK:-false}"; then
         log INFO "OCTOPUS_TANGLE_INK enabled — running ink/deliver after contextual review passed"
         ink_deliver "$resolved_prompt"
+        return $?
     fi
 
     return 0

@@ -16,6 +16,8 @@
   source stops the audit instead of accepting a summary without source evidence.
   Context-budget rejection during review or synthesis blocks delivery completion
   instead of producing a successful fallback report.
+  Delivery initialization leaves feature metadata unchanged, and optional Tangle
+  delivery propagates failures instead of reporting success after rejection.
 
 - Advisory workers clear inherited and temporary Git environment values before
   dispatch, so a temporary repository selection cannot expose another checkout
