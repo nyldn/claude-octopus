@@ -11,6 +11,10 @@
 
 ### Fixed
 
+- Shipping audits receive the complete confirmed committed change range and
+  identify its base and delivered revisions. Dirty, empty, oversized or changing
+  source stops the audit instead of accepting a summary without source evidence.
+
 - Interrupted council launches retain a cancellation record for a seat stopped
   during scheduler ownership transfer, so collection cannot mistake it for work
   that was never launched.

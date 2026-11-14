@@ -37,6 +37,10 @@ class WorkflowResultTest(unittest.TestCase):
 from pathlib import Path
 import sys
 phase = next(arg for arg in sys.argv[1:] if not arg.startswith("--"))
+if phase == "ink" and os.environ.get("FIXTURE_AUDIT_CAPTURE"):
+    Path(os.environ["FIXTURE_AUDIT_CAPTURE"]).write_text(json.dumps({"prompt": sys.argv[2], "strategy": os.environ.get("OCTOPUS_OVERSIZE_STRATEGY")}))
+    if os.environ.get("FIXTURE_AUDIT_MUTATE"):
+        Path("audit-source.txt").write_text("changed during audit\\n")
 if phase == "define" and os.environ.get("FIXTURE_RESEARCH_CAPTURE"):
     research = sys.argv[3] if len(sys.argv) > 3 else ""
     source = os.environ.get("FIXTURE_RESEARCH_MUTATE")
@@ -76,6 +80,8 @@ sys.exit(1 if mode == "failed" else 0)
                         TMPDIR=str(self.home), OCTOPUS_WORKFLOW_INVOCATION_ID='marker')
 
     def skill_command(self, phase, generated=False):
+        if phase == 'ink':
+            self.prepare_audit_repository()
         name = ('octopus-research' if generated else 'skill-deep-research') if phase == 'probe' else (
             'skill-ship' if phase == 'ink' else 'flow-' + phase)
         path = ROOT / ('skills' if generated else '.claude/skills') / name / 'SKILL.md'
@@ -84,6 +90,72 @@ sys.exit(1 if mode == "failed" else 0)
                     if re.search(r'orchestrate\.sh[" ]+ ' + phase + r' ', block)
                     or 'orchestrate.sh ' + phase + ' ' in block
                     or phase == 'probe' and 'orchestrate.sh' in block and '--intensity=' in block)
+
+    def audit_git(self, *args):
+        env = {key: value for key, value in self.env.items() if not key.startswith('GIT_')}
+        env.update(GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
+                   GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+                   GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid')
+        return subprocess.check_output(['git', *args], cwd=self.home, env=env,
+                                       stderr=subprocess.DEVNULL, text=True).strip()
+
+    def prepare_audit_repository(self):
+        if hasattr(self, 'audit_base'):
+            return
+        self.audit_git('init', '-q', '-b', 'main')
+        # Runtime artifacts belong to this fixture, not to its delivered code.
+        (self.home / '.git/info/exclude').write_text('*\n')
+        self.audit_git('commit', '--allow-empty', '-qm', 'audit base')
+        self.audit_base = self.audit_git('rev-parse', 'HEAD')
+        (self.home / 'audit-source.txt').write_text('SOURCE_REQUIRES_AUDIT\n' * 550 + 'TAIL_REQUIRES_AUDIT\n')
+        self.audit_git('add', '-f', 'audit-source.txt')
+        self.audit_git('commit', '-qm', 'delivered source')
+        self.env['SHIP_AUDIT_BASE'] = self.audit_base
+
+    def test_shipping_audit_receives_the_complete_committed_diff(self):
+        self.prepare_audit_repository()
+        capture = self.home / 'audit-capture.json'
+        self.env['FIXTURE_AUDIT_CAPTURE'] = str(capture)
+        for generated in (False, True):
+            result = self.run_skill('ink', generated=generated)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            request = json.loads(capture.read_text())
+            self.assertIn(self.audit_git('rev-parse', 'HEAD'), request['prompt'])
+            self.assertIn(self.audit_base, request['prompt'])
+            self.assertIn('+TAIL_REQUIRES_AUDIT', request['prompt'])
+            self.assertEqual(request['strategy'], 'fail')
+
+    def test_shipping_audit_stops_for_dirty_empty_oversized_or_changing_source(self):
+        for generated in (False, True):
+            for mode in ('dirty', 'empty', 'oversized', 'changed'):
+                with self.subTest(generated=generated, mode=mode):
+                    self.prepare_audit_repository()
+                    capture = self.home / 'audit-capture.json'
+                    capture.unlink(missing_ok=True)
+                    self.env['FIXTURE_AUDIT_CAPTURE'] = str(capture)
+                    if mode == 'dirty':
+                        (self.home / 'audit-source.txt').write_text('uncommitted source\n')
+                    elif mode == 'empty':
+                        self.env['SHIP_AUDIT_BASE'] = self.audit_git('rev-parse', 'HEAD')
+                    elif mode == 'oversized':
+                        (self.home / 'audit-source.txt').write_text('x' * 70000)
+                        self.audit_git('add', 'audit-source.txt')
+                        self.audit_git('commit', '-qm', 'large source')
+                    else:
+                        self.env['FIXTURE_AUDIT_MUTATE'] = '1'
+                    try:
+                        result = self.run_skill('ink', generated=generated)
+                        self.assertNotEqual(result.returncode, 0, result.stdout)
+                        self.assertNotIn('AUDIT COMPLETE:', result.stdout)
+                        self.assertEqual(capture.exists(), mode == 'changed')
+                    finally:
+                        self.env.pop('FIXTURE_AUDIT_MUTATE', None)
+                        self.env['SHIP_AUDIT_BASE'] = self.audit_base
+                        self.audit_git('reset', '--hard', '-q', 'HEAD')
+                        # Restore a small committed diff for the next control.
+                        (self.home / 'audit-source.txt').write_text('SOURCE_REQUIRES_AUDIT\n')
+                        self.audit_git('add', 'audit-source.txt')
+                        self.audit_git('commit', '--allow-empty', '-qm', 'restore fixture')
 
     def test_research_only_accepts_its_current_successful_invocation(self):
         for generated in (False, True):
