@@ -267,6 +267,80 @@ else
     test_fail "expected Git config isolation and unchanged source index, HEAD, and refs"
 fi
 
+test_case "repository environment clearing removes inherited and temporary scope layers"
+scope_clear_ok=true
+for scope_name in GIT_DIR GIT_CONFIG_NOSYSTEM GIT_CONFIG_KEY_0 GIT_TRACE GIT_REDIRECT_STDERR; do
+    for scope_mode in inherited temporary combined; do
+        if ! (
+            # Match dispatch's subshell boundary and preserve the caller's values.
+            _scope_clear() (
+                _octopus_clear_repository_env || exit 1
+                [[ -z "${!scope_name+x}" ]] || exit 2
+                command env | grep -q "^${scope_name}=" && exit 3
+                exit 0
+            )
+            unset "$scope_name"
+            if [[ "$scope_mode" != temporary ]]; then
+                export "$scope_name=inherited"
+            fi
+            if [[ "$scope_mode" == inherited ]]; then
+                _scope_clear || exit 4
+            else
+                # eval contains only a name from the fixed list above.
+                eval "$scope_name=temporary _scope_clear" || exit 5
+            fi
+            if [[ "$scope_mode" != temporary ]]; then
+                [[ "${!scope_name}" == inherited ]] || exit 6
+            else
+                [[ -z "${!scope_name+x}" ]] || exit 7
+            fi
+        ); then
+            scope_clear_ok=false
+            printf 'Failed scope clearing: %s %s\n' "$scope_name" "$scope_mode" >&2
+        fi
+    done
+done
+if [[ "$scope_clear_ok" == true ]]; then test_pass; else test_fail "repository variables survived scope clearing or changed the caller"; fi
+
+test_case "combined GIT_DIR scopes cannot write refs outside the advisory copy"
+SCOPE_OTHER_ROOT="$TEST_TMP_DIR/scope-inherited-repository"
+SCOPE_DISPATCH_MARKER="$TEST_TMP_DIR/scope-dispatch-ran"
+SCOPE_LEAK_MARKER="$TEST_TMP_DIR/scope-git-dir-leaked"
+SCOPE_WRITE_REF="refs/heads/scope-advisory-write"
+git init -q "$SCOPE_OTHER_ROOT"
+git -C "$SCOPE_OTHER_ROOT" -c user.name=Fixture -c user.email=fixture@example.invalid \
+    commit --allow-empty -qm baseline
+scope_other_head="$(git -C "$SCOPE_OTHER_ROOT" rev-parse HEAD)"
+scope_source_head="$(git -C "$SOURCE_ROOT" rev-parse HEAD)"
+scope_source_index="$(cksum "$source_index")"
+scope_source_status="$(git -C "$SOURCE_ROOT" status --porcelain=v1 --untracked-files=all)"
+if (
+    export GIT_DIR="$SCOPE_OTHER_ROOT/.git"
+    run_agent_sync() {
+        printf 'dispatched\n' > "$SCOPE_DISPATCH_MARKER"
+        [[ -z "${GIT_DIR+x}" ]] || printf 'leaked\n' > "$SCOPE_LEAK_MARKER"
+        git update-ref "$SCOPE_WRITE_REF" HEAD >/dev/null 2>&1 || true
+        printf 'review only\n'
+    }
+    cd "$SOURCE_ROOT" || exit 98
+    GIT_DIR="$ambient_git_dir" run_agent_sync_consultative codex "review only" 120 reviewer ceremony >/dev/null 2>&1
+); then
+    scope_dispatch_rc=0
+else
+    scope_dispatch_rc=$?
+fi
+if [[ "$scope_dispatch_rc" -eq 0 && -f "$SCOPE_DISPATCH_MARKER" && ! -e "$SCOPE_LEAK_MARKER" ]] &&
+   [[ "$(git -C "$SCOPE_OTHER_ROOT" rev-parse HEAD)" == "$scope_other_head" &&
+      "$(git -C "$SOURCE_ROOT" rev-parse HEAD)" == "$scope_source_head" &&
+      "$(cksum "$source_index")" == "$scope_source_index" &&
+      "$(git -C "$SOURCE_ROOT" status --porcelain=v1 --untracked-files=all)" == "$scope_source_status" ]] &&
+   ! git -C "$SCOPE_OTHER_ROOT" show-ref --verify --quiet "$SCOPE_WRITE_REF" &&
+   ! git -C "$SOURCE_ROOT" show-ref --verify --quiet "$SCOPE_WRITE_REF"; then
+    test_pass
+else
+    test_fail "advisory dispatch leaked GIT_DIR or modified a source repository: rc=$scope_dispatch_rc"
+fi
+
 test_case "Git trace and output sinks are cleared for advisory dispatch"
 TRACE_EVENT_SINK="$TEST_TMP_DIR/git-trace2-event.json"
 TRACE_TEXT_SINK="$TEST_TMP_DIR/git-trace.log"

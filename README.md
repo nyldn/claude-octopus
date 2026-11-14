@@ -63,6 +63,8 @@ stale running entry. Debate state keeps quoted and multiline questions readable
 when saved as JSON. Parallel summaries restore the package count before reading
 worker results, including when aggregation resumes in a fresh shell. Linux review
 previews and advisory copies also work beneath search-only directories.
+Advisory workers clear inherited and temporary Git repository settings before
+running, keeping their Git writes inside the disposable advisory copy.
 
 External URL checks reject ambiguous authorities that could reach loopback
 services, including userinfo and bracketed IPv6 forms. This fixes authority

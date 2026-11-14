@@ -25,7 +25,8 @@ Merged changes: [#1301](https://github.com/nyldn/claude-octopus/pull/1301),
 [#1318](https://github.com/nyldn/claude-octopus/pull/1318),
 [#1319](https://github.com/nyldn/claude-octopus/pull/1319),
 [#1320](https://github.com/nyldn/claude-octopus/pull/1320),
-[#1323](https://github.com/nyldn/claude-octopus/pull/1323) and
+[#1323](https://github.com/nyldn/claude-octopus/pull/1323),
+[#1321](https://github.com/nyldn/claude-octopus/pull/1321) and
 [#1322](https://github.com/nyldn/claude-octopus/pull/1322).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
 which remains open for outstanding runtime safety work.
@@ -44,6 +45,10 @@ which remains open for outstanding runtime safety work.
   existing local/private-address checks. Public HTTPS controls still pass. DNS
   rebinding and redirects remain separate work. See
   [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
+
+- Advisory workers clear inherited and temporary Git environment values before
+  dispatch, so a temporary repository selection cannot expose another checkout
+  to accidental Git writes from the disposable advisory copy.
 
 - Interrupted council launches retain a cancellation record for a seat stopped
   during scheduler ownership transfer, so collection cannot mistake it for work
