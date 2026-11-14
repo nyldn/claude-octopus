@@ -257,6 +257,13 @@ with tempfile.TemporaryDirectory() as directory:
     generated.write_text(valid)
     assert validate().returncode == 0
     codex_data = json.loads(codex_manifest.read_text())
+    for value in [[], None, 'not a manifest', 42, True]:
+        codex_manifest.write_text(json.dumps(value))
+        result = validate()
+        assert result.returncode != 0, (value, result.stdout, result.stderr)
+        assert '.codex-plugin/plugin.json: manifest must be a JSON object' in result.stderr, (value, result.stderr)
+    codex_manifest.write_text(json.dumps(codex_data))
+    assert validate().returncode == 0
     codex_data['skills'] = './skills/'
     codex_manifest.write_text(json.dumps(codex_data))
     result = validate()

@@ -179,7 +179,9 @@ def validate_skills(root: Path, errors: list[str]) -> int:
     if (root / ".codex-plugin" / "plugin.json").is_file():
         manifest = root / ".codex-plugin" / "plugin.json"
         data = validate_json(root, manifest, errors)
-        if isinstance(data, dict) and data.get("skills") != "./codex-skills/":
+        if not isinstance(data, dict):
+            errors.append(".codex-plugin/plugin.json: manifest must be a JSON object")
+        elif data.get("skills") != "./codex-skills/":
             errors.append(".codex-plugin/plugin.json: skills must target ./codex-skills/")
         codex = root / "codex-skills"
         if not codex.is_dir() or not codex.resolve().is_relative_to(root):
