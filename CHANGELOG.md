@@ -11,15 +11,11 @@
 
 ### Fixed
 
-- Shipping audits receive the complete confirmed committed change range and
-  identify its base and delivered revisions. Dirty, empty, oversized or changing
-  source stops the audit instead of accepting a summary without source evidence.
-  Context-budget rejection during review or synthesis blocks delivery completion
-  instead of producing a successful fallback report.
-  Delivery initialization leaves feature metadata unchanged, and optional Tangle
-  delivery propagates failures instead of reporting success after rejection.
-  An empty required quality review also stops delivery under the audit's fail
-  strategy, including provider-side prompt rejection without an error status.
+- Shipping audits review the confirmed committed source range and report its base and delivered revisions.
+- Shipping stops audits on dirty, empty, oversized or changed source instead of accepting incomplete evidence.
+- Delivery stops on context-budget rejection or an empty required review under the audit's fail strategy.
+- Delivery initializes feature context without changing source metadata.
+- Optional Tangle delivery propagates failures instead of reporting success after rejection.
 
 - Freeze enforcement recovers the Codex session identity in later hook processes
   without a host export or matching hook session ID, so out-of-scope edits stay
