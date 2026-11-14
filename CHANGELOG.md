@@ -11,6 +11,10 @@
 
 ### Fixed
 
+- Rollback stops before partially restoring checkpoints with changed submodules.
+  It reports the required manual restoration instead of treating a gitlink update
+  as a complete recovery of the nested working tree.
+
 - Rollback confirmation stays bound to the previewed repository, branch, revision
   and checkpoint. Changed context requires a new preview before any restoration.
 
