@@ -164,7 +164,9 @@ _council_seat_pool_impl() {
             for ((i=0; i<index; i++)); do
                 [[ "${pids[i]}" != "$COUNCIL_ASYNC_PID" ]] || registered=true
             done
-            [[ "$registered" == true ]] || _council_cancel_tree "$COUNCIL_ASYNC_PID"
+            # Give the in-flight seat the same cancellation and result-publication
+            # path as registered seats. Killing it here alone loses its result.
+            [[ "$registered" == true ]] || pids[next]="$COUNCIL_ASYNC_PID"
         fi
         for ((i=0; i<index; i++)); do
             [[ -n "${pids[i]}" ]] || continue

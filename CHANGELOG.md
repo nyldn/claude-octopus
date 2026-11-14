@@ -15,6 +15,10 @@
   dispatch, so a temporary repository selection cannot expose another checkout
   to accidental Git writes from the disposable advisory copy.
 
+- Interrupted council launches retain a cancellation record for a seat stopped
+  during scheduler ownership transfer, so collection cannot mistake it for work
+  that was never launched.
+
 - Resuming tasks refreshes the queue and starts only an unblocked pending task.
   Fully blocked and empty queues report their state without starting work.
 
