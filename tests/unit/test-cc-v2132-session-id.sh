@@ -81,6 +81,27 @@ else
 fi
 
 echo ""
+# Separate hook processes must recover the activation identity from host IDs.
+for scenario in codex-session codex-task empty-codex-session claude-precedence explicit-claude; do
+    actual="$(bash -c '
+        source "$1"
+        unset OCTOPUS_HOST CLAUDE_CODE_SESSION_ID CLAUDE_SESSION_ID CLAUDE_CODE_SESSION CODEX_SESSION_ID CODEX_TASK_ID
+        case "$2" in
+            codex-session) CODEX_SESSION_ID=expected ;;
+            codex-task) CODEX_TASK_ID=expected ;;
+            empty-codex-session) OCTOPUS_HOST=""; CODEX_SESSION_ID=""; CODEX_TASK_ID=expected ;;
+            claude-precedence) CLAUDE_CODE_SESSION_ID=expected; CODEX_SESSION_ID=other ;;
+            explicit-claude) OCTOPUS_HOST=claude; CODEX_SESSION_ID=other ;;
+        esac
+        octo_resolve_session_id fallback "$3"
+    ' bash "$SESSION_LIB" "$scenario" '{"session_id":"expected"}')"
+    if [[ "$actual" == expected ]]; then
+        pass "session identity without inherited host: $scenario"
+    else
+        fail "session identity without inherited host: $scenario" "unexpected identity: $actual"
+    fi
+done
+
 echo "=== 3. Runtime state wiring ==="
 assert_contains "$ORCH" 'CLAUDE_CODE_SESSION_ID:-\$\{CLAUDE_SESSION_ID' \
     "orchestrate Claude host uses CLAUDE_CODE_SESSION_ID before CLAUDE_SESSION_ID"

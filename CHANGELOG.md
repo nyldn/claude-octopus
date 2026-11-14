@@ -11,6 +11,10 @@
 
 ### Fixed
 
+- Freeze enforcement recovers the Codex session identity in later hook processes
+  without a host export or matching hook session ID, so out-of-scope edits stay
+  blocked after activation. Explicit hosts and Claude session IDs keep precedence.
+
 - Resuming tasks refreshes the queue and starts only an unblocked pending task.
   Fully blocked and empty queues report their state without starting work.
 

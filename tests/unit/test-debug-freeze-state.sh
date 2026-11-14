@@ -43,7 +43,8 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
         section = text.split("## Scoped freeze guard", 1)[1]
         code = re.search(r"```bash\n(.*?)\n```", section, re.S).group(1)
         for case in ["missing-id", "empty-ids", "legacy-only-id",
-                     "empty-current-legacy-id", "codex-session", "codex-task", "absent", "valid-existing", "opaque-existing", "empty-regular",
+                     "empty-current-legacy-id", "codex-session", "codex-task", "codex-session-no-input",
+                     "codex-task-no-input", "codex-session-other-input", "absent", "valid-existing", "opaque-existing", "empty-regular",
                      "filled-symlink", "empty-symlink", "dangling-symlink",
                      "directory", "fifo", "race-regular", "race-symlink",
                      "race-fifo", "race-symlink-fifo", "missing-python"]:
@@ -58,11 +59,11 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
             env.pop("CLAUDE_CODE_SESSION", None)
             for key in ("CODEX_SESSION_ID", "CODEX_TASK_ID", "CODEX_PLUGIN_ROOT", "CODEX_SANDBOX", "CODEX_HOME", "PLUGIN_ROOT"):
                 env.pop(key, None)
-            if case in ("codex-session", "codex-task"):
+            if case.startswith("codex-"):
                 for key in ("OCTOPUS_HOST", "CLAUDE_CODE_SESSION_ID", "CLAUDE_SESSION_ID", "CLAUDE_PLUGIN_ROOT"):
                     env.pop(key, None)
                 env["CODEX_PLUGIN_ROOT"] = str(source)
-                env["CODEX_SESSION_ID" if case == "codex-session" else "CODEX_TASK_ID"] = sid
+                env["CODEX_SESSION_ID" if case.startswith("codex-session") else "CODEX_TASK_ID"] = sid
             missing_id = case in ("missing-id", "empty-ids")
             if missing_id:
                 env.pop("CLAUDE_CODE_SESSION_ID", None)
@@ -147,18 +148,29 @@ with tempfile.TemporaryDirectory(prefix="octo-debug-freeze-test-") as tmp:
                     assert "requires a stable host session ID" in proc.stderr
                     assert trace.read_text() == "", "state path selected without shared ID"
                     assert not state.exists() and not pid_state.exists(), "unenforced state created"
-                elif case in ("absent", "legacy-only-id", "empty-current-legacy-id", "codex-session", "codex-task"):
+                elif case in ("absent", "legacy-only-id", "empty-current-legacy-id", "codex-session", "codex-task",
+                              "codex-session-no-input", "codex-task-no-input", "codex-session-other-input"):
                     assert proc.returncode == 0, proc.stderr
                     assert state.read_text() == str(module) + "\n", (
                         "synthetic expected=" + repr(str(module) + "\n")
                         + " actual=" + repr(state.read_text()))
                     assert state.stat().st_mode & 0o777 == 0o600
-                    payload = json.dumps({"session_id": sid, "tool_name": "Edit", "tool_input": {
-                        "file_path": str(other / "outside.py")}, "cwd": str(root)})
+                    payload_data = {"session_id": sid, "tool_name": "Edit", "tool_input": {
+                        "file_path": str(other / "outside.py")}, "cwd": str(root)}
+                    if case.endswith("-no-input"):
+                        payload_data.pop("session_id")
+                    elif case.endswith("-other-input"):
+                        payload_data["session_id"] = "unrelated-" + uuid.uuid4().hex
+                    payload = json.dumps(payload_data)
                     enforced = subprocess.run([bash, str(hook)], input=payload,
                         env=env, capture_output=True, text=True, timeout=5)
                     assert enforced.returncode == 0
-                    assert '"permissionDecision":"deny"' in enforced.stdout
+                    assert '"permissionDecision":"deny"' in enforced.stdout, "outside edit escaped freeze"
+                    payload_data["tool_input"]["file_path"] = str(module / "inside.py")
+                    allowed = subprocess.run([bash, str(hook)], input=json.dumps(payload_data),
+                        env=env, capture_output=True, text=True, timeout=5)
+                    assert allowed.returncode == 0
+                    assert '"permissionDecision":"deny"' not in allowed.stdout, "inside edit blocked"
                 elif case in ("valid-existing", "opaque-existing"):
                     assert proc.returncode == 0, proc.stderr
                     expected = str(other) + "\n" if case == "valid-existing" else marker + "\n"
