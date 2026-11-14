@@ -6256,6 +6256,10 @@ $all_results" "$ink_review_timeout" "code-reviewer" "ink") || {
             log ERROR "Delivery review exceeded its context budget; complete source review is required"
             return 78
         fi
+        if [[ "${OCTOPUS_OVERSIZE_STRATEGY:-}" == fail ]]; then
+            log ERROR "Delivery review failed under the fail strategy; complete source review is required"
+            return "$ink_review_status"
+        fi
         sonnet_review="[Quality review unavailable]"
     }
     if [[ "${OCTOPUS_OVERSIZE_STRATEGY:-}" == fail && ! "$sonnet_review" =~ [^[:space:]] ]]; then

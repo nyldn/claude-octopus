@@ -279,4 +279,36 @@ for review_output in empty whitespace; do
     done
 done
 
+for review_status in 1 42; do
+    for review_output in empty partial; do
+        for strategy in fail summarize; do
+            test_case "ink handles failed review $review_status with $review_output output under $strategy"
+            if (
+                rm -f "$RESULTS_DIR"/delivery-*.md "$TEST_ROOT/failed-review-synthesis"
+                OCTOPUS_OVERSIZE_STRATEGY="$strategy"
+                SUPPORTS_BATCH_COMMAND=false
+                _aggregate_pick_synth_agent() { echo claude-sonnet; }
+                run_agent_sync() {
+                    if [[ "${4:-}" == code-reviewer ]]; then
+                        [[ "$review_output" != partial ]] || echo 'Incomplete review'
+                        return "$review_status"
+                    fi
+                    touch "$TEST_ROOT/failed-review-synthesis"
+                    echo 'Completed synthesis'
+                }
+                rc=0
+                ink_deliver "Audit committed source" "$tangle_file" > "$TEST_ROOT/failed-review-output" 2>&1 || rc=$?
+                if [[ "$strategy" == fail ]]; then
+                    [[ "$rc" == "$review_status" ]] &&
+                        [[ ! -e "$TEST_ROOT/failed-review-synthesis" ]] &&
+                        ! compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null &&
+                        ! grep -q 'Final document:' "$TEST_ROOT/failed-review-output"
+                else
+                    [[ "$rc" == 0 ]] && compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null
+                fi
+            ); then test_pass; else test_fail "unexpected failed-review disposition under $strategy"; fi
+        done
+    done
+done
+
 test_summary
