@@ -157,12 +157,12 @@ bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
 AUDIT_REPO=$(git rev-parse --show-toplevel) || exit 1
 AUDIT_HEAD=$(git rev-parse --verify HEAD^{commit}) || exit 1
 AUDIT_BASE=$(git rev-parse --verify --end-of-options "${SHIP_AUDIT_BASE}^{commit}") || exit 1
-AUDIT_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+AUDIT_STATUS=$(git status --porcelain=v1 --untracked-files=all --ignore-submodules=none) || exit 1
 if [[ -n "$AUDIT_STATUS" ]]; then
   echo "Audit incomplete: commit or preserve uncommitted source before dispatch." >&2
   exit 1
 fi
-AUDIT_DIFF=$(git -C "$AUDIT_REPO" diff --no-relative --no-ext-diff --no-textconv --no-color --binary "$AUDIT_BASE" "$AUDIT_HEAD" --) || exit 1
+AUDIT_DIFF=$(git -C "$AUDIT_REPO" diff --no-relative --ignore-submodules=none --submodule=short --no-ext-diff --no-textconv --no-color --binary "$AUDIT_BASE" "$AUDIT_HEAD" --) || exit 1
 if [[ -z "$AUDIT_DIFF" ]]; then
   echo "Audit incomplete: the confirmed delivery range has no changes." >&2
   exit 1
@@ -189,7 +189,7 @@ rm -f "$RUN_MARKER"
 [[ "$REPORT_STATUS" == 0 ]] || exit "$REPORT_STATUS"
 AUDIT_CURRENT_REPO=$(git rev-parse --show-toplevel) || exit 1
 AUDIT_CURRENT_HEAD=$(git rev-parse --verify HEAD^{commit}) || exit 1
-AUDIT_CURRENT_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+AUDIT_CURRENT_STATUS=$(git status --porcelain=v1 --untracked-files=all --ignore-submodules=none) || exit 1
 if [[ "$AUDIT_CURRENT_REPO" != "$AUDIT_REPO" || "$AUDIT_CURRENT_HEAD" != "$AUDIT_HEAD" || -n "$AUDIT_CURRENT_STATUS" ]]; then
   echo "Audit incomplete: source changed during review; audit the new revision." >&2
   exit 1

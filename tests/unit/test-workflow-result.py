@@ -177,6 +177,33 @@ sys.exit(1 if mode == "failed" else 0)
                 self.assertIn('+TAIL_REQUIRES_AUDIT', prompt)
                 self.assertIn('+INSIDE_SOURCE_REQUIRES_AUDIT', prompt)
 
+    def test_shipping_audit_includes_configured_ignored_submodule_changes(self):
+        self.prepare_audit_repository()
+        (self.home / 'dependency').mkdir()
+        self.audit_git('-C', 'dependency', 'init', '-q')
+        self.audit_git('-C', 'dependency', 'commit', '--allow-empty', '-qm', 'old dependency')
+        old_dependency = self.audit_git('-C', 'dependency', 'rev-parse', 'HEAD')
+        self.audit_git('update-index', '--add', '--cacheinfo', '160000,' + old_dependency + ',dependency')
+        self.audit_git('commit', '-qm', 'dependency base')
+        self.env['SHIP_AUDIT_BASE'] = self.audit_git('rev-parse', 'HEAD')
+        self.audit_git('-C', 'dependency', 'commit', '--allow-empty', '-qm', 'new dependency')
+        new_dependency = self.audit_git('-C', 'dependency', 'rev-parse', 'HEAD')
+        self.audit_git('update-index', '--cacheinfo', '160000,' + new_dependency + ',dependency')
+        (self.home / 'audit-source.txt').write_text('ordinary source update\n')
+        self.audit_git('add', 'audit-source.txt')
+        self.audit_git('commit', '-qm', 'source and dependency update')
+        self.audit_git('config', 'diff.ignoreSubmodules', 'all')
+        capture = self.home / 'audit-capture.json'
+        self.env['FIXTURE_AUDIT_CAPTURE'] = str(capture)
+        for generated in (False, True):
+            with self.subTest(generated=generated):
+                result = self.run_skill('ink', generated=generated)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                prompt = json.loads(capture.read_text())['prompt']
+                self.assertIn('diff --git a/dependency b/dependency', prompt)
+                self.assertIn('-Subproject commit ' + old_dependency, prompt)
+                self.assertIn('+Subproject commit ' + new_dependency, prompt)
+
     def test_research_only_accepts_its_current_successful_invocation(self):
         for generated in (False, True):
             for mode in ('complete', 'failed', 'missing', 'foreign', 'invalid'):
