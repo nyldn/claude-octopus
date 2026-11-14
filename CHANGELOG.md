@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Documentation sync commits only its selected paths, preserves unrelated staged
+  work, and stops before reporting completion when staging or committing fails.
+
 - Interrupted council launches retain a cancellation record for a seat stopped
   during scheduler ownership transfer, so collection cannot mistake it for work
   that was never launched.
