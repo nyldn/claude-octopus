@@ -218,19 +218,27 @@ After all scenarios, output:
     }
 
     if [[ -z "$holdout_score" ]]; then
-        # Fallback: count PASS/PARTIAL/FAIL verdicts
-        local pass_count partial_count fail_count total_count
-        pass_count=$(echo "$eval_result" | grep -ci 'verdict.*pass') || pass_count=0
-        partial_count=$(echo "$eval_result" | grep -ci 'verdict.*partial') || partial_count=0
-        fail_count=$(echo "$eval_result" | grep -ci 'verdict.*fail') || fail_count=0
-        total_count=$(( pass_count + partial_count + fail_count ))
-
-        if [[ $total_count -gt 0 ]]; then
-            holdout_score=$(echo "$pass_count $partial_count $total_count" | awk '{printf "%.2f", ($1 + $2 * 0.5) / $3}')
-        else
-            log ERROR "Holdout evaluation contains no score or verdicts"
+        # Each declared verdict must contain one exact value. Negation and
+        # unfilled alternatives cannot establish passing evaluation evidence.
+        holdout_score=$(printf '%s\n' "$eval_result" | awk '
+            {
+                line = tolower($0)
+                sub(/^[[:space:]*-]+/, "", line)
+                if (line !~ /^verdict([*[:space:]]|:|$)/) next
+                sub(/^verdict[*]*[[:space:]]*:[[:space:]*]*/, "", line)
+                sub(/[[:space:]*]+$/, "", line)
+                if (line == "pass") points += 1
+                else if (line == "partial") points += 0.5
+                else if (line != "fail") invalid = 1
+                total++
+            }
+            END {
+                if (invalid || !total) exit 1
+                printf "%.2f\n", points / total
+            }') || {
+            log ERROR "Holdout evaluation contains no usable verdicts or an invalid verdict"
             return 1
-        fi
+        }
     fi
 
     if ! awk -v score="$holdout_score" 'BEGIN { exit !(score >= 0 && score <= 1) }'; then

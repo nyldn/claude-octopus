@@ -196,7 +196,7 @@ for evaluation in verdicts integer-zero integer-one markdown-score prompt-score;
     ); then test_pass; else test_fail "valid $evaluation was rejected or used the wrong score"; fi
 done
 
-for consumer_case in integer-zero markdown-zero verdict-zero signed-zero retry-score score-write-failure; do
+for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict ambiguous-verdict signed-zero retry-score score-write-failure; do
     test_case "factory passes validated $consumer_case to the real satisfaction consumer"
     if (
         source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
@@ -226,6 +226,8 @@ for consumer_case in integer-zero markdown-zero verdict-zero signed-zero retry-s
                 case "$consumer_case" in
                     markdown-zero) echo '**Score:** 0.00' ;;
                     verdict-zero) echo '**Verdict:** FAIL' ;;
+                    negated-verdict) echo '**Verdict:** NOT PASS' ;;
+                    ambiguous-verdict) echo '**Verdict:** PASS | PARTIAL | FAIL' ;;
                     signed-zero) echo 'Score: +0.00' ;;
                     *) echo 'Score: 0' ;;
                 esac
@@ -236,7 +238,9 @@ for consumer_case in integer-zero markdown-zero verdict-zero signed-zero retry-s
         rc=0
         factory_run spec.md 0.20 "$retries" true > output 2>&1 || rc=$?
         scores=$(find .octo/factory -name satisfaction-scores.json -type f)
-        if [[ "$consumer_case" == score-write-failure ]]; then
+        if [[ "$consumer_case" == negated-verdict || "$consumer_case" == ambiguous-verdict ]]; then
+            [[ "$rc" != 0 && ! -e reported && ! -e scoring-calls && -z "$scores" ]]
+        elif [[ "$consumer_case" == score-write-failure ]]; then
             [[ "$rc" != 0 && ! -e reported ]]
         else
             [[ -n "$scores" && -e reported ]] &&
