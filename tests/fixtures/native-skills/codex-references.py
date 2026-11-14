@@ -44,12 +44,22 @@ class CodexReferences(unittest.TestCase):
                 env.pop('DIFF_CONTENT', None)
                 subprocess.run(['git', 'init', '-q', '-b', 'main', temporary],
                                env=env, check=True)
-                (root / 'change.txt').write_text('STAGED_CHANGE_REQUIRES_REVIEW\n')
-                subprocess.run(['git', 'add', 'change.txt'], cwd=root, env=env, check=True)
-                result = subprocess.run(['/bin/bash', '-c', block], cwd=root, env=env,
-                                        capture_output=True, text=True, timeout=5)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('+STAGED_CHANGE_REQUIRES_REVIEW', (root / 'prompt').read_text())
+                for content, rejected in (('x' * 64000, False), ('x' * 150000, True),
+                                          ('界' * 30000, True)):
+                    with self.subTest(bytes=len(content.encode())):
+                        capture = root / 'prompt'
+                        capture.unlink(missing_ok=True)
+                        (root / 'change.txt').write_text(content + '\nSTAGED_CHANGE_REQUIRES_REVIEW\n')
+                        subprocess.run(['git', 'add', 'change.txt'], cwd=root, env=env, check=True)
+                        result = subprocess.run(['/bin/bash', '-c', block], cwd=root, env=env,
+                                                capture_output=True, text=True, timeout=5)
+                        if rejected:
+                            self.assertNotEqual(result.returncode, 0, result.stderr)
+                            self.assertIn('Review incomplete: the full prompt exceeds', result.stderr)
+                            self.assertFalse(capture.exists(), 'oversized prompt dispatched')
+                        else:
+                            self.assertEqual(result.returncode, 0, result.stderr)
+                            self.assertIn('+STAGED_CHANGE_REQUIRES_REVIEW', capture.read_text())
 
     def test_finish_branch_keeps_the_dispatch_review_lossless(self):
         for tree in ('.claude/skills', 'skills', 'codex-skills'):

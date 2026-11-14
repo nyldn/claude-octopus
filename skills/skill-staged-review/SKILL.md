@@ -196,6 +196,13 @@ Report ONLY high-confidence issues. Do NOT flag style preferences.
 
 DIFF:
 ${DIFF_CONTENT}"
+# Bound the complete argument in bytes, including the instructions and diff.
+# Never truncate code to make it fit this quick-review transport.
+REVIEW_PROMPT_BYTES=$(printf '%s' "$REVIEW_PROMPT" | wc -c) || exit 1
+if [[ "$REVIEW_PROMPT_BYTES" -gt 65536 ]]; then
+  echo "Review incomplete: the full prompt exceeds this quick-review transport. Use a complete file-based review before continuing." >&2
+  exit 1
+fi
 collector_pids=()
 for provider in ${providers[@]+"${providers[@]}"}; do
   # Both asynchronous workers and synchronous Antigravity dispatch use the
