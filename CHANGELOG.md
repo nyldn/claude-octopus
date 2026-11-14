@@ -11,6 +11,10 @@
 
 ### Fixed
 
+- Advisory workers clear inherited and temporary Git environment values before
+  dispatch, so a temporary repository selection cannot expose another checkout
+  to accidental Git writes from the disposable advisory copy.
+
 - Rollback stops before partially restoring checkpoints with changed submodules.
   It reports the required manual restoration instead of treating a gitlink update
   as a complete recovery of the nested working tree.
