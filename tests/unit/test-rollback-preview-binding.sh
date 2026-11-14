@@ -48,6 +48,12 @@ for tree in ('.claude/skills', 'skills'):
                     if line.startswith(('ROLLBACK_PREVIEW_', 'ROLLBACK_TARGET_COMMIT=')):
                         name, value = line.split('=', 1)
                         env[name] = value
+                expected = {'ROLLBACK_PREVIEW_ROOT': str(repo),
+                            'ROLLBACK_PREVIEW_HEAD': git('rev-parse', 'HEAD').decode().strip(),
+                            'ROLLBACK_PREVIEW_REF': git('symbolic-ref', 'HEAD').decode().strip(),
+                            'ROLLBACK_TARGET_COMMIT': git('rev-parse', env['CHECKPOINT_TAG'] + '^{commit}').decode().strip()}
+                for name, value in expected.items():
+                    assert env.get(name) == value, (tree, step, change, name, 'preview context missing or wrong')
                 if change == 'head':
                     git('commit', '--allow-empty', '-qm', 'later commit')
                 elif change == 'branch':
@@ -68,7 +74,8 @@ for tree in ('.claude/skills', 'skills'):
                 result = subprocess.run(['bash', '-c', recipe(step)], cwd=repo, env=env,
                                         capture_output=True, text=True, timeout=5)
                 assert result.returncode != 0, (tree, step, change, result.stdout)
-                assert 'preview' in result.stderr.lower(), (tree, step, change, result.stderr)
+                diagnostic = 'Restore the confirmed preview' if change.startswith('missing-') else 'Rollback context changed'
+                assert diagnostic in result.stderr, (tree, step, change, result.stderr)
                 after = (git('rev-parse', 'HEAD'), git('write-tree'), git('show-ref'), file.read_bytes())
                 assert after == before, (tree, step, change, 'rollback mutated a different context')
                 checks += 1
