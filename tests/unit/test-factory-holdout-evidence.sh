@@ -59,7 +59,7 @@ else
     test_fail 'valid holdout evaluation changed'
 fi
 
-for pipeline_case in single unstructured visible-write-failure holdout-write-failure result-write-failure providers-empty providers-banner providers-malformed providers-score-range initial-failure retry-failure success; do
+for pipeline_case in single unstructured blank-visible blank-holdout visible-write-failure holdout-write-failure result-write-failure providers-empty providers-banner providers-malformed providers-score-range initial-failure retry-failure success; do
     test_case "factory handles $pipeline_case through an OR-list"
     if (
         case_dir="$TEST_TMP_DIR/pipeline-$pipeline_case"
@@ -76,8 +76,12 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
             if [[ "$pipeline_case" == unstructured ]]; then
                 echo '# No structured test cases'
             else
-                printf '### Scenario 1: first\nGiven first input\n'
-                [[ "$pipeline_case" == single ]] || printf '### Scenario 2: second\nGiven second input\n'
+                printf '### Scenario 1: first\n'
+                [[ "$pipeline_case" == blank-visible ]] || printf 'Given first input\n'
+                if [[ "$pipeline_case" != single ]]; then
+                    printf '### Scenario 2: second\n'
+                    [[ "$pipeline_case" == blank-holdout ]] || printf 'Given second input\n'
+                fi
             fi | tee "$2/scenarios-all.md"
             case "$pipeline_case" in
                 visible-write-failure) mkdir "$2/scenarios-visible.md" ;;
@@ -119,7 +123,7 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
                 grep -q 'FACTORY COMPLETE' output
         else
             [[ "$rc" != 0 && ! -e reported ]] && ! grep -q 'FACTORY COMPLETE' output &&
-            if [[ "$pipeline_case" == single || "$pipeline_case" == unstructured || "$pipeline_case" == visible-write-failure || "$pipeline_case" == holdout-write-failure ]]; then
+            if [[ "$pipeline_case" == single || "$pipeline_case" == unstructured || "$pipeline_case" == blank-visible || "$pipeline_case" == blank-holdout || "$pipeline_case" == visible-write-failure || "$pipeline_case" == holdout-write-failure ]]; then
                 [[ ! -e embraced && ! -e scored ]]
             elif [[ "$pipeline_case" == providers-* ]]; then
                 [[ "$rc" != 0 && -e embraced && ! -e scored ]] &&

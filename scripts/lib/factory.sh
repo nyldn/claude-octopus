@@ -47,6 +47,15 @@ ${line}"
         return 1
     fi
 
+    # Every case must contain test content before either partition is used.
+    local scenario_block
+    for scenario_block in "${scenario_blocks[@]}"; do
+        if ! printf '%s\n' "$scenario_block" | grep -Ec '^[[:space:]]*[^#[:space:]]' >/dev/null; then
+            log ERROR "Factory scenario has no body content; split is incomplete"
+            return 1
+        fi
+    done
+
     # Calculate holdout count (minimum 1 if there are scenarios, max 20%)
     local holdout_count
     holdout_count=$(echo "$total $holdout_ratio" | awk '{printf "%d", $1 * $2 + 0.5}')
