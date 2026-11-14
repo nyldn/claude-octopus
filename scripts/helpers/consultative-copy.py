@@ -35,7 +35,9 @@ def supported():
 class Directory:
     """An opened root plus checked, non-link descendants, following feature helpers."""
 
-    flags = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) | getattr(os, 'O_NOFOLLOW', 0)
+    # These descriptors anchor traversal and fchdir; no directory is listed
+    # through them. Linux O_PATH needs only search permission on ancestors.
+    flags = getattr(os, 'O_PATH', os.O_RDONLY) | getattr(os, 'O_DIRECTORY', 0) | getattr(os, 'O_NOFOLLOW', 0)
 
     def __init__(self, path, expected=None):
         self.path = os.path.abspath(path)

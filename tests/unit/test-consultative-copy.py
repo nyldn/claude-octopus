@@ -79,6 +79,24 @@ class CopyContracts(unittest.TestCase):
         self.assertFalse((self.destination / 'ignored').exists())
         self.assertFalse((self.destination / '.git').exists())
 
+    @unittest.skipUnless(hasattr(os, 'O_PATH') and os.geteuid() != 0,
+                         'requires Linux search-only directory permissions')
+    def test_search_only_ancestors_do_not_require_directory_listing(self):
+        self.file('deep/value', b'reachable bytes')
+        ancestor = self.base / 'search-only'
+        ancestor.mkdir()
+        self.source.rename(ancestor / 'source')
+        self.destination.rename(ancestor / 'destination')
+        self.source = ancestor / 'source'
+        self.destination = ancestor / 'destination'
+        ancestor.chmod(0o100)
+        try:
+            self.assertEqual((self.source / 'deep/value').read_bytes(), b'reachable bytes')
+            self.run_copy()
+            self.assertEqual((self.destination / 'deep/value').read_bytes(), b'reachable bytes')
+        finally:
+            ancestor.chmod(0o700)
+
     def test_safe_and_dangling_symlinks_are_preserved(self):
         self.file('deep/value')
         self.link('deep/safe', 'value')

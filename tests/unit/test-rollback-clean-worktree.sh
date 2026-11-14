@@ -35,6 +35,15 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                CHECKPOINT_TAG='octo-checkpoint-fixture', LESSONS_PRESERVED='false', TMPDIR=str(backups))
     def git(*args):
         return subprocess.check_output(['git', *args], cwd=repo, env=env, stderr=subprocess.DEVNULL)
+    def preview_env(values):
+        result = subprocess.run(['bash', '-c', recipe(2)], cwd=repo, env=values,
+                                capture_output=True, text=True, check=True)
+        confirmed = dict(values)
+        for line in result.stdout.splitlines():
+            if line.startswith(('ROLLBACK_PREVIEW_', 'ROLLBACK_TARGET_COMMIT=')):
+                name, value = line.split('=', 1)
+                confirmed[name] = value
+        return confirmed
     git('init', '-q')
     path = repo / 'file with spaces.txt'
     path.write_text('checkpoint\n')
@@ -65,6 +74,8 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     (nested / 'inside.txt').write_text('nested current\n')
     git('add', '-A')
     git('commit', '-qm', 'current')
+    # Capture while clean, before introducing each post-confirmation edit.
+    env = preview_env(env)
     head = git('rev-parse', 'HEAD')
     clean_tags = git('tag', '-l')
     for state in ('unstaged', 'staged', 'staged deletion', 'untracked'):
@@ -168,6 +179,7 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     assert result.returncode != 0 and path.read_text() == 'checkpoint\n'
     checks += 1
     git('commit', '-qm', 'preserve restored state')
+    recovery_env = preview_env(recovery_env)
     for step in (2, 6):
         result = subprocess.run(['bash', '-c', recipe(step)], cwd=nested if step == 6 else repo, env=recovery_env,
                                 capture_output=True, timeout=5)
@@ -197,7 +209,7 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
         before_tree = git('write-tree')
         before_status = git('status', '--porcelain=v1', '--untracked-files=all')
         result = subprocess.run(['bash', '-c', recipe(6)], cwd=nested,
-                                env=dict(env, CHECKPOINT_TAG=tag),
+                                env=preview_env(dict(env, CHECKPOINT_TAG=tag)),
                                 capture_output=True, timeout=5)
         assert result.returncode != 0, ('rollback replaced protected lessons directory', kind)
         assert b'protected lessons' in result.stderr, result.stderr
@@ -213,7 +225,7 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
         before_tree = git('write-tree')
         before_flags = git('ls-files', '-v', '--', '.octo/LESSONS.md')
         result = subprocess.run(['bash', '-c', recipe(6)], cwd=nested,
-                                env=dict(env, CHECKPOINT_TAG='octo-checkpoint-ancestor-' + kind),
+                                env=preview_env(dict(env, CHECKPOINT_TAG='octo-checkpoint-ancestor-' + kind)),
                                 capture_output=True, timeout=5)
         assert result.returncode != 0, ('rollback removed index-only lessons', kind)
         assert b'protected lessons' in result.stderr, result.stderr
