@@ -12,6 +12,12 @@ from pathlib import Path
 ROOT = Path(sys.argv.pop(1)).resolve()
 GENERATOR = ROOT / "scripts/build-codex-skills.sh"
 
+# Git cwd/-C do not override inherited repository, index or object locations.
+for git_variable in subprocess.check_output(
+        ["git", "rev-parse", "--local-env-vars"], text=True).splitlines():
+    os.environ.pop(git_variable, None)
+os.environ.update(GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_NOSYSTEM="1")
+
 
 def adapt(text):
     return subprocess.check_output([
@@ -21,6 +27,42 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_fixture_children_preserve_an_inherited_caller_repository(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            caller = Path(temporary) / 'caller'
+            caller.mkdir()
+            env = dict(os.environ, GIT_AUTHOR_NAME='Fixture',
+                       GIT_AUTHOR_EMAIL='fixture@example.invalid', GIT_COMMITTER_NAME='Fixture',
+                       GIT_COMMITTER_EMAIL='fixture@example.invalid', GIT_OPTIONAL_LOCKS='0')
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(caller), *args], env=env)
+            git('init', '-q', '-b', 'caller')
+            sentinel = caller / 'sentinel'
+            sentinel.write_text('committed caller work\n')
+            git('add', '.')
+            git('commit', '-qm', 'caller baseline')
+            sentinel.write_text('staged caller work\n')
+            git('add', '.')
+            sentinel.write_text('unstaged caller work\n')
+            before = {p.relative_to(caller): p.read_bytes()
+                      for p in caller.rglob('*') if p.is_file()}
+            hostile = dict(env, GIT_DIR=str(caller / '.git'), GIT_WORK_TREE=str(caller),
+                           GIT_COMMON_DIR=str(caller / '.git'), GIT_INDEX_FILE=str(caller / '.git/index'),
+                           GIT_OBJECT_DIRECTORY=str(caller / '.git/objects'), GIT_PREFIX='caller-prefix/')
+            commands = [
+                ['python3', str(Path(__file__).resolve()), str(ROOT),
+                 'CodexReferences.test_finish_branch_requires_a_common_ancestor_before_review'],
+                ['bash', str(ROOT / 'tests/unit/test-rollback-clean-worktree.sh')],
+            ]
+            for command in commands:
+                with self.subTest(command=command[0]):
+                    result = subprocess.run(command, cwd=temporary, env=hostile,
+                                            capture_output=True, text=True, timeout=60)
+                    after = {p.relative_to(caller): p.read_bytes()
+                             for p in caller.rglob('*') if p.is_file()}
+                    self.assertEqual(after, before, 'fixture modified the caller repository')
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_staged_review_captures_the_diff_in_a_fresh_dispatch_shell(self):
         for tree in ('.claude/skills', 'skills', 'codex-skills'):
             text = (ROOT / tree / 'skill-staged-review/SKILL.md').read_text()

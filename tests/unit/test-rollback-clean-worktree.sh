@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Execute the rollback recipes against disposable repositories with user work.
 set -euo pipefail
+# Isolate every fixture and recipe child from the caller's Git locations.
+while IFS= read -r git_variable; do
+    unset "$git_variable"
+done < <(git rev-parse --local-env-vars)
+unset git_variable
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
