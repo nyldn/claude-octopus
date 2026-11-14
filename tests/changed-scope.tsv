@@ -72,6 +72,7 @@ commands/setup.md	tests/unit/test-command-frontmatter.sh tests/unit/test-setup-f
 commands/embrace.md	tests/unit/test-execution-mechanism.sh tests/unit/test-embrace-fail-fast.sh
 commands/discover.md	tests/unit/test-probe-single.sh
 .claude/skills/skill-deep-research/SKILL.md	tests/unit/test-research-fanout-static.sh
+.claude/skills/flow-parallel/SKILL.md	tests/unit/test-parallel-result-summary.sh
 commands/brainstorm.md	tests/unit/test-consultative-advisor-launch.sh
 .claude/skills/skill-debate/SKILL.md	tests/unit/test-consultative-advisor-launch.sh tests/unit/test-debate-state-json.sh
 commands/*.md	tests/unit/test-command-frontmatter.sh tests/unit/test-command-registration.sh tests/unit/test-public-reference-integrity.sh tests/unit/test-argument-placeholder-safety.sh
