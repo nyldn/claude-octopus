@@ -11,6 +11,13 @@
 
 ### Fixed
 
+- Interrupted council launches retain a cancellation record for a seat stopped
+  during scheduler ownership transfer, so collection cannot mistake it for work
+  that was never launched.
+
+- Resuming tasks refreshes the queue and starts only an unblocked pending task.
+  Fully blocked and empty queues report their state without starting work.
+
 - Rollback stops before partially restoring checkpoints with changed submodules.
   It reports the required manual restoration instead of treating a gitlink update
   as a complete recovery of the nested working tree.
