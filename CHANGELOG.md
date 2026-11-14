@@ -4,32 +4,14 @@
 
 ## [11.24.0] - 2026-11-14
 
-This batch protects local work during quick tasks and rollback, verifies current
-research and Council evidence, and supports OpenCode 2.x dispatch. Configured
-Antigravity capacity fallbacks are opt-in; existing model choices remain intact.
+This batch protects local work during quick tasks and rollback, binds shipping
+audits to the delivered commits, verifies current research and Council evidence,
+and supports OpenCode 2.x dispatch. Configured Antigravity capacity fallbacks are
+opt-in; existing model choices remain intact.
 
-Merged changes: [#1301](https://github.com/nyldn/claude-octopus/pull/1301),
-[#1257](https://github.com/nyldn/claude-octopus/pull/1257),
-[#1306](https://github.com/nyldn/claude-octopus/pull/1306),
-[#1307](https://github.com/nyldn/claude-octopus/pull/1307),
-[#1308](https://github.com/nyldn/claude-octopus/pull/1308),
-[#1309](https://github.com/nyldn/claude-octopus/pull/1309),
-[#1310](https://github.com/nyldn/claude-octopus/pull/1310),
-[#1311](https://github.com/nyldn/claude-octopus/pull/1311),
-[#1312](https://github.com/nyldn/claude-octopus/pull/1312),
-[#1313](https://github.com/nyldn/claude-octopus/pull/1313),
-[#1314](https://github.com/nyldn/claude-octopus/pull/1314),
-[#1315](https://github.com/nyldn/claude-octopus/pull/1315),
-[#1316](https://github.com/nyldn/claude-octopus/pull/1316),
-[#1317](https://github.com/nyldn/claude-octopus/pull/1317),
-[#1318](https://github.com/nyldn/claude-octopus/pull/1318),
-[#1319](https://github.com/nyldn/claude-octopus/pull/1319),
-[#1320](https://github.com/nyldn/claude-octopus/pull/1320),
-[#1323](https://github.com/nyldn/claude-octopus/pull/1323),
-[#1321](https://github.com/nyldn/claude-octopus/pull/1321) and
-[#1322](https://github.com/nyldn/claude-octopus/pull/1322).
+Merged changes: [#1325](https://github.com/nyldn/claude-octopus/pull/1325), [#1324](https://github.com/nyldn/claude-octopus/pull/1324), [#1321](https://github.com/nyldn/claude-octopus/pull/1321), [#1322](https://github.com/nyldn/claude-octopus/pull/1322), [#1323](https://github.com/nyldn/claude-octopus/pull/1323), [#1320](https://github.com/nyldn/claude-octopus/pull/1320), [#1319](https://github.com/nyldn/claude-octopus/pull/1319), [#1318](https://github.com/nyldn/claude-octopus/pull/1318), [#1317](https://github.com/nyldn/claude-octopus/pull/1317), [#1316](https://github.com/nyldn/claude-octopus/pull/1316), [#1315](https://github.com/nyldn/claude-octopus/pull/1315), [#1314](https://github.com/nyldn/claude-octopus/pull/1314), [#1313](https://github.com/nyldn/claude-octopus/pull/1313), [#1312](https://github.com/nyldn/claude-octopus/pull/1312), [#1311](https://github.com/nyldn/claude-octopus/pull/1311), [#1310](https://github.com/nyldn/claude-octopus/pull/1310), [#1309](https://github.com/nyldn/claude-octopus/pull/1309), [#1308](https://github.com/nyldn/claude-octopus/pull/1308), [#1307](https://github.com/nyldn/claude-octopus/pull/1307), [#1306](https://github.com/nyldn/claude-octopus/pull/1306), [#1257](https://github.com/nyldn/claude-octopus/pull/1257), [#1301](https://github.com/nyldn/claude-octopus/pull/1301).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
-which remains open for outstanding runtime safety work.
+which remains open for outstanding runtime and acceptance work.
 
 ### Added
 
@@ -40,11 +22,15 @@ which remains open for outstanding runtime safety work.
 
 ### Fixed
 
-- External URL validation rejects ambiguous authorities, including userinfo,
-  fragments, bracketed IPv6, numeric IP shorthand and invalid ports, before
-  existing local/private-address checks. Public HTTPS controls still pass. DNS
-  rebinding and redirects remain separate work. See
-  [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
+- Shipping audits review the confirmed committed source range and report its base and delivered revisions.
+- Shipping stops audits on dirty, empty, oversized or changed source instead of accepting incomplete evidence.
+- Delivery stops on context-budget rejection or failed or empty required review under the audit's fail strategy.
+- Delivery initializes feature context without changing source metadata.
+- Optional Tangle delivery propagates failures instead of reporting success after rejection.
+
+- Freeze enforcement recovers the Codex session identity in later hook processes
+  without a host export or matching hook session ID, so out-of-scope edits stay
+  blocked after activation. Explicit hosts and Claude session IDs keep precedence.
 
 - Advisory workers clear inherited and temporary Git environment values before
   dispatch, so a temporary repository selection cannot expose another checkout

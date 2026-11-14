@@ -66,6 +66,10 @@ previews and advisory copies also work beneath search-only directories.
 Advisory workers clear inherited and temporary Git repository settings before
 running, keeping their Git writes inside the disposable advisory copy.
 
+Shipping audits bind their review to the confirmed committed source range and
+stop when source changes, required review fails, or evidence is incomplete.
+Freeze enforcement retains Codex session identity across later hook processes.
+
 External URL checks reject ambiguous authorities that could reach loopback
 services, including userinfo and bracketed IPv6 forms. This fixes authority
 parsing; DNS rebinding and redirect validation remain outside this change.
