@@ -1,14 +1,23 @@
 ---
 name: skill-task-management
-description: "Manage tasks with Claude Code native tools — use to track TODOs, delegate work, and monitor progress"
 disable-model-invocation: true
+aliases:
+  - task-management
+  - todo-orchestration
+description: "Manage tasks with Claude Code native tools — use to track TODOs, delegate work, and monitor progress"
+trigger: |
+  EXPLICITLY USE when user requests task management:
+  - "add to the todo's" or "add this to todos"
+  - "resume tasks" or "continue tasks" or "pick up where we left off"
+  - "save progress" or "save progress for Claude to pick up"
+  - "save progress to pickup later" or "checkpoint this"
+  - "proceed to next steps" or "continue to next"
+
+  DO NOT activate for:
+  - Git operations (use skill-finish-branch)
+  - Simple todo list viewing
+  - Task completion with push (use skill-finish-branch)
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Task Management & Orchestration (v7.23.0+)
 
@@ -18,7 +27,7 @@ Systematic task orchestration for multi-step work, progress checkpointing, and s
 
 **Core principle:** Track → Checkpoint → Resume → Complete.
 
-**v7.23.0 Migration:** This skill now uses native Claude Code host subagent tools:
+**v7.23.0 Migration:** This skill now uses native Claude Code Task tools:
 - `TaskCreate` - Create new tasks
 - `TaskUpdate` - Update task status/details
 - `TaskList` - View all tasks
@@ -28,8 +37,9 @@ Systematic task orchestration for multi-step work, progress checkpointing, and s
 - ✅ Tasks show in native Claude Code UI
 - ✅ Better progress tracking and visualization
 - ✅ Consistent with Claude Code conventions
-- ✅ No dependency on external task plan tool tool
+- ✅ No dependency on external TodoWrite tool
 
+---
 
 ## When to Use
 
@@ -46,6 +56,7 @@ Systematic task orchestration for multi-step work, progress checkpointing, and s
 - Simple todo list queries ("what's on my list?")
 - Task completion that involves pushing code
 
+---
 
 ## Core Capabilities
 
@@ -80,6 +91,7 @@ TaskCreate({
 View all tasks with TaskList or use /tasks command.
 ```
 
+---
 
 ### 2. Saving Progress / Checkpointing
 
@@ -186,6 +198,7 @@ Current state:
 - Last checkpoint: [timestamp]
 ```
 
+---
 
 ### 3. Resuming Tasks
 
@@ -255,6 +268,7 @@ ${pending.map((t, i) => `${i + 1}. [ ] ${t.subject}`).join('\n')}
 
 - If "see more details" → Show git diff, file changes, recent commits, task descriptions
 
+---
 
 ### 4. Proceeding to Next Steps
 
@@ -302,8 +316,9 @@ if (nextTask) {
 
 Begin working on the next task immediately after marking it as in_progress.
 
+---
 
-## Migration from task plan tool (v7.22.x → v7.23.0+)
+## Migration from TodoWrite (v7.22.x → v7.23.0+)
 
 ### For Users with Existing .md Todo Files
 
@@ -365,15 +380,18 @@ TaskCreate({
 Create `.claude/claude-octopus.local.md` with:
 
 ```yaml
+---
 use_native_tasks: false
+---
 
 # Claude Octopus Local Configuration
 
-This project uses legacy task plan tool tool instead of native Task management.
+This project uses legacy TodoWrite tool instead of native Task management.
 ```
 
-When `use_native_tasks: false`, skill falls back to task plan tool behavior.
+When `use_native_tasks: false`, skill falls back to TodoWrite behavior.
 
+---
 
 ## Integration with Other Skills
 
@@ -406,6 +424,7 @@ User: "checkpoint this, I found a bug"
 3. Return to saved checkpoint after fix
 ```
 
+---
 
 ## Best Practices
 
@@ -503,6 +522,7 @@ Decisions Made:
 })
 ```
 
+---
 
 ## Common Patterns
 
@@ -542,6 +562,7 @@ Action:
 4. Ensure new session can load task state and resume seamlessly
 ```
 
+---
 
 ## Red Flags - Don't Do This
 
@@ -554,6 +575,7 @@ Action:
 | Resume without showing TaskList state | User doesn't know where they are |
 | Create tasks without activeForm | No progress indication in UI |
 
+---
 
 ## Quick Reference
 
@@ -565,6 +587,7 @@ Action:
 | "proceed to next" | Complete current, start next | TaskUpdate |
 | "checkpoint this" | Create detailed checkpoint task | TaskCreate |
 
+---
 
 ## Task Status Workflow
 
@@ -580,6 +603,7 @@ pending → in_progress → completed
 - Mark `completed` only when fully done
 - Use `deleted` for cancelled/obsolete tasks
 
+---
 
 ## The Bottom Line
 
@@ -590,6 +614,7 @@ Otherwise → Lost context + Duplicate work + No visibility
 
 **Track everything. Checkpoint frequently. Resume seamlessly. Use native tools.**
 
+---
 
 ## Example: Full Workflow
 

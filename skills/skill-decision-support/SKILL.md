@@ -1,14 +1,22 @@
 ---
 name: skill-decision-support
-description: "Present options with trade-offs for informed decision-making — use when choosing between approaches"
 disable-model-invocation: true
+aliases:
+  - decision-support
+  - options-presentation
+description: Present options with trade-offs for informed decision-making — use when choosing between approaches
+trigger: |
+  EXPLICITLY USE when user requests options or choices:
+  - "fix or provide options" or "fix them or provide me options"
+  - "give me options" or "what are my options"
+  - "show me alternatives" or "what else can we do"
+  - "help me decide" or "which approach should I take"
+
+  DO NOT activate for:
+  - Research questions (use flow-discover)
+  - Technical ecosystem research (use flow-discover)
+  - Implementation questions (use flow-develop)
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Decision Support & Options Presentation
 
@@ -18,6 +26,7 @@ Structured approach to presenting options and alternatives with clear trade-offs
 
 **Core principle:** Understand context → Generate options → Analyze trade-offs → Present clearly → Support choice.
 
+---
 
 ## When to Use
 
@@ -29,11 +38,12 @@ Structured approach to presenting options and alternatives with clear trade-offs
 - Is uncertain about best path forward
 
 **Do NOT use for:**
-- General research ("what is X?") → use flow-probe
-- Implementation work → use flow-tangle
+- General research ("what is X?") → use flow-discover
+- Implementation work → use flow-develop
 - Simple yes/no questions
 - Already-decided approaches
 
+---
 
 ## The Process
 
@@ -67,6 +77,7 @@ weights and the effect those assumptions may have. Weights must total 100%.
 Keep the same criteria and weights for every option. Do not change them to
 make a preferred option win; record any later revision and rescore all options.
 
+---
 
 ### Phase 2: Generate Options
 
@@ -98,6 +109,7 @@ For each option, understand:
 - What the outcome looks like
 - What could go wrong
 
+---
 
 ### Phase 3: Trade-off Analysis
 
@@ -138,6 +150,7 @@ and check how each option performs in each. Report which option holds up across
 the futures and which assumptions would change the recommendation. Keep this
 optional; do not add provider calls without the user's existing authorization.
 
+---
 
 ### Phase 4: Present Options
 
@@ -150,6 +163,7 @@ Omit unused option sections and table columns when presenting fewer than four op
 
 **Context:** [Brief summary of why this decision is needed]
 
+---
 
 ## Option 1: [Option name]
 
@@ -171,21 +185,25 @@ Omit unused option sections and table columns when presenting fewer than four op
 **Timeline:** [estimate]
 **Risk Level:** Low/Medium/High
 
+---
 
 ## Option 2: [Option name]
 
 [Same structure as Option 1]
 
+---
 
 ## Option 3: [Option name, if needed]
 
 [Same structure as Option 1]
 
+---
 
 ## Option 4: [Option name, if needed]
 
 [Same structure as Option 1]
 
+---
 
 ## Quick Comparison
 
@@ -207,6 +225,7 @@ Omit unused option sections and table columns when presenting fewer than four op
 [State the scoring scale, evidence and uncertainty. Include the status quo as
 one of the options above and explain its ongoing cost and the cost of delay.]
 
+---
 
 ## Recommendation
 
@@ -221,6 +240,7 @@ one of the options above and explain its ongoing cost and the cost of delay.]
 
 **This option is best because:** [summary of key advantage relative to context]
 
+---
 
 **Which option would you like to proceed with?**
 ```
@@ -233,6 +253,7 @@ one of the options above and explain its ongoing cost and the cost of delay.]
 4. **Make comparison easy** (use consistent structure)
 5. **Support with reasoning** (explain why recommendation makes sense)
 
+---
 
 ### Phase 5: Support the Choice
 
@@ -269,6 +290,7 @@ If user asks for more info on a specific option:
 **Would you like to proceed with this option?**
 ```
 
+---
 
 ## Common Patterns
 
@@ -387,22 +409,23 @@ uncertain inputs and explain any constraint that the totals do not capture.
 Which option would you like to proceed with?
 ```
 
+---
 
 ## Integration with Other Skills
 
-### With flow-probe
+### With flow-discover
 
 ```
 Need to research options thoroughly?
-→ Use flow-probe to gather information
+→ Use flow-discover to gather information
 → Use skill-decision-support to present findings as options
 ```
 
-### With flow-tangle
+### With flow-develop
 
 ```
 User chose an option?
-→ Use flow-tangle to implement the chosen approach
+→ Use flow-develop to implement the chosen approach
 ```
 
 ### With skill-debug
@@ -413,6 +436,7 @@ Bug could be fixed multiple ways?
 → Use skill-debug to implement chosen fix systematically
 ```
 
+---
 
 ## Best Practices
 
@@ -467,6 +491,7 @@ I can also:
 - Prototype a solution to test viability
 ```
 
+---
 
 ## Red Flags - Don't Do This
 
@@ -479,6 +504,7 @@ I can also:
 | Ignore stated constraints | Wasting user's time |
 | Present obviously bad options as viable | Undermines trust |
 
+---
 
 ## Quick Reference
 
@@ -489,6 +515,7 @@ I can also:
 | "help me decide" | Clarify decision factors → Compare approaches → Recommend with reasoning |
 | "show alternatives" | Generate alternatives → Analyze pros/cons → Present structured comparison |
 
+---
 
 ## The Bottom Line
 

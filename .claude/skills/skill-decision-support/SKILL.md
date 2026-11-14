@@ -13,9 +13,9 @@ trigger: |
   - "help me decide" or "which approach should I take"
 
   DO NOT activate for:
-  - Research questions (use flow-probe)
-  - Technical ecosystem research (use flow-probe)
-  - Implementation questions (use flow-tangle)
+  - Research questions (use flow-discover)
+  - Technical ecosystem research (use flow-discover)
+  - Implementation questions (use flow-develop)
 ---
 
 # Decision Support & Options Presentation
@@ -38,8 +38,8 @@ Structured approach to presenting options and alternatives with clear trade-offs
 - Is uncertain about best path forward
 
 **Do NOT use for:**
-- General research ("what is X?") → use flow-probe
-- Implementation work → use flow-tangle
+- General research ("what is X?") → use flow-discover
+- Implementation work → use flow-develop
 - Simple yes/no questions
 - Already-decided approaches
 
@@ -413,19 +413,19 @@ Which option would you like to proceed with?
 
 ## Integration with Other Skills
 
-### With flow-probe
+### With flow-discover
 
 ```
 Need to research options thoroughly?
-→ Use flow-probe to gather information
+→ Use flow-discover to gather information
 → Use skill-decision-support to present findings as options
 ```
 
-### With flow-tangle
+### With flow-develop
 
 ```
 User chose an option?
-→ Use flow-tangle to implement the chosen approach
+→ Use flow-develop to implement the chosen approach
 ```
 
 ### With skill-debug

@@ -354,22 +354,45 @@ echo ""
 # ============================================================================
 echo "🎯 Checking skill registration..."
 
-# Skills normally live at skills/<name>/SKILL.md (depth 2 below skills/), but
-# supported packs nest one level deeper at skills/<pack>/<name>/SKILL.md (see
-# skills/octopus-starter-pack/, issue #829) — search both depths.
+# Claude Code discovers native root skills automatically. Codex uses its
+# separate adapted tree, outside that default discovery location.
 find_skill_md_files() {
-    find "$1" -mindepth 2 -maxdepth 3 -name "SKILL.md" -type f 2>/dev/null
+    find "$1" -mindepth 2 -name "SKILL.md" -type f 2>/dev/null
 }
+SKILL_FILES=$(find_skill_md_files "$ROOT_DIR/skills" \
+    | sed "s|^$ROOT_DIR/|./|;s|/SKILL.md$||" | LC_ALL=C sort)
+registered_skill_directories() {
+    python3 -I - "$1" <<'PY_REGISTERED_SKILLS'
+import importlib.util
+import json
+import sys
+from pathlib import Path
 
-if command -v jq >/dev/null 2>&1 && jq -e '.skills[]? | select(startswith("./skills/"))' "$ROOT_DIR/.claude-plugin/plugin.json" >/dev/null 2>&1; then
-    SKILL_FILES=$(find_skill_md_files "$ROOT_DIR/skills" | sed "s|^$ROOT_DIR/skills/||;s|/SKILL.md$||" | sort)
-    REGISTERED_SKILLS=$(jq -r '.skills[]? | select(startswith("./skills/")) | sub("^\\./skills/"; "") | sub("/$"; "")' "$ROOT_DIR/.claude-plugin/plugin.json" | sort)
-else
-    SKILL_FILES=$({
-        find "$ROOT_DIR/.claude/skills" -maxdepth 1 -type f -name '*.md' -print 2>/dev/null | xargs -n1 basename 2>/dev/null
-        find "$ROOT_DIR/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' -print 2>/dev/null | sed "s|^$ROOT_DIR/.claude/skills/||;s|/SKILL.md$||"
-    } | sort)
-    REGISTERED_SKILLS=$(grep -o '\.claude/skills/[^"]*\.md' "$ROOT_DIR/.claude-plugin/plugin.json" | sed 's|.*\.claude/skills/||' | sort)
+root = Path(sys.argv[1]).resolve()
+spec = importlib.util.spec_from_file_location("octo_assembly", root / "scripts/validate-plugin-assembly.py")
+assembly = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(assembly)
+errors = []
+assembly.validate_plugin_manifest(root, errors)
+if errors:
+    print("\n".join(errors), file=sys.stderr)
+    sys.exit(1)
+registrations = json.loads((root / ".claude-plugin/plugin.json").read_text()).get("skills", [])
+if isinstance(registrations, str):
+    registrations = [registrations]
+skills = set()
+for registration in registrations:
+    directory = (root / registration).resolve()
+    direct = directory / "SKILL.md"
+    files = [direct] if direct.is_file() else directory.rglob("SKILL.md")
+    skills.update("./" + str(file.parent.relative_to(root)) for file in files)
+print("\n".join(sorted(skills)))
+PY_REGISTERED_SKILLS
+}
+if ! REGISTERED_SKILLS=$(registered_skill_directories "$ROOT_DIR"); then
+    log ERROR "Unable to validate registered skill directories"
+    ((errors++)) || true
+    REGISTERED_SKILLS=""
 fi
 
 skill_registration_errors=0
@@ -404,18 +427,12 @@ echo ""
 echo "🏷️  Checking skill frontmatter format..."
 
 invalid_skill_names=0
-if command -v jq >/dev/null 2>&1 && jq -e '.skills[]? | select(startswith("./skills/"))' "$ROOT_DIR/.claude-plugin/plugin.json" >/dev/null 2>&1; then
-    # Intentionally NOT find_skill_md_files: nested skills/octopus-starter-pack/*
-    # skills use bare frontmatter names (no skill-/flow-/octopus-/sys- prefix,
-    # namespaced by directory instead) and are out of scope for issue #829,
-    # which is only about the registration check below.
-    SKILL_FRONTMATTER_FILES=("$ROOT_DIR"/skills/*/SKILL.md)
-else
-    mapfile -t SKILL_FRONTMATTER_FILES < <({
-        find "$ROOT_DIR/.claude/skills" -maxdepth 1 -type f -name '*.md' -print 2>/dev/null
-        find "$ROOT_DIR/.claude/skills" -mindepth 2 -maxdepth 2 -type f -name 'SKILL.md' -print 2>/dev/null
-    } | LC_ALL=C sort)
-fi
+SKILL_FRONTMATTER_FILES=()
+while IFS= read -r skill_path; do
+    # Starter pack names are intentionally bare and namespaced by directory.
+    [[ "$skill_path" == ./skills/octopus-starter-pack/* ]] && continue
+    SKILL_FRONTMATTER_FILES+=("$ROOT_DIR/${skill_path#./}/SKILL.md")
+done <<< "$REGISTERED_SKILLS"
 
 for skill_file in "${SKILL_FRONTMATTER_FILES[@]}"; do
     [[ -f "$skill_file" ]] || continue

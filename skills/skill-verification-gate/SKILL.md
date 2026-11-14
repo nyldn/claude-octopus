@@ -1,14 +1,19 @@
 ---
 name: skill-verification-gate
-description: "Use when about to declare work complete, fixed, passing, or done"
 disable-model-invocation: true
+effort: low
+description: "Use when about to declare work complete, fixed, passing, or done"
+codex_alias_description: "Use when a nontrivial change needs end-to-end verification before committing or shipping"
+trigger: |
+  EXPLICITLY USE when:
+  - About to claim work is complete, fixed, or passing
+  - Before committing, creating PRs, or marking tasks done
+  - After subagent reports success (verify independently)
+  - Before moving to next task in a workflow
+paths:
+  - "**/test*"
+  - "**/*.test.*"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Verification Gate
 
@@ -135,8 +140,8 @@ I've implemented the feature. It should work now. The tests should pass.
 ## Integration with Other Skills
 
 This skill is referenced by:
-- `flow-develop.md` — verification gate after implementation
-- `flow-deliver.md` — verification gate before delivery
-- `skill-code-review.md` — verify review findings before reporting
-- `skill-tdd.md` — red-green cycle requires evidence at each step
-- `skill-factory.md` — autonomous pipeline must verify at every phase
+- `flow-develop` — verification gate after implementation
+- `flow-deliver` — verification gate before delivery
+- `skill-code-review` — verify review findings before reporting
+- `skill-tdd` — red-green cycle requires evidence at each step
+- `skill-factory` — autonomous pipeline must verify at every phase

@@ -1,24 +1,30 @@
 ---
 name: flow-spec
-description: "NLSpec authoring — use when you need a structured specification from multi-AI research and consensus"
 disable-model-invocation: true
+effort: high
+aliases:
+  - spec
+  - nlspec
+  - specification
+description: NLSpec authoring — use when you need a structured specification from multi-AI research and consensus
+execution_mode: enforced
+validation_gates:
+  - orchestrate_sh_executed
+  - synthesis_file_exists
+  - nlspec_completeness_validated
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # STOP - SKILL ALREADY LOADED
 
 **DO NOT call Skill() again. DO NOT load any more skills. Execute directly.**
 
+---
 
 ## EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact 8-step sequence.
 
+---
 
 ### STEP 1: Clarifying Questions (MANDATORY)
 
@@ -51,6 +57,7 @@ If user says "skip" for any question, note assumptions and proceed.
 
 **DO NOT PROCEED TO STEP 2 until questions answered.**
 
+---
 
 ### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
 
@@ -85,6 +92,7 @@ Estimated Time: 3-7 minutes
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.**
 
+---
 
 ### STEP 3: Read Prior State (MANDATORY - State Management)
 
@@ -158,10 +166,11 @@ A legacy selection can continue when it includes usable spec and runtime paths. 
 
 **DO NOT PROCEED TO STEP 4 until state and feature context are read.**
 
+---
 
 ### STEP 4: Execute orchestrate.sh probe (MANDATORY - Use Bash Tool)
 
-**You MUST execute this command via the native shell command tool:**
+**You MUST execute this command via the Bash tool:**
 
 ```bash
 OCTOPUS_FEATURE="$FEATURE_SELECTOR" FEATURE_RUNTIME_DIR="$FEATURE_RUNTIME_DIR" OCTOPUS_RESEARCH_RUN_ID="$SPEC_RESEARCH_RUN" OCTOPUS_RESEARCH_EVIDENCE=true bash "$OCTO_ROOT/scripts/orchestrate.sh" probe "specification research for: <project description>. Key areas: actors (<actors>), constraints (<constraints>), complexity (<complexity class>)"
@@ -176,8 +185,9 @@ Incorporate the user's answers from Step 1 into the probe query to focus the res
 - Proceeding to Step 5 without running this command
 - Substituting with direct Claude analysis
 
-**You MUST use the native shell command tool to invoke orchestrate.sh.**
+**You MUST use the Bash tool to invoke orchestrate.sh.**
 
+---
 
 ### STEP 5: Verify Probe Synthesis (MANDATORY - Validation Gate)
 
@@ -202,6 +212,7 @@ cat "$SYNTHESIS_FILE"
 3. DO NOT proceed with generating NLSpec
 4. DO NOT substitute with direct research — fallback to single-model analysis skips the multi-provider synthesis that surfaces edge cases and alternative approaches
 
+---
 
 ### STEP 6: Synthesize into NLSpec Format (MANDATORY)
 
@@ -277,6 +288,7 @@ For an unresolved decision that belongs to the user, emit `[NEEDS CLARIFICATION:
 - For "complicated" complexity: aim for 0.90 satisfaction target
 - For "complex" complexity: aim for 0.85 satisfaction target
 
+---
 
 ### STEP 6.5: Adversarial Completeness Challenge (RECOMMENDED)
 
@@ -346,6 +358,7 @@ SPECIFICATION:
 
 **Skip with `--fast` or when user requests speed over thoroughness.**
 
+---
 
 ### STEP 7: Validate Completeness (MANDATORY - Validation Gate)
 
@@ -372,6 +385,7 @@ Construct answer JSON only from actual user responses, with question_id, answer 
 
 **Display validation report to user.**
 
+---
 
 ### STEP 7.5: Native Plan View Integration (OPTIONAL — CC v2.1.70+)
 
@@ -391,6 +405,7 @@ Skip this step and proceed to Step 8 (file save).
 This aligns the spec workflow with Claude Code's native structured planning features
 when they are available, while falling back gracefully to file-based output.
 
+---
 
 ### STEP 8: Save & Update State (MANDATORY)
 
@@ -446,10 +461,12 @@ Next steps:
 
 **Include attribution:**
 ```
+---
 Multi-AI Research powered by Claude Octopus
 Providers: Codex | Antigravity | Claude
 ```
 
+---
 
 ## Error Handling
 
@@ -463,6 +480,7 @@ If any step fails:
 - **Step 7 (Completeness)**: Always report score, even if low
 - **Step 8 (Save)**: If write fails, output NLSpec to chat so user can copy it
 
+---
 
 ## Prohibited Actions
 
@@ -473,5 +491,6 @@ If any step fails:
 - CANNOT proceed past a failed validation gate — gates exist to catch missing sections before the spec reaches implementers
 - CANNOT create working/progress files in plugin directory
 
+---
 
 **START WITH STEP 1 CLARIFYING QUESTIONS NOW.**

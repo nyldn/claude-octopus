@@ -202,16 +202,22 @@ _octo_advisor_wait_spawn() {
 # print the number whose answer was collected. Return nonzero when fewer than
 # required_successes produce usable output. This blocks for the whole provider
 # run (often several minutes), so callers run it in the background or with a
-# long timeout.
+# long timeout. Optional argument 7 is "literal" for prompts containing code;
+# the default "template" substitutes {{advisor}} for brainstorm/debate callers.
 octo_launch_advisors() {
     local orchestrator="$1" advisors_csv="$2" output_dir="$3"
     local filename_prefix="$4" prompt_template="$5" required_successes="$6"
+    local prompt_mode="${7:-template}"
     local advisor safe_advisor prompt response_file pid index successful_count=0
     local advisor_list=() advisor_pids=() advisor_files=() advisor_events=() advisor_spawn_out=()
     local aux_dir hook event_log spawn_out deadline worker_pid keep_aux=0
     local wait_seconds="${OCTOPUS_ADVISOR_WAIT_SECONDS:-3600}"
     local prev_hook="${OCTOPUS_AGENT_LIFECYCLE_HOOK:-}"
 
+    case "$prompt_mode" in
+        template|literal) ;;
+        *) printf 'ERROR: advisor prompt mode must be template or literal\n' >&2; return 1 ;;
+    esac
     [[ -x "$orchestrator" ]] || {
         printf 'ERROR: advisor orchestrator is not executable: %s\n' "$orchestrator" >&2
         return 1
@@ -263,7 +269,10 @@ octo_launch_advisors() {
         octo_provider_allowed "$advisor" || continue
         safe_advisor="$(printf '%s' "$advisor" | tr -c '[:alnum:]_-' '_')"
         response_file="${output_dir}/${filename_prefix}${safe_advisor}.md"
-        prompt="${prompt_template//\{\{advisor\}\}/$advisor}"
+        prompt="$prompt_template"
+        if [[ "$prompt_mode" == template ]]; then
+            prompt="${prompt_template//\{\{advisor\}\}/$advisor}"
+        fi
         # A response left by an earlier attempt must not pass for this one.
         rm -f "$response_file"
         index=${#advisor_pids[@]}
@@ -272,7 +281,8 @@ octo_launch_advisors() {
         : > "$event_log"
         OCTOPUS_AGENT_LIFECYCLE_HOOK="$hook" OCTO_ADVISOR_EVENT_LOG="$event_log" \
             OCTO_ADVISOR_PREV_HOOK="$prev_hook" \
-            "$orchestrator" spawn "$advisor" "$prompt" > "$spawn_out" &
+            "$orchestrator" spawn "$advisor" "$prompt" > "$spawn_out" \
+                2> "${aux_dir}/${index}-${safe_advisor}.stderr" &
         advisor_pids[$index]=$!
         advisor_files[$index]="$response_file"
         advisor_events[$index]="$event_log"
@@ -294,6 +304,13 @@ octo_launch_advisors() {
            _octo_advisor_collect "${advisor_events[$index]}" "${advisor_spawn_out[$index]}" \
                "$response_file" "$deadline"; then
             successful_count=$((successful_count + 1))
+        elif ! kill -0 "$pid" 2>/dev/null; then
+            # The launcher has exited, so its stderr is closed. Preserve failure
+            # diagnostics before cleanup without following a still-running job.
+            local completed_stderr="${advisor_spawn_out[$index]%.spawn}.stderr"
+            if [[ -s "$completed_stderr" ]]; then
+                cat "$completed_stderr" >&2
+            fi
         fi
         index=$((index + 1))
     done

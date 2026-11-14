@@ -1,14 +1,18 @@
 ---
 name: skill-resume
-description: "Pick up where you left off from a previous session — use after context resets, compaction, or new conversations"
 disable-model-invocation: true
+user-invocable: true
+description: "Pick up where you left off from a previous session — use after context resets, compaction, or new conversations"
+aliases:
+  - resume
+  - resume-session
+  - context-resume
+trigger: |
+  EXPLICITLY USE when user mentions:
+  - "resume" or "continue" or "pick up where I left off"
+  - "what was I doing" or "restore session"
+  - Detecting persistent workflow state exists but no prior context in memory
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Session Restoration
 
@@ -18,6 +22,7 @@ Restore context from a previous session and seamlessly continue the workflow whe
 
 **Core principle:** Check state → Load adaptive context → Display restoration summary → Route to appropriate action.
 
+---
 
 ## When to Use
 
@@ -29,10 +34,11 @@ Restore context from a previous session and seamlessly continue the workflow whe
 - "Continue from last time"
 
 **Do NOT use for:**
-- Starting new projects (use /octo:embrace)
+- Starting new projects (use /octo:discover)
 - Checking current status only (use /octo:status)
 - Modifying state directly (use octo-state.sh)
 
+---
 
 ## The Process
 
@@ -101,21 +107,22 @@ There is no machine-local `.octo/` directory. Check the portable feature artifac
 
 ### Get Started
 
-Run `/octo:embrace [your project description]` to start a new project.
+Run `/octo:discover [your project description]` to start a new project.
 
 **Example:**
 ```
-/octo:embrace build a REST API with user authentication
+/octo:discover build a REST API with user authentication
 ```
 
-This will:
-1. Initialize .octo/ directory with STATE.md, PROJECT.md, ROADMAP.md
-2. Begin the Double Diamond workflow
-3. Create session state you can resume later
+This starts the Discover phase. It does not automatically initialize project
+state or complete later phases. Project `.octo/` artifacts require the explicit
+`OCTOPUS_PROJECT_PERSISTENCE=true` opt-in. Follow Discover's persistence policy
+and verify the saved state before promising that a later session can resume it.
 ```
 
 **Stop here** - do not proceed to Phase 2.
 
+---
 
 ### Phase 2: Read Current State
 
@@ -142,6 +149,7 @@ Extract these key values:
 - `status` - Workflow status (in_progress, blocked, complete, paused, etc.)
 - `last_updated` - Timestamp of last state modification
 
+---
 
 ### Phase 3: Load Adaptive Context
 
@@ -167,6 +175,7 @@ The context returned includes:
 - Phase-specific plans and summaries
 - Codebase analysis (if brownfield project)
 
+---
 
 ### Phase 4: Extract History and Blockers
 
@@ -202,6 +211,7 @@ sed -n '/^## Blockers/,/^## /p' .octo/STATE.md | head -n -1 | tail -n +2
 head -n 5 .octo/PROJECT.md | grep "^# " | head -1 | sed 's/^# //'
 ```
 
+---
 
 ### Phase 5: Display Restoration Summary
 
@@ -238,6 +248,7 @@ head -n 5 .octo/PROJECT.md | grep "^# " | head -1 | sed 's/^# //'
 | 3 | Develop |
 | 4 | Deliver |
 
+---
 
 ### Phase 6: Intelligent Routing
 
@@ -248,8 +259,8 @@ head -n 5 .octo/PROJECT.md | grep "^# " | head -1 | sed 's/^# //'
 | `in_progress` | Continue current phase | "Continue with current phase. Context loaded." |
 | `blocked` | Review blockers | "Review blockers first: `/octo:issues`" |
 | `complete` | Ready for next phase | "Phase complete. Ready for `/octo:ship`" |
-| `paused` | Resume project | "Project paused. Resume with `/octo:embrace`" |
-| `ready` | Begin workflow | "Ready to begin. Run `/octo:embrace` to start." |
+| `paused` | Resume project | "Project paused. Load the registered skill for the phase recorded in STATE.md." |
+| `ready` | Begin workflow | "Ready to begin. Run `/octo:discover` to start." |
 | `planning` | Continue planning | "Continue planning. Use `/octo:define` to refine." |
 | `building` | Continue building | "Continue implementation. Use `/octo:develop`." |
 | `shipped` | Project delivered | "Project delivered! Review lessons in LESSONS.md." |
@@ -289,6 +300,7 @@ Continue validation and delivery.
 - Use `/octo:ship` to finalize delivery
 ```
 
+---
 
 ## Example Outputs
 
@@ -303,9 +315,10 @@ There is no machine-local `.octo/` directory. Check the portable feature artifac
 
 ### Get Started
 
-Run `/octo:embrace [your project description]` to start a new project.
+Run `/octo:discover [your project description]` to start a new project.
 ```
 
+---
 
 ### Example 2: Successful Restoration (In Progress)
 
@@ -338,6 +351,7 @@ Continue requirements clarification.
 - Check `.octo/phases/phase2/` for requirements docs
 ```
 
+---
 
 ### Example 3: Blocked Project Restoration
 
@@ -372,6 +386,7 @@ Review blockers first: `/octo:issues`
 3. Complete SSL certificate setup for payments subdomain
 ```
 
+---
 
 ### Example 4: Paused Project Restoration
 
@@ -396,14 +411,15 @@ Review blockers first: `/octo:issues`
 
 ### Ready to Continue
 
-Project paused. Resume with `/octo:embrace`
+Project paused. Load the registered skill for the phase recorded in STATE.md.
 
 When ready to continue:
 1. Review `.octo/PROJECT.md` for project context
 2. Check `.octo/STATE.md` for pause reason
-3. Run `/octo:embrace` to resume workflow
+3. Load the registered skill for the phase recorded in STATE.md to resume.
 ```
 
+---
 
 ## Best Practices
 
@@ -446,6 +462,7 @@ Status: blocked → "Review blockers first: /octo:issues"
 Status: blocked → "Continue working"
 ```
 
+---
 
 ## Red Flags - Don't Do This
 
@@ -457,6 +474,7 @@ Status: blocked → "Continue working"
 | Skip history display | User loses continuity of what was done |
 | Use hardcoded context tier | Should adapt based on current status |
 
+---
 
 ## Integration with Other Skills
 
@@ -467,11 +485,20 @@ Status: blocked → "Continue working"
 /octo:status → Quick dashboard without restoration
 ```
 
-### With /octo:embrace
+### Active-host phase routes
+
+For a new project, begin with Discover. For a paused project, read STATE.md and
+resume its recorded phase through the registered host entry: Discover uses
+`flow-discover`, Define uses `flow-define`, Develop uses `flow-develop`, and
+Deliver uses `flow-deliver`. In Codex invoke the corresponding `$skill-name`;
+in Claude Code use its `/octo:*` phase command. Do not restart Discover when
+resuming a later phase. Keep existing approvals and task-allocation constraints.
+
+### With /octo:discover
 
 ```
-No .octo/ exists → /octo:resume suggests /octo:embrace
-.octo/ exists but paused → /octo:resume suggests resuming with /octo:embrace
+No .octo/ exists → /octo:resume suggests /octo:discover
+.octo/ exists but paused → /octo:resume restores the recorded phase and its registered skill
 ```
 
 ### With flow-* skills
@@ -482,6 +509,7 @@ User runs /octo:resume
 → User continues with /octo:develop (or appropriate phase skill)
 ```
 
+---
 
 ## Quick Reference
 
@@ -493,6 +521,7 @@ User runs /octo:resume
 | "what was I doing" | Same as resume, emphasize history |
 | "restore session" | Same as resume |
 
+---
 
 ## The Bottom Line
 
@@ -503,6 +532,7 @@ Otherwise → User loses previous context and wastes time re-discovering where t
 
 **Never restart from beginning if state exists. Restore context, show history, route intelligently.**
 
+---
 
 ## Context Recovery After Compaction
 

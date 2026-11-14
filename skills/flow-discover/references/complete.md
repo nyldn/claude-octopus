@@ -3,10 +3,8 @@
 After discovery completes:
 1. Verify the synthesis file exists and is non-empty.
 2. Present its findings to the user.
-3. If project-local persistence was explicitly enabled, save the synthesis in
-   `.octo/phases/phase-1-summary.md`, then update `.octo/STATE.md`:
-   - status: "complete" (for this phase)
-   - Add history entry: "Discover phase completed"
+3. Do not write the project summary or completion state separately. The publish
+   transaction below owns those writes when persistence is enabled.
 4. Publish the host handoff record. The helper journals the previous project
    summary and incomplete state before writing, and restores them on failure.
    After interruption, the next handoff operation recovers the transaction

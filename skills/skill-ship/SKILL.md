@@ -1,14 +1,13 @@
 ---
 name: skill-ship
-description: "Package and finalize completed work for delivery — use when a feature is done and ready to ship"
 disable-model-invocation: true
+user-invocable: true
+description: "Package and finalize completed work for delivery — use when a feature is done and ready to ship"
+trigger: |
+  EXPLICITLY USE when user mentions:
+  - "ship" or "deliver" or "finalize"
+  - "done" or "complete the project"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Ship Project - Multi-AI Delivery Validation
 
@@ -16,6 +15,7 @@ Finalize and deliver completed work with Multi-AI security audit, lessons captur
 
 **Core principle:** Verify ready -> Multi-AI audit -> Capture lessons -> Archive -> Ship.
 
+---
 
 ## When to Use
 
@@ -30,6 +30,7 @@ Finalize and deliver completed work with Multi-AI security audit, lessons captur
 - Implementation (use /octo:develop)
 - Research (use /octo:research)
 
+---
 
 ## The Process
 
@@ -103,6 +104,7 @@ echo "Current Phase: $CURRENT_PHASE"
 
 **STOP unless user says "ship anyway".**
 
+---
 
 ### Phase 2: Multi-AI Security Audit
 
@@ -122,7 +124,7 @@ command -v agy &> /dev/null && agy_status="Available" || agy_status="Not install
 **Providers:**
 - Codex CLI: ${codex_status} - Code security analysis
 - Antigravity CLI: ${agy_status} - Additional external-model challenge
-- Claude: Available - Synthesis and final validation
+- Current host: Available - Synthesis and final validation
 
 **Estimated Time:** 3-5 minutes
 **Estimated Cost:** 0.02-0.08 USD
@@ -130,7 +132,7 @@ command -v agy &> /dev/null && agy_status="Available" || agy_status="Not install
 
 #### Step 2: Execute orchestrate.sh Security Audit
 
-**You MUST execute this via native shell command tool:**
+**You MUST execute this via Bash tool:**
 
 Use the installation that loaded this skill for both execution and validation.
 If `CLAUDE_PLUGIN_ROOT` is absent, replace the `OCTO_ROOT` fallback below with
@@ -176,11 +178,11 @@ Read validation file and present:
 - Critical issues (must fix before ship)
 - Warnings (should fix)
 
-**If FAILED with critical issues:**
+**If FAILED, missing, incomplete, or unreadable:**
 ```markdown
 ## Audit Failed - Cannot Ship
 
-Critical issues must be resolved before shipping:
+The required audit must pass before shipping. Report its failure reasons:
 
 1. [Issue 1 from validation]
 2. [Issue 2 from validation]
@@ -188,8 +190,11 @@ Critical issues must be resolved before shipping:
 Resolve issues and run `/octo:ship` again.
 ```
 
-**STOP if critical issues found.**
+**STOP for every failed audit, even if it lists no critical issues.** Do not
+capture a shipped state, archive the project, create a shipped checkpoint, or
+report completion until the required audit has passed.
 
+---
 
 ### Phase 3: Capture Lessons Learned
 
@@ -247,6 +252,7 @@ LESSON_COUNT=$(grep -c "^## " .octo/LESSONS.md 2>/dev/null || echo "0")
 echo "Total lessons captured: $LESSON_COUNT"
 ```
 
+---
 
 ### Phase 4: Archive Project State
 
@@ -296,22 +302,23 @@ echo "Archived to: $ARCHIVE_DIR"
 ls -la "$ARCHIVE_DIR"
 ```
 
+---
 
 ### Phase 5: Create Delivery Summary
 
 #### Step 1: Update STATE.md
 
 ```bash
-# Update status to shipped
-sed -i '' 's/^status:.*/status: shipped/' .octo/STATE.md 2>/dev/null || \
-    sed -i 's/^status:.*/status: shipped/' .octo/STATE.md
+# Record pending finalization; do not claim shipment before checkpoint creation
+sed -i '' 's/^status:.*/status: delivery_pending/' .octo/STATE.md 2>/dev/null || \
+    sed -i 's/^status:.*/status: delivery_pending/' .octo/STATE.md
 
 # Append history entry
 cat >> .octo/STATE.md << EOF
 
 ## History - $(date '+%Y-%m-%d %H:%M')
 
-- **Event:** Project shipped
+- **Event:** Delivery finalization pending
 - **Archive:** .octo/archive/${ARCHIVE_TIMESTAMP}/
 - **Validation:** ${VALIDATION_FILE}
 
@@ -320,13 +327,44 @@ EOF
 
 #### Step 2: Create Shipped Checkpoint
 
+A tag records committed files only. After generating the delivery records above,
+review their diff and preserve all delivered work in a user-authorized commit.
+Do not commit unrelated changes automatically. If committing is not authorized,
+stop with delivery finalization pending. Never claim the tag includes dirty or
+ignored files; report any intentionally untracked delivery artifacts separately.
+
 ```bash
-# Create git checkpoint tag
+SHIP_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+if [[ -n "$SHIP_STATUS" ]]; then
+  echo "Checkpoint pending: review and commit delivered work before tagging." >&2
+  exit 1
+fi
+# Create git checkpoint tag only after the delivered revision is committed.
 CHECKPOINT_TAG="octo-checkpoint-shipped-${ARCHIVE_TIMESTAMP}"
 
-git tag -a "$CHECKPOINT_TAG" -m "Project shipped - $(date '+%Y-%m-%d %H:%M:%S')"
+git tag -a "$CHECKPOINT_TAG" -m "Project shipped - $(date '+%Y-%m-%d %H:%M:%S')" || exit 1
 
 echo "Checkpoint created: $CHECKPOINT_TAG"
+# Only successful checkpoint creation permits the shipped transition.
+python3 - "$CHECKPOINT_TAG" <<'PY_STATE'
+from pathlib import Path
+import re, sys
+path = Path('.octo/STATE.md')
+text = re.sub(r'^status:.*$', 'status: shipped', path.read_text(), flags=re.M)
+text += '\n- **Event:** Project shipped\n- **Checkpoint:** ' + sys.argv[1] + '\n'
+temporary = path.with_name('STATE.md.ship-pending')
+try:
+    with temporary.open('x') as output:
+        output.write(text)
+    temporary.replace(path)
+except Exception:
+    # The old state still says pending; do not report finalization as complete.
+    raise
+PY_STATE
+if [[ $? -ne 0 ]]; then
+  echo "Checkpoint exists, but shipment state remains pending; repair the state before reporting completion." >&2
+  exit 1
+fi
 ```
 
 #### Step 3: Count Metrics
@@ -342,6 +380,7 @@ echo "Issues resolved: $ISSUES_RESOLVED"
 echo "Lessons captured: $LESSONS_COUNT"
 ```
 
+---
 
 ### Phase 6: Display Completion
 
@@ -359,7 +398,7 @@ Present final summary:
 
 - **Security Score:** {score}/100
 - **Quality Score:** {score}/100
-- **Providers Used:** Claude plus available external providers
+- **Providers Used:** [List only providers with completed audit evidence]
 
 ### Archive
 
@@ -377,13 +416,15 @@ Tag: `{CHECKPOINT_TAG}`
 
 Restore with: `/octo:rollback {CHECKPOINT_TAG}`
 
+---
 
 **To start a new project:** `/octo:embrace`
 
 *Multi-AI validation powered by Claude Octopus*
-*Providers: Codex | Antigravity | Claude*
+*Providers: [List only providers with completed audit evidence]*
 ```
 
+---
 
 ## Error Handling
 
@@ -395,6 +436,7 @@ Restore with: `/octo:rollback {CHECKPOINT_TAG}`
 | Critical audit issues | Block ship, show issues |
 | Git tag fails | Warn but continue (non-blocking) |
 
+---
 
 ## Safety Measures
 
@@ -406,6 +448,7 @@ Restore with: `/octo:rollback {CHECKPOINT_TAG}`
 | **Git checkpoint** | Tag created for rollback capability |
 | **No file deletion** | Archive copies, doesn't delete source files |
 
+---
 
 ## Integration with Other Skills
 
@@ -432,6 +475,7 @@ After ship: status shows "shipped"
 → Suggests /octo:embrace for new project
 ```
 
+---
 
 ## Red Flags - Never Do
 
@@ -443,6 +487,7 @@ After ship: status shows "shipped"
 | Ship without ready check | Incomplete work shipped |
 | Skip checkpoint creation | No rollback recovery path |
 
+---
 
 ## Quick Reference
 
@@ -455,6 +500,7 @@ After ship: status shows "shipped"
 | 5 | Update STATE.md | Mark as shipped |
 | 6 | git tag | Create shipped checkpoint |
 
+---
 
 ## The Bottom Line
 

@@ -6,7 +6,6 @@ aliases:
   - content-analysis
   - pattern-extraction
 description: "Extract patterns and anatomy from URLs — use to reverse-engineer content strategies from live pages"
-context: fork
 trigger: |
   Invoke explicitly when the user wants to:
   - "analyze this article", "analyze this content"
@@ -15,7 +14,7 @@ trigger: |
   - "create an anatomy guide from X"
   - "what makes this content work"
   - "reverse engineer this [article/thread/video]"
-  
+
   DO NOT use for:
   - General web research (use flow-discover)
   - Simple URL summarization

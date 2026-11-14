@@ -170,21 +170,22 @@ echo "Stub detection complete: $STUB_ISSUES issues found"
 
 **Check provider availability and dispatch in parallel:**
 
-```bash
-# Get the diff for review
-DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/null || git diff)
-```
-
 **If external providers are available — dispatch focused reviews through Octopus routing:**
 ```bash
+# Capture in this shell so a fresh invocation receives the diff in its prompt.
+DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/null || git diff) || exit 1
+# Keep each run's outputs separate. Carry this exact directory into collection
+# and read only files inside it; never search another review's output files.
+REVIEW_OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-review-results.XXXXXX") || exit 1
+printf 'REVIEW_OUTPUT_DIR=%s\n' "$REVIEW_OUTPUT_DIR"
+# Resolve the installed root once and retain it with the printed output directory.
+REVIEW_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+source "$REVIEW_ROOT/scripts/lib/consultative-advisors.sh" || exit 1
 providers=()
-command -v codex >/dev/null 2>&1 && providers+=(codex)
-command -v agy >/dev/null 2>&1 && providers+=(agy)
-
-for provider in "${providers[@]}"; do
-  safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
-    "Review this code diff for LOGIC, CORRECTNESS, and SECURITY issues. Focus on:
+provider_count=0
+command -v codex >/dev/null 2>&1 && octo_provider_allowed codex && { providers+=(codex); provider_count=$((provider_count + 1)); }
+command -v agy >/dev/null 2>&1 && octo_provider_allowed agy && { providers+=(agy); provider_count=$((provider_count + 1)); }
+REVIEW_PROMPT="Review this code diff for LOGIC, CORRECTNESS, and SECURITY issues. Focus on:
 1. Logic bugs and off-by-one errors
 2. Unhandled error paths
 3. Race conditions or concurrency issues
@@ -194,9 +195,50 @@ for provider in "${providers[@]}"; do
 Report ONLY high-confidence issues. Do NOT flag style preferences.
 
 DIFF:
-${DIFF_CONTENT}" > "/tmp/octopus-review-${safe_provider}.md" 2>/dev/null &
+${DIFF_CONTENT}"
+# Bound the complete argument in bytes, including the instructions and diff.
+# Never truncate code to make it fit this quick-review transport.
+REVIEW_PROMPT_BYTES=$(printf '%s' "$REVIEW_PROMPT" | wc -c) || exit 1
+if [[ "$provider_count" -gt 0 && "$REVIEW_PROMPT_BYTES" -gt 65536 ]]; then
+  echo "Review incomplete: the full prompt exceeds this quick-review transport. Use a complete file-based review before continuing." >&2
+  exit 1
+fi
+collector_pids=()
+for provider in ${providers[@]+"${providers[@]}"}; do
+  # Both asynchronous workers and synchronous Antigravity dispatch use the
+  # collector deadline. Late jobs retain lifecycle evidence and count as
+  # incomplete, so they cannot block presentation of completed reviews.
+  OCTOPUS_OVERSIZE_STRATEGY=fail OCTOPUS_ADVISOR_WAIT_SECONDS=600 octo_launch_advisors \
+    "$REVIEW_ROOT/scripts/orchestrate.sh" "$provider" "$REVIEW_OUTPUT_DIR" \
+    'review-' "$REVIEW_PROMPT" 1 literal > "$REVIEW_OUTPUT_DIR/${provider}-count.txt" &
+  collector_pids+=("$!")
 done
+review_failed=false
+successful_providers=()
+for index in "${!collector_pids[@]}"; do
+  provider="${providers[$index]}"
+  answer="$REVIEW_OUTPUT_DIR/review-${provider}.md"
+  if wait "${collector_pids[$index]}" && [[ -s "$answer" ]]; then
+    successful_providers+=("$provider")
+  else
+    printf 'Provider review incomplete: %s; evidence: %s\n' "$provider" "$REVIEW_OUTPUT_DIR" >&2
+    review_failed=true
+  fi
+done
+# Present every successful review even if another provider failed. Never read
+# a failed provider's partial file or count it toward completed coverage.
+for provider in ${successful_providers[@]+"${successful_providers[@]}"}; do
+  printf '\nCompleted review: %s\n' "$provider"
+  cat "$REVIEW_OUTPUT_DIR/review-${provider}.md"
+done
+if [[ "$provider_count" -eq 0 ]]; then
+  echo "No allowed external provider is available; perform the documented current-host review."
+elif [[ "$review_failed" == true ]]; then
+  echo "External review incomplete; retain successful findings and report the coverage gap."
+fi
 ```
+
+**If any selected provider fails, keep external review marked incomplete. Synthesize the successful findings with the current-host review and report the missing coverage; do not mark the full selected review complete.**
 
 **Wait for external reviews to complete, then synthesize all findings from Claude plus available external providers into a unified quality assessment.** If external providers are unavailable, fall back to the Claude-only review below.
 

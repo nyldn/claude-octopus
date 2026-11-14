@@ -16,7 +16,7 @@ import tempfile
 
 root = Path(sys.argv[1])
 checks = 0
-for tree in ('.claude/skills', 'skills'):
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
     text = (root / tree / 'skill-rollback/SKILL.md').read_text().split('## Mode: ROLLBACK\n', 1)[1]
     def recipe(step):
         section = text.split('### Step ' + str(step) + ':', 1)[1]

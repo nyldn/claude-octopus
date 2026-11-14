@@ -75,7 +75,11 @@ requests `--peer-review` or a multi-model workflow. `/octo:setup` uses a separat
 revisioned resume receipt and leaves browser login to the user.
 
 `.claude-plugin/plugin.json` retains the `octo` namespace and its explicit
-command/skill paths. Root `hooks/hooks.json` is discovered by the host. Skills
+command/skill paths. Claude Code automatically discovers native copies in
+`skills/`; manifest paths add to that scan rather than replacing it. Codex
+adaptations live in `codex-skills/`, outside Claude's automatic scan. Council,
+starter-pack entries and the verification alias remain available in both hosts.
+Root `hooks/hooks.json` is discovered by the host. Skills
 use `disable-model-invocation: true` to keep provider workflows explicitly
 invoked. Native plugin and marketplace validation passes; Claude's warning
 that root `CLAUDE.md` is not loaded as plugin context is expected. Runtime
@@ -89,7 +93,7 @@ helpers ship in the package. Native discovery proves installation only; it does
 not prove provider login, model entitlement, billing mode, or hosted ChatGPT
 directory eligibility.
 
-`.codex-plugin/plugin.json` retains `claude-octopus`, points to `./skills/`, and
+`.codex-plugin/plugin.json` retains `claude-octopus`, points to `./codex-skills/`, and
 uses relative icon paths. Codex discovers `hooks/hooks.json` without a redundant
 manifest field. Its runtime supplies `CLAUDE_PLUGIN_ROOT` for compatibility.
 Users must review and trust hook definitions; installation alone does not
@@ -103,15 +107,20 @@ matched command with an explanation, because Codex does not support the hook
 when active, they fail closed if the helper or input cannot be validated.
 These are opt-in guardrails, not a sandbox for arbitrary shell commands.
 
-Every skill also declares `policy.allow_implicit_invocation: false` in
+Every Codex skill also declares `policy.allow_implicit_invocation: false` in
 `agents/openai.yaml`. This is Codex's documented invocation control, distinct
 from Claude's frontmatter. Explicit skill mentions still work. See
 [OpenAI's skill metadata](https://learn.chatgpt.com/docs/build-skills).
 
-Verified with Codex CLI 0.153.4: installation from an isolated local marketplace
-and native `skills/list` discovery, without a model request. The runtime loaded
-63 packaged skills and 20 converted command entries without skill-load errors.
-This checks installation and discovery, not a live multi-provider workflow.
+The earlier root `skills/` layout was verified with Codex CLI 0.153.4 through
+an isolated local marketplace and native `skills/list`, without a model request.
+For the separate `codex-skills/` layout, Codex CLI 0.167.1 initialized and read
+all 64 skills from an extracted npm package through native `plugin/read` on
+2026-11-12. Every returned skill path belonged to `codex-skills/`. The test used
+a private catalog following OpenAI's [local marketplace contract](https://developers.openai.com/plugins/build/plugins),
+without installing into the user's profile or issuing thread or model requests.
+This proves packaged catalog discovery. Installed `skills/list`, skill invocation,
+hooks and provider execution remain separate acceptance checks.
 
 The bundled OpenAI plugin-creator ingestion validator rejects the shared
 Claude frontmatter's explicit-invocation flag and the nested starter/block

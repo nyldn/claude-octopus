@@ -30,7 +30,7 @@ orchestrate.sh auto-detects either Fable pin (`scripts/lib/fable5.sh`) and enfor
 
 - Fable 5 runs safety classifiers targeting offensive cybersecurity (exploit construction, malware, attack tooling), biology/life-sciences methods, and reasoning extraction. Benign security work can also trip them.
 - **Security-audit dispatches must not target Fable.** When either Fable model is pinned, route adversarial security passes (`/octo:security`, security-auditor agents) to `claude-opus-5` and frame prompts defensively (find and report vulnerabilities; do not request working exploits).
-- On `stop_reason: "refusal"` or an in-band refusal from a Fable 5 dispatch, retry the same prompt once on the configured fallback (`claude-opus-5` by default) rather than rewording toward the classifier.
+- On `stop_reason: "refusal"` or an in-band refusal from a Fable 5 dispatch, retry the same prompt once on the configured fallback (`claude-opus-5` by default) rather than rewording toward the classifier. Skip the retry when `OCTOPUS_FABLE5_NO_RETRY=1` or `OCTOPUS_FABLE5_MODE=off`; report the refusal and failed seat.
 
 ## Judgment routing
 

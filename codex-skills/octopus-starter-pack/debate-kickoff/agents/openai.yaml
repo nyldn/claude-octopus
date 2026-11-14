@@ -1,0 +1,5 @@
+interface:
+  display_name: "Debate Kickoff"
+  short_description: "Frame a decision for a structured multi-provider debate"
+policy:
+  allow_implicit_invocation: false

@@ -1,14 +1,8 @@
 ---
 name: skill-extract
-description: "Reverse-engineer design systems, tokens, and components from live products or screenshots"
 disable-model-invocation: true
+description: "Reverse-engineer design systems, tokens, and components from live products or screenshots"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Extract Skill - Implementation Guide
 
@@ -233,5 +227,6 @@ Implementation phases:
 6. Quality Gates (Week 8)
 7. Testing & Documentation (Week 10)
 
+---
 
 *This skill implements the design specified in PRD v2.0 (AI-Executable)*

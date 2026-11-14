@@ -60,37 +60,109 @@ fi
 
 ---
 
-### Step 2: Multi-Provider Diff Review
+### Step 2: Determine the base branch and review the diff
+
+Resolve the base before computing any diff. Carry the verified `BASE_REF` and local `BASE_BRANCH`
+into each later shell invocation, along with the verified `MERGE_BASE`.
+
+```bash
+BASE_REF=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
+if [[ -z "$BASE_REF" ]] || ! git rev-parse --verify "$BASE_REF^{commit}" >/dev/null 2>&1; then
+  BASE_REF=""
+  for candidate in main master; do
+    if git rev-parse --verify "$candidate^{commit}" >/dev/null 2>&1; then
+      BASE_REF="$candidate"
+      break
+    fi
+  done
+fi
+[[ -n "$BASE_REF" ]] && git rev-parse --verify "$BASE_REF^{commit}" >/dev/null 2>&1 || {
+  echo "Cannot determine the base branch; ask the user before reviewing or merging." >&2
+  exit 1
+}
+BASE_BRANCH="${BASE_REF#origin/}"
+MERGE_BASE=$(git merge-base HEAD "$BASE_REF") || {
+  echo "Cannot determine a common ancestor; fetch the missing history or confirm the base before reviewing." >&2
+  exit 1
+}
+[[ -n "$MERGE_BASE" ]] || exit 1
+```
 
 **Run a quick multi-provider review of the changes before shipping.** This catches issues before they reach PR reviewers.
 
 ```bash
 # Get the diff summary
-DIFF_STAT=$(git diff --stat $(git merge-base HEAD main)..HEAD)
-DIFF_FILES=$(git diff --name-only $(git merge-base HEAD main)..HEAD)
+DIFF_STAT=$(git diff --stat "${MERGE_BASE:?Restore the verified merge base}..HEAD") || exit 1
+DIFF_FILES=$(git diff --name-only "${MERGE_BASE:?Restore the verified merge base}..HEAD") || exit 1
 ```
 
 **Always run a quick review — this is automatic, not optional:**
 
 ```bash
-# Quick review via orchestrate.sh (uses available providers)
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
+# Validate in this shell before launching any reviewer. A failed expansion
+# inside the reviewer prompt alone would not stop the outer command.
+: "${MERGE_BASE:?Restore the verified merge base}"
+REVIEW_DIFF=$(git diff "$MERGE_BASE..HEAD") || exit 1
+if [[ -z "$REVIEW_DIFF" ]]; then
+  echo "Review incomplete: no changes between $MERGE_BASE and HEAD." >&2
+  exit 1
+fi
+# Keep the command argument bounded without silently dropping any changed lines.
+REVIEW_DIFF_BYTES=$(printf '%s' "$REVIEW_DIFF" | wc -c) || exit 1
+if [[ "$REVIEW_DIFF_BYTES" -gt 65536 ]]; then
+  echo "Review incomplete: the full diff exceeds this quick-review transport. Use a complete file-based review before continuing." >&2
+  exit 1
+fi
 
-$(git diff $(git merge-base HEAD main)..HEAD | head -500)"
+# Quick review via orchestrate.sh (uses available providers)
+REVIEW_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+source "$REVIEW_ROOT/scripts/lib/consultative-advisors.sh" || exit 1
+REVIEW_OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-review-results.XXXXXX") || exit 1
+printf 'REVIEW_OUTPUT_DIR=%s\n' "$REVIEW_OUTPUT_DIR"
+# Preserve lifecycle evidence for a worker that outlives the bounded collection.
+REVIEW_EVENT_LOG="$REVIEW_OUTPUT_DIR/events"
+: > "$REVIEW_EVENT_LOG"
+cat > "$REVIEW_OUTPUT_DIR/lifecycle.sh" <<'REVIEW_HOOK'
+#!/usr/bin/env bash
+printf '%s\t%s\t%s\t%s\n' "${1:-}" "${OCTOPUS_AGENT_PID:-}" \
+  "${OCTOPUS_AGENT_STATUS:-}" "${OCTOPUS_AGENT_RESULT_FILE:-}" >> "$OCTO_BRANCH_REVIEW_EVENTS" || exit 1
+if [[ -n "${OCTO_BRANCH_REVIEW_PREV_HOOK:-}" && -x "$OCTO_BRANCH_REVIEW_PREV_HOOK" ]]; then
+  exec "$OCTO_BRANCH_REVIEW_PREV_HOOK" "$@"
+fi
+REVIEW_HOOK
+chmod +x "$REVIEW_OUTPUT_DIR/lifecycle.sh" || exit 1
+OCTO_BRANCH_REVIEW_EVENTS="$REVIEW_EVENT_LOG" OCTO_BRANCH_REVIEW_PREV_HOOK="" \
+  "$REVIEW_OUTPUT_DIR/lifecycle.sh" preflight || exit 1
+REVIEW_PREV_HOOK="${OCTOPUS_AGENT_LIFECYCLE_HOOK:-}"
+OCTOPUS_AGENT_LIFECYCLE_HOOK="$REVIEW_OUTPUT_DIR/lifecycle.sh" \
+OCTO_BRANCH_REVIEW_EVENTS="$REVIEW_EVENT_LOG" \
+OCTO_BRANCH_REVIEW_PREV_HOOK="$REVIEW_PREV_HOOK" \
+OCTOPUS_OVERSIZE_STRATEGY=fail \
+"$REVIEW_ROOT/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
+
+$REVIEW_DIFF" > "$REVIEW_OUTPUT_DIR/spawn.txt" || exit 1
+if ! _octo_advisor_collect "$REVIEW_EVENT_LOG" "$REVIEW_OUTPUT_DIR/spawn.txt" \
+    "$REVIEW_OUTPUT_DIR/answer.md" "$(( $(date +%s) + 600 ))"; then
+  echo "Review incomplete; inspect $REVIEW_OUTPUT_DIR before retrying." >&2
+  exit 1
+fi
+# Read the completed answer before deciding whether findings permit continuation.
+cat "$REVIEW_OUTPUT_DIR/answer.md" || exit 1
 ```
 
 **If critical issues found:** Present them and ask whether to fix or ship anyway.
 **If clean:** Continue to Step 3. Show a brief `✓ Review clean — no issues found`.
+Only report a clean review after the reviewer has completed and covered the
+entire diff. This dispatch rejects a prompt that exceeds its effective context
+budget, including added context, rather than summarizing or truncating the diff.
+An oversized diff or failed dispatch leaves review incomplete;
+stop this workflow until a complete review is available.
 
 ---
 
-### Step 3: Determine Base Branch & Version
+### Step 3: Determine the version
 
 ```bash
-# Identify the base branch
-BASE_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
-[[ -z "$BASE_BRANCH" ]] && BASE_BRANCH="main"
-
 # Check for VERSION file
 VERSION_FILE=""
 for f in VERSION version.txt package.json; do
@@ -124,7 +196,7 @@ AskUserQuestion({
 
 ```bash
 # Generate changelog entry from commits
-COMMITS=$(git log --oneline $(git merge-base HEAD $BASE_BRANCH)..HEAD)
+COMMITS=$(git log --oneline "${MERGE_BASE:?Restore the verified merge base}..HEAD") || exit 1
 # Prepend to CHANGELOG.md if it exists
 ```
 
@@ -149,14 +221,14 @@ Which option? (1-4)
 
 ---
 
-### Step 4: Execute Choice
+### Step 6: Execute choice
 
-#### Option 1: Merge Locally
+#### Option 2: Merge Locally
 
 ```bash
 # Get current branch name
 FEATURE_BRANCH=$(git branch --show-current)
-BASE_BRANCH="main"  # or detected base
+: "${BASE_BRANCH:?Restore the verified base branch}"
 
 # Switch to base branch
 git checkout $BASE_BRANCH
@@ -185,7 +257,7 @@ Ready to push when you want: git push origin $BASE_BRANCH
 
 ---
 
-#### Option 2: Create PR
+#### Option 1: Create PR
 
 ```bash
 # Get branch info
@@ -287,9 +359,10 @@ Work has been permanently discarded.
 
 ---
 
-### Step 5: Cleanup (If Using Worktrees)
+### Step 7: Cleanup (If Using Worktrees)
 
-**For Options 1, 2, 4:** Check if in a worktree and clean up:
+**After Merge locally or confirmed Discard only:** Check if in a worktree and clean up.
+Keep the checkout after Create PR so review changes can be made.
 
 ```bash
 # Check if current directory is a worktree
@@ -307,7 +380,7 @@ if git worktree list | grep -q "$(pwd)"; then
 fi
 ```
 
-**For Option 3:** Keep worktree intact.
+**After Create PR or Keep as-is:** Keep the worktree intact.
 
 ---
 
@@ -315,8 +388,8 @@ fi
 
 | Option | Merge | Push | Keep Branch | Cleanup |
 |--------|-------|------|-------------|---------|
-| 1. Merge locally | ✓ | - | Delete | ✓ |
-| 2. Create PR | - | ✓ | Keep | - |
+| 2. Merge locally | ✓ | - | Delete | ✓ |
+| 1. Create PR | - | ✓ | Keep | - |
 | 3. Keep as-is | - | - | Keep | - |
 | 4. Discard | - | - | Delete | ✓ |
 
@@ -334,7 +407,7 @@ After completing octopus workflows, use this skill:
 # → Invoke finishing-branch skill
 # → Verify tests
 # → Present options
-# → Execute Option 2 (Create PR)
+# → Execute Option 1 (Create PR)
 ```
 
 ### With Octopus Validation

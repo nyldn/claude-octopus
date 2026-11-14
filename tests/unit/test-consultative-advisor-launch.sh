@@ -200,6 +200,21 @@ else
     test_fail "rc=$rc count='$count'"
 fi
 
+test_case "literal advisor prompts preserve code while templates retain substitution"
+literal_orch="$TEST_TMP_DIR/orch-literal"
+printf '%s\n' '#!/usr/bin/env bash' 'printf "%s" "$3"' > "$literal_orch"
+chmod +x "$literal_orch"
+literal_ok=true
+for mode in template literal; do
+    out="$TEST_TMP_DIR/prompt-$mode"
+    mkdir -p "$out"
+    count="$(octo_launch_advisors "$literal_orch" agy "$out" t- 'render("{{advisor}}")' 1 "$mode")" || literal_ok=false
+    expected='render("{{advisor}}")'
+    [[ "$mode" != template ]] || expected='render("agy")'
+    [[ "$count" == 1 && "$(cat "$out/t-agy.md")" == "$expected" ]] || literal_ok=false
+done
+if [[ "$literal_ok" == true ]]; then test_pass; else test_fail "advisor prompt bytes changed"; fi
+
 # The deadline also bounds a synchronous spawn (agy), which runs the whole
 # provider call inside spawn itself.
 fake_orch="$TEST_TMP_DIR/orch-sync-stuck"
@@ -306,6 +321,7 @@ fake_orch="$TEST_TMP_DIR/orch-sync-failed"
 cat > "$fake_orch" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' 'answer printed before provider failure'
+printf '%s\n' 'provider failure diagnostic' >&2
 exit 7
 SH
 chmod +x "$fake_orch"
@@ -314,7 +330,8 @@ out="$TEST_TMP_DIR/sync-failed"
 mkdir -p "$out"
 rc=0
 count="$(octo_launch_advisors "$fake_orch" agy "$out" t- x 1 2>"$out/error")" || rc=$?
-if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-agy.md" ]]; then
+if [[ "$rc" -ne 0 && -z "$count" && ! -e "$out/t-agy.md" ]] && \
+   grep -q "provider failure diagnostic" "$out/error"; then
     test_pass
 else
     test_fail "rc=$rc count='$count'"
@@ -538,5 +555,42 @@ if [[ -z "$wrong" && ! -s "$E2E/tripwire.log" ]]; then
 else
     test_fail "resolved outside the stubs: ${wrong:-none}; tripwire calls: $(tr '\n' '|' < "$E2E/tripwire.log" 2>/dev/null)"
 fi
+
+test_case "late synchronous jobs do not keep the caller stderr pipe open"
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR/stderr-capture.err" <<'PY_PIPE'
+import os, signal, subprocess, sys, tempfile, time
+from pathlib import Path
+with tempfile.TemporaryDirectory() as temporary:
+    root = Path(temporary)
+    output = root / 'output'
+    output.mkdir()
+    pidfile = root / 'pid'
+    orch = root / 'orchestrator'
+    orch.write_text('#!' + sys.executable + '\nimport os,time\n'
+                    + 'open(' + repr(str(pidfile)) + ',"w").write(str(os.getpid()))\n'
+                    + 'print("late diagnostic", file=__import__("sys").stderr, flush=True)\n'
+                    + 'time.sleep(8)\n')
+    orch.chmod(0o755)
+    command = 'source "$1/scripts/lib/consultative-advisors.sh"; OCTOPUS_ADVISOR_WAIT_SECONDS=1 octo_launch_advisors "$2" agy "$3" answer- prompt 1'
+    Path(sys.argv[2]).touch()
+    try:
+        started = time.monotonic()
+        result = subprocess.run(['bash', '-c', command, 'fixture', sys.argv[1], str(orch), str(output)],
+                                capture_output=True, text=True, timeout=5)
+        Path(sys.argv[2]).write_text(result.stderr)
+        assert result.returncode != 0
+        assert time.monotonic() - started < 5
+        assert 'late diagnostic' not in result.stderr
+    except subprocess.TimeoutExpired as error:
+        captured = error.stderr or b''
+        Path(sys.argv[2]).write_text(captured.decode(errors='replace') if isinstance(captured, bytes) else captured)
+        raise
+    finally:
+        if pidfile.exists():
+            try: os.kill(int(pidfile.read_text()), signal.SIGTERM)
+            except ProcessLookupError: pass
+PY_PIPE
+then test_pass; else test_fail "a late spawn retained the caller stderr pipe"; fi
+cleanup_retained_advisor_files "$TEST_TMP_DIR/stderr-capture.err"
 
 test_summary

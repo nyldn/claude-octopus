@@ -119,9 +119,50 @@ def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
         if not data.get(field):
             errors.append(f"{rel(root, manifest)}: missing required field: {field}")
 
+    if data.get("name") in {"octo", "claude-octopus"}:
+        authored = root / ".claude" / "skills"
+        if (not authored.is_dir() or not authored.resolve().is_relative_to(root)
+                or not any(authored.rglob("SKILL.md"))):
+            errors.append(".claude/skills/: missing or unsafe required Octopus command catalog")
+
+    skills = data.get("skills", [])
+    if isinstance(skills, str):
+        skills = [skills]
+    if not isinstance(skills, list) or any(not isinstance(path, str) for path in skills):
+        errors.append(f"{rel(root, manifest)}: skills must be a path or list of relative paths")
+        return
+    registrations = [(path, True) for path in skills]
+    # Claude also scans root skills; an empty default directory is harmless.
+    if (root / "skills").exists():
+        registrations.insert(0, ("./skills", False))
+    for path, required in registrations:
+        if path != "." and not path.startswith("./"):
+            errors.append(f"{rel(root, manifest)}: skill path must be . or start with ./: {path}")
+            continue
+        directory = (root / path).resolve()
+        if not directory.is_relative_to(root) or not directory.is_dir():
+            errors.append(f"{rel(root, manifest)}: missing or unsafe skill path: {path}")
+            continue
+        direct = directory / "SKILL.md"
+        files = [direct] if direct.is_file() else sorted(directory.rglob("SKILL.md"))
+        if required and not files:
+            errors.append(f"{rel(root, manifest)}: no skills found at: {path}")
+        for skill in files:
+            if not skill.resolve().is_relative_to(root) or not skill.is_file():
+                errors.append(f"{rel(root, manifest)}: missing or unsafe skill file: {rel(root, skill)}")
+                continue
+            require_frontmatter(
+                root, skill, ("name", "description"), errors,
+                validate_name=True,
+                expected={"disable-model-invocation": "true"},
+            )
+            if "Host: Codex CLI" in skill.read_text(encoding="utf-8"):
+                errors.append(f"{rel(root, manifest)}: Claude Code registers a Codex-adapted skill: {path}")
+
 
 def validate_json_files(root: Path, errors: list[str]) -> None:
     candidates = [
+        root / ".codex-plugin" / "plugin.json",
         root / ".claude-plugin" / "marketplace.json",
         root / ".claude-plugin" / "hooks.json",
         root / ".mcp.json",
@@ -135,17 +176,25 @@ def validate_json_files(root: Path, errors: list[str]) -> None:
 
 def validate_skills(root: Path, errors: list[str]) -> int:
     checked = 0
-    for file in sorted((root / "skills").rglob("SKILL.md")):
-        require_frontmatter(
-            root, file, ("name", "description"), errors,
-            validate_name=True,
-            expected={"disable-model-invocation": "true"},
-        )
-        checked += 1
-
-    legacy = root / ".claude" / "skills"
-    if legacy.is_dir():
-        for file in sorted(legacy.rglob("SKILL.md")):
+    if (root / ".codex-plugin" / "plugin.json").is_file():
+        manifest = root / ".codex-plugin" / "plugin.json"
+        data = validate_json(root, manifest, errors)
+        if not isinstance(data, dict):
+            errors.append(".codex-plugin/plugin.json: manifest must be a JSON object")
+        elif data.get("skills") != "./codex-skills/":
+            errors.append(".codex-plugin/plugin.json: skills must target ./codex-skills/")
+        codex = root / "codex-skills"
+        if not codex.is_dir() or not codex.resolve().is_relative_to(root):
+            errors.append("codex-skills/: missing or unsafe required generated skill directory")
+            return checked
+        if not any(codex.rglob("SKILL.md")):
+            errors.append("codex-skills/: required generated skill directory is empty")
+            return checked
+    for directory in (root / "skills", root / ".claude" / "skills", root / "codex-skills"):
+        if not directory.resolve().is_relative_to(root):
+            errors.append(f"{rel(root, directory)}: unsafe skill directory")
+            continue
+        for file in sorted(directory.rglob("SKILL.md")):
             require_frontmatter(
                 root, file, ("name", "description"), errors,
                 validate_name=True,

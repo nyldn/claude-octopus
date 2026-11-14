@@ -1,14 +1,25 @@
 ---
 name: skill-meta-prompt
-description: "Craft better prompts using proven optimization techniques — use when your prompt needs refinement"
 disable-model-invocation: true
+aliases:
+  - meta-prompt
+  - prompt-generator
+  - prompt-optimizer
+  - prompt-engineering
+description: "Craft better prompts using proven optimization techniques — use when your prompt needs refinement"
+trigger: |
+  Invoke explicitly when the user wants to:
+  - "create a prompt for", "write a prompt for"
+  - "optimize this prompt", "improve this prompt"
+  - "generate a meta-prompt", "help me write a prompt"
+  - "prompt engineering", "better prompt"
+  - "create instructions for [task]"
+
+  DO NOT use for:
+  - Direct task execution (just do the task)
+  - Simple questions (just answer)
+  - Code generation (use development skills)
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Meta-Prompt Generator Skill
 
@@ -53,6 +64,7 @@ Generate well-structured, verifiable prompts for any use case. Applies proven me
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+---
 
 ## The Five Techniques
 
@@ -97,6 +109,7 @@ Decomposition:
    - Readability review
 ```
 
+---
 
 ### Technique 2: Fresh Eyes Review
 
@@ -122,6 +135,7 @@ Reviewer: "Expert Developer" tests code examples
 NOT: Same expert writes AND reviews their own work
 ```
 
+---
 
 ### Technique 3: Iterative Verification
 
@@ -147,6 +161,7 @@ Step 3: If mismatch, identify error and recalculate
 Step 4: Only proceed when both methods match
 ```
 
+---
 
 ### Technique 4: No Guessing
 
@@ -169,6 +184,7 @@ Step 4: Only proceed when both methods match
 "This is based on general patterns; your specific case may differ."
 ```
 
+---
 
 ### Technique 5: Specialized Experts
 
@@ -198,6 +214,7 @@ Focus exclusively on [your assigned task].
 You have no memory of previous context—all needed information is below."
 ```
 
+---
 
 ## Phase 1: Requirement Gathering
 
@@ -234,6 +251,7 @@ I'll help you create an effective, verifiable prompt.
 
 **If information is missing, ask ONE clarifying question at a time.**
 
+---
 
 ## Phase 2-4: Analysis & Design
 
@@ -264,6 +282,7 @@ For the task, identify where verification is needed:
 |------|------|---------------------|
 | [step] | [what could go wrong] | [how to verify] |
 
+---
 
 ## Phase 5: Prompt Assembly
 
@@ -330,6 +349,7 @@ Tune the assembled prompt to the model that will execute it:
 - **Codex / GPT-5.6**: apply `docs/GPT-5.6-PROMPTING.md`; give it a concrete outcome, scoped repository constraints, checkable acceptance criteria, non-goals, and the required verification.
 - **Older Claude models**: the fuller template below applies as written.
 
+---
 
 ## Phase 6: Output & Iteration
 
@@ -340,6 +360,7 @@ Tune the assembled prompt to the model that will execute it:
 
 [The prompt in the format above]
 
+---
 
 **Techniques Applied:**
 - ✓ Task Decomposition: [Yes/No, how]
@@ -355,6 +376,7 @@ Tune the assembled prompt to the model that will execute it:
 4. Execute this prompt now
 ```
 
+---
 
 ## Example: Complete Meta-Prompt Generation
 
@@ -435,6 +457,7 @@ Expert Developer reviews for:
 - [ ] Assumptions marked for verification
 ```
 
+---
 
 ## Error Handling
 
@@ -478,6 +501,7 @@ don't apply:
 The generated prompt focuses on clarity and verification instead.
 ```
 
+---
 
 ## Integration
 
@@ -493,6 +517,7 @@ Enhance PRD generation with meta-prompting techniques.
 ### With flow-develop
 Generate implementation prompts with built-in verification.
 
+---
 
 ## The Bottom Line
 

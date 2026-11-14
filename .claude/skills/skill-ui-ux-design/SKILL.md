@@ -8,8 +8,6 @@ aliases:
   - ui-design
   - ux-design
 description: "Design UI/UX systems with style guides, palettes, typography, and component specs for new interfaces"
-context: fork
-agent: Explore
 task_management: true
 execution_mode: enforced
 pre_execution_contract:
@@ -320,6 +318,10 @@ For each issue found, state: what's wrong, why it matters, and what to do instea
 **Three participants, run in parallel:**
 
 ```bash
+# Create a private output directory before launching critiques. Carry its exact
+# path into subsequent shells and use it for every critique read.
+CRITIQUE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-design-critique.XXXXXX") || exit 1
+printf 'CRITIQUE_DIR=%s\n' "$CRITIQUE_DIR"
 # Check provider availability
 providers=()
 command -v codex >/dev/null 2>&1 && providers+=(codex)
@@ -328,7 +330,7 @@ command -v agy >/dev/null 2>&1 && providers+=(agy)
 for provider in "${providers[@]}"; do
     safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
     "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
-      "<critique prompt>" > "/tmp/design-critique-${safe_provider}.md" &
+      "<critique prompt>" > "${CRITIQUE_DIR:?}/${safe_provider}.md" &
 done
 
 wait

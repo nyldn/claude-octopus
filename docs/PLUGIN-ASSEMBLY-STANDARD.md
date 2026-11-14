@@ -14,8 +14,10 @@ benefit.
 
 Shared method references live in `skills/blocks/`. Source skills under
 `.claude/skills/` may load a literal block path from the installed plugin root.
-The generator preserves blocks and generates individual `skills/*/SKILL.md`
-adapters. Never repair a generated skill by hand.
+The generator preserves native blocks under `skills/blocks/`, copies their
+Codex adaptations to `codex-skills/blocks/`, and writes native entries under
+`skills/` and Codex entries under `codex-skills/`. Never repair a generated
+skill by hand.
 
 Advisory, host-native methods must not name the provider orchestrator merely to
 say they do not use it. Provider-backed methods retain their execution contract.
@@ -25,9 +27,22 @@ Both Claude `disable-model-invocation: true` and generated Codex
 Skills carry reusable method, domain rules, and workflow discipline. Commands
 and agents may reference skills, but should not duplicate long skill logic.
 
-Every plugin-root skill must live at `skills/<skill-name>/SKILL.md`.
-Compatibility skills may also live under `.claude/skills/*.md` until the legacy
-manifest surface is retired.
+Most native Claude Code sources live under `.claude/skills/`. Discovery and
+refinement keep their canonical entries and phase resources under root `skills/`;
+the generator refreshes their `.claude/skills/` entry copies from that native
+source before generating Codex adaptations. The skill generator
+copies their native instructions into the automatically discovered `skills/`
+tree, including the verification alias. It writes Codex adaptations separately
+to `codex-skills/`. Council and starter-pack sources remain in `skills/` and
+are copied into the Codex package. Never put Codex-adapted bodies in Claude's
+automatically scanned root `skills/` tree.
+
+Assembly validation checks frontmatter for every registered Claude skill,
+including custom registration paths outside the standard trees. A package with
+`.codex-plugin/plugin.json` must retain its generated `codex-skills/` directory.
+Installed Octopus packages must also retain `.claude/skills/`. Commands and
+manual composition load their instructions from that authored catalog.
+The extracted npm archive check verifies literal command-to-skill load paths.
 
 Each skill must include YAML frontmatter with:
 

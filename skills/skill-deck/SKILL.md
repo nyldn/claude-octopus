@@ -1,14 +1,22 @@
 ---
 name: skill-deck
-description: "Generate slide deck presentations from briefs — use when you need slides, pitch decks, or visual summaries"
 disable-model-invocation: true
+aliases:
+  - deck
+  - slides
+  - presentation
+description: Generate slide deck presentations from briefs — use when you need slides, pitch decks, or visual summaries
+trigger: |
+  EXPLICITLY USE when user requests:
+  - "create a deck", "build slides", "make a presentation"
+  - "generate a pitch deck", "create board presentation"
+  - "slide deck for [topic]", "presentation about [topic]"
+  - "investor deck", "strategy presentation", "project update slides"
+
+  DO NOT activate for:
+  - Converting existing markdown to PPTX (use /octo:docs instead)
+  - General file conversions (use document-skills directly)
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Slide Deck Generator
 
@@ -84,7 +92,7 @@ instead of inventing stakeholder positions.
 
 If the topic needs external research or context gathering:
 
-- Use the **host subagent tool** with `Explore` or `general-purpose` subagent to gather relevant information
+- Use the **Task tool** with `Explore` or `general-purpose` subagent to gather relevant information
 - For deeper multi-AI research, suggest: "For comprehensive multi-provider research, run `/octo:discover [topic]` first, then `/octo:deck` to build slides from the results"
 - If the user provides their own content, notes, or a research file, skip this step entirely
 
@@ -549,5 +557,6 @@ User: "I need a comprehensive investor deck about the autonomous vehicles market
 → Then: "/octo:deck" using the research synthesis
 ```
 
+---
 
 *Slide deck skill for claude-octopus.*

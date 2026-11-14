@@ -1,14 +1,14 @@
 ---
 name: skill-rollback
-description: "Roll back to a previous checkpoint via git — use when a change went wrong and you need to revert"
 disable-model-invocation: true
+user-invocable: true
+description: "Roll back to a previous checkpoint via git — use when a change went wrong and you need to revert"
+trigger: |
+  EXPLICITLY USE when user mentions:
+  - "rollback" or "revert" or "undo"
+  - "go back to" or "restore checkpoint"
+argument-hint: "[list|<checkpoint-tag>]"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Checkpoint Rollback
 
@@ -16,6 +16,7 @@ Safely rollback to a previous checkpoint while preserving lessons learned.
 
 **Core principle:** List checkpoints → Confirm explicitly → Create safety backup → Restore → Preserve lessons.
 
+---
 
 ## Subcommand Detection
 
@@ -26,6 +27,7 @@ Parse the user's request to determine mode:
 | `list`, `show checkpoints`, no argument | LIST | Show available checkpoints |
 | `octo-checkpoint-*` tag name | ROLLBACK | Rollback to specific checkpoint |
 
+---
 
 ## Mode: LIST (Default)
 
@@ -57,6 +59,7 @@ To create a manual checkpoint:
   git tag -a octo-checkpoint-manual-$(date +%Y%m%d-%H%M%S) -m "Manual checkpoint"
 ```
 
+---
 
 ## Mode: ROLLBACK
 
@@ -188,11 +191,16 @@ working tree. Preserve any unrelated changes separately.
 ### Step 5: Preserve LESSONS.md
 
 ```bash
-# Save current LESSONS.md if it exists
-if [ -f ".octo/LESSONS.md" ]; then
-  cp .octo/LESSONS.md /tmp/LESSONS_PRESERVED.md
+# Create a private backup for this rollback only. Carry both values into the
+# restore shell; never infer the directory from another rollback's files.
+ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
+LESSONS_BACKUP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-rollback-lessons.XXXXXX") || exit 1
+LESSONS_PRESERVED=false
+if [ -f "$ROLLBACK_ROOT/.octo/LESSONS.md" ]; then
+  cp "$ROLLBACK_ROOT/.octo/LESSONS.md" "$LESSONS_BACKUP_DIR/LESSONS.md" || exit 1
   LESSONS_PRESERVED=true
 fi
+printf 'LESSONS_BACKUP_DIR=%s\nLESSONS_PRESERVED=%s\n' "$LESSONS_BACKUP_DIR" "$LESSONS_PRESERVED"
 ```
 
 ### Step 6: Execute Rollback
@@ -216,6 +224,20 @@ if [[ "$(git rev-parse --show-toplevel)" != "$ROLLBACK_PREVIEW_ROOT" ||
       "$(git symbolic-ref --quiet HEAD || true)" != "$ROLLBACK_PREVIEW_REF" ||
       "$(git rev-parse --verify "$CHECKPOINT_TAG^{commit}")" != "$ROLLBACK_TARGET_COMMIT" ]]; then
   echo "Rollback context changed; show a new preview and obtain confirmation again." >&2
+  exit 1
+fi
+
+# Validate all recovery state before touching checkpoint files.
+case "${LESSONS_PRESERVED:-}" in
+  true|false) ;;
+  *) echo "Missing backup state; restore the printed Step 5 values before retrying." >&2; exit 1 ;;
+esac
+if [[ -z "${LESSONS_BACKUP_DIR:-}" || ! -d "$LESSONS_BACKUP_DIR" || -L "$LESSONS_BACKUP_DIR" ]]; then
+  printf 'Invalid backup directory: %s\n' "${LESSONS_BACKUP_DIR:-unset}" >&2
+  exit 1
+fi
+if [[ "$LESSONS_PRESERVED" == true && ( ! -f "$LESSONS_BACKUP_DIR/LESSONS.md" || -L "$LESSONS_BACKUP_DIR/LESSONS.md" ) ]]; then
+  printf 'Missing preserved lessons; recovery backup: %s\n' "$LESSONS_BACKUP_DIR" >&2
   exit 1
 fi
 
@@ -274,10 +296,12 @@ for target in targets:
 PY_IGNORED
 git -C "$ROLLBACK_ROOT" checkout --no-overlay "$ROLLBACK_TARGET_COMMIT" -- . ':(exclude).octo/LESSONS.md' || exit 1
 
-# Restore preserved LESSONS.md
-if [ "$LESSONS_PRESERVED" = "true" ]; then
-  cp /tmp/LESSONS_PRESERVED.md .octo/LESSONS.md
-fi
+# Lessons remain excluded from checkout; do not reopen or overwrite their path.
+# Remove only this invocation's backup after successful restoration. On failure,
+# retain it and report its path so recovery remains possible.
+rmdir "${LESSONS_BACKUP_DIR:?}" 2>/dev/null || {
+  rm "$LESSONS_BACKUP_DIR/LESSONS.md" && rmdir "$LESSONS_BACKUP_DIR"
+}
 ```
 
 **Important:** This runs `git checkout --no-overlay <tag> -- . ':(exclude).octo/LESSONS.md'` from the repository root, which:
@@ -368,11 +392,13 @@ Rollback Complete
 3. To return to the safety checkpoint, first review and commit the restored
    changes. The recovery command requires a clean index and working tree.
    Preserve unrelated changes separately; do not bypass the clean-tree gate.
-   ```bash
+   Invoke the rollback skill in the conversation:
+   ```text
    /octo:rollback $SAFETY_CHECKPOINT_TAG
    ```
 ```
 
+---
 
 ## Safety Measures
 
@@ -385,6 +411,7 @@ Rollback Complete
 | **Show affected files first** | Preview before confirmation |
 | **No history modification** | Uses checkout, not reset |
 
+---
 
 ## Red Flags - Never Do
 
@@ -397,6 +424,7 @@ Rollback Complete
 | Force push after rollback | Affects collaborators |
 | Delete checkpoint tags | Removes recovery points |
 
+---
 
 ## Checkpoint Tag Format
 
@@ -416,6 +444,7 @@ Examples:
 - `octo-checkpoint-pre-rollback-20260203-161530`
 - `octo-checkpoint-manual-20260203-170000`
 
+---
 
 ## Quick Reference
 
@@ -425,6 +454,7 @@ Examples:
 | `/octo:rollback list` | List available checkpoints |
 | `/octo:rollback <tag>` | Rollback to specific checkpoint |
 
+---
 
 ## The Bottom Line
 

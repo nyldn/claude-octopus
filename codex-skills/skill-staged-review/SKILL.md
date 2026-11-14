@@ -1,0 +1,376 @@
+---
+name: skill-staged-review
+description: "Use when a PR or feature needs both specification and code-quality review"
+disable-model-invocation: true
+---
+
+> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+
+## Execution Contract (MANDATORY - CANNOT SKIP)
+
+This generated Codex skill preserves an enforced workflow contract from the source skill.
+
+**PROHIBITED:**
+- Do not summarize, simulate, or skip the referenced workflow command when this skill requires execution.
+- Do not claim provider output or validation artifacts exist without checking the actual files or command output.
+- Do not continue silently when a required provider, command, or host capability is unavailable; report the unavailable dependency and use a supported fallback.
+
+
+# Two-Stage Review Pipeline
+
+Separates **spec compliance** (did you build the right thing?) from **code quality**
+(did you build it right?). Stage 1 must pass before Stage 2 runs.
+
+
+## Stage 1: Spec Compliance
+
+Validates the implementation against the intent contract.
+
+### Step 1: Load Intent Contract
+
+```bash
+PLAN_STORAGE="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/plan-storage.sh"
+OCTO_PLAN_DIR="$("$PLAN_STORAGE" current "$PWD" 2>/dev/null || true)"
+INTENT_FILE="${OCTO_PLAN_DIR:+${OCTO_PLAN_DIR}/session-intent.md}"
+if [[ -f "$INTENT_FILE" ]]; then
+  echo "Intent contract found: $INTENT_FILE"
+  cat "$INTENT_FILE"
+else
+  echo "WARNING: No current resolved intent contract found for this workspace"
+  echo "Skipping Stage 1 — proceeding to Stage 2 (code quality) only."
+fi
+```
+
+**If no intent contract exists:** Warn the user and skip to Stage 2. Do NOT fabricate
+success criteria — the contract must exist from a prior workflow.
+
+### Step 2: Validate Success Criteria
+
+For each success criterion in the intent contract:
+
+1. **Read the criterion** from the `## Success Criteria` section
+2. **Find evidence** in the codebase that the criterion is met
+3. **Mark status:**
+   - `[PASS]` — Evidence confirms criterion is met
+   - `[FAIL]` — Evidence shows criterion is NOT met
+   - `[PARTIAL]` — Partially met, gaps identified
+
+Present results:
+
+```markdown
+## Stage 1: Spec Compliance
+
+### Success Criteria Check
+
+#### Good Enough Criteria
+- [PASS] Criterion 1: <how it was met>
+- [FAIL] Criterion 2: <why not met, what's missing>
+
+#### Exceptional Criteria
+- [PARTIAL] Criterion 1: <what's done, what's remaining>
+```
+
+### Step 3: Validate Boundaries
+
+For each boundary in the intent contract:
+
+1. **Read the boundary** from the `## Boundaries` section
+2. **Check for violations** in the implementation
+3. **Mark status:**
+   - `[RESPECTED]` — No violations found
+   - `[VIOLATED]` — Implementation crosses the boundary
+
+```markdown
+### Boundary Check
+- [RESPECTED] Boundary 1: <confirmation>
+- [VIOLATED] Boundary 2: <what violated it>
+```
+
+### Step 4: Stage 1 Gate
+
+| Result | Action |
+|--------|--------|
+| All criteria PASS + all boundaries RESPECTED | Proceed to Stage 2 |
+| Any criterion FAIL | Report failures. Ask user: fix now or proceed anyway? |
+| Any boundary VIOLATED | Report violations. Ask user: fix now or proceed anyway? |
+
+**If user chooses to fix:** Stop review, list specific fixes needed.
+**If user chooses to proceed:** Note the overrides and continue to Stage 2.
+
+
+## Stage 2: Code Quality
+
+Runs stub detection and full code quality review.
+
+### Step 1: Stub Detection
+
+Run 5 checks on all changed files:
+
+```bash
+# Get changed files
+if git diff --cached --name-only 2>/dev/null | head -1 > /dev/null; then
+  changed_files=$(git diff --cached --name-only)
+elif git diff --name-only HEAD~1..HEAD 2>/dev/null | head -1 > /dev/null; then
+  changed_files=$(git diff --name-only HEAD~1..HEAD)
+else
+  changed_files=$(git diff --name-only)
+fi
+
+# Filter source files
+source_files=$(echo "$changed_files" | grep -E "\.(ts|tsx|js|jsx|py|go|rs|sh)$" || true)
+
+STUB_ISSUES=0
+
+for file in $source_files; do
+  [[ -f "$file" ]] || continue
+
+  # Check 1: TODO/FIXME/PLACEHOLDER markers
+  todo_count=$(grep -cE "(TODO|FIXME|PLACEHOLDER|XXX)" "$file" 2>/dev/null || echo "0")
+  if [[ "$todo_count" -gt 0 ]]; then
+    echo "WARNING: $file has $todo_count TODO/FIXME markers"
+    STUB_ISSUES=$((STUB_ISSUES + 1))
+  fi
+
+  # Check 2: Empty function bodies
+  empty_fn=$(grep -cE "function.*\{\s*\}|=>\s*\{\s*\}" "$file" 2>/dev/null || echo "0")
+  if [[ "$empty_fn" -gt 0 ]]; then
+    echo "ERROR: $file has $empty_fn empty functions"
+    STUB_ISSUES=$((STUB_ISSUES + 1))
+  fi
+
+  # Check 3: Suspicious null/undefined returns
+  null_ret=$(grep -cE "return (null|undefined);" "$file" 2>/dev/null || echo "0")
+  if [[ "$null_ret" -gt 0 ]]; then
+    echo "WARNING: $file has $null_ret null/undefined returns — verify intentional"
+    STUB_ISSUES=$((STUB_ISSUES + 1))
+  fi
+
+  # Check 4: Substantive line count
+  subst_lines=$(grep -cvE "^\s*(//|/\*|\*|#|import|export|$)" "$file" 2>/dev/null || echo "0")
+  if [[ "$subst_lines" -lt 5 ]]; then
+    echo "WARNING: $file has only $subst_lines substantive lines"
+    STUB_ISSUES=$((STUB_ISSUES + 1))
+  fi
+
+  # Check 5: Mock/test data in production code
+  mock_count=$(grep -cE "const.*(mock|test|dummy|fake).*=" "$file" 2>/dev/null || echo "0")
+  if [[ "$mock_count" -gt 0 ]]; then
+    echo "WARNING: $file has $mock_count mock/test data references"
+    STUB_ISSUES=$((STUB_ISSUES + 1))
+  fi
+done
+
+echo "Stub detection complete: $STUB_ISSUES issues found"
+```
+
+### Step 2: Multi-LLM Quality Review (RECOMMENDED)
+
+**After stub detection, dispatch code to multiple providers for parallel quality review.** A Claude-only review pipeline misses what external models catch — Codex excels at logic errors and correctness, while Antigravity provides an independent security and edge-case analysis. Using both produces higher-confidence findings.
+
+**Check provider availability and dispatch in parallel:**
+
+**If external providers are available — dispatch focused reviews through Octopus routing:**
+```bash
+# Capture in this shell so a fresh invocation receives the diff in its prompt.
+DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/null || git diff) || exit 1
+# Keep each run's outputs separate. Carry this exact directory into collection
+# and read only files inside it; never search another review's output files.
+REVIEW_OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-review-results.XXXXXX") || exit 1
+printf 'REVIEW_OUTPUT_DIR=%s\n' "$REVIEW_OUTPUT_DIR"
+# Resolve the installed root once and retain it with the printed output directory.
+REVIEW_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+source "$REVIEW_ROOT/scripts/lib/consultative-advisors.sh" || exit 1
+providers=()
+provider_count=0
+command -v codex >/dev/null 2>&1 && octo_provider_allowed codex && { providers+=(codex); provider_count=$((provider_count + 1)); }
+command -v agy >/dev/null 2>&1 && octo_provider_allowed agy && { providers+=(agy); provider_count=$((provider_count + 1)); }
+REVIEW_PROMPT="Review this code diff for LOGIC, CORRECTNESS, and SECURITY issues. Focus on:
+1. Logic bugs and off-by-one errors
+2. Unhandled error paths
+3. Race conditions or concurrency issues
+4. Incorrect type handling or implicit coercions
+5. Security issues at trust boundaries
+
+Report ONLY high-confidence issues. Do NOT flag style preferences.
+
+DIFF:
+${DIFF_CONTENT}"
+# Bound the complete argument in bytes, including the instructions and diff.
+# Never truncate code to make it fit this quick-review transport.
+REVIEW_PROMPT_BYTES=$(printf '%s' "$REVIEW_PROMPT" | wc -c) || exit 1
+if [[ "$provider_count" -gt 0 && "$REVIEW_PROMPT_BYTES" -gt 65536 ]]; then
+  echo "Review incomplete: the full prompt exceeds this quick-review transport. Use a complete file-based review before continuing." >&2
+  exit 1
+fi
+collector_pids=()
+for provider in ${providers[@]+"${providers[@]}"}; do
+  # Both asynchronous workers and synchronous Antigravity dispatch use the
+  # collector deadline. Late jobs retain lifecycle evidence and count as
+  # incomplete, so they cannot block presentation of completed reviews.
+  OCTOPUS_OVERSIZE_STRATEGY=fail OCTOPUS_ADVISOR_WAIT_SECONDS=600 octo_launch_advisors \
+    "$REVIEW_ROOT/scripts/orchestrate.sh" "$provider" "$REVIEW_OUTPUT_DIR" \
+    'review-' "$REVIEW_PROMPT" 1 literal > "$REVIEW_OUTPUT_DIR/${provider}-count.txt" &
+  collector_pids+=("$!")
+done
+review_failed=false
+successful_providers=()
+for index in "${!collector_pids[@]}"; do
+  provider="${providers[$index]}"
+  answer="$REVIEW_OUTPUT_DIR/review-${provider}.md"
+  if wait "${collector_pids[$index]}" && [[ -s "$answer" ]]; then
+    successful_providers+=("$provider")
+  else
+    printf 'Provider review incomplete: %s; evidence: %s\n' "$provider" "$REVIEW_OUTPUT_DIR" >&2
+    review_failed=true
+  fi
+done
+# Present every successful review even if another provider failed. Never read
+# a failed provider's partial file or count it toward completed coverage.
+for provider in ${successful_providers[@]+"${successful_providers[@]}"}; do
+  printf '\nCompleted review: %s\n' "$provider"
+  cat "$REVIEW_OUTPUT_DIR/review-${provider}.md"
+done
+if [[ "$provider_count" -eq 0 ]]; then
+  echo "No allowed external provider is available; perform the documented current-host review."
+elif [[ "$review_failed" == true ]]; then
+  echo "External review incomplete; retain successful findings and report the coverage gap."
+fi
+```
+
+**If any selected provider fails, keep external review marked incomplete. Synthesize the successful findings with the current-host review and report the missing coverage; do not mark the full selected review complete.**
+
+**Wait for external reviews to complete, then synthesize all findings from Claude plus available external providers into a unified quality assessment.** If external providers are unavailable, fall back to the Claude-only review below.
+
+**Claude (you) performs the full quality review regardless:**
+
+1. **Architecture alignment** — Does the code follow project patterns?
+2. **Error handling** — Are errors caught and handled appropriately?
+3. **Security** — Any OWASP Top 10 issues?
+4. **Performance** — Any obvious bottlenecks or N+1 queries?
+5. **Readability** — Clear naming, reasonable complexity?
+6. **Test coverage** — Are new behaviors tested?
+
+**Synthesize external findings:** If external providers returned results, merge their findings with yours. Where providers disagree on severity, note the divergence. Where multiple providers flag the same issue, mark it as high-confidence.
+
+### Step 3: Present Stage 2 Results
+
+```markdown
+## Stage 2: Code Quality
+
+### Stub Detection
+- Files scanned: N
+- Issues found: N
+- [Details of each issue]
+
+### Quality Review
+- Architecture: [PASS/WARN/FAIL]
+- Error Handling: [PASS/WARN/FAIL]
+- Security: [PASS/WARN/FAIL]
+- Performance: [PASS/WARN/FAIL]
+- Readability: [PASS/WARN/FAIL]
+- Test Coverage: [PASS/WARN/FAIL]
+
+### Blocking Issues
+[List any issues that must be fixed before merge]
+
+### Recommendations
+[Non-blocking suggestions for improvement]
+```
+
+
+## Combined Report
+
+After both stages complete, present the unified report:
+
+```markdown
+## Staged Review — Complete
+
+### Stage 1: Spec Compliance
+- Success Criteria: N/N passed
+- Boundaries: N/N respected
+- Verdict: [PASS/FAIL]
+
+### Stage 2: Code Quality
+- Stub Detection: N issues
+- Quality Score: [HIGH/MEDIUM/LOW]
+- Blocking Issues: N
+- Verdict: [PASS/FAIL]
+
+### Overall Verdict: [PASS/FAIL]
+
+[If FAIL: list specific items that must be addressed]
+[If PASS: ready for merge/ship]
+```
+
+
+## When to Use Each Review Type
+
+| Review Type | When | What It Checks |
+|-------------|------|----------------|
+| **skill-code-review** | Quick PR review | Code quality only |
+| **skill-staged-review** | Major feature completion | Spec compliance + code quality |
+| **skill-verification-gate** | Before any completion claim | Evidence of passing |
+
+
+## Error Handling
+
+| Error | Resolution |
+|-------|------------|
+| No intent contract | Skip Stage 1, warn user, run Stage 2 only |
+| No changed files | Report nothing to review |
+| Git not available | Use file listing instead of git diff |
+| Stage 1 failures | Ask user: fix or override |
+| Stage 2 blocking issues | Must fix before merge |
+
+
+## The Bottom Line
+
+```
+Staged Review = Spec Compliance (Stage 1) + Code Quality (Stage 2)
+Stage 1 gates Stage 2. Both must pass for overall PASS.
+```
+
+**Build the right thing, then build it right.**
+
+
+## Post Results to PR (v8.44.0)
+
+After the combined report is generated, check for an open PR and post findings.
+
+```bash
+# Detect open PR on current branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+PR_NUM=""
+
+if [[ -n "$CURRENT_BRANCH" && "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" != "master" ]]; then
+    if command -v gh &>/dev/null; then
+        PR_NUM=$(gh pr list --head "$CURRENT_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+    fi
+fi
+
+if [[ -n "$PR_NUM" ]]; then
+    # Post combined report through the outbound credential gate.
+    REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+    COMMENT_BODY="## Staged Review — Claude Octopus
+
+${COMBINED_REPORT}
+
+*Staged review by Claude Octopus (/octo:staged-review)*"
+    if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
+            --repo "$REPO_SLUG" pr-comment "$PR_NUM" - <<< "$COMMENT_BODY"; then
+        echo "GitHub write state is unknown; check for the staged review comment before retrying:" >&2
+        gh pr view "$PR_NUM" --repo "$REPO_SLUG" --comments || true
+        return 1 2>/dev/null || exit 1
+    fi
+
+    echo "Staged review posted to PR #${PR_NUM}"
+fi
+```
+
+**Behavior:**
+- Auto-posts when running inside `$flow-deliver` or `/octo:embrace` workflows
+- Asks user first when invoked standalone via `$skill-staged-review`

@@ -9,8 +9,6 @@ aliases:
 description: Multi-AI validation, scoring, and review using available external providers (Double Diamond Deliver phase)
 
 # Claude Code v2.1.12+ Integration
-agent: general-purpose
-context: fork
 task_management: true
 task_dependencies:
   - flow-develop
@@ -329,7 +327,12 @@ Read the validation file and present:
 
 #### Post to PR (v8.44.0)
 
-After presenting the report, check if the current branch has an open PR and post the validation summary as a PR comment:
+After presenting the report, decide whether posting is authorized. For standalone
+requests, ask before posting. Review-only requests stop after the report. An
+explicitly authorized automatic workflow may post without asking again.
+Set `OCTO_POST_VALIDATION=1` only after establishing that authorization in the
+conversation; otherwise leave it unset. Run the following block only when posting
+is authorized:
 
 ```bash
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
@@ -341,7 +344,7 @@ if [[ -n "$CURRENT_BRANCH" && "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" !
     fi
 fi
 
-if [[ -n "$PR_NUM" ]]; then
+if [[ "${OCTO_POST_VALIDATION:-0}" == "1" && -n "$PR_NUM" ]]; then
     # Extract summary section from validation file for PR comment
     REVIEW_SUMMARY=$(head -60 "$VALIDATION_FILE")
 
@@ -865,9 +868,18 @@ Ink workflows typically cost 0.02-0.08 USD per validation depending on codebase 
 
 After validation passes (go decision), run documentation synchronization to keep project docs current with shipped code. This step is **automatic** when running as part of `/octo:embrace` and **offered** when running standalone.
 
-**Load the doc-sync source after delivery has been explicitly requested:**
+Retain STEP 4's verified absolute `OCTO_ROOT` in the host context for these
+continuations. In a fresh shell, assign that exact value again. Do not choose a
+stable link or another installation during handoff.
+
+For a review-only request, stop after presenting the findings. Do not load or run
+doc-sync, ship, or branch cleanup. For standalone delivery, offer doc-sync and wait
+for the user's acceptance. Run it automatically only when the user's workflow
+already authorizes documentation edits and commits.
+
+**After doc-sync is authorized, load its source:**
 ```
-Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
+Read ${OCTO_ROOT}/.claude/skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
 ```
 
 The doc-sync skill will:
@@ -891,15 +903,15 @@ After delivery validation and doc-sync complete, route according to the user's e
 request:
 
 - **Ship requested:** update `.octo/STATE.md`, then read and follow
-  `.claude/skills/skill-ship/SKILL.md` from the stable plugin root.
+  `.claude/skills/skill-ship/SKILL.md` from the same verified `OCTO_ROOT` used in STEP 4.
 - **Branch wrap-up requested:** read and follow
-  `.claude/skills/skill-finish-branch/SKILL.md` from the stable plugin root.
+  `.claude/skills/skill-finish-branch/SKILL.md` from the same verified `OCTO_ROOT` used in STEP 4.
 - **Review only:** deliver the synthesized findings and stop. Do not update the project
   to a ready-to-ship state or display a shipping instruction.
 
 ```bash
 # Run this block only when the user explicitly requested shipping.
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+"${OCTO_ROOT}/scripts/octo-state.sh" update_state \
   --status "complete" \
   --history "All phases complete, ready to ship"
 
@@ -919,7 +931,7 @@ echo "📦 **Project ready! Run \`/octo:ship\` to finalize and archive.**"
 After that block succeeds, perform the requested finalization immediately:
 
 ```text
-Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
+Read ${OCTO_ROOT}/.claude/skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
 ```
 
 Do not stop after displaying the command. The ship-requested branch is incomplete until

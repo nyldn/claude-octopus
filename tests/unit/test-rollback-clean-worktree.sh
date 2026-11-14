@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # Execute the rollback recipes against disposable repositories with user work.
 set -euo pipefail
+# Isolate every fixture and recipe child from the caller's Git locations.
+while IFS= read -r git_variable; do
+    unset "$git_variable"
+done < <(git rev-parse --local-env-vars)
+unset git_variable
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Rollback worktree preservation"
 test_case "dirty worktrees stop before preview, safety tag and restore"
-if python3 - "$PROJECT_ROOT" <<'PY'
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY'
 import os
 from pathlib import Path
 import re
@@ -18,17 +24,21 @@ import tempfile
 root = Path(sys.argv[1])
 source = (root / '.claude/skills/skill-rollback/SKILL.md').read_text().split('## Mode: ROLLBACK\n', 1)[1]
 
-def recipe(step):
+def recipe(step, prepare=True):
     section = source.split('### Step ' + str(step) + ':', 1)[1]
-    return re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    script = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    return recipe(5) + '\n' + script if step == 6 and prepare else script
 
 checks = 0
-with tempfile.TemporaryDirectory() as temporary:
-    repo = Path(temporary)
+with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+    repo = Path(temporary) / 'repo'
+    repo.mkdir()
+    backups = Path(temporary) / 'backups'
+    backups.mkdir()
     env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
                GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
                GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid',
-               CHECKPOINT_TAG='octo-checkpoint-fixture', LESSONS_PRESERVED='false')
+               CHECKPOINT_TAG='octo-checkpoint-fixture', LESSONS_PRESERVED='false', TMPDIR=str(backups))
     def git(*args):
         return subprocess.check_output(['git', *args], cwd=repo, env=env, stderr=subprocess.DEVNULL)
     def preview_env(values):
@@ -102,6 +112,19 @@ with tempfile.TemporaryDirectory() as temporary:
             checks += 1
     untracked.unlink()
     git('reset', '--hard', '-q', 'HEAD')
+    # Missing recovery context must stop before checkout changes any bytes.
+    for invalid in ({}, {'LESSONS_PRESERVED': 'true'},
+                    {'LESSONS_PRESERVED': 'true', 'LESSONS_BACKUP_DIR': '/nonexistent/rollback-fixture'}):
+        invalid_env = dict(env)
+        invalid_env.pop('LESSONS_PRESERVED', None)
+        invalid_env.update(invalid)
+        before = git('status', '--porcelain=v1')
+        result = subprocess.run(['bash', '-c', recipe(6, prepare=False)], cwd=repo, env=invalid_env,
+                                capture_output=True, timeout=5)
+        assert result.returncode != 0
+        assert path.read_text() == 'current commit\n'
+        assert git('status', '--porcelain=v1') == before
+        checks += 1
     # Ignored local files do not appear in the ordinary clean-tree guard.
     (repo / '.git/info/exclude').write_text('*\n')
     cache = repo / 'unrelated.cache'
@@ -242,7 +265,7 @@ with tempfile.TemporaryDirectory() as temporary:
     # Checkpoints can track symlinks, including a state path outside the repo.
     evil_tag = 'octo-checkpoint-$(id)'
     git('tag', evil_tag)
-    with tempfile.TemporaryDirectory() as outside:
+    with tempfile.TemporaryDirectory(dir=sys.argv[2]) as outside:
         victim = Path(outside) / 'STATE.md'
         victim.write_text('outside shell file must remain unchanged\n')
         before = victim.read_bytes()
@@ -273,6 +296,26 @@ with tempfile.TemporaryDirectory() as temporary:
     assert result.returncode != 0, 'history accepted a non-regular state file'
     state.unlink()
     checks += 1
+# Two simultaneous rollback preparations must retain different lesson bytes.
+with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+    paths = []
+    for number in (1, 2):
+        project = Path(temporary) / str(number)
+        (project / '.octo').mkdir(parents=True)
+        subprocess.run(['git', 'init', '-q', str(project)], check=True)
+        (project / '.octo/LESSONS.md').write_text(f'project {number} lessons')
+        result = subprocess.run(['bash', '-eu', '-c', recipe(5) +
+                                 '\nprintf "%s" "$LESSONS_BACKUP_DIR"'],
+                                cwd=project, env=dict(os.environ, TMPDIR=temporary),
+                                capture_output=True, text=True, check=True)
+        paths.append(Path(result.stdout.splitlines()[-1]))
+    assert paths[0] != paths[1]
+    for number, backup in enumerate(paths, 1):
+        assert (backup / 'LESSONS.md').read_text() == f'project {number} lessons'
+        assert backup.stat().st_mode & 0o077 == 0
+        (backup / 'LESSONS.md').unlink()
+        backup.rmdir()
+        checks += 1
 print(f'{checks} dirty, clean and recovery rollback recipe cases passed')
 PY
 then test_pass; else test_fail "rollback modified user work or rejected a clean restore"; fi

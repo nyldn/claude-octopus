@@ -1,19 +1,40 @@
 ---
 name: octopus-ui-ux-design
-description: "Design UI/UX systems with style guides, palettes, typography, and component specs for new interfaces"
 disable-model-invocation: true
+aliases:
+  - design-ui-ux
+  - ui-ux-design
+  - design
+  - ui-design
+  - ux-design
+description: "Design UI/UX systems with style guides, palettes, typography, and component specs for new interfaces"
+task_management: true
+execution_mode: enforced
+pre_execution_contract:
+  - interactive_questions_answered
+  - visual_indicators_displayed
+  - design_intelligence_checked
+validation_gates:
+  - search_py_executed
+  - design_spec_produced
+trigger: |
+  Use this skill when the user wants to "design a UI", "create a design system",
+  "pick a color palette", "choose fonts for", "design a dashboard", "create component specs",
+  "style guide for", or "UI/UX for my app".
+
+  Execution: BM25 search via search.py + Claude synthesis with ui-ux-designer persona
+paths:
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "**/*.vue"
+  - "**/*.svelte"
+  - "**/components/**"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 ## EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 <HARD-GATE>
-**CRITICAL: You MUST call the BM25 search engine (search.py) via native shell command tool before producing
+**CRITICAL: You MUST call the BM25 search engine (search.py) via Bash tool before producing
 any design recommendations. Do NOT rely solely on your own design knowledge. The search engine
 provides curated, data-driven design intelligence. If you produce a design system without
 at least 3 search.py calls, you have violated this contract.**
@@ -99,7 +120,7 @@ missing, non-numeric, or outside 1-10, stop and obtain a valid value rather than
 
 ### STEP 2: Display Banner
 
-**MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
+**MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
@@ -189,7 +210,7 @@ python3 "$SEARCH_PY" "<user's product description>" --design-system \
 
 Dispatch the same design brief to multiple providers in parallel. Each provider generates an independent design direction without seeing the others' work.
 
-**Launch 3+ variant agents in parallel using the host subagent tool with `background execution: true`:**
+**Launch 3+ variant agents in parallel using the Agent tool with `run_in_background: true`:**
 
 Each agent receives:
 ```
@@ -259,6 +280,7 @@ AskUserQuestion({
 
 **After selection, proceed to Step 5 using the chosen variant as the design direction.** If "Mix & match", ask which elements to combine before proceeding.
 
+---
 
 ### STEP 5: Phase 2 — Define (Design Direction)
 
@@ -296,6 +318,10 @@ For each issue found, state: what's wrong, why it matters, and what to do instea
 **Three participants, run in parallel:**
 
 ```bash
+# Create a private output directory before launching critiques. Carry its exact
+# path into subsequent shells and use it for every critique read.
+CRITIQUE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-design-critique.XXXXXX") || exit 1
+printf 'CRITIQUE_DIR=%s\n' "$CRITIQUE_DIR"
 # Check provider availability
 providers=()
 command -v codex >/dev/null 2>&1 && providers+=(codex)
@@ -304,7 +330,7 @@ command -v agy >/dev/null 2>&1 && providers+=(agy)
 for provider in "${providers[@]}"; do
     safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
     "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
-      "<critique prompt>" > "/tmp/design-critique-${safe_provider}.md" &
+      "<critique prompt>" > "${CRITIQUE_DIR:?}/${safe_provider}.md" &
 done
 
 wait

@@ -1,14 +1,40 @@
 ---
 name: flow-deliver
-description: "Multi-AI validation, scoring, and review using available external providers (Double Diamond Deliver phase)"
 disable-model-invocation: true
+aliases:
+  - deliver
+  - deliver-workflow
+  - ink
+  - ink-workflow
+description: Multi-AI validation, scoring, and review using available external providers (Double Diamond Deliver phase)
+
+# Claude Code v2.1.12+ Integration
+task_management: true
+task_dependencies:
+  - flow-develop
+execution_mode: enforced
+pre_execution_contract:
+  - context_detected
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - validation_file_exists
+trigger: |
+  EXPLICITLY USE when user requests validation, scoring, or review:
+  - "review X" or "validate Y" or "test Z"
+  - "score this", "quality check", "validate before shipping"
+  - "check if X works correctly"
+  - "verify the implementation of Y"
+  - "find issues in Z"
+  - "quality check for X"
+  - "ensure Y meets requirements"
+
+  DO NOT activate for:
+  - Implementation tasks (use tangle-workflow)
+  - Research tasks (use probe-workflow)
+  - Requirement definition (use grasp-workflow)
+  - Built-in commands (/plugin, /help, etc.)
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 {{PREAMBLE}}
 
@@ -37,6 +63,7 @@ fi
   --status "in_progress"
 ```
 
+---
 
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
@@ -78,10 +105,11 @@ orchestrate.sh deliver "<user prompt>\n\nDomain-specific validation criteria:\n<
 
 **DO NOT PROCEED TO STEP 2 until context determined.** Context type (Dev vs Knowledge) and dev subtype determine which validation supplements to inject — wrong context produces a review that checks irrelevant criteria.
 
+---
 
 ### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
 
-**MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
+**MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
@@ -126,6 +154,7 @@ Provider Availability:
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.** The banner shows users which providers will run and what costs they'll incur — starting API calls without this visibility violates cost transparency.
 
+---
 
 ### STEP 3: Read Prior State (MANDATORY - State Management)
 
@@ -176,10 +205,11 @@ fi
 
 **DO NOT PROCEED TO STEP 4 until state read.**
 
+---
 
 ### STEP 4: Execute orchestrate.sh deliver (MANDATORY - Use Bash Tool)
 
-**You MUST execute this command via the native shell command tool:**
+**You MUST execute this command via the Bash tool:**
 
 Use the installation that loaded this skill for both execution and validation.
 If `CLAUDE_PLUGIN_ROOT` is absent, replace the `OCTO_ROOT` fallback below with
@@ -209,7 +239,7 @@ cat "$VALIDATION_FILE"
 - ❌ Claiming you're "simulating" the workflow
 - ❌ Proceeding to Step 4 without running this command
 
-**You MUST use the native shell command tool to invoke orchestrate.sh.**
+**You MUST use the Bash tool to invoke orchestrate.sh.**
 
 #### What Users See During Execution (v7.16.0+)
 
@@ -226,6 +256,7 @@ These spinner verb updates happen automatically - orchestrate.sh calls `update_t
 
 **If NOT running in Claude Code v2.1.16+:** Progress indicators are silently skipped, no errors shown.
 
+---
 
 ### STEP 5: Verify Execution (MANDATORY - Validation Gate)
 
@@ -246,6 +277,7 @@ or rerun the workflow to recover a shell variable.
 3. DO NOT proceed with presenting results
 4. DO NOT substitute with direct review — fallback to single-model review defeats the adversarial multi-provider validation that catches blind spots
 
+---
 
 ### STEP 6: Update State (MANDATORY - Post-Execution)
 
@@ -270,6 +302,7 @@ echo "📊 Session Complete - Final Metrics:"
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
 
+---
 
 ### STEP 7: Present Validation Report & Post to PR (Only After Steps 1-6 Complete)
 
@@ -286,6 +319,7 @@ Read the validation file and present:
 
 **Include attribution:**
 ```
+---
 *Multi-AI Validation powered by Claude Octopus*
 *Providers: available external providers + 🔵 Claude*
 *Full validation report: $VALIDATION_FILE*
@@ -293,7 +327,12 @@ Read the validation file and present:
 
 #### Post to PR (v8.44.0)
 
-After presenting the report, check if the current branch has an open PR and post the validation summary as a PR comment:
+After presenting the report, decide whether posting is authorized. For standalone
+requests, ask before posting. Review-only requests stop after the report. An
+explicitly authorized automatic workflow may post without asking again.
+Set `OCTO_POST_VALIDATION=1` only after establishing that authorization in the
+conversation; otherwise leave it unset. Run the following block only when posting
+is authorized:
 
 ```bash
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
@@ -305,7 +344,7 @@ if [[ -n "$CURRENT_BRANCH" && "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" !
     fi
 fi
 
-if [[ -n "$PR_NUM" ]]; then
+if [[ "${OCTO_POST_VALIDATION:-0}" == "1" && -n "$PR_NUM" ]]; then
     # Extract summary section from validation file for PR comment
     REVIEW_SUMMARY=$(head -60 "$VALIDATION_FILE")
 
@@ -344,6 +383,7 @@ fi
   ```
 - If no PR or `gh` CLI unavailable, skips silently
 
+---
 
 # Deliver Workflow - Deliver Phase ✅
 
@@ -395,6 +435,7 @@ Providers:
 
 {{VISUAL_INDICATORS}}
 
+---
 
 **Part of Double Diamond: DELIVER** (convergent thinking)
 
@@ -421,6 +462,7 @@ The **deliver** phase validates and reviews implementations using external CLI p
 
 This is the **convergent** phase for delivery - we ensure quality before shipping.
 
+---
 
 ## When to Use Deliver
 
@@ -446,6 +488,7 @@ Use deliver when you need:
 - Requirement definition (use define-workflow)
 - Simple code/document reading (use Read tool)
 
+---
 
 ## Visual Indicators
 
@@ -461,6 +504,7 @@ Providers:
 🔵 Claude - Synthesis and validation report
 ```
 
+---
 
 ## How It Works
 
@@ -497,6 +541,7 @@ Results are saved to:
 
 Read the synthesis and present findings with quality scores to the user.
 
+---
 
 ## Implementation Instructions
 
@@ -504,7 +549,7 @@ When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The con
 
 1. **Blocking Step 1**: Detect work context (Dev vs Knowledge)
 2. **Blocking Step 2**: Check providers, display visual indicators
-3. **Blocking Step 3**: Execute orchestrate.sh deliver via native shell command tool
+3. **Blocking Step 3**: Execute orchestrate.sh deliver via Bash tool
 4. **Blocking Step 4**: Verify validation file exists
 5. **Step 5**: Present formatted validation report
 
@@ -596,6 +641,7 @@ After successful execution, present validation report with:
    Full validation report saved to: <validation file path>
    ```
 
+---
 
 ## Example Usage
 
@@ -752,6 +798,7 @@ Claude:
 [Provides go/no-go decision with quality scores]
 ```
 
+---
 
 ## Quality Gate Integration
 
@@ -772,6 +819,7 @@ Before running conceptual quality gates, detect and run the project's actual lin
 
 {{QUALITY_GATES}}
 
+---
 
 ## Integration with Other Workflows
 
@@ -789,6 +837,7 @@ PROBE (Discover) → GRASP (Define) → TANGLE (Develop) → INK (Deliver)
 
 Or use ink standalone for validation of existing code.
 
+---
 
 ## Validation Checklist
 
@@ -802,6 +851,7 @@ Before marking validation complete, ensure:
 - [ ] Next steps documented for user
 - [ ] Full validation report shared
 
+---
 
 ## Cost Awareness
 
@@ -812,14 +862,24 @@ Before marking validation complete, ensure:
 
 Ink workflows typically cost 0.02-0.08 USD per validation depending on codebase size and complexity.
 
+---
 
 ## Post-Validation: Documentation Sync
 
 After validation passes (go decision), run documentation synchronization to keep project docs current with shipped code. This step is **automatic** when running as part of `/octo:embrace` and **offered** when running standalone.
 
-**Load the doc-sync source after delivery has been explicitly requested:**
+Retain STEP 4's verified absolute `OCTO_ROOT` in the host context for these
+continuations. In a fresh shell, assign that exact value again. Do not choose a
+stable link or another installation during handoff.
+
+For a review-only request, stop after presenting the findings. Do not load or run
+doc-sync, ship, or branch cleanup. For standalone delivery, offer doc-sync and wait
+for the user's acceptance. Run it automatically only when the user's workflow
+already authorizes documentation edits and commits.
+
+**After doc-sync is authorized, load its source:**
 ```
-Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
+Read ${OCTO_ROOT}/.claude/skills/skill-doc-sync/SKILL.md and execute it for "sync docs for the changes on this branch"
 ```
 
 The doc-sync skill will:
@@ -835,6 +895,7 @@ The doc-sync skill will:
 - The validation result was "no-go" (fix code first)
 - User explicitly requests to skip (`--no-docs` or declines when asked)
 
+---
 
 ## Post-Delivery: Route to Ship
 
@@ -842,15 +903,15 @@ After delivery validation and doc-sync complete, route according to the user's e
 request:
 
 - **Ship requested:** update `.octo/STATE.md`, then read and follow
-  `.claude/skills/skill-ship/SKILL.md` from the stable plugin root.
+  `.claude/skills/skill-ship/SKILL.md` from the same verified `OCTO_ROOT` used in STEP 4.
 - **Branch wrap-up requested:** read and follow
-  `.claude/skills/skill-finish-branch/SKILL.md` from the stable plugin root.
+  `.claude/skills/skill-finish-branch/SKILL.md` from the same verified `OCTO_ROOT` used in STEP 4.
 - **Review only:** deliver the synthesized findings and stop. Do not update the project
   to a ready-to-ship state or display a shipping instruction.
 
 ```bash
 # Run this block only when the user explicitly requested shipping.
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+"${OCTO_ROOT}/scripts/octo-state.sh" update_state \
   --status "complete" \
   --history "All phases complete, ready to ship"
 
@@ -870,12 +931,13 @@ echo "📦 **Project ready! Run \`/octo:ship\` to finalize and archive.**"
 After that block succeeds, perform the requested finalization immediately:
 
 ```text
-Read ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/.claude/skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
+Read ${OCTO_ROOT}/.claude/skills/skill-ship/SKILL.md and execute it for "finalize and archive the validated project"
 ```
 
 Do not stop after displaying the command. The ship-requested branch is incomplete until
 the explicit ship workflow has actually been executed.
 
+---
 
 ## Terminal State
 

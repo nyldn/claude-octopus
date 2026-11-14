@@ -13,7 +13,7 @@ trigger: |
   - "add issue" or "create issue"
   - "resolve issue" or "close issue"
   - "show issues" or "list issues"
-  
+
   DO NOT activate for:
   - Git issues (use git commands)
   - GitHub issues (use gh CLI)
