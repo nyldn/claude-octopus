@@ -58,7 +58,7 @@ else
     test_fail 'valid holdout evaluation changed'
 fi
 
-for pipeline_case in single unstructured visible-write-failure holdout-write-failure initial-failure retry-failure success; do
+for pipeline_case in single unstructured visible-write-failure holdout-write-failure result-write-failure initial-failure retry-failure success; do
     test_case "factory handles $pipeline_case through an OR-list"
     if (
         case_dir="$TEST_TMP_DIR/pipeline-$pipeline_case"
@@ -81,6 +81,7 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
             case "$pipeline_case" in
                 visible-write-failure) mkdir "$2/scenarios-visible.md" ;;
                 holdout-write-failure) mkdir "$2/scenarios-holdout.md" ;;
+                result-write-failure) mkdir "$2/holdout-results.md" ;;
             esac
         }
         embrace_full_workflow() { touch embraced; }
@@ -106,8 +107,10 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
                 grep -q 'FACTORY COMPLETE' output
         else
             [[ "$rc" != 0 && ! -e reported ]] && ! grep -q 'FACTORY COMPLETE' output &&
-            if [[ "$pipeline_case" == single || "$pipeline_case" == unstructured || "$pipeline_case" == *write-failure ]]; then
+            if [[ "$pipeline_case" == single || "$pipeline_case" == unstructured || "$pipeline_case" == visible-write-failure || "$pipeline_case" == holdout-write-failure ]]; then
                 [[ ! -e embraced && ! -e scored ]]
+            elif [[ "$pipeline_case" == result-write-failure ]]; then
+                [[ "$rc" == 1 && -e embraced && ! -e scored ]]
             else
                 [[ "$rc" == 42 && -e embraced ]] &&
                     if [[ "$pipeline_case" == retry-failure ]]; then

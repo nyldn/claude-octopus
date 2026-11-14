@@ -182,7 +182,7 @@ After all scenarios, output:
         return 0
     fi
 
-    echo "$eval_result" > "$run_dir/holdout-results.md"
+    echo "$eval_result" > "$run_dir/holdout-results.md" || return 1
 
     # Extract score from evaluation
     local holdout_score

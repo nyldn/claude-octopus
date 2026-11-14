@@ -12,7 +12,7 @@
 ### Fixed
 
 - Factory stops before implementation when generated scenarios leave no independent holdout.
-- Factory stops when writing visible or holdout scenario artifacts fails.
+- Factory stops when it cannot save scenario or holdout evaluation evidence.
 - Missing or empty holdout evidence cannot earn a perfect score; evaluation failures stop Factory, including retries.
 - Shipping audits review the confirmed committed source range and report its base and delivered revisions.
 - Shipping stops audits on dirty, empty, oversized or changed source instead of accepting incomplete evidence.
