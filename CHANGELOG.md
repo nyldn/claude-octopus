@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [11.24.0] - 2026-11-13
+## [11.24.0] - 2026-11-14
 
 This batch protects local work during quick tasks and rollback, verifies current
 research and Council evidence, and supports OpenCode 2.x dispatch. Configured
@@ -18,8 +18,9 @@ Merged changes: [#1301](https://github.com/nyldn/claude-octopus/pull/1301),
 [#1311](https://github.com/nyldn/claude-octopus/pull/1311),
 [#1312](https://github.com/nyldn/claude-octopus/pull/1312),
 [#1313](https://github.com/nyldn/claude-octopus/pull/1313),
-[#1314](https://github.com/nyldn/claude-octopus/pull/1314) and
-[#1315](https://github.com/nyldn/claude-octopus/pull/1315).
+[#1314](https://github.com/nyldn/claude-octopus/pull/1314),
+[#1315](https://github.com/nyldn/claude-octopus/pull/1315) and
+[#1316](https://github.com/nyldn/claude-octopus/pull/1316).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
 which remains open for outstanding runtime safety work.
 
@@ -37,6 +38,9 @@ which remains open for outstanding runtime safety work.
   existing local/private-address checks. Public HTTPS controls still pass. DNS
   rebinding and redirects remain separate work. See
   [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
+
+- Parallel workflow summaries restore the work-package count in each shell,
+  so every worker's result is included after resuming aggregation.
 
 - Debate state preserves quotes, newlines, backslashes and Unicode in questions
   and clarifying answers, so saved debates remain readable by JSON consumers.

@@ -634,6 +634,15 @@ After all work packages complete (or timeout), aggregate results.
 **Read all outputs and exit codes:**
 
 ```bash
+# Restore the count in this shell, rather than relying on launch-time locals.
+WP_COUNT=$(python3 -I -c '
+import json
+with open(".octo/parallel/wbs.json", encoding="utf-8") as stream:
+    packages = json.load(stream)["work_packages"]
+if not isinstance(packages, list) or not packages:
+    raise SystemExit("Cannot summarize results: work_packages must be a nonempty list")
+print(len(packages))
+') || exit 1
 echo "=== WORK PACKAGE RESULTS ==="
 echo ""
 

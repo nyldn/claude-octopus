@@ -53,7 +53,8 @@ tracked checkpoint, keeps current lessons, and records the exact recovery tags.
 Research verifies the report produced by its current invocation. Provider quota
 and authentication failures update their original seat instead of leaving a
 stale running entry. Debate state keeps quoted and multiline questions readable
-when saved as JSON.
+when saved as JSON. Parallel summaries restore the package count before reading
+worker results, including when aggregation resumes in a fresh shell.
 
 External URL checks reject ambiguous authorities that could reach loopback
 services, including userinfo and bracketed IPv6 forms. This fixes authority
