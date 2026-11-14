@@ -122,7 +122,7 @@ run_holdout_tests() {
         log ERROR "No structured holdout scenarios to evaluate"
         return 1
     fi
-    if ! grep -q '^### Scenario' "$holdout_file"; then
+    if ! grep -c '^### Scenario' "$holdout_file" >/dev/null; then
         log ERROR "Holdout set has no scenarios to evaluate"
         return 1
     fi

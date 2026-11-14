@@ -110,7 +110,11 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
                 [[ ! -e embraced && ! -e scored ]]
             else
                 [[ "$rc" == 42 && -e embraced ]] &&
-                    { [[ "$pipeline_case" == retry-failure && -e scored ]] || [[ ! -e scored ]]; }
+                    if [[ "$pipeline_case" == retry-failure ]]; then
+                        [[ -e scored && -e first-holdout ]]
+                    else
+                        [[ ! -e scored ]]
+                    fi
             fi
         fi
     ); then test_pass; else test_fail "factory continued past $pipeline_case"; fi
