@@ -42,12 +42,15 @@ OpenCode 2.x is still unavailable in bounded Tangle runs. See
 [OpenCode compatibility](docs/PROVIDERS.md#opencode-cli-generations).
 
 Council reviews verify source quotations more accurately and keep waiting for
-the current round when an earlier one has already finished. Antigravity can retry
+the current round when an earlier one has already finished. Interrupted Council
+launches retain cancellation results for every started seat. Antigravity can retry
 a configured Gemini model after a capacity error, with the answering model recorded.
 See [Council](docs/COUNCIL.md) and
 [Antigravity fallback configuration](config/providers/agy/CLAUDE.md).
 
 Quick tasks commit only their selected files and preserve unrelated staged work.
+Resuming a task queue starts an unblocked task, and reports when every pending
+task is waiting on dependencies.
 Checkpoint rollback checks for unsaved changes before restoring the complete
 tracked checkpoint, keeps current lessons, and records the exact recovery tags.
 Confirmation is tied to the previewed repository, branch, revision and checkpoint;

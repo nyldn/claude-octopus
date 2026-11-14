@@ -244,12 +244,22 @@ ${pending.map((t, i) => `${i + 1}. [ ] ${t.subject}`).join('\n')}
 
 #### Step 4: Execute Based on Choice
 
-- If "continue with next task" → Get first pending task, mark as in_progress, and begin work:
+- If "continue with next task" → Refresh task state and start the first unblocked pending task:
   ```javascript
-  const nextTask = pending[0]
-  TaskUpdate({ taskId: nextTask.id, status: 'in_progress' })
-  // Begin working on nextTask
+  const currentPending = TaskList().filter(t => t.status === 'pending')
+  const nextTask = currentPending.find(t => !t.blockedBy?.length)
+  if (nextTask) {
+    TaskUpdate({ taskId: nextTask.id, status: 'in_progress' })
+    // Begin working on nextTask
+  } else if (currentPending.length) {
+    console.log('All pending tasks are blocked. Resolve their dependencies before continuing.')
+  } else {
+    console.log('No pending tasks to resume.')
+  }
   ```
+
+  When every pending task is blocked, report the blockers and stop without
+  starting work. Do not remove dependencies to make a task eligible.
 
 - If "modify the plan" → Use AskUserQuestion to understand changes, then update tasks
 

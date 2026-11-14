@@ -198,6 +198,35 @@ rc=0
 wait "$runner" || rc=$?
 if [[ "$rc" == 143 && -s "$COUNCIL_RUN_DIR/responses/00-one.md.partial" && ! -e "$COUNCIL_RUN_DIR/responses/00-one.md" && -s "$COUNCIL_RUN_DIR/responses/01-two.md.pool-result" ]]; then test_pass; else test_fail "interrupted pool rc=$rc"; fi
 
+test_case "interruption during seat ownership transfer retains every cancellation record"
+prepare interrupted-transfer
+sleep 20 & unrelated=$!
+rc=0
+(
+    # Wrap only this subshell's dispatcher. Interrupt the scheduler after the
+    # second fork publishes its PID but before the pool registers that PID.
+    eval "$(declare -f council_dispatch_member_detached | sed '1s/council_dispatch_member_detached/_fixture_original_dispatch/')"
+    council_dispatch_member_detached() {
+        _fixture_original_dispatch "$@" || return $?
+        printf '%s\n' "$COUNCIL_ASYNC_PID" >> "$COUNCIL_RUN_DIR/worker-pids"
+        [[ "$3" != *01-two.md ]] || kill -TERM "$_COUNCIL_POOL_PID"
+    }
+    INERT_SLEEP=10 council_run_seat_pool independent-advice responses
+) || rc=$?
+transfer_ok=true
+for seat in 00-one 01-two; do
+    result="$COUNCIL_RUN_DIR/responses/$seat.md.pool-result"
+    if [[ ! -s "$result" ]] || [[ "$(cat "$result")" != $'143\ninterrupted' ]] ||
+       [[ -e "$COUNCIL_RUN_DIR/responses/$seat.md" ]]; then transfer_ok=false; fi
+done
+while IFS= read -r worker; do
+    if kill -0 "$worker" 2>/dev/null; then transfer_ok=false; fi
+done < "$COUNCIL_RUN_DIR/worker-pids"
+if [[ "$rc" == 143 && "$transfer_ok" == true ]] && kill -0 "$unrelated"; then
+    test_pass
+else test_fail "ownership-transfer cancellation lost a result or left a worker: rc=$rc"; fi
+kill "$unrelated"; wait "$unrelated" 2>/dev/null || true
+
 test_case "aggregate deadline stops queued seats and cancels active seats"
 prepare deadline
 COUNCIL_RUN_START_EPOCH="$(date +%s)" OCTOPUS_COUNCIL_DEADLINE_SECS=5 OCTOPUS_COUNCIL_DEADLINE_SEAT_FLOOR_SECS=2 INERT_SLEEP=8 INERT_TIMEOUT=3 \

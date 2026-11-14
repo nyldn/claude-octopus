@@ -23,8 +23,10 @@ Merged changes: [#1301](https://github.com/nyldn/claude-octopus/pull/1301),
 [#1316](https://github.com/nyldn/claude-octopus/pull/1316),
 [#1317](https://github.com/nyldn/claude-octopus/pull/1317),
 [#1318](https://github.com/nyldn/claude-octopus/pull/1318),
-[#1319](https://github.com/nyldn/claude-octopus/pull/1319) and
-[#1320](https://github.com/nyldn/claude-octopus/pull/1320).
+[#1319](https://github.com/nyldn/claude-octopus/pull/1319),
+[#1320](https://github.com/nyldn/claude-octopus/pull/1320),
+[#1323](https://github.com/nyldn/claude-octopus/pull/1323) and
+[#1322](https://github.com/nyldn/claude-octopus/pull/1322).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
 which remains open for outstanding runtime safety work.
 
@@ -42,6 +44,13 @@ which remains open for outstanding runtime safety work.
   existing local/private-address checks. Public HTTPS controls still pass. DNS
   rebinding and redirects remain separate work. See
   [#1306](https://github.com/nyldn/claude-octopus/pull/1306).
+
+- Interrupted council launches retain a cancellation record for a seat stopped
+  during scheduler ownership transfer, so collection cannot mistake it for work
+  that was never launched.
+
+- Resuming tasks refreshes the queue and starts only an unblocked pending task.
+  Fully blocked and empty queues report their state without starting work.
 
 - Rollback stops before partially restoring checkpoints with changed submodules.
   It reports the required manual restoration instead of treating a gitlink update
