@@ -162,7 +162,7 @@ if [[ -n "$AUDIT_STATUS" ]]; then
   echo "Audit incomplete: commit or preserve uncommitted source before dispatch." >&2
   exit 1
 fi
-AUDIT_DIFF=$(git diff --no-ext-diff --no-textconv --no-color --binary "$AUDIT_BASE" "$AUDIT_HEAD" --) || exit 1
+AUDIT_DIFF=$(git -C "$AUDIT_REPO" diff --no-relative --no-ext-diff --no-textconv --no-color --binary "$AUDIT_BASE" "$AUDIT_HEAD" --) || exit 1
 if [[ -z "$AUDIT_DIFF" ]]; then
   echo "Audit incomplete: the confirmed delivery range has no changes." >&2
   exit 1

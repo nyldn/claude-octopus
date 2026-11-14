@@ -157,6 +157,26 @@ sys.exit(1 if mode == "failed" else 0)
                         self.audit_git('add', 'audit-source.txt')
                         self.audit_git('commit', '--allow-empty', '-qm', 'restore fixture')
 
+    def test_shipping_audit_includes_paths_outside_the_current_subdirectory(self):
+        self.prepare_audit_repository()
+        inside = self.home / 'inside'
+        inside.mkdir()
+        (inside / 'input.txt').write_text('INSIDE_SOURCE_REQUIRES_AUDIT\n')
+        self.audit_git('add', '-f', 'inside/input.txt')
+        self.audit_git('commit', '-qm', 'nested change')
+        self.audit_git('config', 'diff.relative', 'true')
+        capture = self.home / 'audit-capture.json'
+        self.env['FIXTURE_AUDIT_CAPTURE'] = str(capture)
+        for generated in (False, True):
+            with self.subTest(generated=generated):
+                result = subprocess.run(['bash', '-c', self.skill_command('ink', generated)],
+                                        cwd=inside, env=self.env, capture_output=True,
+                                        text=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                prompt = json.loads(capture.read_text())['prompt']
+                self.assertIn('+TAIL_REQUIRES_AUDIT', prompt)
+                self.assertIn('+INSIDE_SOURCE_REQUIRES_AUDIT', prompt)
+
     def test_research_only_accepts_its_current_successful_invocation(self):
         for generated in (False, True):
             for mode in ('complete', 'failed', 'missing', 'foreign', 'invalid'):
