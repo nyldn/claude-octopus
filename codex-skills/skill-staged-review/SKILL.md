@@ -213,7 +213,7 @@ for provider in ${providers[@]+"${providers[@]}"}; do
   # incomplete, so they cannot block presentation of completed reviews.
   OCTOPUS_ADVISOR_WAIT_SECONDS=600 octo_launch_advisors \
     "$REVIEW_ROOT/scripts/orchestrate.sh" "$provider" "$REVIEW_OUTPUT_DIR" \
-    'review-' "$REVIEW_PROMPT" 1 > "$REVIEW_OUTPUT_DIR/${provider}-count.txt" &
+    'review-' "$REVIEW_PROMPT" 1 literal > "$REVIEW_OUTPUT_DIR/${provider}-count.txt" &
   collector_pids+=("$!")
 done
 review_failed=false

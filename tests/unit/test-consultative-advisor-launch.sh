@@ -200,6 +200,21 @@ else
     test_fail "rc=$rc count='$count'"
 fi
 
+test_case "literal advisor prompts preserve code while templates retain substitution"
+literal_orch="$TEST_TMP_DIR/orch-literal"
+printf '%s\n' '#!/usr/bin/env bash' 'printf "%s" "$3"' > "$literal_orch"
+chmod +x "$literal_orch"
+literal_ok=true
+for mode in template literal; do
+    out="$TEST_TMP_DIR/prompt-$mode"
+    mkdir -p "$out"
+    count="$(octo_launch_advisors "$literal_orch" agy "$out" t- 'render("{{advisor}}")' 1 "$mode")" || literal_ok=false
+    expected='render("{{advisor}}")'
+    [[ "$mode" != template ]] || expected='render("agy")'
+    [[ "$count" == 1 && "$(cat "$out/t-agy.md")" == "$expected" ]] || literal_ok=false
+done
+if [[ "$literal_ok" == true ]]; then test_pass; else test_fail "advisor prompt bytes changed"; fi
+
 # The deadline also bounds a synchronous spawn (agy), which runs the whole
 # provider call inside spawn itself.
 fake_orch="$TEST_TMP_DIR/orch-sync-stuck"

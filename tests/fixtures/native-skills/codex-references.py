@@ -31,9 +31,12 @@ class CodexReferences(unittest.TestCase):
                 (root / 'scripts/lib').mkdir(parents=True)
                 (root / 'bin').mkdir()
                 (root / 'scripts/lib/consultative-advisors.sh').write_text(
-                    'octo_provider_allowed() { [[ "$1" == codex ]]; }\n'
-                    'octo_launch_advisors() { printf "%s" "$5" > "$REVIEW_CAPTURE"; '
-                    'printf "completed review" > "$3/${4}codex.md"; }\n')
+                    'source "' + str(ROOT / 'scripts/lib/consultative-advisors.sh') + '"\n'
+                    'octo_provider_allowed() { [[ "$1" == codex ]]; }\n')
+                runner = root / 'scripts/orchestrate.sh'
+                runner.write_text('#!/bin/bash\nprintf "%s" "$3" > "$REVIEW_CAPTURE"\n'
+                                  'printf "completed review\\n"\n')
+                runner.chmod(0o755)
                 binary = root / 'bin/codex'
                 binary.write_text('#!/bin/bash\nexit 0\n')
                 binary.chmod(0o755)
@@ -49,7 +52,7 @@ class CodexReferences(unittest.TestCase):
                     with self.subTest(bytes=len(content.encode())):
                         capture = root / 'prompt'
                         capture.unlink(missing_ok=True)
-                        (root / 'change.txt').write_text(content + '\nSTAGED_CHANGE_REQUIRES_REVIEW\n')
+                        (root / 'change.txt').write_text(content + '\nrender("{{advisor}}")\nSTAGED_CHANGE_REQUIRES_REVIEW\n')
                         subprocess.run(['git', 'add', 'change.txt'], cwd=root, env=env, check=True)
                         result = subprocess.run(['/bin/bash', '-c', block], cwd=root, env=env,
                                                 capture_output=True, text=True, timeout=5)
@@ -60,6 +63,7 @@ class CodexReferences(unittest.TestCase):
                         else:
                             self.assertEqual(result.returncode, 0, result.stderr)
                             self.assertIn('+STAGED_CHANGE_REQUIRES_REVIEW', capture.read_text())
+                            self.assertIn('+render("{{advisor}}")', capture.read_text())
 
     def test_finish_branch_keeps_the_dispatch_review_lossless(self):
         for tree in ('.claude/skills', 'skills', 'codex-skills'):
