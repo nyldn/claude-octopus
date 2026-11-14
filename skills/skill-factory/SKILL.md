@@ -117,6 +117,10 @@ fi
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" factory --spec "<spec_path>"
 ```
 
+If the command exits nonzero, report the error, show logs from
+`~/.claude-octopus/logs/`, and stop. Do not run Steps 6 through 8 or use an earlier
+run's artifacts after a failed execution.
+
 With optional flags based on Step 1 answers:
 - `--holdout-ratio <value>` if custom ratio requested
 - `--max-retries <value>` if custom retry count

@@ -13,7 +13,7 @@ run_agent_sync() {
     printf '### Scenario 1: independent check\n**Verdict:** PASS\nScore: 1.00\n'
 }
 
-for input in missing empty unstructured header single; do
+for input in missing empty unstructured header headings single; do
     test_case "holdout rejects $input evidence before calling a provider"
     case_dir="$TEST_TMP_DIR/$input"
     mkdir -p "$case_dir"
@@ -21,6 +21,7 @@ for input in missing empty unstructured header single; do
         empty) : > "$case_dir/scenarios-holdout.md" ;;
         unstructured) echo '# No structured scenarios to holdout' > "$case_dir/scenarios-holdout.md" ;;
         header) echo '# Factory Holdout Scenarios (0 of 1)' > "$case_dir/scenarios-holdout.md" ;;
+        headings) printf '### Scenario 1: empty\n\n### Scenario 2: also empty\n' > "$case_dir/scenarios-holdout.md" ;;
         single)
             printf '### Scenario 1: the only case\nGiven valid input\n' > "$case_dir/scenarios-all.md"
             split_status=0
@@ -58,7 +59,7 @@ else
     test_fail 'valid holdout evaluation changed'
 fi
 
-for pipeline_case in single unstructured visible-write-failure holdout-write-failure result-write-failure initial-failure retry-failure success; do
+for pipeline_case in single unstructured visible-write-failure holdout-write-failure result-write-failure providers-empty providers-banner initial-failure retry-failure success; do
     test_case "factory handles $pipeline_case through an OR-list"
     if (
         case_dir="$TEST_TMP_DIR/pipeline-$pipeline_case"
@@ -100,6 +101,13 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
                 return 42
             }
         fi
+        if [[ "$pipeline_case" == providers-* ]]; then
+            run_agent_sync() {
+                echo "$1" >> providers-tried
+                [[ "$pipeline_case" != providers-banner ]] || echo '[Provider unavailable: fixture] Score: 1.00'
+                return 42
+            }
+        fi
         rc=0
         factory_run spec.md 0.20 1 true > output 2>&1 || rc=$?
         if [[ "$pipeline_case" == success ]]; then
@@ -109,6 +117,9 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
             [[ "$rc" != 0 && ! -e reported ]] && ! grep -q 'FACTORY COMPLETE' output &&
             if [[ "$pipeline_case" == single || "$pipeline_case" == unstructured || "$pipeline_case" == visible-write-failure || "$pipeline_case" == holdout-write-failure ]]; then
                 [[ ! -e embraced && ! -e scored ]]
+            elif [[ "$pipeline_case" == providers-* ]]; then
+                [[ "$rc" != 0 && -e embraced && ! -e scored ]] &&
+                    [[ "$(cat providers-tried)" == $'agy\ncodex\nclaude' ]]
             elif [[ "$pipeline_case" == result-write-failure ]]; then
                 [[ "$rc" == 1 && -e embraced && ! -e scored ]]
             else
@@ -121,6 +132,32 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
             fi
         fi
     ); then test_pass; else test_fail "factory continued past $pipeline_case"; fi
+done
+
+for fallback in codex claude empty-success; do
+    test_case "holdout reaches $fallback fallback without accepting failed output"
+    if (
+        case_dir="$TEST_TMP_DIR/fallback-$fallback"
+        mkdir -p "$case_dir"
+        printf '### Scenario 1: independent check\nGiven valid input\n' > "$case_dir/scenarios-holdout.md"
+        run_agent_sync() {
+            echo "$1" >> "$case_dir/providers-tried"
+            if [[ "$1" == "$fallback" || "$fallback:$1" == empty-success:codex ]]; then
+                echo 'Score: 0.75'
+                return 0
+            fi
+            [[ "$fallback" != empty-success ]] || return 0
+            echo '[Provider unavailable: fixture] Score: 1.00'
+            return 42
+        }
+        result=$(run_holdout_tests "$case_dir") && [[ "$result" == 0.75 ]] &&
+            ! grep -c 'unavailable' "$case_dir/holdout-results.md" >/dev/null &&
+            if [[ "$fallback" == claude ]]; then
+                [[ "$(cat "$case_dir/providers-tried")" == $'agy\ncodex\nclaude' ]]
+            else
+                [[ "$(cat "$case_dir/providers-tried")" == $'agy\ncodex' ]]
+            fi
+    ); then test_pass; else test_fail "invalid provider output prevented $fallback fallback"; fi
 done
 
 test_summary

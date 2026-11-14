@@ -127,6 +127,11 @@ run_holdout_tests() {
         return 1
     fi
 
+    if ! grep -Ec '^[[:space:]]*[^#[:space:]]' "$holdout_file" >/dev/null; then
+        log ERROR "Holdout scenarios have no body content to evaluate"
+        return 1
+    fi
+
     log INFO "Running holdout tests against implementation..."
 
     # Gather implementation context (recent files modified)
@@ -164,22 +169,18 @@ After all scenarios, output:
 - Fail: N
 - Score: X.XX (PASS=1.0, PARTIAL=0.5, FAIL=0.0, averaged)"
 
-    # Cross-model holdout evaluation for objectivity
-    local eval_result
-    eval_result=$(run_agent_sync "agy" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) || true
-
+    # A failed provider may emit a diagnostic on stdout. Only keep successful,
+    # nonempty output, and try the next provider after failures or empty results.
+    local eval_result="" evaluator
+    for evaluator in agy codex claude; do
+        if eval_result=$(run_agent_sync "$evaluator" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) && [[ -n "$eval_result" ]]; then
+            break
+        fi
+        eval_result=""
+    done
     if [[ -z "$eval_result" ]]; then
-        eval_result=$(run_agent_sync "codex" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) || true
-    fi
-
-    if [[ -z "$eval_result" ]]; then
-        eval_result=$(run_agent_sync "claude" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) || true
-    fi
-
-    if [[ -z "$eval_result" ]]; then
-        log WARN "Holdout evaluation failed from all providers, defaulting to 0.50"
-        echo "0.50"
-        return 0
+        log ERROR "Holdout evaluation failed from all providers"
+        return 1
     fi
 
     echo "$eval_result" > "$run_dir/holdout-results.md" || return 1

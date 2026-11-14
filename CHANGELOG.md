@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- Factory retries failed holdout providers and stops without scoring when none can evaluate the scenarios.
+
 - Factory stops before implementation when generated scenarios leave no independent holdout.
 - Factory stops when it cannot save scenario or holdout evaluation evidence.
 - Missing or empty holdout evidence cannot earn a perfect score; evaluation failures stop Factory, including retries.
