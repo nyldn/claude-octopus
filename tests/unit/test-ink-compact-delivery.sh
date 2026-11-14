@@ -251,4 +251,32 @@ for rejected_stage in review simplification synthesis; do
     ); then test_pass; else test_fail "budget rejection became a completed delivery at $rejected_stage"; fi
 done
 
+for review_output in empty whitespace; do
+    for strategy in fail summarize; do
+        test_case "ink handles $review_output review output under $strategy strategy"
+        if (
+            rm -f "$RESULTS_DIR"/delivery-*.md
+            OCTOPUS_OVERSIZE_STRATEGY="$strategy"
+            SUPPORTS_BATCH_COMMAND=false
+            _aggregate_pick_synth_agent() { echo claude-sonnet; }
+            run_agent_sync() {
+                if [[ "${4:-}" == code-reviewer ]]; then
+                    [[ "$review_output" != whitespace ]] || printf ' \t\n'
+                    return 0
+                fi
+                echo "Completed synthesis"
+            }
+            rc=0
+            ink_deliver "Audit committed source" "$tangle_file" > "$TEST_ROOT/empty-review-output" 2>&1 || rc=$?
+            if [[ "$strategy" == fail ]]; then
+                [[ "$rc" -ne 0 ]] &&
+                    ! compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null &&
+                    ! grep -q 'Final document:' "$TEST_ROOT/empty-review-output"
+            else
+                [[ "$rc" == 0 ]] && compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null
+            fi
+        ); then test_pass; else test_fail "unexpected $review_output review disposition under $strategy"; fi
+    done
+done
+
 test_summary

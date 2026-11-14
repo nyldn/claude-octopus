@@ -6258,6 +6258,10 @@ $all_results" "$ink_review_timeout" "code-reviewer" "ink") || {
         fi
         sonnet_review="[Quality review unavailable]"
     }
+    if [[ "${OCTOPUS_OVERSIZE_STRATEGY:-}" == fail && ! "$sonnet_review" =~ [^[:space:]] ]]; then
+        log ERROR "Delivery review returned no output under the fail strategy; complete source review is required"
+        return 1
+    fi
 
     # v8.19.0: Cross-model review scoring (4x10)
     local review_scores
