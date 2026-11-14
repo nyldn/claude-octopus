@@ -32,9 +32,13 @@ class CodexReferences(unittest.TestCase):
                 (root / 'bin').mkdir()
                 (root / 'scripts/lib/consultative-advisors.sh').write_text(
                     'source "' + str(ROOT / 'scripts/lib/consultative-advisors.sh') + '"\n'
-                    'octo_provider_allowed() { [[ "$1" == codex ]]; }\n')
+                    'octo_provider_allowed() { [[ "$1" == codex && "${REVIEW_NO_PROVIDER:-0}" == 0 ]]; }\n')
                 runner = root / 'scripts/orchestrate.sh'
-                runner.write_text('#!/bin/bash\nprintf "%s" "$3" > "$REVIEW_CAPTURE"\n'
+                runner.write_text('#!/bin/bash\nsource "$REVIEW_DISPATCH"\n'
+                                  'log() { :; }\n'
+                                  'get_provider_context_limit() { echo "${REVIEW_TEST_BUDGET:-100000}"; }\n'
+                                  'get_role_budget_proportion() { echo 100; }\n'
+                                  'enforce_context_budget "$3" reviewer fixture > "$REVIEW_CAPTURE" || exit $?\n'
                                   'printf "completed review\\n"\n')
                 runner.chmod(0o755)
                 binary = root / 'bin/codex'
@@ -42,24 +46,37 @@ class CodexReferences(unittest.TestCase):
                 binary.chmod(0o755)
                 env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(root), TMPDIR=temporary,
                            REVIEW_CAPTURE=str(root / 'prompt'),
+                           REVIEW_DISPATCH=str(ROOT / 'scripts/lib/dispatch.sh'),
                            PATH=str(root / 'bin') + ':' + os.environ['PATH'],
                            GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1')
                 env.pop('DIFF_CONTENT', None)
                 subprocess.run(['git', 'init', '-q', '-b', 'main', temporary],
                                env=env, check=True)
-                for content, rejected in (('x' * 64000, False), ('x' * 150000, True),
-                                          ('界' * 30000, True)):
-                    with self.subTest(bytes=len(content.encode())):
+                cases = (('x' * 64000, 'fitting'), ('x' * 150000, 'bytes'),
+                         ('界' * 30000, 'bytes'), ('x' * 150000, 'local'), ('x' * 64000, 'context'))
+                for content, mode in cases:
+                    with self.subTest(mode=mode, bytes=len(content.encode())):
                         capture = root / 'prompt'
                         capture.unlink(missing_ok=True)
                         (root / 'change.txt').write_text(content + '\nrender("{{advisor}}")\nSTAGED_CHANGE_REQUIRES_REVIEW\n')
                         subprocess.run(['git', 'add', 'change.txt'], cwd=root, env=env, check=True)
-                        result = subprocess.run(['/bin/bash', '-c', block], cwd=root, env=env,
+                        call_env = dict(env, REVIEW_NO_PROVIDER='1' if mode == 'local' else '0',
+                                        REVIEW_TEST_BUDGET='100' if mode == 'context' else '100000',
+                                        OCTOPUS_OVERSIZE_STRATEGY='truncate')
+                        result = subprocess.run(['/bin/bash', '-c', block], cwd=root, env=call_env,
                                                 capture_output=True, text=True, timeout=5)
-                        if rejected:
+                        if mode == 'bytes':
                             self.assertNotEqual(result.returncode, 0, result.stderr)
                             self.assertIn('Review incomplete: the full prompt exceeds', result.stderr)
                             self.assertFalse(capture.exists(), 'oversized prompt dispatched')
+                        elif mode == 'local':
+                            self.assertEqual(result.returncode, 0, result.stderr)
+                            self.assertIn('No allowed external provider', result.stdout)
+                            self.assertFalse(capture.exists())
+                        elif mode == 'context':
+                            self.assertNotIn('Completed review: codex', result.stdout)
+                            self.assertIn('External review incomplete', result.stdout)
+                            self.assertNotIn('STAGED_CHANGE_REQUIRES_REVIEW', capture.read_text())
                         else:
                             self.assertEqual(result.returncode, 0, result.stderr)
                             self.assertIn('+STAGED_CHANGE_REQUIRES_REVIEW', capture.read_text())

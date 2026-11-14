@@ -199,7 +199,7 @@ ${DIFF_CONTENT}"
 # Bound the complete argument in bytes, including the instructions and diff.
 # Never truncate code to make it fit this quick-review transport.
 REVIEW_PROMPT_BYTES=$(printf '%s' "$REVIEW_PROMPT" | wc -c) || exit 1
-if [[ "$REVIEW_PROMPT_BYTES" -gt 65536 ]]; then
+if [[ "$provider_count" -gt 0 && "$REVIEW_PROMPT_BYTES" -gt 65536 ]]; then
   echo "Review incomplete: the full prompt exceeds this quick-review transport. Use a complete file-based review before continuing." >&2
   exit 1
 fi
@@ -208,7 +208,7 @@ for provider in ${providers[@]+"${providers[@]}"}; do
   # Both asynchronous workers and synchronous Antigravity dispatch use the
   # collector deadline. Late jobs retain lifecycle evidence and count as
   # incomplete, so they cannot block presentation of completed reviews.
-  OCTOPUS_ADVISOR_WAIT_SECONDS=600 octo_launch_advisors \
+  OCTOPUS_OVERSIZE_STRATEGY=fail OCTOPUS_ADVISOR_WAIT_SECONDS=600 octo_launch_advisors \
     "$REVIEW_ROOT/scripts/orchestrate.sh" "$provider" "$REVIEW_OUTPUT_DIR" \
     'review-' "$REVIEW_PROMPT" 1 literal > "$REVIEW_OUTPUT_DIR/${provider}-count.txt" &
   collector_pids+=("$!")
