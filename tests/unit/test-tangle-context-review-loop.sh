@@ -88,6 +88,7 @@ run_warning_review_gate() {
     local initial_rc="$3"
     local recovery_findings="$4"
     local recovery_rc="$5"
+    local delivery_rc="${6:-}"
     local case_dir="$TEST_TMP_DIR/review-gate-$case_name"
     rm -rf "$case_dir"
     mkdir -p "$case_dir"
@@ -100,6 +101,7 @@ run_warning_review_gate() {
         initial_rc="$4"
         recovery_findings="$5"
         recovery_rc="$6"
+        delivery_rc="$7"
         export RESULTS_DIR="$case_dir/results"
         mkdir -p "$RESULTS_DIR"
 
@@ -144,6 +146,10 @@ run_warning_review_gate() {
             return 0
         }
         validate_tangle_results() { return 0; }
+        if [[ -n "$delivery_rc" ]]; then
+            OCTOPUS_TANGLE_INK=true
+            ink_deliver() { return "$delivery_rc"; }
+        fi
 
         rc=0
         OCTOPUS_TANGLE_REVIEW_CORRECTION_MODE=bounded \
@@ -155,8 +161,18 @@ run_warning_review_gate() {
         printf "rc=%s corrections=%s reviews=%s\n" \
             "$rc" "$(<"$correction_calls_file")" "$(<"$review_calls_file")"
     ' _ "$PROJECT_ROOT" "$case_dir" "$initial_findings" "$initial_rc" \
-        "$recovery_findings" "$recovery_rc"
+        "$recovery_findings" "$recovery_rc" "$delivery_rc"
 }
+
+for delivery_rc in 0 1 78; do
+    test_case "optional Tangle delivery propagates status $delivery_rc through an OR-list"
+    out=$(run_warning_review_gate "delivery-$delivery_rc" '{"findings":[]}' 0 '{"findings":[]}' 0 "$delivery_rc")
+    if [[ "$out" == "rc=$delivery_rc corrections=0 reviews=1" ]]; then
+        test_pass
+    else
+        test_fail "optional delivery lost its terminal status: $out"
+    fi
+done
 
 test_case "warning-only review is fatal without a correction call"
 out=$(run_warning_review_gate \

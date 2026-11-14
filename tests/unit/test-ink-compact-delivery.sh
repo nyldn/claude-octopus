@@ -225,4 +225,90 @@ for picker_state in loaded absent; do
     fi
 done
 
+for rejected_stage in review simplification synthesis; do
+    test_case "ink rejects context-budget failure during $rejected_stage without publishing completion"
+    if (
+        rm -f "$RESULTS_DIR"/delivery-*.md "$TEST_ROOT/budget-rejected"
+        SUPPORTS_BATCH_COMMAND=false
+        [[ "$rejected_stage" != simplification ]] || SUPPORTS_BATCH_COMMAND=true
+        octo_provider_allowed() { return 0; }
+        _aggregate_pick_synth_agent() { echo claude-sonnet; }
+        run_agent_sync() {
+            local stage=review
+            [[ "${4:-}" != synthesizer ]] || stage=synthesis
+            [[ "$2" != 'Review the following code changes'* ]] || stage=simplification
+            if [[ "$stage" == "$rejected_stage" ]]; then
+                printf '%s\n' "$stage" > "$TEST_ROOT/budget-rejected"
+                return 78
+            fi
+            printf 'Completed %s\n' "$stage"
+        }
+        rc=0
+        ink_deliver "Audit the complete committed source" "$tangle_file" > "$TEST_ROOT/budget-output" 2>&1 || rc=$?
+        [[ "$rc" == 78 && "$(cat "$TEST_ROOT/budget-rejected")" == "$rejected_stage" ]] &&
+            ! compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null &&
+            ! grep -q 'Final document:' "$TEST_ROOT/budget-output"
+    ); then test_pass; else test_fail "budget rejection became a completed delivery at $rejected_stage"; fi
+done
+
+for review_output in empty whitespace; do
+    for strategy in fail summarize; do
+        test_case "ink handles $review_output review output under $strategy strategy"
+        if (
+            rm -f "$RESULTS_DIR"/delivery-*.md
+            OCTOPUS_OVERSIZE_STRATEGY="$strategy"
+            SUPPORTS_BATCH_COMMAND=false
+            _aggregate_pick_synth_agent() { echo claude-sonnet; }
+            run_agent_sync() {
+                if [[ "${4:-}" == code-reviewer ]]; then
+                    [[ "$review_output" != whitespace ]] || printf ' \t\n'
+                    return 0
+                fi
+                echo "Completed synthesis"
+            }
+            rc=0
+            ink_deliver "Audit committed source" "$tangle_file" > "$TEST_ROOT/empty-review-output" 2>&1 || rc=$?
+            if [[ "$strategy" == fail ]]; then
+                [[ "$rc" -ne 0 ]] &&
+                    ! compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null &&
+                    ! grep -q 'Final document:' "$TEST_ROOT/empty-review-output"
+            else
+                [[ "$rc" == 0 ]] && compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null
+            fi
+        ); then test_pass; else test_fail "unexpected $review_output review disposition under $strategy"; fi
+    done
+done
+
+for review_status in 1 42; do
+    for review_output in empty partial; do
+        for strategy in fail summarize; do
+            test_case "ink handles failed review $review_status with $review_output output under $strategy"
+            if (
+                rm -f "$RESULTS_DIR"/delivery-*.md "$TEST_ROOT/failed-review-synthesis"
+                OCTOPUS_OVERSIZE_STRATEGY="$strategy"
+                SUPPORTS_BATCH_COMMAND=false
+                _aggregate_pick_synth_agent() { echo claude-sonnet; }
+                run_agent_sync() {
+                    if [[ "${4:-}" == code-reviewer ]]; then
+                        [[ "$review_output" != partial ]] || echo 'Incomplete review'
+                        return "$review_status"
+                    fi
+                    touch "$TEST_ROOT/failed-review-synthesis"
+                    echo 'Completed synthesis'
+                }
+                rc=0
+                ink_deliver "Audit committed source" "$tangle_file" > "$TEST_ROOT/failed-review-output" 2>&1 || rc=$?
+                if [[ "$strategy" == fail ]]; then
+                    [[ "$rc" == "$review_status" ]] &&
+                        [[ ! -e "$TEST_ROOT/failed-review-synthesis" ]] &&
+                        ! compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null &&
+                        ! grep -q 'Final document:' "$TEST_ROOT/failed-review-output"
+                else
+                    [[ "$rc" == 0 ]] && compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null
+                fi
+            ); then test_pass; else test_fail "unexpected failed-review disposition under $strategy"; fi
+        done
+    done
+done
+
 test_summary

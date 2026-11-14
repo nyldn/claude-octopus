@@ -11,6 +11,12 @@
 
 ### Fixed
 
+- Shipping audits review the confirmed committed source range and report its base and delivered revisions.
+- Shipping stops audits on dirty, empty, oversized or changed source instead of accepting incomplete evidence.
+- Delivery stops on context-budget rejection or failed or empty required review under the audit's fail strategy.
+- Delivery initializes feature context without changing source metadata.
+- Optional Tangle delivery propagates failures instead of reporting success after rejection.
+
 - Freeze enforcement recovers the Codex session identity in later hook processes
   without a host export or matching hook session ID, so out-of-scope edits stay
   blocked after activation. Explicit hosts and Claude session IDs keep precedence.
