@@ -173,7 +173,7 @@ After all scenarios, output:
     # nonempty output, and try the next provider after failures or empty results.
     local eval_result="" evaluator
     for evaluator in agy codex claude; do
-        if eval_result=$(run_agent_sync "$evaluator" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) && [[ -n "$eval_result" ]]; then
+        if eval_result=$(run_agent_sync "$evaluator" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) && [[ "$eval_result" == *[![:space:]]* ]]; then
             break
         fi
         eval_result=""
@@ -200,8 +200,14 @@ After all scenarios, output:
         if [[ $total_count -gt 0 ]]; then
             holdout_score=$(echo "$pass_count $partial_count $total_count" | awk '{printf "%.2f", ($1 + $2 * 0.5) / $3}')
         else
-            holdout_score="0.50"
+            log ERROR "Holdout evaluation contains no score or verdicts"
+            return 1
         fi
+    fi
+
+    if ! awk -v score="$holdout_score" 'BEGIN { exit !(score >= 0 && score <= 1) }'; then
+        log ERROR "Holdout evaluation score is outside the 0 to 1 range"
+        return 1
     fi
 
     log INFO "Holdout test score: $holdout_score"

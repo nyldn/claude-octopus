@@ -155,6 +155,8 @@ Factory requires at least two structured generated scenarios so implementation
 has a visible case and evaluation has an independent holdout. Missing or empty
 holdout evidence stops the run without a score or completion report. Preserve
 evaluation failures, including on retries, instead of presenting a successful run.
+A provider response must contain a score from 0 to 1 or usable scenario verdicts;
+empty, diagnostic-only or malformed responses do not establish an evaluation.
 
 ### STEP 7: Read Scores and Present Results (MANDATORY)
 ```bash

@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- Factory rejects malformed holdout evaluations and scores outside the 0 to 1 range.
 - Factory retries failed holdout providers and stops without scoring when none can evaluate the scenarios.
 
 - Factory stops before implementation when generated scenarios leave no independent holdout.

@@ -59,7 +59,7 @@ else
     test_fail 'valid holdout evaluation changed'
 fi
 
-for pipeline_case in single unstructured visible-write-failure holdout-write-failure result-write-failure providers-empty providers-banner initial-failure retry-failure success; do
+for pipeline_case in single unstructured visible-write-failure holdout-write-failure result-write-failure providers-empty providers-banner providers-malformed providers-score-range initial-failure retry-failure success; do
     test_case "factory handles $pipeline_case through an OR-list"
     if (
         case_dir="$TEST_TMP_DIR/pipeline-$pipeline_case"
@@ -104,7 +104,11 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
         if [[ "$pipeline_case" == providers-* ]]; then
             run_agent_sync() {
                 echo "$1" >> providers-tried
-                [[ "$pipeline_case" != providers-banner ]] || echo '[Provider unavailable: fixture] Score: 1.00'
+                case "$pipeline_case" in
+                    providers-banner) echo '[Provider unavailable: fixture] Score: 1.00' ;;
+                    providers-malformed) echo 'The provider returned no evaluation'; return 0 ;;
+                    providers-score-range) echo 'Score: 1.25'; return 0 ;;
+                esac
                 return 42
             }
         fi
@@ -119,7 +123,11 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
                 [[ ! -e embraced && ! -e scored ]]
             elif [[ "$pipeline_case" == providers-* ]]; then
                 [[ "$rc" != 0 && -e embraced && ! -e scored ]] &&
-                    [[ "$(cat providers-tried)" == $'agy\ncodex\nclaude' ]]
+                    if [[ "$pipeline_case" == providers-malformed || "$pipeline_case" == providers-score-range ]]; then
+                        [[ "$(cat providers-tried)" == agy ]]
+                    else
+                        [[ "$(cat providers-tried)" == $'agy\ncodex\nclaude' ]]
+                    fi
             elif [[ "$pipeline_case" == result-write-failure ]]; then
                 [[ "$rc" == 1 && -e embraced && ! -e scored ]]
             else
@@ -134,7 +142,7 @@ for pipeline_case in single unstructured visible-write-failure holdout-write-fai
     ); then test_pass; else test_fail "factory continued past $pipeline_case"; fi
 done
 
-for fallback in codex claude empty-success; do
+for fallback in codex claude empty-success whitespace-success; do
     test_case "holdout reaches $fallback fallback without accepting failed output"
     if (
         case_dir="$TEST_TMP_DIR/fallback-$fallback"
@@ -142,11 +150,12 @@ for fallback in codex claude empty-success; do
         printf '### Scenario 1: independent check\nGiven valid input\n' > "$case_dir/scenarios-holdout.md"
         run_agent_sync() {
             echo "$1" >> "$case_dir/providers-tried"
-            if [[ "$1" == "$fallback" || "$fallback:$1" == empty-success:codex ]]; then
+            if [[ "$1" == "$fallback" || "$fallback:$1" == empty-success:codex || "$fallback:$1" == whitespace-success:codex ]]; then
                 echo 'Score: 0.75'
                 return 0
             fi
             [[ "$fallback" != empty-success ]] || return 0
+            if [[ "$fallback" == whitespace-success ]]; then printf ' \n\t\n'; return 0; fi
             echo '[Provider unavailable: fixture] Score: 1.00'
             return 42
         }
