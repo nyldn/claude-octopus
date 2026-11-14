@@ -99,8 +99,8 @@ ${scenario_blocks[$i]}
         fi
     done
 
-    echo "$visible_content" > "$run_dir/scenarios-visible.md" || return $?
-    echo "$holdout_content" > "$run_dir/scenarios-holdout.md" || return $?
+    echo "$visible_content" > "$run_dir/scenarios-visible.md" || return 1
+    echo "$holdout_content" > "$run_dir/scenarios-holdout.md" || return 1
 
     log INFO "Split complete: $run_dir/scenarios-visible.md ($visible_count), $run_dir/scenarios-holdout.md ($holdout_count)"
 }
