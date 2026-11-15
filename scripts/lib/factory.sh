@@ -275,15 +275,22 @@ After all scenarios, output:
         log ERROR "Holdout evaluation contains an invalid verdict"
         return 1
     }
+    # Declared verdicts must cover the holdout and agree with any summary.
+    # Allow one percentage point for the evaluator/average rounding boundary.
+    if [[ -n "$verdict_score" ]]; then
+        if ! _factory_validate_verdict_coverage "$holdout_file" "$eval_result"; then
+            log ERROR "Holdout verdict coverage is incomplete or ambiguous"
+            return 1
+        fi
+        if [[ -n "$holdout_score" ]] && ! awk -v score="$holdout_score" -v average="$verdict_score" '
+            BEGIN { difference = score - average; if (difference < 0) difference = -difference; exit (difference > 0.010000001) }'; then
+            log ERROR "Holdout summary score contradicts scenario verdicts"
+            return 1
+        fi
+    fi
     if [[ -z "$holdout_score" ]]; then
         if [[ -z "$verdict_score" ]]; then
             log ERROR "Holdout evaluation contains no score or verdicts"
-            return 1
-        fi
-        # Verdict-derived scores need exactly one result for each held-out ID.
-        # A lone unheaded verdict is unambiguous only for a single scenario.
-        if ! _factory_validate_verdict_coverage "$holdout_file" "$eval_result"; then
-            log ERROR "Holdout verdict coverage is incomplete or ambiguous"
             return 1
         fi
         holdout_score="$verdict_score"

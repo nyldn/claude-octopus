@@ -10,7 +10,8 @@ test_suite "Factory holdout evidence"
 log() { printf '%s\n' "$*" >&2; }
 run_agent_sync() {
     touch "$case_dir/provider-called"
-    printf '### Scenario 1: independent check\n**Verdict:** PASS\nScore: 1.00\n'
+    printf '%s\n' "$2" | awk '/^### Scenario [0-9]+:/ { print; print "**Verdict:** PASS" }'
+    echo 'Score: 1.00'
 }
 
 for input in missing empty unstructured header headings single; do
@@ -176,7 +177,7 @@ for fallback in codex claude empty-success whitespace-success; do
     ); then test_pass; else test_fail "invalid provider output prevented $fallback fallback"; fi
 done
 
-for evaluation in verdicts partial-verdict integer-zero integer-one markdown-score prompt-score; do
+for evaluation in verdicts rounded-score partial-verdict integer-zero integer-one markdown-score prompt-score; do
     test_case "holdout preserves valid $evaluation evaluation"
     if (
         case_dir="$TEST_TMP_DIR/score-$evaluation"
@@ -186,19 +187,20 @@ for evaluation in verdicts partial-verdict integer-zero integer-one markdown-sco
             case "$evaluation" in
                 verdicts) printf '### Scenario 1: first\n**Verdict:** PASS\n### Scenario 2: second\n**Verdict:** FAIL\n' ;;
                 partial-verdict) printf '%s\n' '- **Verdict:** **PARTIAL**' ;;
-                integer-zero) printf '**Verdict:** PASS\nScore: 0\n' ;;
-                integer-one) printf '**Verdict:** FAIL\nScore: 1\n' ;;
+                rounded-score) printf '### Scenario 1: first\n**Verdict:** PASS\n### Scenario 2: second\n**Verdict:** FAIL\nScore: 0.504\n' ;;
+                integer-zero) printf '**Verdict:** FAIL\nScore: 0\n' ;;
+                integer-one) printf '**Verdict:** PASS\nScore: 1\n' ;;
                 markdown-score) printf '**Score:** 0.75\n' ;;
                 prompt-score) printf '%s\n' '- Score: 0.75 (PASS=1.0, PARTIAL=0.5, FAIL=0.0, averaged)' ;;
             esac
         }
-        case "$evaluation" in verdicts|partial-verdict) expected=0.50 ;; integer-zero) expected=0 ;; integer-one) expected=1 ;; markdown-score|prompt-score) expected=0.75 ;; esac
-        [[ "$evaluation" != verdicts ]] || printf '### Scenario 2: second\nGiven second input\n' >> "$case_dir/scenarios-holdout.md"
+        case "$evaluation" in verdicts|partial-verdict) expected=0.50 ;; rounded-score) expected=0.504 ;; integer-zero) expected=0 ;; integer-one) expected=1 ;; markdown-score|prompt-score) expected=0.75 ;; esac
+        [[ "$evaluation" != verdicts && "$evaluation" != rounded-score ]] || printf '### Scenario 2: second\nGiven second input\n' >> "$case_dir/scenarios-holdout.md"
         result=$(run_holdout_tests "$case_dir") && [[ "$result" == "$expected" ]]
     ); then test_pass; else test_fail "valid $evaluation was rejected or used the wrong score"; fi
 done
 
-for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict ambiguous-verdict mixed-negated mixed-ambiguous incomplete-verdict duplicate-verdict wrong-verdict complete-verdict duplicate-score malformed-first-score signed-zero retry-score score-write-failure; do
+for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict ambiguous-verdict mixed-negated mixed-ambiguous contradictory-score scored-incomplete-verdict incomplete-verdict duplicate-verdict wrong-verdict complete-verdict duplicate-score malformed-first-score signed-zero retry-score score-write-failure; do
     test_case "factory passes validated $consumer_case to the real satisfaction consumer"
     if (
         source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
@@ -236,6 +238,8 @@ for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict amb
                     ambiguous-verdict) echo '**Verdict:** PASS | PARTIAL | FAIL' ;;
                     mixed-negated) printf '**Verdict:** NOT PASS\nScore: 1.00\n' ;;
                     mixed-ambiguous) printf '**Verdict:** PASS | PARTIAL | FAIL\nScore: 1.00\n' ;;
+                    contradictory-score) printf '**Verdict:** FAIL\nScore: 1.00\n' ;;
+                    scored-incomplete-verdict) printf '### Scenario 3: check\n**Verdict:** PASS\nScore: 1.00\n' ;;
                     incomplete-verdict) printf '### Scenario 3: check\n**Verdict:** PASS\n' ;;
                     complete-verdict) printf '### Scenario 3: check\n**Verdict:** PASS\n### Scenario 8: check\n**Verdict:** PASS\n' ;;
                     duplicate-verdict) printf '### Scenario 3: check\n**Verdict:** PASS\n### Scenario 3: check\n**Verdict:** PASS\n' ;;
@@ -252,7 +256,7 @@ for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict amb
         rc=0
         factory_run spec.md 0.20 "$retries" true > output 2>&1 || rc=$?
         scores=$(find .octo/factory -name satisfaction-scores.json -type f)
-        if [[ "$consumer_case" == negated-verdict || "$consumer_case" == ambiguous-verdict || "$consumer_case" == mixed-negated || "$consumer_case" == mixed-ambiguous || "$consumer_case" == incomplete-verdict || "$consumer_case" == duplicate-verdict || "$consumer_case" == wrong-verdict || "$consumer_case" == duplicate-score || "$consumer_case" == malformed-first-score ]]; then
+        if [[ "$consumer_case" == negated-verdict || "$consumer_case" == ambiguous-verdict || "$consumer_case" == mixed-negated || "$consumer_case" == mixed-ambiguous || "$consumer_case" == contradictory-score || "$consumer_case" == scored-incomplete-verdict || "$consumer_case" == incomplete-verdict || "$consumer_case" == duplicate-verdict || "$consumer_case" == wrong-verdict || "$consumer_case" == duplicate-score || "$consumer_case" == malformed-first-score ]]; then
             [[ "$rc" != 0 && ! -e reported && ! -e scoring-calls && -z "$scores" ]]
         elif [[ "$consumer_case" == score-write-failure ]]; then
             [[ "$rc" != 0 && ! -e reported ]]
@@ -348,6 +352,24 @@ if sys.argv[2] == "long-holdout":
     assert "END-CASE-codex-8" in prompt
 PYPRODUCTION
     ); then test_pass; else test_fail "$production_case lost scenario identity or evaluator input"; fi
+done
+
+
+for absent_score in missing empty; do
+    test_case "satisfaction scorer returns for $absent_score validated score"
+    if (
+        source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
+        case_dir="$TEST_TMP_DIR/scorer-$absent_score"
+        mkdir -p "$case_dir"
+        run_agent_sync() { touch "$case_dir/provider-called"; }
+        rc=0
+        if [[ "$absent_score" == missing ]]; then
+            score_satisfaction "$case_dir" 0.90 > "$case_dir/output" 2>&1 || rc=$?
+        else
+            score_satisfaction "$case_dir" 0.90 '' > "$case_dir/output" 2>&1 || rc=$?
+        fi
+        [[ "$rc" == 1 && ! -e "$case_dir/provider-called" && ! -e "$case_dir/satisfaction-scores.json" ]]
+    ); then test_pass; else test_fail "scorer terminated its caller for $absent_score input"; fi
 done
 
 test_summary

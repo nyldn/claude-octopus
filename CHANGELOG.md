@@ -11,7 +11,7 @@
 
 ### Fixed
 
-- Factory rejects negated or ambiguous verdicts and duplicate summary scores instead of accepting unreliable holdout evidence.
+- Factory rejects negated or ambiguous verdicts and duplicate summary scores in holdout evaluations.
 - Factory assigns unique IDs across provider scenario lists and supplies the complete holdout set to the evaluator.
 
 - Factory rejects malformed holdout evaluations and scores outside the 0 to 1 range.

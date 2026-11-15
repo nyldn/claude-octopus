@@ -354,7 +354,11 @@ score_satisfaction() {
 
     # Consume the score already validated by run_holdout_tests; raw provider
     # formatting must not change the value used by the weighted consumer.
-    local holdout_score="${3:?validated holdout score required}"
+    local holdout_score="${3:-}"
+    if [[ -z "$holdout_score" ]]; then
+        log ERROR "score_satisfaction requires a validated holdout score"
+        return 1
+    fi
     holdout_score=$(awk -v score="$holdout_score" 'BEGIN { printf "%.15g", score }') || return 1
 
     # Multi-provider satisfaction scoring
