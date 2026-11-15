@@ -13,6 +13,9 @@
 - Claude Code discovers native skill instructions while Codex loads its own
   adapted entries. Registered names, manual invocation and the starter pack
   remain available in both hosts.
+- New parallel work-package branches start from one frozen base commit across
+  launches and waves, so a fetch or branch update cannot change their baseline.
+  Retries retain later work on branches that descend from that base.
 
 ## [11.24.0] - 2026-11-15
 
