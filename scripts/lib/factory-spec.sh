@@ -207,39 +207,47 @@ Generate scenarios that are specific enough to evaluate against an implementatio
 
     # Multi-provider scenario generation for diversity
     local provider_scenarios
-    provider_scenarios=$(run_agent_sync "codex" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || true
+    provider_scenarios=$(run_agent_sync "codex" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || provider_scenarios=""
 
-    if [[ -n "$provider_scenarios" ]]; then
+    if [[ "$provider_scenarios" == *[![:space:]]* ]]; then
         scenarios="$provider_scenarios"
     fi
 
     # Fallback/supplement with second provider
     local supplemental
-    supplemental=$(run_agent_sync "agy" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || true
+    supplemental=$(run_agent_sync "agy" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || supplemental=""
 
-    if [[ -n "$supplemental" && -n "$scenarios" ]]; then
+    if [[ "$supplemental" == *[![:space:]]* && -n "$scenarios" ]]; then
         # Merge unique scenarios from supplemental
         scenarios="${scenarios}
 
 ## Additional Scenarios (Cross-Provider)
 
 ${supplemental}"
-    elif [[ -n "$supplemental" ]]; then
+    elif [[ "$supplemental" == *[![:space:]]* ]]; then
         scenarios="$supplemental"
     fi
 
     # Fallback to Claude if both external providers failed
     if [[ -z "$scenarios" ]]; then
         log WARN "External providers unavailable for scenario generation, using Claude"
-        scenarios=$(run_agent_sync "claude" "$scenario_prompt" "${TIMEOUT:-300}" "qa-engineer" "factory" 2>/dev/null) || true
+        scenarios=$(run_agent_sync "claude" "$scenario_prompt" "${TIMEOUT:-300}" "qa-engineer" "factory" 2>/dev/null) || scenarios=""
     fi
 
-    if [[ -z "$scenarios" ]]; then
+    if [[ "$scenarios" != *[![:space:]]* ]]; then
         log ERROR "Failed to generate scenarios from any provider"
         return 1
     fi
 
-    echo "$scenarios" > "$run_dir/scenarios-all.md"
+    # Providers number their lists independently. Assign one stable identity
+    # across the combined list before either partition is persisted.
+    scenarios=$(printf '%s\n' "$scenarios" | awk '
+        /^### Scenario[[:space:]]+[0-9]+([[:space:]:]|$)/ {
+            sub(/^### Scenario[[:space:]]+[0-9]+/, "### Scenario " ++scenario_id)
+        }
+        { print }') || return 1
+
+    echo "$scenarios" > "$run_dir/scenarios-all.md" || return 1
     log INFO "Scenarios generated and saved to $run_dir/scenarios-all.md"
 
     echo "$scenarios"
@@ -344,8 +352,14 @@ score_satisfaction() {
     local spec_content=""
     [[ -f "$run_dir/spec.md" ]] && spec_content=$(<"$run_dir/spec.md")
 
-    local holdout_score="0.50"
-    [[ -f "$run_dir/holdout-results.md" ]] && holdout_score=$(grep -oi 'score[: ]*[0-9]*\.[0-9]*' "$run_dir/holdout-results.md" | tail -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.50")
+    # Consume the score already validated by run_holdout_tests; raw provider
+    # formatting must not change the value used by the weighted consumer.
+    local holdout_score="${3:-}"
+    if [[ -z "$holdout_score" ]]; then
+        log ERROR "score_satisfaction requires a validated holdout score"
+        return 1
+    fi
+    holdout_score=$(awk -v score="$holdout_score" 'BEGIN { printf "%.15g", score }') || return 1
 
     # Multi-provider satisfaction scoring
     local scoring_prompt="You are evaluating whether an implementation satisfies its original specification.
@@ -399,7 +413,7 @@ justification: <2-3 sentences>"
     log INFO "Satisfaction score: $composite (target: $satisfaction_target) -> $verdict"
 
     # Write scores JSON
-    cat > "$run_dir/satisfaction-scores.json" << SCOREEOF
+    cat > "$run_dir/satisfaction-scores.json" << SCOREEOF || return 1
 {
   "behavior_coverage": $behavior_score,
   "constraint_adherence": $constraint_score,

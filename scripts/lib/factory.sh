@@ -40,12 +40,21 @@ ${line}"
     fi
 
     local total=${#scenario_blocks[@]}
-    if [[ $total -eq 0 ]]; then
-        log WARN "No scenario blocks found, treating entire file as single scenario set"
+    if [[ $total -lt 2 ]]; then
+        log ERROR "Factory requires at least two structured scenarios for visible and holdout evidence"
         cp "$scenarios_file" "$run_dir/scenarios-visible.md"
         echo "# No structured scenarios to holdout" > "$run_dir/scenarios-holdout.md"
-        return 0
+        return 1
     fi
+
+    # Every case must contain test content before either partition is used.
+    local scenario_block
+    for scenario_block in "${scenario_blocks[@]}"; do
+        if ! printf '%s\n' "$scenario_block" | grep -Ev '^[[:space:]]*</?external-cli-output([[:space:]][^>]*)?>[[:space:]]*$' | grep -Ec '^[[:space:]]*[^#[:space:]]' >/dev/null; then
+            log ERROR "Factory scenario has no body content; split is incomplete"
+            return 1
+        fi
+    done
 
     # Calculate holdout count (minimum 1 if there are scenarios, max 20%)
     local holdout_count
@@ -99,10 +108,45 @@ ${scenario_blocks[$i]}
         fi
     done
 
-    echo "$visible_content" > "$run_dir/scenarios-visible.md"
-    echo "$holdout_content" > "$run_dir/scenarios-holdout.md"
+    echo "$visible_content" > "$run_dir/scenarios-visible.md" || return 1
+    echo "$holdout_content" > "$run_dir/scenarios-holdout.md" || return 1
 
     log INFO "Split complete: $run_dir/scenarios-visible.md ($visible_count), $run_dir/scenarios-holdout.md ($holdout_count)"
+}
+
+# Require one verdict per held-out scenario before deriving a score.
+_factory_validate_verdict_coverage() {
+    printf '%s\n' "$2" | awk '
+            FNR == NR {
+                if ($0 !~ /^### Scenario/) next
+                if ($0 !~ /^### Scenario[[:space:]]+[0-9]+([[:space:]:]|$)/) { invalid = 1; next }
+                id = $0
+                sub(/^### Scenario[[:space:]]+/, "", id)
+                sub(/[^0-9].*$/, "", id)
+                if (expected[id]++) invalid = 1
+                expected_count++
+                sole_id = id
+                next
+            }
+            {
+                line = tolower($0)
+                if (line ~ /^### scenario/) {
+                    if (line !~ /^### scenario[[:space:]]+[0-9]+([[:space:]:]|$)/) invalid = 1
+                    current = line
+                    sub(/^### scenario[[:space:]]+/, "", current)
+                    sub(/[^0-9].*$/, "", current)
+                }
+                sub(/^[[:space:]*-]+/, "", line)
+                if (line !~ /^verdict([*[:space:]]|:|$)/) next
+                id = current
+                if (id == "" && expected_count == 1) id = sole_id
+                if (!(id in expected) || seen[id]++) invalid = 1
+                observed++
+            }
+            END {
+                if (!expected_count || invalid || observed != expected_count) exit 1
+                for (id in expected) if (seen[id] != 1) exit 1
+            }' "$1" -
 }
 
 run_holdout_tests() {
@@ -110,19 +154,26 @@ run_holdout_tests() {
     local holdout_file="$run_dir/scenarios-holdout.md"
 
     if [[ ! -f "$holdout_file" ]]; then
-        log WARN "No holdout file found, skipping holdout evaluation"
-        echo "1.00"
-        return 0
+        log ERROR "No holdout file found; evaluation is incomplete"
+        return 1
     fi
 
     local holdout_content
     holdout_content=$(<"$holdout_file")
 
-    # If no real holdout scenarios, score perfect
+    # Missing scenarios cannot establish independent holdout evidence.
     if [[ "$holdout_content" == *"No structured scenarios to holdout"* ]]; then
-        log INFO "No holdout scenarios to evaluate"
-        echo "1.00"
-        return 0
+        log ERROR "No structured holdout scenarios to evaluate"
+        return 1
+    fi
+    if ! grep -c '^### Scenario' "$holdout_file" >/dev/null; then
+        log ERROR "Holdout set has no scenarios to evaluate"
+        return 1
+    fi
+
+    if ! grep -Ev '^[[:space:]]*</?external-cli-output([[:space:]][^>]*)?>[[:space:]]*$' "$holdout_file" | grep -Ec '^[[:space:]]*[^#[:space:]]' >/dev/null; then
+        log ERROR "Holdout scenarios have no body content to evaluate"
+        return 1
     fi
 
     log INFO "Running holdout tests against implementation..."
@@ -139,7 +190,7 @@ $recent_files"
     local holdout_prompt="You are a QA reviewer evaluating whether an implementation satisfies test scenarios.
 
 ## Holdout Test Scenarios (these were NOT visible during implementation)
-${holdout_content:0:4000}
+${holdout_content}
 
 ## Implementation Context
 ${impl_context:0:3000}
@@ -162,43 +213,92 @@ After all scenarios, output:
 - Fail: N
 - Score: X.XX (PASS=1.0, PARTIAL=0.5, FAIL=0.0, averaged)"
 
-    # Cross-model holdout evaluation for objectivity
-    local eval_result
-    eval_result=$(run_agent_sync "agy" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) || true
-
+    # A failed provider may emit a diagnostic on stdout. Only keep successful,
+    # nonempty output, and try the next provider after failures or empty results.
+    # Mandatory holdout evidence must never be summarized or truncated to fit.
+    local eval_result="" evaluator
+    for evaluator in agy codex claude; do
+        if eval_result=$(OCTOPUS_OVERSIZE_STRATEGY=fail run_agent_sync "$evaluator" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) && [[ "$eval_result" == *[![:space:]]* ]]; then
+            break
+        fi
+        eval_result=""
+    done
     if [[ -z "$eval_result" ]]; then
-        eval_result=$(run_agent_sync "codex" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) || true
+        log ERROR "Holdout evaluation failed from all providers"
+        return 1
     fi
 
-    if [[ -z "$eval_result" ]]; then
-        eval_result=$(run_agent_sync "claude" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) || true
-    fi
-
-    if [[ -z "$eval_result" ]]; then
-        log WARN "Holdout evaluation failed from all providers, defaulting to 0.50"
-        echo "0.50"
-        return 0
-    fi
-
-    echo "$eval_result" > "$run_dir/holdout-results.md"
+    echo "$eval_result" > "$run_dir/holdout-results.md" || return 1
 
     # Extract score from evaluation
     local holdout_score
-    holdout_score=$(echo "$eval_result" | grep -oi 'score[: ]*[0-9]*\.[0-9]*' | tail -1 | grep -o '[0-9]*\.[0-9]*' || echo "")
+    holdout_score=$(printf '%s\n' "$eval_result" | awk '
+        {
+            line = tolower($0)
+            sub(/^[[:space:]*-]+/, "", line)
+            if (match(line, /^score[*]*[[:space:]]*(:[[:space:]*]*|[[:space:]]+)/)) {
+                value = substr(line, RSTART + RLENGTH)
+                sub(/[[:space:]*]+$/, "", value)
+                sub(/[[:space:]]+\(pass=1[.]0, partial=0[.]5, fail=0[.]0, averaged\)$/, "", value)
+                found++
+                score = value
+            }
+        }
+        END {
+            if (!found) exit 0
+            if (found != 1 || score !~ /^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/) exit 1
+            print score
+        }') || {
+        log ERROR "Holdout evaluation contains an invalid explicit score"
+        return 1
+    }
 
-    if [[ -z "$holdout_score" ]]; then
-        # Fallback: count PASS/PARTIAL/FAIL verdicts
-        local pass_count partial_count fail_count total_count
-        pass_count=$(echo "$eval_result" | grep -ci 'verdict.*pass') || pass_count=0
-        partial_count=$(echo "$eval_result" | grep -ci 'verdict.*partial') || partial_count=0
-        fail_count=$(echo "$eval_result" | grep -ci 'verdict.*fail') || fail_count=0
-        total_count=$(( pass_count + partial_count + fail_count ))
-
-        if [[ $total_count -gt 0 ]]; then
-            holdout_score=$(echo "$pass_count $partial_count $total_count" | awk '{printf "%.2f", ($1 + $2 * 0.5) / $3}')
-        else
-            holdout_score="0.50"
+    # Validate every declared verdict even when a numeric summary is present.
+    # Score-only responses remain supported; invalid declarations never do.
+    local verdict_score
+    verdict_score=$(printf '%s\n' "$eval_result" | awk '
+        {
+            line = tolower($0)
+            sub(/^[[:space:]*-]+/, "", line)
+            if (line !~ /^verdict([*[:space:]]|:|$)/) next
+            sub(/^verdict[*]*[[:space:]]*:[[:space:]*]*/, "", line)
+            sub(/[[:space:]*]+$/, "", line)
+            if (line == "pass") points += 1
+            else if (line == "partial") points += 0.5
+            else if (line != "fail") invalid = 1
+            total++
+        }
+        END {
+            if (invalid) exit 1
+            if (total) printf "%.2f\n", points / total
+        }') || {
+        log ERROR "Holdout evaluation contains an invalid verdict"
+        return 1
+    }
+    # Declared verdicts must cover the holdout and agree with any summary.
+    # Allow one percentage point for the evaluator/average rounding boundary.
+    if [[ -n "$verdict_score" ]]; then
+        if ! _factory_validate_verdict_coverage "$holdout_file" "$eval_result"; then
+            log ERROR "Holdout verdict coverage is incomplete or ambiguous"
+            return 1
         fi
+        if [[ -n "$holdout_score" ]] && ! awk -v score="$holdout_score" -v average="$verdict_score" '
+            BEGIN { difference = score - average; if (difference < 0) difference = -difference; exit (difference > 0.010000001) }'; then
+            log ERROR "Holdout summary score contradicts scenario verdicts"
+            return 1
+        fi
+    fi
+    if [[ -z "$holdout_score" ]]; then
+        if [[ -z "$verdict_score" ]]; then
+            log ERROR "Holdout evaluation contains no score or verdicts"
+            return 1
+        fi
+        holdout_score="$verdict_score"
+    fi
+
+    if ! awk -v score="$holdout_score" 'BEGIN { exit !(score >= 0 && score <= 1) }'; then
+        log ERROR "Holdout evaluation score is outside the 0 to 1 range"
+        return 1
     fi
 
     log INFO "Holdout test score: $holdout_score"
@@ -307,7 +407,7 @@ factory_run() {
     # ── Phase 3: Split holdout ───────────────────────────────────────────
     echo ""
     echo -e "${YELLOW}[3/7]${NC} Splitting holdout scenarios (${holdout_ratio})..."
-    split_holdout_scenarios "$run_dir/scenarios-all.md" "$run_dir" "$holdout_ratio"
+    split_holdout_scenarios "$run_dir/scenarios-all.md" "$run_dir" "$holdout_ratio" || return $?
     local visible_count holdout_count
     visible_count=$(grep -c '### Scenario' "$run_dir/scenarios-visible.md" 2>/dev/null) || visible_count=0
     holdout_count=$(grep -c '### Scenario' "$run_dir/scenarios-holdout.md" 2>/dev/null) || holdout_count=0
@@ -340,20 +440,32 @@ Implement the specification above. Ensure all visible test scenarios pass."
     export AUTONOMY_MODE=autonomous
     export OCTOPUS_SKIP_PHASE_COST_PROMPT=true
 
-    embrace_full_workflow "$embrace_prompt"
+    embrace_full_workflow "$embrace_prompt" || {
+        local implementation_status=$?
+        unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+        return "$implementation_status"
+    }
 
     # ── Phase 5: Holdout tests ───────────────────────────────────────────
     echo ""
     echo -e "${YELLOW}[5/7]${NC} Running holdout tests (blind evaluation)..."
     local holdout_score
-    holdout_score=$(run_holdout_tests "$run_dir")
+    holdout_score=$(run_holdout_tests "$run_dir") || {
+        local holdout_status=$?
+        unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+        return "$holdout_status"
+    }
     echo -e "${GREEN}  ✓${NC} Holdout score: $holdout_score"
 
     # ── Phase 6: Satisfaction scoring ────────────────────────────────────
     echo ""
     echo -e "${YELLOW}[6/7]${NC} Scoring satisfaction..."
     local score_result
-    score_result=$(score_satisfaction "$run_dir" "$satisfaction_target")
+    score_result=$(score_satisfaction "$run_dir" "$satisfaction_target" "$holdout_score") || {
+        local scoring_status=$?
+        unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+        return "$scoring_status"
+    }
     local composite verdict
     composite="${score_result%%|*}"
     verdict="${score_result#*|}"
@@ -387,11 +499,23 @@ Focus on fixing the failing scenarios. Do NOT restart from scratch — improve t
         export AUTONOMY_MODE=autonomous
         export OCTOPUS_SKIP_PHASE_COST_PROMPT=true
 
-        embrace_full_workflow "$remediation_prompt"
+        embrace_full_workflow "$remediation_prompt" || {
+            local implementation_status=$?
+            unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+            return "$implementation_status"
+        }
 
         # Re-evaluate
-        holdout_score=$(run_holdout_tests "$run_dir")
-        score_result=$(score_satisfaction "$run_dir" "$satisfaction_target")
+        holdout_score=$(run_holdout_tests "$run_dir") || {
+            local holdout_status=$?
+            unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+            return "$holdout_status"
+        }
+        score_result=$(score_satisfaction "$run_dir" "$satisfaction_target" "$holdout_score") || {
+            local scoring_status=$?
+            unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+            return "$scoring_status"
+        }
         composite="${score_result%%|*}"
         verdict="${score_result#*|}"
         echo -e "${GREEN}  ✓${NC} Retry score: $composite -> $verdict"
