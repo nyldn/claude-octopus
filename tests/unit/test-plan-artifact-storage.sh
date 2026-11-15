@@ -7,6 +7,9 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 
 test_suite "Plan artifact storage"
 
+# These fixtures seed Claude sessions, including when another host launches them.
+export OCTOPUS_HOST=claude
+
 RESOLVER="$PROJECT_ROOT/scripts/plan-storage.sh"
 HOOK="$PROJECT_ROOT/hooks/plan-mode-interceptor.sh"
 
@@ -184,7 +187,8 @@ printf '%s\n' "unique intent contract body" > "$home_plan_dir_2/session-intent.m
 hook_output="$(cd "$case_root" && \
     printf '%s' '{"session_id":"home-session","cwd":"'"$test_home"'"}' | \
     env "HOME=$test_home" "CLAUDE_CODE_SESSION_ID=" "CLAUDE_SESSION_ID=" \
-    "CLAUDE_CODE_SESSION=" "CLAUDE_PLUGIN_ROOT=$PROJECT_ROOT" "$HOOK")"
+    "CLAUDE_CODE_SESSION=" "CLAUDE_PLUGIN_ROOT=$PROJECT_ROOT" \
+    "CODEX_SESSION_ID=foreign-codex-session" "$HOOK")"
 if [[ "$hook_output" == *"$home_plan_dir_2/session-intent.md"* &&
       "$hook_output" == *"unique intent contract body"* ]]; then
     test_pass
