@@ -235,6 +235,47 @@ sys.exit(1 if mode == "failed" else 0)
                     self.assertNotIn('AUDIT COMPLETE:', result.stdout)
                     self.assertFalse(capture.exists(), 'incomplete submodule audit dispatched')
 
+    def test_shipping_audit_rejects_binary_changes_before_dispatch(self):
+        self.prepare_audit_repository()
+        capture = self.home / 'audit-capture.json'
+        self.env['FIXTURE_AUDIT_CAPTURE'] = str(capture)
+        # Include quoting-sensitive names and an explicitly binary text file.
+        for filename, content in (('asset file.bin', b'old\x00bytes'),
+                                  ('asset\tfile\n.bin', b'old\x00bytes'),
+                                  ('declared.bin', b'print("old")\n')):
+            path = self.home / filename
+            (self.home / '.gitattributes').write_text('declared.bin -diff\n')
+            self.audit_git('add', '-f', '.gitattributes')
+            base = self.audit_git('rev-parse', 'HEAD')
+            for change in ('added', 'updated', 'unchanged', 'removed'):
+                if change in ('added', 'updated'):
+                    path.write_bytes(content if change == 'added' else content + b'new')
+                    self.audit_git('add', '-f', '--', filename)
+                elif change == 'removed':
+                    self.audit_git('rm', '--', filename)
+                else:
+                    (self.home / 'audit-source.txt').write_text(f'ordinary source update {filename!r}\n')
+                    self.audit_git('add', 'audit-source.txt')
+                self.audit_git('commit', '-qm', change + ' asset')
+                self.env['SHIP_AUDIT_BASE'] = base
+                # Repository display settings must not hide missing coverage.
+                self.audit_git('config', 'diff.relative', 'true')
+                self.audit_git('config', 'color.ui', 'always')
+                for generated in (False, True):
+                    with self.subTest(filename=filename, change=change, generated=generated):
+                        capture.unlink(missing_ok=True)
+                        result = self.run_skill('ink', generated=generated)
+                        if change == 'unchanged':
+                            self.assertEqual(result.returncode, 0, result.stderr)
+                            self.assertIn('AUDIT COMPLETE:', result.stdout)
+                            self.assertIn('+ordinary source update', json.loads(capture.read_text())['prompt'])
+                        else:
+                            self.assertNotEqual(result.returncode, 0, result.stdout)
+                            self.assertIn('binary content requires separate complete review', result.stderr)
+                            self.assertNotIn('AUDIT COMPLETE:', result.stdout)
+                            self.assertFalse(capture.exists(), 'incomplete binary audit dispatched')
+                base = self.audit_git('rev-parse', 'HEAD')
+
     def test_research_only_accepts_its_current_successful_invocation(self):
         for generated in (False, True):
             for mode in ('complete', 'failed', 'missing', 'foreign', 'invalid'):
