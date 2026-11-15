@@ -77,6 +77,8 @@ Freeze enforcement retains Codex session identity across later hook processes.
 Factory requires visible scenarios and independent holdout evidence before
 implementation. Failed implementation, evaluation or evidence writes stop the
 run, and final scoring preserves the validated holdout result.
+Satisfaction scoring requires valid values for every dimension and clears the
+previous score before retrying, so incomplete evaluation cannot report completion.
 
 External URL checks reject ambiguous authorities that could reach loopback
 services, including userinfo and bracketed IPv6 forms. This fixes authority

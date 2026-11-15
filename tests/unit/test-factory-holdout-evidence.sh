@@ -286,7 +286,7 @@ PYCONSUMER
 done
 
 
-for production_case in dual-provider long-holdout oversize failed-primary failed-supplement failed-both failed-all whitespace-all; do
+for production_case in dual-provider long-holdout oversize failed-primary failed-supplement failed-both failed-all whitespace-all scoring-failed scoring-empty scoring-whitespace scoring-malformed scoring-range scoring-negative scoring-duplicate scoring-bare-behavior scoring-bare-constraint scoring-bare-quality scoring-retry-malformed scoring-asterisk scoring-markdown scoring-fallback; do
     test_case "production generator and evaluator preserve $production_case evidence"
     if (
         source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
@@ -299,7 +299,13 @@ for production_case in dual-provider long-holdout oversize failed-primary failed
         assess_spec_maturity() { echo 'Mature|6|{}'; }
         parse_factory_spec() { echo 0.95; }
         score_nlspec_quality() { echo '100|PASS'; }
-        embrace_full_workflow() { touch implemented; }
+        embrace_full_workflow() {
+            echo called >> implementation-calls
+            if [[ "$production_case" == scoring-retry-malformed && -e implemented ]]; then
+                [[ -z $(find .octo/factory -name satisfaction-scores.json -type f) ]] || touch stale-score
+            fi
+            touch implemented
+        }
         generate_factory_report() { touch reported; }
         if [[ "$production_case" == oversize ]]; then
             source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
@@ -310,6 +316,38 @@ for production_case in dual-provider long-holdout oversize failed-primary failed
             octo_context_budget_warning() { :; }
             OCTOPUS_OVERSIZE_STRATEGY=truncate
         fi
+        _satisfaction_reply() {
+            echo "$1" >> scorers-tried
+            case "$production_case" in
+                scoring-failed) printf 'behavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 42 ;;
+                scoring-empty) return 0 ;;
+                scoring-whitespace) printf ' \n\t\n'; return 0 ;;
+                scoring-malformed) echo 'No evaluation available'; return 0 ;;
+                scoring-range) printf 'behavior_coverage: 9.00\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 0 ;;
+                scoring-negative) printf 'behavior_coverage: -0.25\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 0 ;;
+                scoring-duplicate) printf 'behavior_coverage: 0.00\nbehavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 0 ;;
+                scoring-asterisk) printf 'behavior_coverage: 0*1\nconstraint_adherence: 0*1\nquality: 0*1\n'; return 0 ;;
+                scoring-markdown) printf '**behavior_coverage**: **0.75**\n**constraint_adherence: 0.75**\n*quality*: *0.75*\n'; return 0 ;;
+                scoring-bare-behavior) echo 'behavior_coverage' ;;
+                scoring-bare-constraint) echo 'constraint_adherence' ;;
+                scoring-bare-quality) echo 'quality' ;;
+                scoring-retry-malformed)
+                    if [[ $(wc -l < implementation-calls) -eq 1 ]]; then
+                        printf 'behavior_coverage: 0.00\nconstraint_adherence: 0.00\nquality: 0.00\n'
+                    else
+                        echo 'No valid dimensions for this retry'
+                    fi
+                    return 0
+                    ;;
+                scoring-fallback)
+                    if [[ "$1" == claude-sonnet ]]; then
+                        printf 'behavior_coverage: 0.00\nconstraint_adherence: 0.00\nquality: 0.00\n'
+                        return 42
+                    fi
+                    ;;
+            esac
+            printf 'behavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n'
+        }
         run_agent_sync() {
             case "$4" in
                 qa-engineer)
@@ -334,14 +372,20 @@ PYGENERATE
                         return 0
                     fi
                     printf '%s\n' "$2" > evaluator-prompt
-                    printf '%s\n' "$2" | awk '/^### Scenario [0-9]+:/ { print; print "**Verdict:** PASS" }'
+                    if [[ "$production_case" == scoring-retry-malformed && $(wc -l < implementation-calls) -eq 2 ]]; then
+                        printf '%s\n' "$2" | awk '/^### Scenario [0-9]+:/ { print; print "**Verdict:** FAIL" }'
+                    else
+                        printf '%s\n' "$2" | awk '/^### Scenario [0-9]+:/ { print; print "**Verdict:** PASS" }'
+                    fi
                     ;;
-                evaluator) printf 'behavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n' ;;
+                evaluator) _satisfaction_reply "$1" ;;
                 *) return 42 ;;
             esac
         }
         rc=0
-        factory_run spec.md 0.20 0 true > output 2>&1 || rc=$?
+        target=0.20 retries=0
+        [[ "$production_case" != scoring-retry-malformed ]] || { target=0.90; retries=1; }
+        factory_run spec.md "$target" "$retries" true > output 2>&1 || rc=$?
         if [[ "$production_case" == failed-all ]]; then
             [[ "$rc" != 0 && ! -e implemented && ! -e reported && ! -e evaluator-prompt ]] || exit 1
             [[ "$(cat generators-tried)" == $'codex\nagy\nclaude' ]] || exit 1
@@ -351,17 +395,35 @@ PYGENERATE
             [[ "$rc" != 0 && -e implemented && ! -e reported && ! -e transport-accepted && "$OCTOPUS_OVERSIZE_STRATEGY" == truncate ]] || exit 1
             exit 0
         fi
+        if [[ "$production_case" == scoring-* && "$production_case" != scoring-fallback && "$production_case" != scoring-markdown ]]; then
+            [[ "$rc" != 0 && -e implemented && -e evaluator-prompt && ! -e reported ]] || exit 1
+            [[ -z $(find .octo/factory -name satisfaction-scores.json -type f) ]] || exit 1
+            case "$production_case" in
+                scoring-failed|scoring-empty|scoring-whitespace) [[ "$(cat scorers-tried)" == $'claude-sonnet\nclaude' ]] ;;
+                scoring-retry-malformed)
+                    [[ "$(cat scorers-tried)" == $'claude-sonnet\nclaude-sonnet' && ! -e stale-score && $(wc -l < implementation-calls) -eq 2 ]]
+                    ;;
+                *) [[ "$(cat scorers-tried)" == claude-sonnet ]] ;;
+            esac || exit 1
+            exit 0
+        fi
+        if [[ "$production_case" == scoring-fallback ]]; then
+            [[ "$(cat scorers-tried)" == $'claude-sonnet\nclaude' ]] || exit 1
+        fi
         [[ "$rc" == 0 && -e implemented && -e reported ]] || exit 1
         scores=$(find .octo/factory -name satisfaction-scores.json -type f)
         python3 - "$scores" "$production_case" <<'PYPRODUCTION'
 import json, pathlib, re, sys
 scores_path = pathlib.Path(sys.argv[1])
 score = json.loads(scores_path.read_text())
-assert score["holdout_pass_rate"] == 1 and score["verdict"] == "PASS", score
+assert score["holdout_pass_rate"] == 1 and score["verdict"] == ("FAIL" if sys.argv[2] == "scoring-markdown" else "PASS"), score
+if sys.argv[2] == "scoring-markdown":
+    assert all(score[key] == 0.75 for key in ("behavior_coverage", "constraint_adherence", "quality")), score
+    assert score["composite"] == 0.81, score
 run = scores_path.parent
 ids = lambda s: re.findall(r"^### Scenario (\d+):", s, re.M)
 all_ids = ids((run / "scenarios-all.md").read_text())
-count = 20 if sys.argv[2] == "dual-provider" else 10
+count = 20 if sys.argv[2] in ("dual-provider", "scoring-fallback", "scoring-markdown") else 10
 assert all_ids == list(map(str, range(1, count + 1))), all_ids
 if sys.argv[2] in ("failed-primary", "failed-supplement", "failed-both", "whitespace-all"):
     scenarios = (run / "scenarios-all.md").read_text()
