@@ -37,11 +37,15 @@ for tree in ('.claude/skills', 'skills'):
 if [[ "${WAVE_SCENARIO:-}" == timeout || "${WAVE_SCENARIO:-}" == "late success" ]] && [[ "$1" == +%s ]]; then
   tick=$(cat "$WAVE_CLOCK" 2>/dev/null || echo 0)
   if [[ "$WAVE_SCENARIO" == "late success" ]]; then
-    for attempt in {1..100}; do
-      [[ -f .octo/parallel/WP-1/.done ]] && break
-      /bin/sleep 0.01
+    # The monitor calls date before scanning markers for each new wave.
+    for pid_file in .octo/parallel/WP-*/pid; do
+      [[ -f "$pid_file" ]] || continue
+      for attempt in {1..100}; do
+        [[ -f "${pid_file%/pid}/.done" ]] && break
+        /bin/sleep 0.01
+      done
+      [[ -f "${pid_file%/pid}/.done" ]] || exit 1
     done
-    [[ -f .octo/parallel/WP-1/.done ]] || exit 1
   fi
   echo "$tick"
   echo "$((tick + 1000))" > "$WAVE_CLOCK"
@@ -64,6 +68,8 @@ fi
                 affected = number == (2 if scenario.startswith('final ') else 1)
                 code = '7' if status_case == 'failed' else 'invalid' if status_case == 'invalid status' else '0'
                 script = 'cd "$(dirname "$0")" || exit 1\nprintf "launched\\n" > launched\n'
+                if scenario == 'late success':
+                    script += '/bin/sleep 0.05\n'
                 script += 'printf "retained worker evidence\\n" > output.md\n'
                 if number == 2 or scenario != 'timeout':
                     if not affected or status_case != 'missing status':
