@@ -27,6 +27,71 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_ship_state_replacement_preserves_private_permissions(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-ship/SKILL.md').read_text()
+            recipe = text.split("<<'PY_STATE'\n", 1)[1].split('\nPY_STATE', 1)[0]
+            for mode in (0o600, 0o640, 0o644):
+                with self.subTest(tree=tree, mode=oct(mode)), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / '.octo').mkdir()
+                    state = root / '.octo/STATE.md'
+                    state.write_text('status: delivery_pending\nprivate project details\n')
+                    state.chmod(mode)
+                    harness = r'''
+import io, os, stat, sys
+from pathlib import Path
+os.umask(0o022)
+observed = []
+def observe_open(original):
+    def opened(*args, **kwargs):
+        stream = original(*args, **kwargs)
+        if stream.writable():
+            observed.append(stat.S_IMODE(os.fstat(stream.fileno()).st_mode))
+        return stream
+    return opened
+io.open = observe_open(io.open)
+os.fdopen = observe_open(os.fdopen)
+sys.argv = ['ship-state', 'octo-checkpoint-test']
+exec(sys.stdin.read())
+assert observed and all(mode == 0o600 for mode in observed), observed
+'''
+                    result = subprocess.run(['python3', '-c', harness], input=recipe,
+                                            cwd=root, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual(state.stat().st_mode & 0o777, mode)
+                    self.assertIn('status: shipped', state.read_text())
+                    self.assertIn('private project details', state.read_text())
+                    self.assertIn('octo-checkpoint-test', state.read_text())
+                    self.assertEqual(list((root / '.octo').iterdir()), [state])
+
+    def test_ship_state_failure_keeps_pending_state_and_removes_temporary(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-ship/SKILL.md').read_text()
+            recipe = text.split("<<'PY_STATE'\n", 1)[1].split('\nPY_STATE', 1)[0]
+            with self.subTest(tree=tree), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / '.octo').mkdir()
+                state = root / '.octo/STATE.md'
+                original = 'status: delivery_pending\nprivate project details\n'
+                state.write_text(original)
+                state.chmod(0o600)
+                harness = '''
+import os, sys
+def failed_replace(*args, **kwargs):
+    raise OSError('fixture replacement failure')
+os.replace = failed_replace
+sys.argv = ['ship-state', 'octo-checkpoint-test']
+exec(sys.stdin.read())
+'''
+                result = subprocess.run(['python3', '-c', harness], input=recipe,
+                                        cwd=root, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('fixture replacement failure', result.stderr)
+                self.assertEqual(state.read_text(), original)
+                self.assertEqual(state.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(list((root / '.octo').iterdir()), [state])
+
     def test_fixture_children_preserve_an_inherited_caller_repository(self):
         with tempfile.TemporaryDirectory() as temporary:
             caller = Path(temporary) / 'caller'
