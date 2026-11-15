@@ -130,4 +130,37 @@ else
     test_fail "model request tariff changed a provider override"
 fi
 
+test_case "standalone metrics and exported child writers preserve provider override precedence"
+if (
+    export METRICS_BASE="$TEST_TMP_DIR/override-metrics"
+    mkdir -p "$METRICS_BASE"
+    source "$PROJECT_ROOT/scripts/metrics-tracker.sh"
+    for provider in grok-agent copilot cursor-agent-preview codex-api; do
+        expected=0
+        [[ "$provider" != grok-agent ]] || expected=0.915
+        [[ "$provider" != codex-api ]] || expected=3.045
+        for model in gpt-5.5 openai/gpt-5.5; do
+            for mode in direct child; do
+                init_metrics_tracking || exit 1
+                if [[ "$mode" == child ]]; then
+                    bash -c '
+                        id=$(record_agent_start "$1" "$2" x pricing) || exit 1
+                        record_agent_complete "$id" "$1" "$2" "" pricing 301000 0 1 300000 1000
+                    ' _ "$provider" "$model" || exit 1
+                else
+                    id="$(record_agent_start "$provider" "$model" x pricing)" || exit 1
+                    record_agent_complete "$id" "$provider" "$model" "" pricing 301000 0 1 300000 1000 || exit 1
+                fi
+                jq -e --argjson expected "$expected" '.totals.estimated_cost_usd == $expected' \
+                    "$METRICS_BASE/metrics-session.json" >/dev/null || exit 1
+            done
+        done
+    done
+    echo "16 production standalone/child metrics controls passed"
+); then
+    test_pass
+else
+    test_fail "standalone metrics diverged from shared request-aware pricing"
+fi
+
 test_summary
