@@ -28,7 +28,7 @@ for tree in ('.claude/skills', 'skills'):
     def recipe(step):
         section = source.split('### Step ' + str(step) + ':', 1)[1]
         return re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for mode in ('complete', 'protected-skip', 'sparse-cone', 'sparse-noncone', 'skip-worktree', 'linked-lessons'):
+    for mode in ('complete', 'protected-skip', 'sparse-cone', 'sparse-noncone', 'skip-worktree', 'linked-lessons', 'linked-file'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             base = Path(temporary)
             repo = base / 'repo'
@@ -45,6 +45,10 @@ for tree in ('.claude/skills', 'skills'):
                 file = repo / path
                 file.parent.mkdir(exist_ok=True)
                 file.write_text('checkpoint\n')
+            if mode == 'linked-file':
+                (repo / '.octo/LESSONS.md').unlink()
+                (repo / '.octo/LESSONS.md').symlink_to('knowledge.md')
+                (repo / '.octo/knowledge.md').write_text('checkpoint\n')
             git('add', '.')
             git('commit', '-qm', 'checkpoint')
             git('tag', env['CHECKPOINT_TAG'])
@@ -89,8 +93,10 @@ for tree in ('.claude/skills', 'skills'):
                 assert (repo / 'hidden/file.txt').read_text() == 'checkpoint\n'
                 assert (repo / '.octo/LESSONS.md').read_text() == 'current\n'
             else:
-                diagnostic = 'protected lessons directory' if mode == 'linked-lessons' else 'complete working tree'
+                diagnostic = 'protected lessons' if mode in ('linked-lessons', 'linked-file') else 'complete working tree'
                 if result.returncode == 0 or diagnostic not in result.stderr:
+                    if mode == 'linked-file' and result.returncode == 0:
+                        assert (repo / '.octo/knowledge.md').read_text() == 'checkpoint\n', 'control did not restore the backing file'
                     failures.append((tree, mode, result.returncode, result.stderr))
                     continue
                 assert git('write-tree') == before_tree, (tree, mode, 'index changed')
@@ -98,6 +104,9 @@ for tree in ('.claude/skills', 'skills'):
                 if mode == 'linked-lessons':
                     assert (repo / '.octo').is_symlink()
                     assert (external / 'LESSONS.md').read_text() == 'external lessons must survive\n'
+                if mode == 'linked-file':
+                    assert (repo / '.octo/LESSONS.md').is_symlink()
+                    assert (repo / '.octo/knowledge.md').read_text() == 'current\n'
                 if mode == 'skip-worktree':
                     assert (repo / 'hidden/file.txt').read_text() == 'current\n'
             assert git('rev-parse', 'HEAD') == before_head
