@@ -349,7 +349,7 @@ _factory_satisfaction_dimensions() {
             line = tolower($0)
             gsub(/[*]/, "", line)
             sub(/^[[:space:]-]+/, "", line)
-            if (match(line, /^(behavior_coverage|constraint_adherence|quality)(:[[:space:]]*|[[:space:]]+)/)) {
+            if (match(line, /^(behavior_coverage|constraint_adherence|quality)(:[[:space:]]*|[[:space:]]+|$)/)) {
                 field = substr(line, 1, RLENGTH)
                 sub(/[:[:space:]].*$/, "", field)
                 value = substr(line, RLENGTH + 1)

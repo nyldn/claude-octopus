@@ -1006,7 +1006,8 @@ Dark Factory Mode — spec-in, software-out autonomous pipeline.
 
 Satisfaction scoring requires one value from 0 to 1 for each dimension. Failed or
 empty evaluator calls try the existing fallback; missing, duplicate or malformed
-dimension scores stop completion without a score record.
+dimension scores stop completion without a score record. A remediation retry
+invalidates the previous attempt's score before changing or re-evaluating source.
 
 **Cost:** ~20–30 agent calls (~$0.50–2.00). Requires confirmation before starting.
 
