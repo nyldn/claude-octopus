@@ -33,6 +33,30 @@ Set `OCTOPUS_COUNCIL_MAX_PARALLEL=1` for serial dispatch. Existing projected-cos
 limits and the aggregate deadline apply across workers. Partial responses and
 failed-seat diagnostics remain in the run directory after cancellation.
 
+## Wait for the current round
+
+`scripts/helpers/council-wait.sh --run-dir DIR` waits for one exact run and
+prints its `summary.json` path. Exit 0 means the artifacts are ready; read the
+summary to distinguish success, partial results and failure.
+
+For repeated rounds, use `--pool DIR --supersede-key KEY` to follow the latest
+matching round across session pools. Different runs created in the same UTC
+second across session pools are ambiguous: the wait times out with exit 2, and
+repeating it does not resolve the tie. Select the intended run with `--run-dir`.
+A round already finished when first seen
+is held until the invocation's `--settle SECONDS` window ends, default 60,
+with the window capped at the timeout minus one polling interval. For example,
+`--settle 60 --timeout 10` uses an eight-second window at the default two-second
+interval. A round observed running returns when it finishes.
+`--since EPOCH` filters creation seconds and skips that hold. An earlier round
+created in the same second can still match and return before the new round
+appears. Use `--run-dir` when one exact run matters.
+
+The foreground timeout defaults to 570 seconds. Exit 2 means the wait timed out
+and the Council round may still be running; repeat the wait to continue.
+`--background` removes that bound for a caller running the helper as a background
+task. Do not combine it with `--timeout`.
+
 ## Provide review evidence
 
 Council file access depends on the provider and dispatch transport. Consultative
