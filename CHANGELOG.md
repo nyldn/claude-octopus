@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Parallel result summaries require a completion marker before reporting a
+  successful worker, so interrupted or still-running work is not counted as done.
+
 - New parallel work-package branches start from one frozen base commit across
   launches and waves, so a fetch or branch update cannot change their baseline.
   Retries retain later work on branches that descend from that base.
