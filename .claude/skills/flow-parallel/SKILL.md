@@ -565,7 +565,24 @@ wps=[wp['id'] for wp in wbs['work_packages'] if wp.get('wave',1)==$WAVE]
 print(' '.join(wps))
   ")
 
-  # Inject outputs from completed dependency WPs into instructions
+  # Validate every dependency before modifying instructions or launching this wave.
+  for WP_ID in $WAVE_WPS; do
+    DEPS=$(python3 -c "
+import json
+wbs=json.load(open('$WBS_FILE'))
+wp=[w for w in wbs['work_packages'] if w['id']=='$WP_ID'][0]
+print(' '.join(wp.get('dependencies',[])))
+    ") || exit 1
+    for DEP in $DEPS; do
+      DEP_DIR=".octo/parallel/$DEP"
+      if [[ ! -f "$DEP_DIR/.done" || "$(cat "$DEP_DIR/exit-code" 2>/dev/null)" != 0 ]]; then
+        echo "Wave $WAVE blocked: dependency $DEP of $WP_ID has not completed successfully. Inspect its retained evidence before retrying." >&2
+        exit 1
+      fi
+    done
+  done
+
+  # Inject outputs from successful dependency WPs into instructions
   for WP_ID in $WAVE_WPS; do
     WP_NUM="${WP_ID#WP-}"
     WP_DIR=".octo/parallel/$WP_ID"
@@ -632,9 +649,9 @@ print(' '.join(wp.get('dependencies',[])))
     ELAPSED=$(( $(date +%s) - START_TIME ))
     echo "Wave $WAVE progress: $COMPLETED/$WAVE_TOTAL complete (${ELAPSED}s elapsed)"
 
-    if [[ "$ELAPSED" -gt "$TIMEOUT" ]]; then
-      echo "TIMEOUT: Wave $WAVE did not complete within ${TIMEOUT}s"
-      break
+    if [[ "$COMPLETED" -lt "$WAVE_TOTAL" && "$ELAPSED" -gt "$TIMEOUT" ]]; then
+      echo "TIMEOUT: Wave $WAVE did not complete within ${TIMEOUT}s. Dependent launches stopped; workers and evidence are retained. Wait for completion or cancel the owned workers before retrying." >&2
+      exit 1
     fi
 
     if [[ "$COMPLETED" -lt "$WAVE_TOTAL" ]]; then
@@ -647,7 +664,15 @@ print(' '.join(wp.get('dependencies',[])))
     fi
   done
 
-  echo "Wave $WAVE complete: $COMPLETED/$WAVE_TOTAL finished."
+  # A .done marker means termination, not success. Missing or invalid status
+  # must also stop the next wave rather than becoming a successful prerequisite.
+  for WP_ID in $WAVE_WPS; do
+    if [[ "$(cat ".octo/parallel/$WP_ID/exit-code" 2>/dev/null)" != 0 ]]; then
+      echo "Wave $WAVE failed: $WP_ID has no successful exit status. Inspect its retained evidence before retrying." >&2
+      exit 1
+    fi
+  done
+  echo "Wave $WAVE complete: $COMPLETED/$WAVE_TOTAL succeeded."
 done
 
 echo ""

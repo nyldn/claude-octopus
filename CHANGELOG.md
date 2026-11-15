@@ -6,6 +6,8 @@
 
 - API cost estimates apply the whole-request long-context tariff to GPT-5.6,
   GPT-5.5, GPT-5.4 and GPT-5.4 Pro above 272,000 input tokens.
+- Parallel workflows stop dependent launches after failed waves or dependencies without a successful exit status.
+- Wave timeouts stop dependent launches and retain worker evidence for inspection and recovery.
 - Parallel result summaries require a completion marker before reporting a
   successful worker, so interrupted or still-running work is not counted as done.
 
