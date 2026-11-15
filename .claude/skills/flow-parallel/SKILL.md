@@ -649,7 +649,7 @@ print(' '.join(wp.get('dependencies',[])))
     ELAPSED=$(( $(date +%s) - START_TIME ))
     echo "Wave $WAVE progress: $COMPLETED/$WAVE_TOTAL complete (${ELAPSED}s elapsed)"
 
-    if [[ "$ELAPSED" -gt "$TIMEOUT" ]]; then
+    if [[ "$COMPLETED" -lt "$WAVE_TOTAL" && "$ELAPSED" -gt "$TIMEOUT" ]]; then
       echo "TIMEOUT: Wave $WAVE did not complete within ${TIMEOUT}s. Dependent launches stopped; workers and evidence are retained. Wait for completion or cancel the owned workers before retrying." >&2
       exit 1
     fi

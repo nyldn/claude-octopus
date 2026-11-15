@@ -23,7 +23,9 @@ for tree in ('.claude/skills', 'skills'):
     section = text.split('**Wave-based launch sequence:**', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for scenario in ('success', 'failed', 'missing status', 'invalid status',
-                     'timeout', 'missing dependency', 'failed dependency'):
+                     'timeout', 'missing dependency', 'failed dependency',
+                     'late success', 'final failed', 'final missing status',
+                     'final invalid status'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             project = Path(temporary)
             parallel = project / '.octo/parallel'
@@ -32,8 +34,15 @@ for tree in ('.claude/skills', 'skills'):
             # Preserve the real timeout recipe while advancing only its clock.
             date = binary / 'date'
             date.write_text('''#!/bin/bash
-if [[ "${WAVE_SCENARIO:-}" == timeout && "$1" == +%s ]]; then
+if [[ "${WAVE_SCENARIO:-}" == timeout || "${WAVE_SCENARIO:-}" == "late success" ]] && [[ "$1" == +%s ]]; then
   tick=$(cat "$WAVE_CLOCK" 2>/dev/null || echo 0)
+  if [[ "$WAVE_SCENARIO" == "late success" && "$tick" -gt 0 ]]; then
+    for attempt in {1..100}; do
+      [[ -f .octo/parallel/WP-1/.done ]] && break
+      /bin/sleep 0.01
+    done
+    [[ -f .octo/parallel/WP-1/.done ]] || exit 1
+  fi
   echo "$tick"
   echo "$((tick + 1000))" > "$WAVE_CLOCK"
 else
@@ -51,12 +60,14 @@ fi
                 directory = parallel / f'WP-{number}'
                 directory.mkdir(parents=True)
                 (directory / 'instructions.md').write_text('original instructions\n')
-                code = '7' if scenario == 'failed' else 'invalid' if scenario == 'invalid status' else '0'
+                status_case = scenario.removeprefix('final ')
+                affected = number == (2 if scenario.startswith('final ') else 1)
+                code = '7' if status_case == 'failed' else 'invalid' if status_case == 'invalid status' else '0'
                 script = 'cd "$(dirname "$0")" || exit 1\nprintf "launched\\n" > launched\n'
                 script += 'printf "retained worker evidence\\n" > output.md\n'
                 if number == 2 or scenario != 'timeout':
-                    if number == 2 or scenario != 'missing status':
-                        script += f'printf "%s\\n" "{code if number == 1 else "0"}" > exit-code\n'
+                    if not affected or status_case != 'missing status':
+                        script += f'printf "%s\\n" "{code if affected else "0"}" > exit-code\n'
                     script += 'touch .done\n'
                 (directory / 'launch.sh').write_text(script)
             (parallel / 'wbs.json').write_text(json.dumps(dict(work_packages=packages)))
@@ -74,7 +85,10 @@ fi
                                     capture_output=True, text=True, timeout=10)
             second = parallel / 'WP-2'
             valid = result.returncode == 0 and (second / 'launched').exists()
-            if scenario != 'success':
+            if scenario.startswith('final '):
+                valid = (result.returncode != 0 and (second / 'launched').exists()
+                         and 'All waves executed.' not in result.stdout)
+            elif scenario not in ('success', 'late success'):
                 valid = (result.returncode != 0 and not (second / 'launched').exists()
                          and (second / 'instructions.md').read_text() == 'original instructions\n'
                          and 'All waves executed.' not in result.stdout)
