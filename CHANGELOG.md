@@ -11,6 +11,8 @@
 
 ### Fixed
 
+- Rollback keeps its private lessons backup outside the worktree, including when
+  `TMPDIR` points into the project, so preservation does not block restoration.
 - Design critiques select only installed providers permitted by the shared
   provider allowlist, including its provider aliases.
 - Factory satisfaction scoring rejects failed, missing, duplicate or out-of-range

@@ -194,7 +194,25 @@ working tree. Preserve any unrelated changes separately.
 # Create a private backup for this rollback only. Carry both values into the
 # restore shell; never infer the directory from another rollback's files.
 ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
-LESSONS_BACKUP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-rollback-lessons.XXXXXX") || exit 1
+LESSONS_BACKUP_DIR=$(python3 -I - "$ROLLBACK_ROOT" <<'PY_BACKUP'
+from pathlib import Path
+import sys
+import tempfile
+
+root = Path(sys.argv[1]).resolve()
+for candidate in (tempfile.gettempdir(), '/tmp', '/var/tmp'):
+    directory = Path(candidate).resolve()
+    if directory == root or root in directory.parents:
+        continue
+    try:
+        print(tempfile.mkdtemp(prefix='octopus-rollback-lessons.', dir=directory))
+        break
+    except OSError:
+        continue
+else:
+    sys.exit('Cannot create a private lessons backup outside the worktree.')
+PY_BACKUP
+) || exit 1
 LESSONS_PRESERVED=false
 if [ -f "$ROLLBACK_ROOT/.octo/LESSONS.md" ]; then
   cp "$ROLLBACK_ROOT/.octo/LESSONS.md" "$LESSONS_BACKUP_DIR/LESSONS.md" || exit 1

@@ -27,6 +27,37 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_rollback_backup_stays_outside_the_worktree(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-rollback/SKILL.md').read_text()
+            section = text.split('### Step 5:', 1)[1]
+            recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                project = root / 'project'
+                (project / '.octo').mkdir(parents=True)
+                (project / '.octo/LESSONS.md').write_text('preserved lessons\n')
+                subprocess.run(['git', 'init', '-q', str(project)], check=True)
+                subprocess.run(['git', '-C', str(project), 'add', '.octo/LESSONS.md'], check=True)
+                nested = project / 'temporary'
+                nested.mkdir()
+                linked = root / 'linked'
+                linked.symlink_to(nested, target_is_directory=True)
+                for location in (project, nested, linked, root):
+                    with self.subTest(tree=tree, tmpdir=location):
+                        before = subprocess.check_output(['git', 'status', '--porcelain=v1'], cwd=project)
+                        result = subprocess.run(['bash', '-eu', '-c', recipe], cwd=project,
+                                                env=dict(os.environ, TMPDIR=str(location)),
+                                                capture_output=True, text=True, check=True, timeout=5)
+                        backup = Path(re.search(r'^LESSONS_BACKUP_DIR=(.+)$', result.stdout, re.M)[1])
+                        try:
+                            self.assertNotIn(project, (backup.resolve(), *backup.resolve().parents))
+                            self.assertEqual((backup / 'LESSONS.md').read_text(), 'preserved lessons\n')
+                            self.assertEqual(backup.stat().st_mode & 0o077, 0)
+                            self.assertEqual(subprocess.check_output(['git', 'status', '--porcelain=v1'], cwd=project), before)
+                        finally:
+                            shutil.rmtree(backup)
+
     def test_design_critique_uses_the_shared_provider_allowlist(self):
         for relative in ('.claude/skills/skill-ui-ux-design',
                          'skills/octopus-ui-ux-design',
