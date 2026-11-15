@@ -393,7 +393,7 @@ stop with delivery finalization pending. Never claim the tag includes dirty or
 ignored files; report any intentionally untracked delivery artifacts separately.
 
 ```bash
-SHIP_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+SHIP_STATUS=$(git status --porcelain=v1 --untracked-files=all --ignore-submodules=none) || exit 1
 if [[ -n "$SHIP_STATUS" ]]; then
   echo "Checkpoint pending: review and commit delivered work before tagging." >&2
   exit 1

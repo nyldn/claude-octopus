@@ -145,6 +145,9 @@ to that exact commit in this shell. Do not guess a range from the last commit.
 Commit the intended source changes first with the user's existing authorization.
 If the source is dirty, the range is empty, or the full prompt exceeds the bounded
 transport, stop and arrange complete file-based review instead of truncating it.
+Changed submodule source needs a separate complete review before shipping.
+This quick audit stops on added, removed or updated submodules because gitlink
+commit IDs do not include their source changes.
 
 ```bash
 # Run Multi-AI security audit for the exact committed delivery range
@@ -160,6 +163,15 @@ if [[ -n "$AUDIT_STATUS" ]]; then
   echo "Audit incomplete: commit or preserve uncommitted source before dispatch." >&2
   exit 1
 fi
+# Inspect both modes so deletion or conversion of a submodule also stops here.
+# Override ignore/relative/rename settings that could conceal changed gitlinks.
+AUDIT_RAW=$(git -C "$AUDIT_REPO" diff --raw --no-relative --no-renames --ignore-submodules=none --no-ext-diff --no-color "$AUDIT_BASE" "$AUDIT_HEAD" --) || exit 1
+while IFS=' ' read -r old_mode new_mode remaining; do
+  if [[ "$old_mode" == ':160000' || "$new_mode" == '160000' ]]; then
+    echo "Audit incomplete: submodule source requires separate complete review before shipping." >&2
+    exit 1
+  fi
+done <<< "$AUDIT_RAW"
 AUDIT_DIFF=$(git -C "$AUDIT_REPO" diff --no-relative --ignore-submodules=none --submodule=short --no-ext-diff --no-textconv --no-color --binary "$AUDIT_BASE" "$AUDIT_HEAD" --) || exit 1
 if [[ -z "$AUDIT_DIFF" ]]; then
   echo "Audit incomplete: the confirmed delivery range has no changes." >&2
@@ -376,7 +388,7 @@ stop with delivery finalization pending. Never claim the tag includes dirty or
 ignored files; report any intentionally untracked delivery artifacts separately.
 
 ```bash
-SHIP_STATUS=$(git status --porcelain=v1 --untracked-files=all) || exit 1
+SHIP_STATUS=$(git status --porcelain=v1 --untracked-files=all --ignore-submodules=none) || exit 1
 if [[ -n "$SHIP_STATUS" ]]; then
   echo "Checkpoint pending: review and commit delivered work before tagging." >&2
   exit 1

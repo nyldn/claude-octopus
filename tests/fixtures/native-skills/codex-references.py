@@ -27,6 +27,58 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_ship_checkpoint_rejects_ignored_submodule_changes(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-ship/SKILL.md').read_text()
+            section = text.split('#### Step 2: Create Shipped Checkpoint', 1)[1]
+            recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+            for ignore in ('all', 'dirty', 'untracked'):
+                for change in ('tracked', 'untracked', 'commit', 'clean'):
+                    with self.subTest(tree=tree, ignore=ignore, change=change), tempfile.TemporaryDirectory() as temporary:
+                        root = Path(temporary)
+                        env = dict(os.environ, GIT_AUTHOR_NAME='Fixture',
+                                   GIT_AUTHOR_EMAIL='fixture@example.invalid', GIT_COMMITTER_NAME='Fixture',
+                                   GIT_COMMITTER_EMAIL='fixture@example.invalid', ARCHIVE_TIMESTAMP='fixture')
+                        def git(*args):
+                            return subprocess.check_output(['git', '-C', str(root), *args], env=env,
+                                                           stderr=subprocess.DEVNULL, text=True).strip()
+                        git('init', '-q', '-b', 'main')
+                        (root / '.octo').mkdir()
+                        state = root / '.octo/STATE.md'
+                        original = 'status: delivery_pending\n'
+                        state.write_text(original)
+                        dependency = root / 'dependency'
+                        dependency.mkdir()
+                        git('-C', 'dependency', 'init', '-q')
+                        source = dependency / 'source.txt'
+                        source.write_text('committed source\n')
+                        git('-C', 'dependency', 'add', 'source.txt')
+                        git('-C', 'dependency', 'commit', '-qm', 'dependency base')
+                        oid = git('-C', 'dependency', 'rev-parse', 'HEAD')
+                        git('update-index', '--add', '--cacheinfo', '160000,' + oid + ',dependency')
+                        git('add', '.octo/STATE.md')
+                        git('commit', '-qm', 'delivered source')
+                        git('config', 'diff.ignoreSubmodules', ignore)
+                        git('config', 'submodule.dependency.ignore', ignore)
+                        if change in ('tracked', 'commit'):
+                            source.write_text('unreviewed source\n')
+                        if change == 'untracked':
+                            (dependency / 'new.txt').write_text('uncommitted source\n')
+                        if change == 'commit':
+                            git('-C', 'dependency', 'add', 'source.txt')
+                            git('-C', 'dependency', 'commit', '-qm', 'new dependency')
+                        before = git('write-tree')
+                        result = subprocess.run(['bash', '-c', recipe], cwd=root, env=env,
+                                                capture_output=True, text=True, timeout=10)
+                        self.assertEqual(git('write-tree'), before)
+                        if change == 'clean':
+                            self.assertEqual(result.returncode, 0, result.stderr)
+                            self.assertEqual(git('rev-parse', 'octo-checkpoint-shipped-fixture^{}'), git('rev-parse', 'HEAD'))
+                        else:
+                            self.assertNotEqual(result.returncode, 0, result.stdout)
+                            self.assertEqual(state.read_text(), original)
+                            self.assertEqual(git('tag'), '')
+
     def test_ship_state_replacement_preserves_private_permissions(self):
         for tree in ('.claude/skills', 'skills', 'codex-skills'):
             text = (ROOT / tree / 'skill-ship/SKILL.md').read_text()
