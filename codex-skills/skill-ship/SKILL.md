@@ -343,18 +343,23 @@ echo "Checkpoint created: $CHECKPOINT_TAG"
 # Only successful checkpoint creation permits the shipped transition.
 python3 - "$CHECKPOINT_TAG" <<'PY_STATE'
 from pathlib import Path
-import re, sys
+import os, re, stat, sys, tempfile
 path = Path('.octo/STATE.md')
+original_mode = stat.S_IMODE(path.stat().st_mode)
 text = re.sub(r'^status:.*$', 'status: shipped', path.read_text(), flags=re.M)
 text += '\n- **Event:** Project shipped\n- **Checkpoint:** ' + sys.argv[1] + '\n'
-temporary = path.with_name('STATE.md.ship-pending')
+descriptor, temporary_name = tempfile.mkstemp(prefix='STATE.md.ship-pending.', dir=path.parent)
+temporary = Path(temporary_name)
 try:
-    with temporary.open('x') as output:
+    # mkstemp keeps the content private while writing, regardless of umask.
+    with os.fdopen(descriptor, 'w') as output:
         output.write(text)
+        output.flush()
+        os.fchmod(output.fileno(), original_mode)
     temporary.replace(path)
-except Exception:
-    # The old state still says pending; do not report finalization as complete.
-    raise
+finally:
+    # A failed replacement leaves the old state pending, without a spare copy.
+    temporary.unlink(missing_ok=True)
 PY_STATE
 if [[ $? -ne 0 ]]; then
   echo "Checkpoint exists, but shipment state remains pending; repair the state before reporting completion." >&2
