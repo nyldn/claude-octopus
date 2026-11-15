@@ -475,6 +475,11 @@ Implement the specification above. Ensure all visible test scenarios pass."
     local retry_count=0
     while [[ "$verdict" == "FAIL" && $retry_count -lt $max_retries ]]; do
         retry_count=$((retry_count + 1))
+        # The prior score cannot describe source or holdout evidence from a retry.
+        rm -f -- "$run_dir/satisfaction-scores.json" || {
+            unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+            return 1
+        }
         echo ""
         echo -e "${YELLOW}[RETRY $retry_count/$max_retries]${NC} Re-running phases 3-4 with remediation context..."
 

@@ -1004,6 +1004,11 @@ Dark Factory Mode — spec-in, software-out autonomous pipeline.
 7. Repeats if target not met (up to configured limit)
 8. Produces final delivery report
 
+Satisfaction scoring requires one value from 0 to 1 for each dimension. Failed or
+empty evaluator calls try the existing fallback; missing, duplicate or malformed
+dimension scores stop completion without a score record. A remediation retry
+invalidates the previous attempt's score before changing or re-evaluating source.
+
 **Cost:** ~20–30 agent calls (~$0.50–2.00). Requires confirmation before starting.
 
 **Requires:** A spec file (create one with `/octo:spec`). Works in Claude-only mode if external providers unavailable.
