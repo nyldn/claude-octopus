@@ -27,6 +27,47 @@ def adapt(text):
 
 
 class CodexReferences(unittest.TestCase):
+    def test_design_critique_uses_the_shared_provider_allowlist(self):
+        for relative in ('.claude/skills/skill-ui-ux-design',
+                         'skills/octopus-ui-ux-design',
+                         'codex-skills/octopus-ui-ux-design'):
+            text = (ROOT / relative / 'SKILL.md').read_text()
+            section = text.split('**Three participants, run in parallel:**', 1)[1]
+            recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                scripts = root / 'scripts'
+                scripts.mkdir()
+                (scripts / 'lib').symlink_to(ROOT / 'scripts/lib', target_is_directory=True)
+                runner = scripts / 'orchestrate.sh'
+                runner.write_text('#!/bin/bash\nprintf "%s\\n" "$2" >> "$CRITIQUE_CALLS"\n')
+                runner.chmod(0o755)
+                binary_dir = root / 'bin'
+                binary_dir.mkdir()
+                for provider in ('codex', 'agy'):
+                    binary = binary_dir / provider
+                    binary.write_text('#!/bin/bash\nexit 0\n')
+                    binary.chmod(0o755)
+                calls = root / 'calls'
+                for allowed, expected in (('codex', ['codex']), ('google', ['agy']),
+                                          ('openai', ['codex']), ('claude', []),
+                                          ('codex,agy', ['agy', 'codex']),
+                                          ('', ['agy', 'codex'])):
+                    with self.subTest(skill=relative, allowed=allowed):
+                        calls.write_text('')
+                        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(root),
+                                   CODEX_PLUGIN_ROOT=str(root), OCTOPUS_CONFIG_DIR=str(root / 'config'),
+                                   OCTO_ALLOWED_PROVIDERS=allowed, CRITIQUE_CALLS=str(calls),
+                                   TMPDIR=str(root),
+                                   PATH=str(binary_dir) + ':' + os.environ['PATH'])
+                        result = subprocess.run(['bash', '-c', recipe], cwd=root, env=env,
+                                                capture_output=True, text=True, timeout=10)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertEqual(sorted(calls.read_text().splitlines()), expected)
+                        directory = re.search(r'^CRITIQUE_DIR=(.+)$', result.stdout, re.M)
+                        if directory:
+                            shutil.rmtree(directory[1])
+
     def test_fixture_children_preserve_an_inherited_caller_repository(self):
         with tempfile.TemporaryDirectory() as temporary:
             caller = Path(temporary) / 'caller'

@@ -300,14 +300,20 @@ For each issue found, state: what's wrong, why it matters, and what to do instea
 # path into subsequent shells and use it for every critique read.
 CRITIQUE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-design-critique.XXXXXX") || exit 1
 printf 'CRITIQUE_DIR=%s\n' "$CRITIQUE_DIR"
+# Apply the shared provider policy before sending any design text.
+CRITIQUE_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+source "$CRITIQUE_ROOT/scripts/lib/provider-allowlist.sh" || exit 1
 # Check provider availability
 providers=()
-command -v codex >/dev/null 2>&1 && providers+=(codex)
-command -v agy >/dev/null 2>&1 && providers+=(agy)
+for provider in codex agy; do
+    if octo_provider_allowed "$provider" && command -v "$provider" >/dev/null 2>&1; then
+        providers+=("$provider")
+    fi
+done
 
 for provider in "${providers[@]}"; do
     safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
-    "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
+    "$CRITIQUE_ROOT/scripts/orchestrate.sh" spawn "$provider" \
       "<critique prompt>" > "${CRITIQUE_DIR:?}/${safe_provider}.md" &
 done
 

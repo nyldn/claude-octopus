@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Design critiques select only installed providers permitted by the shared
+  provider allowlist, including its provider aliases.
+
 - Rollback refuses sparse or skip-worktree exclusions and linked lessons directories
   before restoring files, so partial recovery cannot be reported as complete.
 
