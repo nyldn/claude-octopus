@@ -14,6 +14,8 @@ Merged changes: [#1327](https://github.com/nyldn/claude-octopus/pull/1327), [#13
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
 which remains open for outstanding runtime and acceptance work.
 
+The rollback boundary also includes [#1328](https://github.com/nyldn/claude-octopus/pull/1328).
+
 ### Added
 
 - `OCTOPUS_AGY_FALLBACK_MODELS` lists Gemini models for agy to retry, in
@@ -22,6 +24,9 @@ which remains open for outstanding runtime and acceptance work.
   a busy model no longer stops the council. Non-Gemini entries are skipped.
 
 ### Fixed
+
+- Rollback refuses sparse or skip-worktree exclusions and linked lessons directories
+  before restoring files, so partial recovery cannot be reported as complete.
 
 - Factory stops before evaluation or completion when initial or retry implementation fails.
 - Factory discards failed scenario-provider output and tries healthy fallbacks.

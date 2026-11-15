@@ -57,6 +57,8 @@ Confirmation is tied to the previewed repository, branch, revision and checkpoin
 changing context requires another preview.
 Changed submodules require manual restoration, and rollback stops before changing
 ordinary files or the index.
+Sparse checkout, skip-worktree exclusions outside lessons, and linked `.octo`
+directories also stop restoration until the working tree can be recovered completely.
 Research verifies the report produced by its current invocation. Provider quota
 and authentication failures update their original seat instead of leaving a
 stale running entry. Debate state keeps quoted and multiline questions readable
