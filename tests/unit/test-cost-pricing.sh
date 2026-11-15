@@ -91,4 +91,43 @@ else
     test_fail "DeepSeek Flash retained the unrelated generic fallback rate"
 fi
 
+test_case "provider overrides bypass model request rules in every Bash billing path"
+override_ok=true
+for provider in grok-agent copilot cursor-agent-preview; do
+    for override_model in gpt-5.5 openai/gpt-5.5; do
+        expected_actual=0
+        expected_estimate=0.000000
+        expected_workflow=0.0000
+        if [[ "$provider" == grok-agent ]]; then
+            expected_actual=0.915
+            expected_estimate=9.900000
+            expected_workflow=9.9000
+        fi
+        reservation="$(
+            estimate_tokens() { echo 300000; }
+            estimate_agent_call_cost "$provider" "$override_model" x
+        )"
+        workflow="$(
+            phase=pricing role=reviewer
+            get_agent_model() { echo "$override_model"; }
+            estimate_tokens() { echo 300000; }
+            calculate_agent_cost "$provider" 1
+        )"
+        override_id="$(record_agent_start "$provider" "$override_model" x pricing)"
+        record_agent_call "$provider" "$override_model" x pricing reviewer 0 "$override_id"
+        record_agent_complete "$override_id" "$provider" "$override_model" "" pricing 301000 0 1 300000 1000
+        actual="$(generate_usage_json | jq -r --arg id "$override_id" '.calls[] | select(.call_id == $id) | .cost_usd')"
+        if ! jq -en --argjson actual "$actual" --argjson expected "$expected_actual" '$actual == $expected' >/dev/null ||
+           [[ "$reservation" != "$expected_estimate" || "$workflow" != "$expected_workflow" ]]; then
+            echo "$provider $override_model actual=$actual reservation=$reservation workflow=$workflow"
+            override_ok=false
+        fi
+    done
+done
+if [[ "$override_ok" == true ]]; then
+    test_pass
+else
+    test_fail "model request tariff changed a provider override"
+fi
+
 test_summary

@@ -225,6 +225,13 @@ for model in ('vendor/custom-model', 'openai/gpt-5.5:custom'):
 records.append(dict(provider='cursor-agent', model='openai/gpt-5.5', skill='included',
                     tokens_in=300000, tokens_out=1000))
 expected['included'] = 0
+for provider in ('grok', 'grok-agent', 'copilot', 'cursor-agent-preview'):
+    for model in ('gpt-5.5', 'openai/gpt-5.5'):
+        for tin in (272000, 300000):
+            name = f'{provider}-{model}-{tin}'
+            records.append(dict(provider=provider, model=model, skill=name,
+                                tokens_in=tin, tokens_out=1000))
+            expected[name] = round((tin * 3 + 1000 * 15) / 1e6, 4) if provider.startswith('grok') else 0
 (usage / 'records.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in records))
 report = json.loads(subprocess.check_output([
     'bash', helper, '--format', 'json', '--usage-dir', str(usage),

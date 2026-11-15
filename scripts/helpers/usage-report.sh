@@ -190,11 +190,11 @@ for r in records():
     model = pricing_model((r.get("model") or "").lower())
     tin = int(r.get("est_tokens_in") or r.get("tokens_in") or 0)
     tout = int(r.get("est_tokens_out") or r.get("tokens_out") or 0)
-    rate = PROVIDER_OVERRIDES.get(
-        price_prov, MODEL_RATES.get(model, RATES.get(price_prov, DEFAULT_RATE)))
+    override = PROVIDER_OVERRIDES.get(price_prov)
+    rate = override if override is not None else MODEL_RATES.get(model, RATES.get(price_prov, DEFAULT_RATE))
     threshold, input_multiplier, output_multiplier = REQUEST_RULES.get(
         model, (None, 1.0, 1.0))
-    if threshold is not None and tin > threshold:
+    if override is None and threshold is not None and tin > threshold:
         rate = (rate[0] * input_multiplier, rate[1] * output_multiplier)
     cost = tin / 1e6 * rate[0] + tout / 1e6 * rate[1]
     for target in (by_provider[prov], totals):

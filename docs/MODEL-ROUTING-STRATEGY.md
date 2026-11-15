@@ -481,6 +481,7 @@ Sol, Terra and Luna IDs, GPT-5.5, GPT-5.4 and GPT-5.4 Pro, as well as the
 catalogued GPT-6 models. Exactly 272,000 input tokens retains the base tariff.
 The shared pricing table drives reservation, completion and standalone metrics.
 Cached-token costs remain unknown when the ledger lacks a verified cache tariff.
+Provider billing overrides take precedence over model rates and request-size rules.
 
 These are list-price estimates. Subscription allowances, account entitlement,
 batch discounts, fast modes, regional premiums and gateway-selected tariffs
