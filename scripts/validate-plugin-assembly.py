@@ -144,7 +144,7 @@ def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
             errors.append(f"{rel(root, manifest)}: missing or unsafe skill path: {path}")
             continue
         direct = directory / "SKILL.md"
-        files = [direct] if direct.is_file() else sorted(directory.rglob("SKILL.md"))
+        files = [direct] if required and direct.is_file() else sorted(directory.rglob("SKILL.md"))
         if required and not files:
             errors.append(f"{rel(root, manifest)}: no skills found at: {path}")
         for skill in files:

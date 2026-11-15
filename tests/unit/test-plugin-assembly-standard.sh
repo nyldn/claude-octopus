@@ -179,6 +179,23 @@ elif [[ "$output" == *"Claude Code registers a Codex-adapted skill"* ]]; then
 else
     test_fail "missing default-root diagnostic: $output"
 fi
+test_case "automatic discovery checks nested hosts beside a root SKILL.md"
+cp "$scalar_fixture/native/demo/SKILL.md" "$scalar_fixture/skills/SKILL.md"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
+    test_fail "root SKILL.md hid the nested Codex adaptation"
+elif [[ "$output" == *"Claude Code registers a Codex-adapted skill"* ]]; then
+    test_pass
+else
+    test_fail "missing nested host mismatch beside root skill: $output"
+fi
+
+test_case "automatic discovery permits native root and nested entries together"
+cp "$scalar_fixture/native/demo/SKILL.md" "$scalar_fixture/skills/demo/SKILL.md"
+if output=$(python3 "$PROJECT_ROOT/scripts/validate-plugin-assembly.py" --root "$scalar_fixture" 2>&1); then
+    test_pass
+else
+    test_fail "native root and nested catalog rejected: $output"
+fi
 rm -rf "$scalar_fixture/skills"
 for invalid_path in 'native/demo' "$scalar_fixture/native/demo" ''; do
     test_case "native manifest rejects malformed skill path: $invalid_path"
