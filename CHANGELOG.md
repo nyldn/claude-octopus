@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- Factory stops before evaluation or completion when initial or retry implementation fails.
 - Factory discards failed scenario-provider output and tries healthy fallbacks.
 - Factory stops when scenario evidence cannot be saved.
 - Factory rejects negated or ambiguous verdicts and duplicate summary scores in holdout evaluations.

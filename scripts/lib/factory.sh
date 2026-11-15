@@ -440,7 +440,11 @@ Implement the specification above. Ensure all visible test scenarios pass."
     export AUTONOMY_MODE=autonomous
     export OCTOPUS_SKIP_PHASE_COST_PROMPT=true
 
-    embrace_full_workflow "$embrace_prompt"
+    embrace_full_workflow "$embrace_prompt" || {
+        local implementation_status=$?
+        unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+        return "$implementation_status"
+    }
 
     # ── Phase 5: Holdout tests ───────────────────────────────────────────
     echo ""
@@ -495,7 +499,11 @@ Focus on fixing the failing scenarios. Do NOT restart from scratch — improve t
         export AUTONOMY_MODE=autonomous
         export OCTOPUS_SKIP_PHASE_COST_PROMPT=true
 
-        embrace_full_workflow "$remediation_prompt"
+        embrace_full_workflow "$remediation_prompt" || {
+            local implementation_status=$?
+            unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+            return "$implementation_status"
+        }
 
         # Re-evaluate
         holdout_score=$(run_holdout_tests "$run_dir") || {

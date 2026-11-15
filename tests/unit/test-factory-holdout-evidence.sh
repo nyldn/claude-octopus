@@ -60,7 +60,7 @@ else
     test_fail 'valid holdout evaluation changed'
 fi
 
-for pipeline_case in single unstructured blank-visible blank-holdout wrapped-holdout visible-write-failure holdout-write-failure result-write-failure providers-empty providers-banner providers-malformed providers-score-range providers-negative providers-integer initial-failure retry-failure success; do
+for pipeline_case in single unstructured blank-visible blank-holdout wrapped-holdout visible-write-failure holdout-write-failure result-write-failure providers-empty providers-banner providers-malformed providers-score-range providers-negative providers-integer initial-failure retry-failure implementation-failure retry-implementation-failure success; do
     test_case "factory handles $pipeline_case through an OR-list"
     if (
         case_dir="$TEST_TMP_DIR/pipeline-$pipeline_case"
@@ -91,7 +91,12 @@ for pipeline_case in single unstructured blank-visible blank-holdout wrapped-hol
                 result-write-failure) mkdir "$2/holdout-results.md" ;;
             esac
         }
-        embrace_full_workflow() { touch embraced; }
+        embrace_full_workflow() {
+            touch embraced
+            echo called >> implementation-calls
+            if [[ "$pipeline_case" == implementation-failure ]]; then return 42; fi
+            if [[ "$pipeline_case" == retry-implementation-failure && $(wc -l < implementation-calls) -eq 2 ]]; then return 43; fi
+        }
         score_satisfaction() {
             touch scored
             if [[ "$pipeline_case" == success ]]; then echo '1.00|PASS'; else echo '0.00|FAIL'; fi
@@ -136,6 +141,10 @@ for pipeline_case in single unstructured blank-visible blank-holdout wrapped-hol
                     else
                         [[ "$(cat providers-tried)" == $'agy\ncodex\nclaude' ]]
                     fi
+            elif [[ "$pipeline_case" == implementation-failure ]]; then
+                [[ "$rc" == 42 && -e embraced && ! -e provider-called && ! -e scored && -z ${OCTOPUS_FACTORY_MODE+x} && -z ${OCTOPUS_SKIP_PHASE_COST_PROMPT+x} ]]
+            elif [[ "$pipeline_case" == retry-implementation-failure ]]; then
+                [[ "$rc" == 43 && -e scored && -e provider-called && $(wc -l < implementation-calls) -eq 2 && -z ${OCTOPUS_FACTORY_MODE+x} && -z ${OCTOPUS_SKIP_PHASE_COST_PROMPT+x} ]]
             elif [[ "$pipeline_case" == result-write-failure ]]; then
                 [[ "$rc" == 1 && -e embraced && ! -e scored ]]
             else
