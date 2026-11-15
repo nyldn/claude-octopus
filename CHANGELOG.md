@@ -5,6 +5,8 @@
 ### Fixed
 
 - Parallel cleanup retains worktrees with index flags that can hide local edits or deletions.
+- Parallel workflows stop dependent launches after failed waves or dependencies without a successful exit status.
+- Wave timeouts stop dependent launches and retain worker evidence for inspection and recovery.
 - Parallel result summaries require a completion marker before reporting a
   successful worker, so interrupted or still-running work is not counted as done.
 
