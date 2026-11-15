@@ -130,6 +130,41 @@ esac' DEBUG
         return subprocess.run(['/bin/bash', str(REPO / 'scripts/orchestrate.sh'), *args],
                               cwd=self.root, env=env, capture_output=True, text=True, timeout=45)
 
+    def test_delivery_dispatch_preserves_missing_and_existing_feature_metadata(self):
+        for feature in ['', 'specs/001-export']:
+            selected = self.root / feature
+            selected.mkdir(parents=True, exist_ok=True)
+            (selected / 'spec.md').write_text(self.spec.read_text())
+            self.env['OCTOPUS_FEATURE'] = str(selected / 'spec.md')
+            for existing in [False, True]:
+                if existing:
+                    update = self.base / 'update.json'
+                    update.write_text('{"policy":null}')
+                    subprocess.run(['python3', str(REPO / 'scripts/helpers/feature-contract.py'),
+                                    'update', '--root', str(self.root), '--feature', feature,
+                                    '--input', str(update)], env=self.env, check=True,
+                                   capture_output=True, text=True)
+                subprocess.run(['git', '-C', str(self.root), 'add', '.'], env=self.env, check=True)
+                subprocess.run(['git', '-C', str(self.root), '-c', 'user.name=Fixture',
+                                '-c', 'user.email=fixture@example.invalid', 'commit', '--allow-empty',
+                                '-qm', 'delivery source'], env=self.env, check=True)
+                before = {str(path.relative_to(self.root)): path.read_bytes()
+                          for path in self.root.rglob('*') if path.is_file()
+                          and '.git' not in path.relative_to(self.root).parts}
+                for command in ['ink', 'deliver']:
+                    with self.subTest(feature=feature, existing=existing, command=command):
+                        result = self.orchestrator_dispatch(command, 'Audit committed source')
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertIn('DISPATCH:', result.stdout)
+                        self.assertIn('|active=true|', result.stdout)
+                        after = {str(path.relative_to(self.root)): path.read_bytes()
+                                 for path in self.root.rglob('*') if path.is_file()
+                                 and '.git' not in path.relative_to(self.root).parts}
+                        self.assertEqual(after, before, 'delivery binding changed source')
+                        status = subprocess.check_output(['git', '-C', str(self.root), 'status',
+                                                          '--porcelain'], env=self.env, text=True)
+                        self.assertEqual(status, '', 'delivery binding dirtied committed source')
+
     def test_ambiguous_features_only_stop_binding_commands(self):
         for ordinal, name in [(1, 'export'), (2, 'search')]:
             feature = self.root / 'specs' / f'{ordinal:03d}-{name}'

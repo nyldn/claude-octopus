@@ -144,4 +144,30 @@ else
     test_fail "missing native output directory cannot be rebuilt"
 fi
 
+test_case "native generation inserts a missing source name without changing its body"
+mkdir -p "$SKILLS_DIR/fallback-name"
+cat > "$SKILLS_DIR/fallback-name/SKILL.md" <<'EOF'
+---
+description: Fixture with a filename-derived name
+disable-model-invocation: true
+---
+
+# Missing name fixture
+
+Keep this body unchanged.
+name: this-body-line-is-not-frontmatter
+EOF
+main >/dev/null
+if python3 - "$NATIVE_OUTPUT_DIR/fallback-name/SKILL.md" "$SKILLS_DIR/fallback-name/SKILL.md" <<'PY'
+import sys
+from pathlib import Path
+generated, source = (Path(p).read_text() for p in sys.argv[1:])
+assert generated == source.replace('\n---\n', '\nname: fallback-name\n---\n', 1), generated
+PY
+then
+    test_pass
+else
+    test_fail "native entry did not receive the filename-derived frontmatter name"
+fi
+
 test_summary
