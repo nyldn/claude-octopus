@@ -4,6 +4,8 @@
 
 ## [11.24.0] - 2026-11-15
 
+### Changed
+
 This batch protects local work during quick tasks and rollback, binds shipping
 audits to the delivered commits, verifies current research and Council evidence,
 and supports OpenCode 2.x dispatch. Factory requires independent holdout evidence
