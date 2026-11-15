@@ -70,7 +70,8 @@ running, keeping their Git writes inside the disposable advisory copy.
 
 Shipping audits bind their review to the confirmed committed source range and
 stop when source changes, required review fails, or evidence is incomplete.
-Changed submodules require a separate complete source review before shipping.
+Changed submodules and files Git classifies as binary require a separate complete
+source review before shipping.
 Freeze enforcement retains Codex session identity across later hook processes.
 
 Factory requires visible scenarios and independent holdout evidence before

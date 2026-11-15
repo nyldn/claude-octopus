@@ -17,8 +17,9 @@ which remains open for outstanding runtime and acceptance work.
 The rollback boundary also includes [#1328](https://github.com/nyldn/claude-octopus/pull/1328)
 and [#1329](https://github.com/nyldn/claude-octopus/pull/1329).
 
-Shipping's submodule source-review boundary is covered by
-[#1330](https://github.com/nyldn/claude-octopus/pull/1330).
+Shipping's source-review boundaries are covered by
+[#1330](https://github.com/nyldn/claude-octopus/pull/1330) for submodules and
+[#1331](https://github.com/nyldn/claude-octopus/pull/1331) for Git-classified binary files.
 
 ### Added
 
