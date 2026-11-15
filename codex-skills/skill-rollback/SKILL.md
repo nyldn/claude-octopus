@@ -252,8 +252,8 @@ import subprocess
 import sys
 
 root, checkpoint = sys.argv[1:]
-# Path checkout honors sparse and skip-worktree exclusions. It cannot promise
-# the complete checkpoint tree while any tracked path is excluded.
+# Path checkout honors sparse and skip-worktree exclusions. Assume-unchanged
+# entries can hide local edits from status and must also stop restoration.
 sparse = subprocess.run([
     'git', '-C', root, 'config', '--bool', 'core.sparseCheckout',
 ], capture_output=True, check=False)
@@ -263,10 +263,11 @@ index_entries = subprocess.check_output([
     'git', '-C', root, 'ls-files', '-v', '-z',
 ]).split(b'\0')
 if sparse.stdout.strip() == b'true' or any(
-    entry[:1].upper() == b'S' and entry[2:] != b'.octo/LESSONS.md'
+    (entry[:1].upper() == b'S' or entry[:1].islower())
+    and entry[2:] != b'.octo/LESSONS.md'
     for entry in index_entries
 ):
-    sys.exit('Rollback requires a complete working tree. Disable sparse checkout and clear skip-worktree exclusions before retrying; no project files were restored.')
+    sys.exit('Rollback requires a complete working tree. Disable sparse checkout and clear skip-worktree or assume-unchanged flags after preserving local work; no project files were restored.')
 # Excluding the lessons file does not protect an ancestor symlink from checkout.
 lessons_directory = os.path.join(root, '.octo')
 if os.path.lexists(lessons_directory) and (
@@ -327,7 +328,7 @@ rmdir "${LESSONS_BACKUP_DIR:?}" 2>/dev/null || {
 **Important:** This runs `git checkout --no-overlay <tag> -- . ':(exclude).octo/LESSONS.md'` from the repository root, which:
 - Restores tracked files to checkpoint state, including additions and deletions
 - Preserves current `.octo/LESSONS.md` in both the index and working tree
-- Requires a complete working tree without sparse or skip-worktree exclusions outside the protected lessons file
+- Requires a complete working tree without sparse, skip-worktree or assume-unchanged exclusions outside the protected lessons file
 - Stops when `.octo` is a symlink or file, or `LESSONS.md` is a symlink, before restoring files
 - Does NOT move HEAD or change branch
 - Preserves current commit history
