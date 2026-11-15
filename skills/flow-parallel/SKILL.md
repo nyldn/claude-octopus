@@ -476,11 +476,26 @@ fi
 # shared object store on WP_BRANCH.
 UNCOMMITTED="$(git -C "$WORKTREE_DIR" status --porcelain 2>/dev/null)" ||
     fail "ERROR: cannot inspect worktree status; retained $WORKTREE_DIR"
+# Status and worktree removal both honor index flags that can hide local work.
+# Read NUL-delimited entries so unusual filenames cannot hide a flagged entry.
+HIDDEN_INDEX="$(python3 - "$WORKTREE_DIR" <<'PY'
+import subprocess
+import sys
+
+entries = subprocess.check_output([
+    'git', '-C', sys.argv[1], 'ls-files', '-v', '-z',
+]).split(b'\0')
+print(int(any(entry[:1].upper() == b'S' or entry[:1].islower() for entry in entries)))
+PY
+)" || fail "ERROR: cannot inspect worktree index flags; retained $WORKTREE_DIR"
 COMMITS="$(git -C "$WORKTREE_DIR" rev-list --count "$BASE_REF..HEAD" 2>/dev/null)" ||
     fail "ERROR: cannot inspect worktree commits; retained $WORKTREE_DIR"
 echo "$COMMITS" > "$SCRIPT_DIR/commit-count"
 cd "$PROJECT_ROOT"
-if [[ -z "$UNCOMMITTED" && "$COMMITS" -gt 0 ]]; then
+if [[ "$HIDDEN_INDEX" == 1 ]]; then
+    echo "KEPT $WORKTREE_DIR: index flags may hide uncommitted work on $WP_BRANCH" \
+        >> "$SCRIPT_DIR/agent.log"
+elif [[ -z "$UNCOMMITTED" && "$COMMITS" -gt 0 ]]; then
     git worktree remove "$WORKTREE_DIR" 2>/dev/null ||
         fail "ERROR: cannot remove worktree; retained $WORKTREE_DIR"
 elif [[ -n "$UNCOMMITTED" ]]; then
@@ -505,6 +520,8 @@ package and wave, never a moving ref such as `origin/<trunk>`.
 script fails closed and records a non-zero exit code plus `.done`, so the wave reports the failure
 instead of hanging. A worktree that still holds uncommitted work is kept, not removed, and the
 reason is appended to `agent.log`.
+Worktrees with skip-worktree or assume-unchanged index flags are also retained,
+because Git status can hide local edits or deletions under those flags.
 
 **Validation gate: `instructions_written`** — Verify all instruction files exist:
 
@@ -565,7 +582,24 @@ wps=[wp['id'] for wp in wbs['work_packages'] if wp.get('wave',1)==$WAVE]
 print(' '.join(wps))
   ")
 
-  # Inject outputs from completed dependency WPs into instructions
+  # Validate every dependency before modifying instructions or launching this wave.
+  for WP_ID in $WAVE_WPS; do
+    DEPS=$(python3 -c "
+import json
+wbs=json.load(open('$WBS_FILE'))
+wp=[w for w in wbs['work_packages'] if w['id']=='$WP_ID'][0]
+print(' '.join(wp.get('dependencies',[])))
+    ") || exit 1
+    for DEP in $DEPS; do
+      DEP_DIR=".octo/parallel/$DEP"
+      if [[ ! -f "$DEP_DIR/.done" || "$(cat "$DEP_DIR/exit-code" 2>/dev/null)" != 0 ]]; then
+        echo "Wave $WAVE blocked: dependency $DEP of $WP_ID has not completed successfully. Inspect its retained evidence before retrying." >&2
+        exit 1
+      fi
+    done
+  done
+
+  # Inject outputs from successful dependency WPs into instructions
   for WP_ID in $WAVE_WPS; do
     WP_NUM="${WP_ID#WP-}"
     WP_DIR=".octo/parallel/$WP_ID"
@@ -632,9 +666,9 @@ print(' '.join(wp.get('dependencies',[])))
     ELAPSED=$(( $(date +%s) - START_TIME ))
     echo "Wave $WAVE progress: $COMPLETED/$WAVE_TOTAL complete (${ELAPSED}s elapsed)"
 
-    if [[ "$ELAPSED" -gt "$TIMEOUT" ]]; then
-      echo "TIMEOUT: Wave $WAVE did not complete within ${TIMEOUT}s"
-      break
+    if [[ "$COMPLETED" -lt "$WAVE_TOTAL" && "$ELAPSED" -gt "$TIMEOUT" ]]; then
+      echo "TIMEOUT: Wave $WAVE did not complete within ${TIMEOUT}s. Dependent launches stopped; workers and evidence are retained. Wait for completion or cancel the owned workers before retrying." >&2
+      exit 1
     fi
 
     if [[ "$COMPLETED" -lt "$WAVE_TOTAL" ]]; then
@@ -647,7 +681,15 @@ print(' '.join(wp.get('dependencies',[])))
     fi
   done
 
-  echo "Wave $WAVE complete: $COMPLETED/$WAVE_TOTAL finished."
+  # A .done marker means termination, not success. Missing or invalid status
+  # must also stop the next wave rather than becoming a successful prerequisite.
+  for WP_ID in $WAVE_WPS; do
+    if [[ "$(cat ".octo/parallel/$WP_ID/exit-code" 2>/dev/null)" != 0 ]]; then
+      echo "Wave $WAVE failed: $WP_ID has no successful exit status. Inspect its retained evidence before retrying." >&2
+      exit 1
+    fi
+  done
+  echo "Wave $WAVE complete: $COMPLETED/$WAVE_TOTAL succeeded."
 done
 
 echo ""
@@ -687,7 +729,7 @@ SUCCEEDED=0
 for i in $(seq 1 "$WP_COUNT"); do
   WP_DIR=".octo/parallel/WP-$i"
 
-  if [[ -f "$WP_DIR/exit-code" ]]; then
+  if [[ -f "$WP_DIR/.done" && -f "$WP_DIR/exit-code" ]]; then
     EXIT_CODE=$(cat "$WP_DIR/exit-code")
   else
     EXIT_CODE="N/A (not completed)"

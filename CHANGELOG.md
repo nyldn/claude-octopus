@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Research child commands preserve shell-quoted prompts without executing their contents.
 - Rollback keeps its private lessons backup outside the worktree, including when
   `TMPDIR` points into the project, so preservation does not block restoration.
 - Design critiques select only installed providers permitted by the shared
@@ -13,6 +14,12 @@
 - Claude Code discovers native skill instructions while Codex loads its own
   adapted entries. Registered names, manual invocation and the starter pack
   remain available in both hosts.
+- Parallel cleanup retains worktrees with index flags that can hide local edits or deletions.
+- Parallel workflows stop dependent launches after failed waves or dependencies without a successful exit status.
+- Wave timeouts stop dependent launches and retain worker evidence for inspection and recovery.
+- Parallel result summaries require a completion marker before reporting a
+  successful worker, so interrupted or still-running work is not counted as done.
+
 - New parallel work-package branches start from one frozen base commit across
   launches and waves, so a fetch or branch update cannot change their baseline.
   Retries retain later work on branches that descend from that base.

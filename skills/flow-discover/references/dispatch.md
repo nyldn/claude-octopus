@@ -19,7 +19,9 @@ value as a complete argument. For the shown single-quoted form, replace every
 embedded apostrophe with `'\''` before wrapping the value in single quotes. Apply
 this to both `<perspective_prompt>` and `<original_prompt>`, including prompts
 containing apostrophes, newlines, dollar signs, or command substitutions. Never
-insert unescaped prompt text into shell source.
+insert unescaped prompt text into shell source. Each placeholder below consumes
+the complete quoted argument. Do not add another pair of quotes around it.
+Quote `<agent_type>`, `<task_id>` and `<run_id>` as complete arguments too.
 
 For each perspective in the fleet, the Claude Code call is:
 
@@ -29,7 +31,7 @@ Agent(
   description: "<label> (<agent_type>)",
   prompt: "Run this command and return its COMPLETE stdout output, including the result file path on the last line:
 
-"$OCTO_RESEARCH_ROOT/scripts/orchestrate.sh" probe-single <agent_type> '<perspective_prompt>' <task_id> '<original_prompt>' --research-run '<run_id>'
+"$OCTO_RESEARCH_ROOT/scripts/orchestrate.sh" probe-single <agent_type> <perspective_prompt> <task_id> <original_prompt> --research-run <run_id>
 
 After the command completes, read the result file path that was printed and return the full file contents."
 )

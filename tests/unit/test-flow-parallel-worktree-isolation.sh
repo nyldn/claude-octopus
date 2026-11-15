@@ -287,6 +287,50 @@ else
     test_fail "the clean retry was described as containing uncommitted work"
 fi
 
+# Execute the actual cleanup after a worker commits, then hides a local change.
+for index in "${!SKILL_FILES[@]}"; do
+    for flag in assume-unchanged skip-worktree; do
+        for change in edit delete; do
+            test_case "cleanup retains $flag $change in host $index"
+            wp="WP-HIDDEN-$index-$flag-$change"
+            action='printf "hidden local work\n" > wp.txt'
+            [[ "$change" != delete ]] || action='rm wp.txt'
+            make_stub "printf 'committed\\n' > wp.txt; git add wp.txt; git commit --quiet -m 'worker commit'; git update-index --$flag wp.txt; $action"
+            run_package "$wp" "octo/$wp" "$FIXTURE" main "${SKILL_FILES[$index]}"
+            retained="$TEST_TMP_DIR/.octo-worktree-repo-$wp"
+            if [[ -d "$retained" ]] &&
+               [[ "$(git -C "$retained" rev-list --count main..HEAD)" == 1 ]] &&
+               [[ "$(cat "$TEST_TMP_DIR/$wp/exit-code")" == 0 && -f "$TEST_TMP_DIR/$wp/.done" ]] &&
+               { [[ "$change" == delete && ! -e "$retained/wp.txt" ]] ||
+                 [[ "$change" == edit && "$(cat "$retained/wp.txt")" == 'hidden local work' ]]; }; then
+                test_pass
+            else
+                test_fail "retained=$([[ -d $retained ]] && echo yes || echo no) code=$(cat "$TEST_TMP_DIR/$wp/exit-code" 2>/dev/null) hidden $change"
+            fi
+        done
+    done
+done
+
+test_case "a failed Git index check retains the worktree and reports failure"
+TEST_REAL_GIT="$(command -v git)"
+export TEST_REAL_GIT
+cat > "$STUB_BIN/git" <<'GITSTUB'
+#!/usr/bin/env bash
+if [[ "${3:-}" == ls-files ]]; then exit 77; fi
+exec "$TEST_REAL_GIT" "$@"
+GITSTUB
+chmod +x "$STUB_BIN/git"
+make_stub 'printf "committed\n" > wp.txt; git add wp.txt; git commit --quiet -m "worker commit"'
+run_package WP-INDEXFAIL octo/wp-indexfail
+if [[ -f "$TEST_TMP_DIR/.octo-worktree-repo-WP-INDEXFAIL/wp.txt" &&
+      "$(cat "$TEST_TMP_DIR/WP-INDEXFAIL/exit-code")" == 1 &&
+      -f "$TEST_TMP_DIR/WP-INDEXFAIL/.done" ]]; then
+    test_pass
+else
+    test_fail "failed index inspection discarded work or reported success"
+fi
+rm "$STUB_BIN/git"
+
 test_case "a failed Git status check retains committed and uncommitted work"
 TEST_REAL_GIT="$(command -v git)"
 export TEST_REAL_GIT
