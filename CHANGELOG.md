@@ -29,6 +29,7 @@ Shipping's submodule source-review boundary is covered by
 
 ### Fixed
 
+- Shipping stops the quick audit when binary files change, requiring a separate complete review of their content.
 - Shipping stops the quick audit for added, removed or updated submodules, whose source needs a separate complete review.
 - Rollback refuses sparse or skip-worktree exclusions and linked lessons directories
   before restoring files, so partial recovery cannot be reported as complete.
