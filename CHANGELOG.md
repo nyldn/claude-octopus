@@ -2,14 +2,15 @@
 
 ## [Unreleased]
 
-## [11.24.0] - 2026-11-14
+## [11.24.0] - 2026-11-15
 
 This batch protects local work during quick tasks and rollback, binds shipping
 audits to the delivered commits, verifies current research and Council evidence,
-and supports OpenCode 2.x dispatch. Configured Antigravity capacity fallbacks are
+and supports OpenCode 2.x dispatch. Factory requires independent holdout evidence
+and stops after failed stages. Configured Antigravity capacity fallbacks are
 opt-in; existing model choices remain intact.
 
-Merged changes: [#1325](https://github.com/nyldn/claude-octopus/pull/1325), [#1324](https://github.com/nyldn/claude-octopus/pull/1324), [#1321](https://github.com/nyldn/claude-octopus/pull/1321), [#1322](https://github.com/nyldn/claude-octopus/pull/1322), [#1323](https://github.com/nyldn/claude-octopus/pull/1323), [#1320](https://github.com/nyldn/claude-octopus/pull/1320), [#1319](https://github.com/nyldn/claude-octopus/pull/1319), [#1318](https://github.com/nyldn/claude-octopus/pull/1318), [#1317](https://github.com/nyldn/claude-octopus/pull/1317), [#1316](https://github.com/nyldn/claude-octopus/pull/1316), [#1315](https://github.com/nyldn/claude-octopus/pull/1315), [#1314](https://github.com/nyldn/claude-octopus/pull/1314), [#1313](https://github.com/nyldn/claude-octopus/pull/1313), [#1312](https://github.com/nyldn/claude-octopus/pull/1312), [#1311](https://github.com/nyldn/claude-octopus/pull/1311), [#1310](https://github.com/nyldn/claude-octopus/pull/1310), [#1309](https://github.com/nyldn/claude-octopus/pull/1309), [#1308](https://github.com/nyldn/claude-octopus/pull/1308), [#1307](https://github.com/nyldn/claude-octopus/pull/1307), [#1306](https://github.com/nyldn/claude-octopus/pull/1306), [#1257](https://github.com/nyldn/claude-octopus/pull/1257), [#1301](https://github.com/nyldn/claude-octopus/pull/1301).
+Merged changes: [#1326](https://github.com/nyldn/claude-octopus/pull/1326), [#1325](https://github.com/nyldn/claude-octopus/pull/1325), [#1324](https://github.com/nyldn/claude-octopus/pull/1324), [#1321](https://github.com/nyldn/claude-octopus/pull/1321), [#1322](https://github.com/nyldn/claude-octopus/pull/1322), [#1323](https://github.com/nyldn/claude-octopus/pull/1323), [#1320](https://github.com/nyldn/claude-octopus/pull/1320), [#1319](https://github.com/nyldn/claude-octopus/pull/1319), [#1318](https://github.com/nyldn/claude-octopus/pull/1318), [#1317](https://github.com/nyldn/claude-octopus/pull/1317), [#1316](https://github.com/nyldn/claude-octopus/pull/1316), [#1315](https://github.com/nyldn/claude-octopus/pull/1315), [#1314](https://github.com/nyldn/claude-octopus/pull/1314), [#1313](https://github.com/nyldn/claude-octopus/pull/1313), [#1312](https://github.com/nyldn/claude-octopus/pull/1312), [#1311](https://github.com/nyldn/claude-octopus/pull/1311), [#1310](https://github.com/nyldn/claude-octopus/pull/1310), [#1309](https://github.com/nyldn/claude-octopus/pull/1309), [#1308](https://github.com/nyldn/claude-octopus/pull/1308), [#1307](https://github.com/nyldn/claude-octopus/pull/1307), [#1306](https://github.com/nyldn/claude-octopus/pull/1306), [#1257](https://github.com/nyldn/claude-octopus/pull/1257), [#1301](https://github.com/nyldn/claude-octopus/pull/1301).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
 which remains open for outstanding runtime and acceptance work.
 

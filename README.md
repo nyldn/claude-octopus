@@ -70,6 +70,10 @@ Shipping audits bind their review to the confirmed committed source range and
 stop when source changes, required review fails, or evidence is incomplete.
 Freeze enforcement retains Codex session identity across later hook processes.
 
+Factory requires visible scenarios and independent holdout evidence before
+implementation. Failed implementation, evaluation or evidence writes stop the
+run, and final scoring preserves the validated holdout result.
+
 External URL checks reject ambiguous authorities that could reach loopback
 services, including userinfo and bracketed IPv6 forms. This fixes authority
 parsing; DNS rebinding and redirect validation remain outside this change.
