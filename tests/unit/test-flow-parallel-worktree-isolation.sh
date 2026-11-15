@@ -39,6 +39,7 @@ extract_launch_template() {
 render_launch() {
     # Substitute the package's explicit project, branch, and base ref.
     local skill="$1" root="$2" wp_id="$3" branch="$4" base="$5" out="$6"
+    base="$(git -C "$root" rev-parse --verify "$base^{commit}")" || return 1
     extract_launch_template "$skill" \
         | sed -e "s|<absolute-project-root-path>|$root|g" \
               -e "s|WP_ID=\"WP-N\"|WP_ID=\"$wp_id\"|" \
@@ -99,12 +100,68 @@ SH
 
 run_package() {
     # Render and run a package without a live provider or user registry.
-    local wp_id="$1" branch="$2" dir="$TEST_TMP_DIR/$1" root="${3:-$FIXTURE}"
+    local wp_id="$1" branch="$2" dir="$TEST_TMP_DIR/$1" root="${3:-$FIXTURE}" base="${4:-main}"
     mkdir -p "$dir"
     printf 'do the thing\n' > "$dir/instructions.md"
-    render_launch "${SKILL_FILES[0]}" "$root" "$wp_id" "$branch" main "$dir/launch.sh"
+    render_launch "${SKILL_FILES[0]}" "$root" "$wp_id" "$branch" "$base" "$dir/launch.sh"
     ( PATH="$STUB_BIN:$PATH" HOME="$TEST_TMP_DIR/home" bash "$dir/launch.sh" ) >/dev/null 2>&1 || true
 }
+
+test_case "workers refuse a mutable base before starting an agent"
+make_stub 'echo AGENT_RAN'
+for skill in "${SKILL_FILES[@]}"; do
+    dir="$TEST_TMP_DIR/mutable-base"
+    mkdir -p "$dir"
+    printf 'inert instructions\n' > "$dir/instructions.md"
+    render_launch "$skill" "$FIXTURE" WP-MUTABLE octo/wp-mutable main "$dir/launch.sh"
+    frozen="$(git -C "$FIXTURE" rev-parse main)"
+    sed "s/$frozen/main/g" "$dir/launch.sh" > "$dir/mutable.sh"
+    code=0
+    ( HOME="$TEST_TMP_DIR/home" PATH="$STUB_BIN:$PATH" bash "$dir/mutable.sh" ) > "$dir/result" 2>&1 || code=$?
+    if [[ "$code" == 1 && "$(cat "$dir/exit-code" 2>/dev/null)" == 1 && -e "$dir/.done" ]] &&
+       ! grep -q AGENT_RAN "$dir/result" && ! git -C "$FIXTURE" show-ref --verify --quiet refs/heads/octo/wp-mutable; then
+        test_pass
+    else
+        test_fail "mutable base ran an agent or created a worker branch: $skill"
+    fi
+done
+
+test_case "one frozen base survives ref advancement between worker launches"
+for index in "${!SKILL_FILES[@]}"; do
+    skill="${SKILL_FILES[$index]}"
+    freeze="$(awk '/^# Freeze the selected base once/ {grab=1} grab && /^```$/ {exit} grab {print}' "$skill")"
+    frozen="$(cd "$FIXTURE" && BASE_REF=main bash -eu -c "$freeze")"
+    frozen="${frozen#BASE_COMMIT=}"
+    if [[ "$frozen" != "$(git -C "$FIXTURE" rev-parse main)" ]]; then
+        test_fail "setup did not resolve the selected ref: $skill"
+        continue
+    fi
+    make_stub 'git rev-parse HEAD'
+    run_package "WP-FROZEN-$index-A" "octo/frozen-$index-a" "$FIXTURE" "$frozen"
+    git -C "$FIXTURE" commit --quiet --allow-empty -m "advance selected base"
+    git -C "$FIXTURE" update-ref refs/heads/main HEAD
+    run_package "WP-FROZEN-$index-B" "octo/frozen-$index-b" "$FIXTURE" "$frozen"
+    if [[ "$(cat "$TEST_TMP_DIR/WP-FROZEN-$index-A/output.md")" == "$frozen" &&
+          "$(cat "$TEST_TMP_DIR/WP-FROZEN-$index-B/output.md")" == "$frozen" ]]; then
+        test_pass
+    else
+        test_fail "workers started from different commits: $skill"
+    fi
+    git -C "$FIXTURE" update-ref refs/heads/main "$frozen"
+done
+
+test_case "a retry refuses a worktree that predates its frozen base"
+stale_dir="$TEST_TMP_DIR/.octo-worktree-repo-WP-STALEBASE"
+git -C "$FIXTURE" worktree add --quiet -b octo/stale-base "$stale_dir" main
+make_stub 'echo AGENT_RAN'
+run_package WP-STALEBASE octo/stale-base "$FIXTURE" session/in-progress
+if [[ "$(cat "$TEST_TMP_DIR/WP-STALEBASE/exit-code")" == 1 &&
+      -e "$TEST_TMP_DIR/WP-STALEBASE/.done" && ! -e "$TEST_TMP_DIR/WP-STALEBASE/output.md" ]] &&
+   [[ "$(git -C "$stale_dir" rev-parse HEAD)" == "$(git -C "$FIXTURE" rev-parse main)" ]]; then
+    test_pass
+else
+    test_fail "an incompatible retry ran an agent or changed the retained worktree"
+fi
 
 test_case "two packages each get their own worktree and branch"
 make_stub 'printf "committed\n" > wp.txt; git add wp.txt; git commit --quiet -m "wp work"; echo done'
@@ -210,7 +267,7 @@ else
 fi
 
 test_case "a clean worktree with no commits reports its actual retention reason"
-if grep -q 'no commits beyond main' "$MARKER_DIR/agent.log" &&
+if grep -q "no commits beyond $(git -C "$FIXTURE" rev-parse main)" "$MARKER_DIR/agent.log" &&
     ! grep -q 'uncommitted work present' "$MARKER_DIR/agent.log"; then
     test_pass
 else

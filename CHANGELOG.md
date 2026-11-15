@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Parallel work packages share one frozen base commit across launches and waves,
+  so a fetch or branch update cannot give later workers a different starting tree.
+
 ### Added
 
 - `OCTOPUS_AGY_FALLBACK_MODELS` lists Gemini models for agy to retry, in

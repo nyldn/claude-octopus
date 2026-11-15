@@ -313,7 +313,19 @@ DEPEOF
 
 ### STEP 5: Generate Instruction Files (MANDATORY)
 
+Before generating any launch scripts, select the shared base and resolve it once.
+Use the printed `BASE_COMMIT` in every script, including later waves and retries.
+In a fresh shell, restore that exact value rather than resolving the ref again.
+
+```bash
+# Freeze the selected base once before rendering any worker launchers.
+: "${BASE_REF:?Select the shared base ref before generating workers}"
+BASE_COMMIT=$(git rev-parse --verify "$BASE_REF^{commit}") || exit 1
+printf 'BASE_COMMIT=%s\n' "$BASE_COMMIT"
+```
+
 For each work package in the WBS, create an instructions file and a launch script.
+Replace `<base-ref>` below with that same full `BASE_COMMIT`, never a branch name.
 
 **For each WP-N, create:**
 
@@ -402,6 +414,8 @@ while IFS= read -r git_var; do unset "$git_var"; done < <(git rev-parse --local-
 # first, and a shared branch would also pile unrelated packages onto one ref.
 cd "$PROJECT_ROOT" || fail "ERROR: cannot enter $PROJECT_ROOT"
 PROJECT_ROOT="$(pwd -P)"
+RESOLVED_BASE=$(git rev-parse --verify "$BASE_REF^{commit}") || fail "ERROR: shared base commit is unavailable"
+[[ "$BASE_REF" == "$RESOLVED_BASE" ]] || fail "ERROR: shared base must be the frozen full commit ID"
 WORKTREE_DIR="${PROJECT_ROOT}/../.octo-worktree-${PROJECT_ROOT##*/}-${WP_ID}"
 COMMON_DIR="$(git rev-parse --git-common-dir)" || fail "ERROR: not a Git repository"
 COMMON_DIR="$(cd "$COMMON_DIR" && pwd -P)" || fail "ERROR: cannot resolve repository identity"
@@ -427,6 +441,7 @@ WORKTREE_COMMON_DIR="$(cd "$WORKTREE_COMMON_DIR" && pwd -P)" || fail "ERROR: can
 WORKTREE_BRANCH="$(git symbolic-ref --quiet --short HEAD)" || fail "ERROR: worktree has detached HEAD"
 [[ "$WORKTREE_TOP" == "$WORKTREE_DIR" && "$WORKTREE_COMMON_DIR" == "$COMMON_DIR" && \
    "$WORKTREE_BRANCH" == "$WP_BRANCH" ]] || fail "ERROR: worktree repository or branch does not match this package"
+git merge-base --is-ancestor "$BASE_REF" HEAD || fail "ERROR: worktree does not include the frozen base commit"
 
 # Register agent in registry
 if [[ -x "$REGISTRY" ]]; then
