@@ -190,7 +190,7 @@ $recent_files"
     local holdout_prompt="You are a QA reviewer evaluating whether an implementation satisfies test scenarios.
 
 ## Holdout Test Scenarios (these were NOT visible during implementation)
-${holdout_content:0:4000}
+${holdout_content}
 
 ## Implementation Context
 ${impl_context:0:3000}
@@ -215,9 +215,10 @@ After all scenarios, output:
 
     # A failed provider may emit a diagnostic on stdout. Only keep successful,
     # nonempty output, and try the next provider after failures or empty results.
+    # Mandatory holdout evidence must never be summarized or truncated to fit.
     local eval_result="" evaluator
     for evaluator in agy codex claude; do
-        if eval_result=$(run_agent_sync "$evaluator" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) && [[ "$eval_result" == *[![:space:]]* ]]; then
+        if eval_result=$(OCTOPUS_OVERSIZE_STRATEGY=fail run_agent_sync "$evaluator" "$holdout_prompt" "${TIMEOUT:-300}" "qa-reviewer" "factory" 2>/dev/null) && [[ "$eval_result" == *[![:space:]]* ]]; then
             break
         fi
         eval_result=""

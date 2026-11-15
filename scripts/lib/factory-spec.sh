@@ -239,6 +239,14 @@ ${supplemental}"
         return 1
     fi
 
+    # Providers number their lists independently. Assign one stable identity
+    # across the combined list before either partition is persisted.
+    scenarios=$(printf '%s\n' "$scenarios" | awk '
+        /^### Scenario[[:space:]]+[0-9]+([[:space:]:]|$)/ {
+            sub(/^### Scenario[[:space:]]+[0-9]+/, "### Scenario " ++scenario_id)
+        }
+        { print }') || return 1
+
     echo "$scenarios" > "$run_dir/scenarios-all.md"
     log INFO "Scenarios generated and saved to $run_dir/scenarios-all.md"
 

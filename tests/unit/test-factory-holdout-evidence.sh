@@ -272,4 +272,82 @@ PYCONSUMER
     ); then test_pass; else test_fail "validated score was lost in $consumer_case"; fi
 done
 
+
+for production_case in dual-provider long-holdout oversize; do
+    test_case "production generator and evaluator preserve $production_case evidence"
+    if (
+        source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
+        case_dir="$TEST_TMP_DIR/production-$production_case"
+        mkdir -p "$case_dir"
+        cd "$case_dir"
+        printf '# Fixture spec\n' > spec.md
+        _BOX_TOP='' _BOX_MID='' _BOX_BOT='' MAGENTA='' CYAN=''
+        OCTOPUS_FACTORY_HOLDOUT_RATIO=0.20 OCTOPUS_FACTORY_MAX_RETRIES=0
+        assess_spec_maturity() { echo 'Mature|6|{}'; }
+        parse_factory_spec() { echo 0.95; }
+        score_nlspec_quality() { echo '100|PASS'; }
+        embrace_full_workflow() { touch implemented; }
+        generate_factory_report() { touch reported; }
+        if [[ "$production_case" == oversize ]]; then
+            source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
+            get_provider_context_limit() { echo 100; }
+            get_role_budget_proportion() { echo 100; }
+            record_oversize_event() { :; }
+            write_agent_status() { :; }
+            octo_context_budget_warning() { :; }
+            OCTOPUS_OVERSIZE_STRATEGY=truncate
+        fi
+        run_agent_sync() {
+            case "$4" in
+                qa-engineer)
+                    if [[ "$production_case" == long-holdout && "$1" != codex ]]; then return 0; fi
+                    python3 - "$production_case" "$1" <<'PYGENERATE'
+import sys
+for n in range(1, 11):
+    body = "Given valid input " + ("x" * 4500 if sys.argv[1] == "long-holdout" else "and expected output")
+    print(f"### Scenario {n}: {sys.argv[2]} check\n{body}\nEND-CASE-{sys.argv[2]}-{n}\n")
+PYGENERATE
+                    ;;
+                qa-reviewer)
+                    if [[ "$production_case" == oversize ]]; then
+                        enforce_context_budget "$2" "$4" "$1" factory fixture-seat >/dev/null || return $?
+                        touch transport-accepted
+                        echo 'Score: 1.00'
+                        return 0
+                    fi
+                    printf '%s\n' "$2" > evaluator-prompt
+                    printf '%s\n' "$2" | awk '/^### Scenario [0-9]+:/ { print; print "**Verdict:** PASS" }'
+                    ;;
+                evaluator) printf 'behavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n' ;;
+                *) return 42 ;;
+            esac
+        }
+        rc=0
+        factory_run spec.md 0.20 0 true > output 2>&1 || rc=$?
+        if [[ "$production_case" == oversize ]]; then
+            [[ "$rc" != 0 && -e implemented && ! -e reported && ! -e transport-accepted && "$OCTOPUS_OVERSIZE_STRATEGY" == truncate ]] || exit 1
+            exit 0
+        fi
+        [[ "$rc" == 0 && -e implemented && -e reported ]] || exit 1
+        scores=$(find .octo/factory -name satisfaction-scores.json -type f)
+        python3 - "$scores" "$production_case" <<'PYPRODUCTION'
+import json, pathlib, re, sys
+scores_path = pathlib.Path(sys.argv[1])
+score = json.loads(scores_path.read_text())
+assert score["holdout_pass_rate"] == 1 and score["verdict"] == "PASS", score
+run = scores_path.parent
+ids = lambda s: re.findall(r"^### Scenario (\d+):", s, re.M)
+all_ids = ids((run / "scenarios-all.md").read_text())
+count = 20 if sys.argv[2] == "dual-provider" else 10
+assert all_ids == list(map(str, range(1, count + 1))), all_ids
+holdout = (run / "scenarios-holdout.md").read_text()
+prompt = pathlib.Path("evaluator-prompt").read_text()
+assert ids(holdout) == ids(prompt), (ids(holdout), ids(prompt))
+assert holdout.strip() in prompt
+if sys.argv[2] == "long-holdout":
+    assert "END-CASE-codex-8" in prompt
+PYPRODUCTION
+    ); then test_pass; else test_fail "$production_case lost scenario identity or evaluator input"; fi
+done
+
 test_summary

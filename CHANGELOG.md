@@ -12,6 +12,7 @@
 ### Fixed
 
 - Factory rejects negated or ambiguous verdicts and duplicate summary scores instead of accepting unreliable holdout evidence.
+- Factory assigns unique IDs across provider scenario lists and supplies the complete holdout set to the evaluator.
 
 - Factory rejects malformed holdout evaluations and scores outside the 0 to 1 range.
 - Satisfaction scoring uses the validated holdout value, including zero, and stops when it cannot save the score record.
