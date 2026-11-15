@@ -687,7 +687,7 @@ SUCCEEDED=0
 for i in $(seq 1 "$WP_COUNT"); do
   WP_DIR=".octo/parallel/WP-$i"
 
-  if [[ -f "$WP_DIR/exit-code" ]]; then
+  if [[ -f "$WP_DIR/.done" && -f "$WP_DIR/exit-code" ]]; then
     EXIT_CODE=$(cat "$WP_DIR/exit-code")
   else
     EXIT_CODE="N/A (not completed)"
