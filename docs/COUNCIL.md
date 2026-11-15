@@ -40,7 +40,10 @@ prints its `summary.json` path. Exit 0 means the artifacts are ready; read the
 summary to distinguish success, partial results and failure.
 
 For repeated rounds, use `--pool DIR --supersede-key KEY` to follow the latest
-matching round across session pools. A round already finished when first seen
+matching round across session pools. Different runs created in the same UTC
+second across session pools are ambiguous: the wait times out with exit 2, and
+repeating it does not resolve the tie. Select the intended run with `--run-dir`.
+A round already finished when first seen
 is held until the invocation's `--settle SECONDS` window ends, default 60,
 with the window capped at the timeout minus one polling interval. For example,
 `--settle 60 --timeout 10` uses an eight-second window at the default two-second
