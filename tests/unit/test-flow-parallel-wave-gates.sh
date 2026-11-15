@@ -36,7 +36,7 @@ for tree in ('.claude/skills', 'skills'):
             date.write_text('''#!/bin/bash
 if [[ "${WAVE_SCENARIO:-}" == timeout || "${WAVE_SCENARIO:-}" == "late success" ]] && [[ "$1" == +%s ]]; then
   tick=$(cat "$WAVE_CLOCK" 2>/dev/null || echo 0)
-  if [[ "$WAVE_SCENARIO" == "late success" && "$tick" -gt 0 ]]; then
+  if [[ "$WAVE_SCENARIO" == "late success" ]]; then
     for attempt in {1..100}; do
       [[ -f .octo/parallel/WP-1/.done ]] && break
       /bin/sleep 0.01
