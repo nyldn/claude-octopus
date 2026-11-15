@@ -45,8 +45,9 @@ is held until the invocation's `--settle SECONDS` window ends, default 60,
 with the window capped at the timeout minus one polling interval. For example,
 `--settle 60 --timeout 10` uses an eight-second window at the default two-second
 interval. A round observed running returns when it finishes.
-`--since EPOCH` filters creation
-seconds and skips that hold; use `--run-dir` when one exact run matters.
+`--since EPOCH` filters creation seconds and skips that hold. An earlier round
+created in the same second can still match and return before the new round
+appears. Use `--run-dir` when one exact run matters.
 
 The foreground timeout defaults to 570 seconds. Exit 2 means the wait timed out
 and the Council round may still be running; repeat the wait to continue.
