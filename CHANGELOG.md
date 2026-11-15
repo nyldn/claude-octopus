@@ -11,6 +11,19 @@
 
 ### Fixed
 
+- Factory stops before evaluation or completion when initial or retry implementation fails.
+- Factory discards failed scenario-provider output and tries healthy fallbacks.
+- Factory stops when scenario evidence cannot be saved.
+- Factory rejects negated or ambiguous verdicts and duplicate summary scores in holdout evaluations.
+- Factory assigns unique IDs across provider scenario lists and supplies the complete holdout set to the evaluator.
+
+- Factory rejects malformed holdout evaluations and scores outside the 0 to 1 range.
+- Satisfaction scoring uses the validated holdout value, including zero, and stops when it cannot save the score record.
+- Factory retries failed holdout providers and stops without scoring when none can evaluate the scenarios.
+
+- Factory stops before implementation when generated scenarios leave no independent holdout.
+- Factory stops when it cannot save scenario or holdout evaluation evidence.
+- Missing or empty holdout evidence cannot earn a perfect score; evaluation failures stop Factory, including retries.
 - Shipping audits review the confirmed committed source range and report its base and delivered revisions.
 - Shipping stops audits on dirty, empty, oversized or changed source instead of accepting incomplete evidence.
 - Delivery stops on context-budget rejection or failed or empty required review under the audit's fail strategy.
