@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- New parallel work-package branches start from one frozen base commit across
+  launches and waves, so a fetch or branch update cannot change their baseline.
+  Retries retain later work on branches that descend from that base.
+
 ## [11.24.0] - 2026-11-15
 
 ### Changed
