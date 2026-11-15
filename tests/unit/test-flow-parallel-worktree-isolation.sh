@@ -101,9 +101,10 @@ SH
 run_package() {
     # Render and run a package without a live provider or user registry.
     local wp_id="$1" branch="$2" dir="$TEST_TMP_DIR/$1" root="${3:-$FIXTURE}" base="${4:-main}"
+    local skill="${5:-${SKILL_FILES[0]}}"
     mkdir -p "$dir"
     printf 'do the thing\n' > "$dir/instructions.md"
-    render_launch "${SKILL_FILES[0]}" "$root" "$wp_id" "$branch" "$base" "$dir/launch.sh"
+    render_launch "$skill" "$root" "$wp_id" "$branch" "$base" "$dir/launch.sh"
     ( PATH="$STUB_BIN:$PATH" HOME="$TEST_TMP_DIR/home" bash "$dir/launch.sh" ) >/dev/null 2>&1 || true
 }
 
@@ -137,10 +138,10 @@ for index in "${!SKILL_FILES[@]}"; do
         continue
     fi
     make_stub 'git rev-parse HEAD'
-    run_package "WP-FROZEN-$index-A" "octo/frozen-$index-a" "$FIXTURE" "$frozen"
+    run_package "WP-FROZEN-$index-A" "octo/frozen-$index-a" "$FIXTURE" "$frozen" "$skill"
     git -C "$FIXTURE" commit --quiet --allow-empty -m "advance selected base"
     git -C "$FIXTURE" update-ref refs/heads/main HEAD
-    run_package "WP-FROZEN-$index-B" "octo/frozen-$index-b" "$FIXTURE" "$frozen"
+    run_package "WP-FROZEN-$index-B" "octo/frozen-$index-b" "$FIXTURE" "$frozen" "$skill"
     if [[ "$(cat "$TEST_TMP_DIR/WP-FROZEN-$index-A/output.md")" == "$frozen" &&
           "$(cat "$TEST_TMP_DIR/WP-FROZEN-$index-B/output.md")" == "$frozen" ]]; then
         test_pass
@@ -188,6 +189,18 @@ if [[ "$commits" == "1" && ! -d "$FIXTURE/../.octo-worktree-repo-WP-CLEAN" ]] &&
     test_pass
 else
     test_fail "commits=$commits; committed package worktree or registration was not reclaimed"
+fi
+
+test_case "a retry retains an existing descendant branch instead of resetting it"
+descendant="$(git -C "$FIXTURE" rev-parse octo/wp-clean)"
+make_stub 'git rev-parse HEAD'
+run_package WP-CLEAN octo/wp-clean
+if [[ "$(cat "$TEST_TMP_DIR/WP-CLEAN/output.md")" == "$descendant" &&
+      "$(git -C "$FIXTURE" rev-parse octo/wp-clean)" == "$descendant" &&
+      "$(cat "$TEST_TMP_DIR/WP-CLEAN/exit-code")" == 0 ]]; then
+    test_pass
+else
+    test_fail "retry discarded or rejected existing work after the shared base"
 fi
 
 test_case "uncommitted work is kept, not force-removed"

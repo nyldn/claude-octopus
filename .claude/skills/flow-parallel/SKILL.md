@@ -316,6 +316,9 @@ DEPEOF
 Before generating any launch scripts, select the shared base and resolve it once.
 Use the printed `BASE_COMMIT` in every script, including later waves and retries.
 In a fresh shell, restore that exact value rather than resolving the ref again.
+New package branches start at that commit. Retries retain their later commits
+and edits when the existing branch descends from the frozen base; otherwise stop
+without resetting or discarding their work.
 
 ```bash
 # Freeze the selected base once before rendering any worker launchers.
@@ -495,8 +498,8 @@ chmod +x ".octo/parallel/WP-N/launch.sh"
 
 **You MUST replace all three placeholders:** `<absolute-project-root-path>` with the actual project
 root (use `pwd`), `<wp-branch-name>` with this package's own branch from the WBS, and `<base-ref>`
-with the ref every package branches from (normally `origin/<trunk>`, so the packages land as
-independent branches rather than stacked on the session branch).
+with the full `BASE_COMMIT` printed above. Embed that same commit ID in every
+package and wave, never a moving ref such as `origin/<trunk>`.
 
 **Worktree fallback:** if git worktree is unavailable (shallow clone, detached HEAD), the launch
 script fails closed and records a non-zero exit code plus `.done`, so the wave reports the failure
