@@ -345,15 +345,23 @@ NQSEOF
 
 _factory_satisfaction_dimensions() {
     awk '
+        function unmark(value) {
+            if (value ~ /^[*][*][^*]*[*][*]$/) return substr(value, 3, length(value) - 4)
+            if (value ~ /^[*][^*]*[*]$/) return substr(value, 2, length(value) - 2)
+            return value
+        }
         {
             line = tolower($0)
-            gsub(/[*]/, "", line)
             sub(/^[[:space:]-]+/, "", line)
-            if (match(line, /^(behavior_coverage|constraint_adherence|quality)(:[[:space:]]*|[[:space:]]+|$)/)) {
+            sub(/[[:space:]]+$/, "", line)
+            line = unmark(line)
+            sub(/^[*]+/, "", line)
+            if (match(line, /^(behavior_coverage|constraint_adherence|quality)[*]*(:[[:space:]]*|[[:space:]]+|$)/)) {
                 field = substr(line, 1, RLENGTH)
-                sub(/[:[:space:]].*$/, "", field)
+                sub(/[:[:space:]*].*$/, "", field)
                 value = substr(line, RLENGTH + 1)
                 sub(/[[:space:]]+$/, "", value)
+                value = unmark(value)
                 if (++seen[field] != 1 || value !~ /^[+]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/ || value + 0 > 1) bad = 1
                 scores[field] = value + 0
             }

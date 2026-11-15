@@ -286,7 +286,7 @@ PYCONSUMER
 done
 
 
-for production_case in dual-provider long-holdout oversize failed-primary failed-supplement failed-both failed-all whitespace-all scoring-failed scoring-empty scoring-whitespace scoring-malformed scoring-range scoring-negative scoring-duplicate scoring-bare-behavior scoring-bare-constraint scoring-bare-quality scoring-retry-malformed scoring-fallback; do
+for production_case in dual-provider long-holdout oversize failed-primary failed-supplement failed-both failed-all whitespace-all scoring-failed scoring-empty scoring-whitespace scoring-malformed scoring-range scoring-negative scoring-duplicate scoring-bare-behavior scoring-bare-constraint scoring-bare-quality scoring-retry-malformed scoring-asterisk scoring-markdown scoring-fallback; do
     test_case "production generator and evaluator preserve $production_case evidence"
     if (
         source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
@@ -326,6 +326,8 @@ for production_case in dual-provider long-holdout oversize failed-primary failed
                 scoring-range) printf 'behavior_coverage: 9.00\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 0 ;;
                 scoring-negative) printf 'behavior_coverage: -0.25\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 0 ;;
                 scoring-duplicate) printf 'behavior_coverage: 0.00\nbehavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 0 ;;
+                scoring-asterisk) printf 'behavior_coverage: 0*1\nconstraint_adherence: 0*1\nquality: 0*1\n'; return 0 ;;
+                scoring-markdown) printf '**behavior_coverage**: **0.75**\n**constraint_adherence: 0.75**\n*quality*: *0.75*\n'; return 0 ;;
                 scoring-bare-behavior) echo 'behavior_coverage' ;;
                 scoring-bare-constraint) echo 'constraint_adherence' ;;
                 scoring-bare-quality) echo 'quality' ;;
@@ -393,7 +395,7 @@ PYGENERATE
             [[ "$rc" != 0 && -e implemented && ! -e reported && ! -e transport-accepted && "$OCTOPUS_OVERSIZE_STRATEGY" == truncate ]] || exit 1
             exit 0
         fi
-        if [[ "$production_case" == scoring-* && "$production_case" != scoring-fallback ]]; then
+        if [[ "$production_case" == scoring-* && "$production_case" != scoring-fallback && "$production_case" != scoring-markdown ]]; then
             [[ "$rc" != 0 && -e implemented && -e evaluator-prompt && ! -e reported ]] || exit 1
             [[ -z $(find .octo/factory -name satisfaction-scores.json -type f) ]] || exit 1
             case "$production_case" in
@@ -414,11 +416,14 @@ PYGENERATE
 import json, pathlib, re, sys
 scores_path = pathlib.Path(sys.argv[1])
 score = json.loads(scores_path.read_text())
-assert score["holdout_pass_rate"] == 1 and score["verdict"] == "PASS", score
+assert score["holdout_pass_rate"] == 1 and score["verdict"] == ("FAIL" if sys.argv[2] == "scoring-markdown" else "PASS"), score
+if sys.argv[2] == "scoring-markdown":
+    assert all(score[key] == 0.75 for key in ("behavior_coverage", "constraint_adherence", "quality")), score
+    assert score["composite"] == 0.81, score
 run = scores_path.parent
 ids = lambda s: re.findall(r"^### Scenario (\d+):", s, re.M)
 all_ids = ids((run / "scenarios-all.md").read_text())
-count = 20 if sys.argv[2] in ("dual-provider", "scoring-fallback") else 10
+count = 20 if sys.argv[2] in ("dual-provider", "scoring-fallback", "scoring-markdown") else 10
 assert all_ids == list(map(str, range(1, count + 1))), all_ids
 if sys.argv[2] in ("failed-primary", "failed-supplement", "failed-both", "whitespace-all"):
     scenarios = (run / "scenarios-all.md").read_text()
