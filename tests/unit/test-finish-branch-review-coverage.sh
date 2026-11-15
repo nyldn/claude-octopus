@@ -19,9 +19,9 @@ for tree in ('.claude/skills', 'skills'):
     section = text.split('**Always run a quick review', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for scenario in ('text', 'long text', 'binary added', 'binary removed',
-                     'binary attribute', 'gitlink added', 'gitlink removed',
+                     'binary attribute', 'forced text binary', 'gitlink added', 'gitlink removed',
                      'gitlink updated', 'oversized', 'relative config',
-                     'external diff', 'textconv', 'head changed', 'reviewer failed'):
+                     'external diff', 'textconv', 'shadow stdlib', 'head changed', 'reviewer failed'):
         with tempfile.TemporaryDirectory(prefix='branch-review-') as temporary:
             project = Path(temporary) / 'project'
             project.mkdir()
@@ -54,8 +54,13 @@ for tree in ('.claude/skills', 'skills'):
                 (project / 'asset.bin').write_bytes(b'new\0binary')
             elif scenario == 'binary removed':
                 (project / 'asset.bin').unlink()
+            elif scenario == 'forced text binary':
+                (project / '.gitattributes').write_text('asset.bin diff\n')
+                (project / 'asset.bin').write_bytes(b'forced\0binary')
             elif scenario == 'binary attribute':
                 (project / '.gitattributes').write_text('change.txt -diff\n')
+            elif scenario == 'shadow stdlib':
+                (project / 'subprocess.py').write_text('raise RuntimeError("project stdlib shadow executed")\n')
             elif scenario in ('external diff', 'textconv'):
                 (project / '.gitattributes').write_text('change.txt diff=fixture\n')
             git('add', '.')
@@ -70,6 +75,7 @@ for tree in ('.claude/skills', 'skills'):
             (plugin / 'scripts').mkdir(parents=True)
             launcher = plugin / 'scripts/orchestrate.sh'
             launcher.write_text('#!/usr/bin/env python3\nimport json, os, subprocess, sys\n'
+                                'assert os.environ.get("OCTOPUS_OVERSIZE_STRATEGY") == "fail"\n'
                                 'with open(os.environ["REVIEW_CAPTURE"], "w") as output:\n'
                                 '    json.dump(sys.argv[1:], output)\n'
                                 'if os.environ["REVIEW_SCENARIO"] == "head changed":\n'
@@ -98,7 +104,7 @@ for tree in ('.claude/skills', 'skills'):
                                REVIEW_DRIVER_MARKER=str(marker), REVIEW_SCENARIO=scenario)
             result = subprocess.run(['bash', '-c', recipe], cwd=cwd, env=environment,
                                     capture_output=True, text=True, timeout=10)
-            blocked = scenario.startswith(('binary', 'gitlink')) or scenario == 'oversized'
+            blocked = scenario.startswith(('binary', 'gitlink')) or scenario in ('oversized', 'forced text binary')
             valid = result.returncode != 0 and not capture.exists() if blocked else (
                 result.returncode == 0 and capture.exists() and not marker.exists())
             if scenario in ('head changed', 'reviewer failed'):

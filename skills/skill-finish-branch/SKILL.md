@@ -81,14 +81,25 @@ if awk '$(1) == ":160000" || $(2) == "160000" {found=1} END {exit !found}' <<< "
   echo "Review incomplete: changed submodules need a separate complete source review." >&2
   exit 1
 fi
-REVIEW_DIFF=$(git diff --no-ext-diff --no-textconv --no-renames --no-relative \
-  --ignore-submodules=none --no-color "$REVIEW_BASE" "$REVIEW_HEAD" --) || exit 1
-REVIEW_BYTES=$(LC_ALL=C printf '%s' "$REVIEW_DIFF" | wc -c) || exit 1
-if [[ "$REVIEW_BYTES" -gt 60000 ]]; then
-  echo "Review incomplete: the complete diff exceeds the 60000-byte quick-review limit. Split it into fully reviewed ranges before continuing." >&2
-  exit 1
-fi
+# Inspect bytes before Bash command substitution, which discards NUL bytes.
+REVIEW_DIFF=$(python3 -I - "$REVIEW_BASE" "$REVIEW_HEAD" <<'PY_REVIEW_DIFF'
+import subprocess
+import sys
+
+diff = subprocess.check_output([
+    'git', 'diff', '--no-ext-diff', '--no-textconv', '--no-renames',
+    '--no-relative', '--ignore-submodules=none', '--no-color',
+    sys.argv[1], sys.argv[2], '--',
+])
+if b'\0' in diff:
+    sys.exit('Review incomplete: NUL-containing content needs a separate complete review.')
+if len(diff) > 60000:
+    sys.exit('Review incomplete: the full diff exceeds the 60000-byte quick-review limit. Split it into fully reviewed ranges before continuing.')
+sys.stdout.buffer.write(diff)
+PY_REVIEW_DIFF
+) || exit 1
 # Quick review via orchestrate.sh (uses available providers), without truncation.
+OCTOPUS_OVERSIZE_STRATEGY=fail \
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
 $REVIEW_DIFF" || exit 1
