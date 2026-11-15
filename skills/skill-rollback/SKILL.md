@@ -254,6 +254,8 @@ if os.path.lexists(lessons_directory) and (
     os.path.islink(lessons_directory) or not os.path.isdir(lessons_directory)
 ):
     sys.exit('Rollback would replace the protected lessons directory. Preserve lessons and use a real .octo directory before retrying.')
+if os.path.islink(os.path.join(lessons_directory, 'LESSONS.md')):
+    sys.exit('Rollback cannot preserve a symlinked protected lessons file. Preserve its backing content and use a regular LESSONS.md before retrying.')
 # A gitlink checkout does not restore the nested repository's working tree.
 # Refuse changed submodules before ordinary files or the index can be restored.
 submodule_trees = []
@@ -305,7 +307,7 @@ fi
 - Restores tracked files to checkpoint state, including additions and deletions
 - Preserves current `.octo/LESSONS.md` in both the index and working tree
 - Requires a complete working tree without sparse or skip-worktree exclusions outside the protected lessons file
-- Stops when `.octo` is a symlink or file, before replacing the protected directory
+- Stops when `.octo` is a symlink or file, or `LESSONS.md` is a symlink, before restoring files
 - Does NOT move HEAD or change branch
 - Preserves current commit history
 - Allows immediate commit of the restored state

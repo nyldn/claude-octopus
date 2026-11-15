@@ -13,6 +13,7 @@
 
 - Rollback refuses sparse or skip-worktree exclusions and linked lessons directories
   before restoring files, so partial recovery cannot be reported as complete.
+- Rollback rejects linked lessons files whose tracked backing content could otherwise be restored.
 
 - Factory stops before evaluation or completion when initial or retry implementation fails.
 - Factory discards failed scenario-provider output and tries healthy fallbacks.
