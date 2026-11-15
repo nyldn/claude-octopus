@@ -144,4 +144,52 @@ else
     test_fail "missing native output directory cannot be rebuilt"
 fi
 
+test_case "native generation inserts a missing source name without changing its body"
+mkdir -p "$SKILLS_DIR/fallback-name"
+cat > "$SKILLS_DIR/fallback-name/SKILL.md" <<'EOF'
+---
+description: Fixture with a filename-derived name
+disable-model-invocation: true
+---
+
+# Missing name fixture
+
+Keep this body unchanged.
+name: this-body-line-is-not-frontmatter
+EOF
+main >/dev/null
+if python3 - "$NATIVE_OUTPUT_DIR/fallback-name/SKILL.md" "$SKILLS_DIR/fallback-name/SKILL.md" <<'PY'
+import sys
+from pathlib import Path
+generated, source = (Path(p).read_text() for p in sys.argv[1:])
+assert generated == source.replace('\n---\n', '\nname: fallback-name\n---\n', 1), generated
+PY
+then
+    test_pass
+else
+    test_fail "native entry did not receive the filename-derived frontmatter name"
+fi
+
+test_case "native name insertion respects CRLF and spaced frontmatter delimiters"
+if python3 - "$PROJECT_ROOT/scripts/build-codex-skills.sh" "$TEST_TMP_DIR" <<'PY'
+import subprocess
+import sys
+from pathlib import Path
+generator, directory = sys.argv[1:]
+root = Path(directory)
+for index, (ending, delimiter) in enumerate(((b'\r\n', b'---'), (b'\n', b'---  '))):
+    for named in (False, True):
+        name = b'name: original' + ending if named else b''
+        header = b'---' + ending + name + b'description: Fixture' + ending
+        body = ending + b'name: this body must remain unchanged' + ending
+        source = root / f'native-{index}-{named}.md'
+        source.write_bytes(header + delimiter + ending + body)
+        output = root / f'native-{index}-{named}'
+        subprocess.run(['bash', '-c', 'source "$1"; write_native_skill "$2" "$3" fallback-name',
+                        'fixture', generator, str(source), str(output)], check=True)
+        expected_header = header.replace(name, b'name: fallback-name' + ending, 1) if named else header + b'name: fallback-name' + ending
+        assert (output / 'SKILL.md').read_bytes() == expected_header + delimiter + ending + body
+PY
+then test_pass; else test_fail "native name writer changed body bytes or missed the closing delimiter"; fi
+
 test_summary

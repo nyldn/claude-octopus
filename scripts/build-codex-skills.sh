@@ -573,7 +573,15 @@ write_native_skill() {
     local file="$1" target="$2" name="$3"
     mkdir -p "$target"
     # Preserve native frontmatter and tools. Only a compatibility alias changes name.
-    awk -v name="$name" '!renamed && /^name:/ { print "name: " name; renamed=1; next } { print }' \
+    awk -v name="$name" '
+        NR == 1 { frontmatter = 1; ending = /\r$/ ? "\r" : ""; print; next }
+        frontmatter && /^---[[:space:]]*$/ {
+            if (!renamed) print "name: " name ending
+            frontmatter = 0
+        }
+        frontmatter && /^name:/ { print "name: " name ending; renamed = 1; next }
+        { print }
+    ' \
         "$file" > "$target/SKILL.md"
     # Canonical preserved entries carry their contract in their own resources.
     # Do not append generated text to a tree that is itself an authored input.

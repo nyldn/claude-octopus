@@ -59,9 +59,10 @@ feature_workflow_begin() {
         FEATURE_AMBIGUOUS=true
         feature_workflow_warning 'multiple features found; select one with OCTOPUS_FEATURE'
     fi
-    # Persist the feature identity before deriving task identities.
+    # Delivery reads the pinned source without creating or updating its metadata.
+    # Other phases persist the feature identity before deriving task identities.
     # Policy provenance contains only a relative source and digest.
-    if [[ "$FEATURE_ACTIVE" == true ]]; then
+    if [[ "$FEATURE_ACTIVE" == true && "$phase" != ink && "$phase" != deliver ]]; then
         local update_tmp update_result selection_tmp
         update_tmp="$(mktemp "${FEATURE_RUNTIME_DIR}/policy-reference.XXXXXX")" || return 0
         if [[ -n "$FEATURE_POLICY_SNAPSHOT" ]]; then

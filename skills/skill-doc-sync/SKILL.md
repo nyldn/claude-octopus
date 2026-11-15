@@ -206,27 +206,27 @@ fi
 
 ## Step 9: Commit Doc Changes
 
-Commit all documentation changes to the current branch and update the PR body with a doc-sync summary.
+Commit only documentation paths changed by this workflow. Before editing, inspect
+both the index and working tree. Keep an explicit list of workflow-owned paths,
+including deletions. If a selected file already has unrelated edits, stop and use
+a deliberate partial-commit workflow. Preserve other files and staged work.
 
 ```bash
-# Stage only .md files that were modified by this skill
-git add *.md docs/*.md 2>/dev/null || true
+# Replace with the exact documentation paths owned by this workflow.
+DOC_SYNC_FILES=("path/to/doc.md")
+git --literal-pathspecs add -- "${DOC_SYNC_FILES[@]}" || exit 1
 
-# Check if there are staged changes
-if git diff --cached --quiet; then
-  echo "No documentation changes needed — all docs are up to date."
+# Unrelated staged files do not count as documentation work to commit.
+if git --literal-pathspecs diff --quiet HEAD -- "${DOC_SYNC_FILES[@]}"; then
+  echo "No documentation changes needed."
 else
-  git commit -m "docs: post-ship documentation sync
-
-  - Auto-updated paths, counts, and version references
-  - CHANGELOG entries polished for user benefit
-  - Cross-doc consistency verified
-  - Discoverability check passed
-  "
-
+  git --literal-pathspecs commit --only -m "docs: post-ship documentation sync" -- "${DOC_SYNC_FILES[@]}" || exit 1
   echo "Documentation sync committed."
 fi
 ```
+
+If staging or committing fails, stop before reporting success or updating the PR.
+Retain the edits for recovery. Never commit the existing index wholesale.
 
 If a PR exists for the current branch, update its body to include a doc-sync section:
 ```bash

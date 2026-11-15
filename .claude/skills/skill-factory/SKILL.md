@@ -122,6 +122,10 @@ fi
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" factory --spec "<spec_path>"
 ```
 
+If the command exits nonzero, report the error, show logs from
+`~/.claude-octopus/logs/`, and stop. Do not run Steps 6 through 8 or use an earlier
+run's artifacts after a failed execution.
+
 With optional flags based on Step 1 answers:
 - `--holdout-ratio <value>` if custom ratio requested
 - `--max-retries <value>` if custom retry count
@@ -146,6 +150,13 @@ fi
 cat "$REPORT_FILE"
 ```
 If validation fails: report error, show logs from `~/.claude-octopus/logs/`, DO NOT proceed, DO NOT substitute.
+
+Factory requires at least two structured generated scenarios so implementation
+has a visible case and evaluation has an independent holdout. Missing or empty
+holdout evidence stops the run without a score or completion report. Preserve
+evaluation failures, including on retries, instead of presenting a successful run.
+A provider response must contain a score from 0 to 1 or usable scenario verdicts;
+empty, diagnostic-only or malformed responses do not establish an evaluation.
 
 ### STEP 7: Read Scores and Present Results (MANDATORY)
 ```bash
