@@ -14,8 +14,10 @@ Merged changes: [#1327](https://github.com/nyldn/claude-octopus/pull/1327), [#13
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304),
 which remains open for outstanding runtime and acceptance work.
 
-The rollback boundary also includes [#1328](https://github.com/nyldn/claude-octopus/pull/1328)
-and [#1329](https://github.com/nyldn/claude-octopus/pull/1329).
+The rollback boundary also includes [#1328](https://github.com/nyldn/claude-octopus/pull/1328),
+[#1329](https://github.com/nyldn/claude-octopus/pull/1329), and
+[#1332](https://github.com/nyldn/claude-octopus/pull/1332), which preserves hidden
+local edits and deletions marked assume-unchanged.
 
 Shipping's source-review boundaries are covered by
 [#1330](https://github.com/nyldn/claude-octopus/pull/1330) for submodules and
