@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Parallel workflows stop dependent launches after a failed or timed-out wave,
+  and reject dependencies without a successful exit status. Worker evidence is
+  retained for inspection and recovery.
+
 - New parallel work-package branches start from one frozen base commit across
   launches and waves, so a fetch or branch update cannot change their baseline.
   Retries retain later work on branches that descend from that base.
