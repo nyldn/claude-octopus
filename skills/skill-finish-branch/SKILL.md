@@ -71,13 +71,13 @@ REVIEW_HEAD=$(git rev-parse --verify 'HEAD^{commit}') || exit 1
 REVIEW_BASE=$(git merge-base "$REVIEW_HEAD" main) || exit 1
 REVIEW_NUMSTAT=$(git diff --no-ext-diff --no-textconv --no-renames --no-relative \
   --ignore-submodules=none --no-color --numstat "$REVIEW_BASE" "$REVIEW_HEAD" --) || exit 1
-if awk -F '\t' '$1 == "-" || $2 == "-" {found=1} END {exit !found}' <<< "$REVIEW_NUMSTAT"; then
+if awk -F '\t' '$(1) == "-" || $(2) == "-" {found=1} END {exit !found}' <<< "$REVIEW_NUMSTAT"; then
   echo "Review incomplete: changed binary content needs a separate complete review." >&2
   exit 1
 fi
 REVIEW_RAW=$(git diff --no-ext-diff --no-textconv --no-renames --no-relative \
   --ignore-submodules=none --no-color --raw "$REVIEW_BASE" "$REVIEW_HEAD" --) || exit 1
-if awk '$1 == ":160000" || $2 == "160000" {found=1} END {exit !found}' <<< "$REVIEW_RAW"; then
+if awk '$(1) == ":160000" || $(2) == "160000" {found=1} END {exit !found}' <<< "$REVIEW_RAW"; then
   echo "Review incomplete: changed submodules need a separate complete source review." >&2
   exit 1
 fi
