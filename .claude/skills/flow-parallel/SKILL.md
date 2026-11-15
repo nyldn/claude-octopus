@@ -476,11 +476,26 @@ fi
 # shared object store on WP_BRANCH.
 UNCOMMITTED="$(git -C "$WORKTREE_DIR" status --porcelain 2>/dev/null)" ||
     fail "ERROR: cannot inspect worktree status; retained $WORKTREE_DIR"
+# Status and worktree removal both honor index flags that can hide local work.
+# Read NUL-delimited entries so unusual filenames cannot hide a flagged entry.
+HIDDEN_INDEX="$(python3 - "$WORKTREE_DIR" <<'PY'
+import subprocess
+import sys
+
+entries = subprocess.check_output([
+    'git', '-C', sys.argv[1], 'ls-files', '-v', '-z',
+]).split(b'\0')
+print(int(any(entry[:1].upper() == b'S' or entry[:1].islower() for entry in entries)))
+PY
+)" || fail "ERROR: cannot inspect worktree index flags; retained $WORKTREE_DIR"
 COMMITS="$(git -C "$WORKTREE_DIR" rev-list --count "$BASE_REF..HEAD" 2>/dev/null)" ||
     fail "ERROR: cannot inspect worktree commits; retained $WORKTREE_DIR"
 echo "$COMMITS" > "$SCRIPT_DIR/commit-count"
 cd "$PROJECT_ROOT"
-if [[ -z "$UNCOMMITTED" && "$COMMITS" -gt 0 ]]; then
+if [[ "$HIDDEN_INDEX" == 1 ]]; then
+    echo "KEPT $WORKTREE_DIR: index flags may hide uncommitted work on $WP_BRANCH" \
+        >> "$SCRIPT_DIR/agent.log"
+elif [[ -z "$UNCOMMITTED" && "$COMMITS" -gt 0 ]]; then
     git worktree remove "$WORKTREE_DIR" 2>/dev/null ||
         fail "ERROR: cannot remove worktree; retained $WORKTREE_DIR"
 elif [[ -n "$UNCOMMITTED" ]]; then
@@ -505,6 +520,8 @@ package and wave, never a moving ref such as `origin/<trunk>`.
 script fails closed and records a non-zero exit code plus `.done`, so the wave reports the failure
 instead of hanging. A worktree that still holds uncommitted work is kept, not removed, and the
 reason is appended to `agent.log`.
+Worktrees with skip-worktree or assume-unchanged index flags are also retained,
+because Git status can hide local edits or deletions under those flags.
 
 **Validation gate: `instructions_written`** — Verify all instruction files exist:
 
