@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Parallel cleanup retains worktrees with index flags that can hide local edits or deletions.
 - Parallel result summaries require a completion marker before reporting a
   successful worker, so interrupted or still-running work is not counted as done.
 
