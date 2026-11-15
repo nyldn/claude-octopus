@@ -277,7 +277,7 @@ PYCONSUMER
 done
 
 
-for production_case in dual-provider long-holdout oversize; do
+for production_case in dual-provider long-holdout oversize failed-primary failed-supplement failed-both failed-all whitespace-all; do
     test_case "production generator and evaluator preserve $production_case evidence"
     if (
         source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
@@ -304,6 +304,8 @@ for production_case in dual-provider long-holdout oversize; do
         run_agent_sync() {
             case "$4" in
                 qa-engineer)
+                    echo "$1" >> generators-tried
+                    if [[ "$production_case" == whitespace-all && "$1" != claude ]]; then printf '   \n'; return 0; fi
                     if [[ "$production_case" == long-holdout && "$1" != codex ]]; then return 0; fi
                     python3 - "$production_case" "$1" <<'PYGENERATE'
 import sys
@@ -311,6 +313,9 @@ for n in range(1, 11):
     body = "Given valid input " + ("x" * 4500 if sys.argv[1] == "long-holdout" else "and expected output")
     print(f"### Scenario {n}: {sys.argv[2]} check\n{body}\nEND-CASE-{sys.argv[2]}-{n}\n")
 PYGENERATE
+                    case "$production_case:$1" in
+                        failed-all:*|failed-both:codex|failed-both:agy|failed-primary:codex|failed-supplement:agy) return 42 ;;
+                    esac
                     ;;
                 qa-reviewer)
                     if [[ "$production_case" == oversize ]]; then
@@ -328,6 +333,11 @@ PYGENERATE
         }
         rc=0
         factory_run spec.md 0.20 0 true > output 2>&1 || rc=$?
+        if [[ "$production_case" == failed-all ]]; then
+            [[ "$rc" != 0 && ! -e implemented && ! -e reported && ! -e evaluator-prompt ]] || exit 1
+            [[ "$(cat generators-tried)" == $'codex\nagy\nclaude' ]] || exit 1
+            exit 0
+        fi
         if [[ "$production_case" == oversize ]]; then
             [[ "$rc" != 0 && -e implemented && ! -e reported && ! -e transport-accepted && "$OCTOPUS_OVERSIZE_STRATEGY" == truncate ]] || exit 1
             exit 0
@@ -344,6 +354,12 @@ ids = lambda s: re.findall(r"^### Scenario (\d+):", s, re.M)
 all_ids = ids((run / "scenarios-all.md").read_text())
 count = 20 if sys.argv[2] == "dual-provider" else 10
 assert all_ids == list(map(str, range(1, count + 1))), all_ids
+if sys.argv[2] in ("failed-primary", "failed-supplement", "failed-both", "whitespace-all"):
+    scenarios = (run / "scenarios-all.md").read_text()
+    accepted = {"failed-primary": "agy", "failed-supplement": "codex", "failed-both": "claude", "whitespace-all": "claude"}[sys.argv[2]]
+    assert set(re.findall(r"END-CASE-([a-z]+)-", scenarios)) == {accepted}, scenarios
+    expected_calls = "codex\nagy\n" + ("claude\n" if accepted == "claude" else "")
+    assert pathlib.Path("generators-tried").read_text() == expected_calls
 holdout = (run / "scenarios-holdout.md").read_text()
 prompt = pathlib.Path("evaluator-prompt").read_text()
 assert ids(holdout) == ids(prompt), (ids(holdout), ids(prompt))
@@ -353,6 +369,18 @@ if sys.argv[2] == "long-holdout":
 PYPRODUCTION
     ); then test_pass; else test_fail "$production_case lost scenario identity or evaluator input"; fi
 done
+
+test_case "scenario generator fails without output when evidence cannot be saved"
+if (
+    source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
+    case_dir="$TEST_TMP_DIR/generator-write-failure"
+    mkdir -p "$case_dir/scenarios-all.md"
+    printf '# Fixture spec\n' > "$case_dir/spec.md"
+    run_agent_sync() { printf '### Scenario 1: first\nGiven first input\n### Scenario 2: second\nGiven second input\n'; }
+    rc=0
+    result=$(generate_factory_scenarios "$case_dir/spec.md" "$case_dir" 2> "$case_dir/errors") || rc=$?
+    [[ "$rc" == 1 && -z "$result" ]]
+); then test_pass; else test_fail 'generator reported unsaved scenario evidence'; fi
 
 
 for absent_score in missing empty; do

@@ -207,34 +207,34 @@ Generate scenarios that are specific enough to evaluate against an implementatio
 
     # Multi-provider scenario generation for diversity
     local provider_scenarios
-    provider_scenarios=$(run_agent_sync "codex" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || true
+    provider_scenarios=$(run_agent_sync "codex" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || provider_scenarios=""
 
-    if [[ -n "$provider_scenarios" ]]; then
+    if [[ "$provider_scenarios" == *[![:space:]]* ]]; then
         scenarios="$provider_scenarios"
     fi
 
     # Fallback/supplement with second provider
     local supplemental
-    supplemental=$(run_agent_sync "agy" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || true
+    supplemental=$(run_agent_sync "agy" "$scenario_prompt" 120 "qa-engineer" "factory" 2>/dev/null) || supplemental=""
 
-    if [[ -n "$supplemental" && -n "$scenarios" ]]; then
+    if [[ "$supplemental" == *[![:space:]]* && -n "$scenarios" ]]; then
         # Merge unique scenarios from supplemental
         scenarios="${scenarios}
 
 ## Additional Scenarios (Cross-Provider)
 
 ${supplemental}"
-    elif [[ -n "$supplemental" ]]; then
+    elif [[ "$supplemental" == *[![:space:]]* ]]; then
         scenarios="$supplemental"
     fi
 
     # Fallback to Claude if both external providers failed
     if [[ -z "$scenarios" ]]; then
         log WARN "External providers unavailable for scenario generation, using Claude"
-        scenarios=$(run_agent_sync "claude" "$scenario_prompt" "${TIMEOUT:-300}" "qa-engineer" "factory" 2>/dev/null) || true
+        scenarios=$(run_agent_sync "claude" "$scenario_prompt" "${TIMEOUT:-300}" "qa-engineer" "factory" 2>/dev/null) || scenarios=""
     fi
 
-    if [[ -z "$scenarios" ]]; then
+    if [[ "$scenarios" != *[![:space:]]* ]]; then
         log ERROR "Failed to generate scenarios from any provider"
         return 1
     fi
@@ -247,7 +247,7 @@ ${supplemental}"
         }
         { print }') || return 1
 
-    echo "$scenarios" > "$run_dir/scenarios-all.md"
+    echo "$scenarios" > "$run_dir/scenarios-all.md" || return 1
     log INFO "Scenarios generated and saved to $run_dir/scenarios-all.md"
 
     echo "$scenarios"
