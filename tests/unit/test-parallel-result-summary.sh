@@ -21,7 +21,8 @@ for tree in ('.claude/skills', 'skills'):
     text = (root / tree / 'flow-parallel/SKILL.md').read_text()
     section = text.split('### STEP 7: Aggregate & Present', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for mode in ('fresh', 'stale', 'missing-exit', 'invalid-json', 'wrong-type', 'missing-wbs'):
+    for mode in ('fresh', 'stale', 'missing-exit', 'invalid-json', 'wrong-type', 'missing-wbs',
+                 'missing-done', 'missing-all-done', 'all-success'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             project = Path(temporary)
             output = project / '.octo/parallel'
@@ -32,8 +33,13 @@ for tree in ('.claude/skills', 'skills'):
                 worker = output / f'WP-{number}'
                 worker.mkdir()
                 (worker / 'output.md').write_text(f'worker {number} evidence\n')
-                (worker / 'exit-code').write_text(code)
-            if mode == 'missing-exit':
+                (worker / 'exit-code').write_text('0' if mode == 'all-success' else code)
+                (worker / '.done').touch()
+            if mode in ('missing-done', 'missing-all-done'):
+                (output / 'WP-1/.done').unlink()
+                if mode == 'missing-all-done':
+                    (output / 'WP-2/.done').unlink()
+            elif mode == 'missing-exit':
                 (output / 'WP-2/exit-code').unlink()
             elif mode == 'invalid-json':
                 wbs.write_text('{')
@@ -48,7 +54,15 @@ for tree in ('.claude/skills', 'skills'):
             before = {str(p): p.read_bytes() for p in output.rglob('*') if p.is_file()}
             result = subprocess.run(['/bin/bash', '-eu', '-c', recipe], cwd=project,
                                     env=env, capture_output=True, text=True, timeout=5)
-            if mode in ('fresh', 'stale', 'missing-exit'):
+            if mode in ('missing-done', 'missing-all-done', 'all-success'):
+                assert result.returncode == 0, (tree, mode, result.stderr)
+                expected = ('Total: 2 | Succeeded: 2 | Failed: 0' if mode == 'all-success'
+                            else 'Total: 2 | Succeeded: 0 | Failed: 2')
+                assert expected in result.stdout, (tree, mode, result.stdout)
+                if mode != 'all-success':
+                    assert 'WP-1: FAILED (exit code: N/A (not completed))' in result.stdout, result.stdout
+                assert 'WP-3:' not in result.stdout, result.stdout
+            elif mode in ('fresh', 'stale', 'missing-exit'):
                 assert result.returncode == 0, (tree, mode, result.stderr)
                 assert 'WP-1: SUCCESS' in result.stdout, (tree, mode, result.stdout)
                 assert 'WP-2: FAILED' in result.stdout, (tree, mode, result.stdout)
