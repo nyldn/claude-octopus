@@ -325,6 +325,10 @@ exec(sys.stdin.read())
                 (scripts / 'lib').symlink_to(ROOT / 'scripts/lib', target_is_directory=True)
                 runner = scripts / 'orchestrate.sh'
                 runner.write_text('''#!/bin/bash
+source "$REVIEW_AGENTS"
+AGENTS_CONFIG="$REVIEW_CONFIG"
+: > "$REVIEW_CAPTURE"
+resolve_persona_spawn_target "$2" >/dev/null || { echo "Unknown reviewer: $2" >&2; exit 2; }
 source "$REVIEW_DISPATCH"
 log() { :; }
 get_provider_context_limit() { echo "$REVIEW_TEST_BUDGET"; }
@@ -337,6 +341,8 @@ echo 'Completed synchronous review'
                            GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
                            GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid',
                            CLAUDE_PLUGIN_ROOT=str(scripts.parent), TMPDIR=temporary,
+                           REVIEW_AGENTS=str(ROOT / 'scripts/lib/agents.sh'),
+                           REVIEW_CONFIG=str(ROOT / 'agents/config.yaml'),
                            REVIEW_DISPATCH=str(ROOT / 'scripts/lib/dispatch.sh'),
                            REVIEW_CAPTURE=str(root / 'review'))
                 def git(*args):

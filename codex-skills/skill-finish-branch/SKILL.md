@@ -130,7 +130,7 @@ OCTOPUS_AGENT_LIFECYCLE_HOOK="$REVIEW_OUTPUT_DIR/lifecycle.sh" \
 OCTO_BRANCH_REVIEW_EVENTS="$REVIEW_EVENT_LOG" \
 OCTO_BRANCH_REVIEW_PREV_HOOK="$REVIEW_PREV_HOOK" \
 OCTOPUS_OVERSIZE_STRATEGY=fail \
-"$REVIEW_ROOT/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
+"$REVIEW_ROOT/scripts/orchestrate.sh" spawn code-reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
 $REVIEW_DIFF" > "$REVIEW_OUTPUT_DIR/spawn.txt" || exit 1
 if ! _octo_advisor_collect "$REVIEW_EVENT_LOG" "$REVIEW_OUTPUT_DIR/spawn.txt" \
