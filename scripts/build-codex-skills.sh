@@ -574,12 +574,12 @@ write_native_skill() {
     mkdir -p "$target"
     # Preserve native frontmatter and tools. Only a compatibility alias changes name.
     awk -v name="$name" '
-        NR == 1 { frontmatter = 1; print; next }
-        frontmatter && /^---$/ {
-            if (!renamed) print "name: " name
+        NR == 1 { frontmatter = 1; ending = /\r$/ ? "\r" : ""; print; next }
+        frontmatter && /^---[[:space:]]*$/ {
+            if (!renamed) print "name: " name ending
             frontmatter = 0
         }
-        frontmatter && /^name:/ { print "name: " name; renamed = 1; next }
+        frontmatter && /^name:/ { print "name: " name ending; renamed = 1; next }
         { print }
     ' \
         "$file" > "$target/SKILL.md"
