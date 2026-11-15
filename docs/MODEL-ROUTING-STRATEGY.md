@@ -486,10 +486,12 @@ These are list-price estimates. Subscription allowances, account entitlement,
 batch discounts, fast modes, regional premiums and gateway-selected tariffs
 need their own billing evidence. A zero per-call subscription accounting estimate
 does not mean that the service or selected model is free. In particular,
-[Cursor's current billing policy](https://cursor.com/docs/models-and-pricing)
-charges third-party models against prepaid credit at API list prices; its
-included pool covers Cursor models. Octopus's existing zero Cursor estimate
-cannot establish a remaining allowance or the price of a paid third-party run.
+[Cursor's X Subscription](https://cursor.com/docs/models-and-pricing) charges
+third-party models against prepaid credit at API list prices; its included pool
+covers Cursor models. [Legacy Pro, Pro+, Ultra and Teams plans](https://cursor.com/docs/account/pricing/legacy-cursor-plans)
+include an Other Models pool for third-party usage. When enabled, on-demand
+usage beyond that pool is billed in arrears. Octopus's existing zero Cursor estimate cannot
+establish a remaining allowance or the price of a paid third-party run.
 
 Tariff sources checked on 2026-11-15:
 [Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol),

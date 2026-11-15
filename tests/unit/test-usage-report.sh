@@ -192,4 +192,54 @@ else
     test_fail "shell cost reporting must delegate to usage-report.sh --view costs"
 fi
 
+test_case "qualified catalog models keep request tariffs and unknown IDs keep fallback pricing"
+if python3 - "$HELPER" "$TMP_DIR" <<'PYTEST'
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+helper, temporary = sys.argv[1:]
+usage = Path(temporary) / 'qualified-usage'
+usage.mkdir()
+expected = {}
+records = []
+models = [('gpt-5.6', 4, 20), ('gpt-5.6-sol', 4, 20),
+          ('gpt-5.6-terra', 2, 12), ('gpt-5.6-luna', .2, 1.2),
+          ('gpt-5.5', 5, 30), ('gpt-5.4', 2.5, 15), ('gpt-5.4-pro', 30, 180)]
+for model, input_rate, output_rate in models:
+    for qualified in (model, 'openai/' + model, 'codex:' + model,
+                      'openrouter:openai/' + model, 'openai/' + model + ':nitro',
+                      'openai/' + model + ':floor'):
+        for tin in (271999, 272000, 272001):
+            name = f'{qualified}-{tin}'
+            records.append(dict(provider='codex', model=qualified, skill=name,
+                                tokens_in=tin, tokens_out=1000))
+            expected[name] = round((tin * input_rate * (2 if tin > 272000 else 1)
+                                   + 1000 * output_rate * (1.5 if tin > 272000 else 1)) / 1e6, 4)
+# Unknown routing suffixes and custom IDs must retain the existing provider rate.
+for model in ('vendor/custom-model', 'openai/gpt-5.5:custom'):
+    records.append(dict(provider='codex', model=model, skill=model,
+                        tokens_in=300000, tokens_out=1000))
+    expected[model] = 1.22  # codex provider fallback: $4/$20 per MTok, no request rule
+records.append(dict(provider='cursor-agent', model='openai/gpt-5.5', skill='included',
+                    tokens_in=300000, tokens_out=1000))
+expected['included'] = 0
+(usage / 'records.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in records))
+report = json.loads(subprocess.check_output([
+    'bash', helper, '--format', 'json', '--usage-dir', str(usage),
+    '--results-dir', str(Path(temporary) / 'no-results'),
+], text=True))
+actual = {row['name']: row['est_cost_usd'] for row in report['bySkill']}
+failures = [(name, value, actual.get(name)) for name, value in expected.items()
+            if actual.get(name) != value]
+assert not failures, failures
+print(f'{len(expected)} production usage-report pricing controls passed')
+PYTEST
+then
+    test_pass
+else
+    test_fail "qualified pricing diverges or custom/subscription accounting changed"
+fi
+
 test_summary
