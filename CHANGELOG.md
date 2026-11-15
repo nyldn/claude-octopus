@@ -6,6 +6,9 @@
 
 - API cost estimates apply the whole-request long-context tariff to GPT-5.6,
   GPT-5.5, GPT-5.4 and GPT-5.4 Pro above 272,000 input tokens.
+- New parallel work-package branches start from one frozen base commit across
+  launches and waves, so a fetch or branch update cannot change their baseline.
+  Retries retain later work on branches that descend from that base.
 
 ## [11.24.0] - 2026-11-15
 
