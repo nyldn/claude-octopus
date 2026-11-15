@@ -68,6 +68,123 @@ class CodexReferences(unittest.TestCase):
                         if directory:
                             shutil.rmtree(directory[1])
 
+    def test_ship_checkpoint_rejects_ignored_submodule_changes(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-ship/SKILL.md').read_text()
+            section = text.split('#### Step 2: Create Shipped Checkpoint', 1)[1]
+            recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+            for ignore in ('all', 'dirty', 'untracked'):
+                for change in ('tracked', 'untracked', 'commit', 'clean'):
+                    with self.subTest(tree=tree, ignore=ignore, change=change), tempfile.TemporaryDirectory() as temporary:
+                        root = Path(temporary)
+                        env = dict(os.environ, GIT_AUTHOR_NAME='Fixture',
+                                   GIT_AUTHOR_EMAIL='fixture@example.invalid', GIT_COMMITTER_NAME='Fixture',
+                                   GIT_COMMITTER_EMAIL='fixture@example.invalid', ARCHIVE_TIMESTAMP='fixture')
+                        def git(*args):
+                            return subprocess.check_output(['git', '-C', str(root), *args], env=env,
+                                                           stderr=subprocess.DEVNULL, text=True).strip()
+                        git('init', '-q', '-b', 'main')
+                        (root / '.octo').mkdir()
+                        state = root / '.octo/STATE.md'
+                        original = 'status: delivery_pending\n'
+                        state.write_text(original)
+                        dependency = root / 'dependency'
+                        dependency.mkdir()
+                        git('-C', 'dependency', 'init', '-q')
+                        source = dependency / 'source.txt'
+                        source.write_text('committed source\n')
+                        git('-C', 'dependency', 'add', 'source.txt')
+                        git('-C', 'dependency', 'commit', '-qm', 'dependency base')
+                        oid = git('-C', 'dependency', 'rev-parse', 'HEAD')
+                        git('update-index', '--add', '--cacheinfo', '160000,' + oid + ',dependency')
+                        git('add', '.octo/STATE.md')
+                        git('commit', '-qm', 'delivered source')
+                        git('config', 'diff.ignoreSubmodules', ignore)
+                        git('config', 'submodule.dependency.ignore', ignore)
+                        if change in ('tracked', 'commit'):
+                            source.write_text('unreviewed source\n')
+                        if change == 'untracked':
+                            (dependency / 'new.txt').write_text('uncommitted source\n')
+                        if change == 'commit':
+                            git('-C', 'dependency', 'add', 'source.txt')
+                            git('-C', 'dependency', 'commit', '-qm', 'new dependency')
+                        before = git('write-tree')
+                        result = subprocess.run(['bash', '-c', recipe], cwd=root, env=env,
+                                                capture_output=True, text=True, timeout=10)
+                        self.assertEqual(git('write-tree'), before)
+                        if change == 'clean':
+                            self.assertEqual(result.returncode, 0, result.stderr)
+                            self.assertEqual(git('rev-parse', 'octo-checkpoint-shipped-fixture^{}'), git('rev-parse', 'HEAD'))
+                        else:
+                            self.assertNotEqual(result.returncode, 0, result.stdout)
+                            self.assertEqual(state.read_text(), original)
+                            self.assertEqual(git('tag'), '')
+
+    def test_ship_state_replacement_preserves_private_permissions(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-ship/SKILL.md').read_text()
+            recipe = text.split("<<'PY_STATE'\n", 1)[1].split('\nPY_STATE', 1)[0]
+            for mode in (0o600, 0o640, 0o644):
+                with self.subTest(tree=tree, mode=oct(mode)), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / '.octo').mkdir()
+                    state = root / '.octo/STATE.md'
+                    state.write_text('status: delivery_pending\nprivate project details\n')
+                    state.chmod(mode)
+                    harness = r'''
+import io, os, stat, sys
+from pathlib import Path
+os.umask(0o022)
+observed = []
+def observe_open(original):
+    def opened(*args, **kwargs):
+        stream = original(*args, **kwargs)
+        if stream.writable():
+            observed.append(stat.S_IMODE(os.fstat(stream.fileno()).st_mode))
+        return stream
+    return opened
+io.open = observe_open(io.open)
+os.fdopen = observe_open(os.fdopen)
+sys.argv = ['ship-state', 'octo-checkpoint-test']
+exec(sys.stdin.read())
+assert observed and all(mode == 0o600 for mode in observed), observed
+'''
+                    result = subprocess.run(['python3', '-c', harness], input=recipe,
+                                            cwd=root, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual(state.stat().st_mode & 0o777, mode)
+                    self.assertIn('status: shipped', state.read_text())
+                    self.assertIn('private project details', state.read_text())
+                    self.assertIn('octo-checkpoint-test', state.read_text())
+                    self.assertEqual(list((root / '.octo').iterdir()), [state])
+
+    def test_ship_state_failure_keeps_pending_state_and_removes_temporary(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-ship/SKILL.md').read_text()
+            recipe = text.split("<<'PY_STATE'\n", 1)[1].split('\nPY_STATE', 1)[0]
+            with self.subTest(tree=tree), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / '.octo').mkdir()
+                state = root / '.octo/STATE.md'
+                original = 'status: delivery_pending\nprivate project details\n'
+                state.write_text(original)
+                state.chmod(0o600)
+                harness = '''
+import os, sys
+def failed_replace(*args, **kwargs):
+    raise OSError('fixture replacement failure')
+os.replace = failed_replace
+sys.argv = ['ship-state', 'octo-checkpoint-test']
+exec(sys.stdin.read())
+'''
+                result = subprocess.run(['python3', '-c', harness], input=recipe,
+                                        cwd=root, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('fixture replacement failure', result.stderr)
+                self.assertEqual(state.read_text(), original)
+                self.assertEqual(state.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(list((root / '.octo').iterdir()), [state])
+
     def test_fixture_children_preserve_an_inherited_caller_repository(self):
         with tempfile.TemporaryDirectory() as temporary:
             caller = Path(temporary) / 'caller'
