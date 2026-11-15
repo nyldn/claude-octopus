@@ -343,6 +343,28 @@ NQSEOF
     echo "${composite}|${verdict}"
 }
 
+_factory_satisfaction_dimensions() {
+    awk '
+        {
+            line = tolower($0)
+            gsub(/[*]/, "", line)
+            sub(/^[[:space:]-]+/, "", line)
+            if (match(line, /^(behavior_coverage|constraint_adherence|quality)(:[[:space:]]*|[[:space:]]+)/)) {
+                field = substr(line, 1, RLENGTH)
+                sub(/[:[:space:]].*$/, "", field)
+                value = substr(line, RLENGTH + 1)
+                sub(/[[:space:]]+$/, "", value)
+                if (++seen[field] != 1 || value !~ /^[+]?([0-9]+([.][0-9]*)?|[.][0-9]+)$/ || value + 0 > 1) bad = 1
+                scores[field] = value + 0
+            }
+        }
+        END {
+            if (bad || seen["behavior_coverage"] != 1 || seen["constraint_adherence"] != 1 || seen["quality"] != 1) exit 1
+            printf "%.15g %.15g %.15g\n", scores["behavior_coverage"], scores["constraint_adherence"], scores["quality"]
+        }
+    '
+}
+
 score_satisfaction() {
     local run_dir="$1"
     local satisfaction_target="$2"
@@ -381,18 +403,26 @@ constraint_adherence: X.XX
 quality: X.XX
 justification: <2-3 sentences>"
 
-    local scoring_result
-    scoring_result=$(run_agent_sync "claude-sonnet" "$scoring_prompt" 120 "evaluator" "factory" 2>/dev/null) || true
-
+    local scoring_result="" evaluator
+    for evaluator in claude-sonnet claude; do
+        if scoring_result=$(run_agent_sync "$evaluator" "$scoring_prompt" 120 "evaluator" "factory" 2>/dev/null) && [[ "$scoring_result" == *[![:space:]]* ]]; then
+            break
+        fi
+        scoring_result=""
+    done
     if [[ -z "$scoring_result" ]]; then
-        scoring_result=$(run_agent_sync "claude" "$scoring_prompt" 120 "evaluator" "factory" 2>/dev/null) || true
+        log ERROR "Satisfaction evaluation failed from all providers"
+        return 1
     fi
 
-    # Parse scores from response
-    local behavior_score constraint_score quality_score
-    behavior_score=$(echo "$scoring_result" | grep -oi 'behavior_coverage[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.70")
-    constraint_score=$(echo "$scoring_result" | grep -oi 'constraint_adherence[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.70")
-    quality_score=$(echo "$scoring_result" | grep -oi 'quality[: ]*[0-9]*\.[0-9]*' | head -1 | grep -o '[0-9]*\.[0-9]*' || echo "0.70")
+    # Require one complete, bounded value per dimension. Missing or malformed
+    # evidence cannot be replaced with invented defaults or a later valid score.
+    local behavior_score constraint_score quality_score parsed_scores
+    parsed_scores=$(printf '%s\n' "$scoring_result" | _factory_satisfaction_dimensions) || {
+        log ERROR "Satisfaction evaluation has missing, duplicate or invalid dimension scores"
+        return 1
+    }
+    read -r behavior_score constraint_score quality_score <<< "$parsed_scores"
 
     # Weighted composite: behavior(40%) + constraints(20%) + holdout(25%) + quality(15%)
     local composite

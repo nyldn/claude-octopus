@@ -11,6 +11,9 @@
 
 ### Fixed
 
+- Factory satisfaction scoring rejects failed, missing, duplicate or out-of-range
+  evaluator scores instead of inventing defaults or accepting false completion.
+
 - Rollback refuses assume-unchanged index entries before restoring files, so
   hidden local edits and deletions remain intact. Protected lessons stay excluded.
 

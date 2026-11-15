@@ -286,7 +286,7 @@ PYCONSUMER
 done
 
 
-for production_case in dual-provider long-holdout oversize failed-primary failed-supplement failed-both failed-all whitespace-all; do
+for production_case in dual-provider long-holdout oversize failed-primary failed-supplement failed-both failed-all whitespace-all scoring-failed scoring-empty scoring-whitespace scoring-malformed scoring-range scoring-negative scoring-duplicate scoring-fallback; do
     test_case "production generator and evaluator preserve $production_case evidence"
     if (
         source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
@@ -336,7 +336,25 @@ PYGENERATE
                     printf '%s\n' "$2" > evaluator-prompt
                     printf '%s\n' "$2" | awk '/^### Scenario [0-9]+:/ { print; print "**Verdict:** PASS" }'
                     ;;
-                evaluator) printf 'behavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n' ;;
+                evaluator)
+                    echo "$1" >> scorers-tried
+                    case "$production_case" in
+                        scoring-failed) printf 'behavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 42 ;;
+                        scoring-empty) return 0 ;;
+                        scoring-whitespace) printf ' \n\t\n'; return 0 ;;
+                        scoring-malformed) echo 'No evaluation available'; return 0 ;;
+                        scoring-range) printf 'behavior_coverage: 9.00\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 0 ;;
+                        scoring-negative) printf 'behavior_coverage: -0.25\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 0 ;;
+                        scoring-duplicate) printf 'behavior_coverage: 0.00\nbehavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n'; return 0 ;;
+                        scoring-fallback)
+                            if [[ "$1" == claude-sonnet ]]; then
+                                printf 'behavior_coverage: 0.00\nconstraint_adherence: 0.00\nquality: 0.00\n'
+                                return 42
+                            fi
+                            ;;
+                    esac
+                    printf 'behavior_coverage: 1.00\nconstraint_adherence: 1.00\nquality: 1.00\n'
+                    ;;
                 *) return 42 ;;
             esac
         }
@@ -351,6 +369,18 @@ PYGENERATE
             [[ "$rc" != 0 && -e implemented && ! -e reported && ! -e transport-accepted && "$OCTOPUS_OVERSIZE_STRATEGY" == truncate ]] || exit 1
             exit 0
         fi
+        if [[ "$production_case" == scoring-* && "$production_case" != scoring-fallback ]]; then
+            [[ "$rc" != 0 && -e implemented && -e evaluator-prompt && ! -e reported ]] || exit 1
+            [[ -z $(find .octo/factory -name satisfaction-scores.json -type f) ]] || exit 1
+            case "$production_case" in
+                scoring-failed|scoring-empty|scoring-whitespace) [[ "$(cat scorers-tried)" == $'claude-sonnet\nclaude' ]] ;;
+                *) [[ "$(cat scorers-tried)" == claude-sonnet ]] ;;
+            esac || exit 1
+            exit 0
+        fi
+        if [[ "$production_case" == scoring-fallback ]]; then
+            [[ "$(cat scorers-tried)" == $'claude-sonnet\nclaude' ]] || exit 1
+        fi
         [[ "$rc" == 0 && -e implemented && -e reported ]] || exit 1
         scores=$(find .octo/factory -name satisfaction-scores.json -type f)
         python3 - "$scores" "$production_case" <<'PYPRODUCTION'
@@ -361,7 +391,7 @@ assert score["holdout_pass_rate"] == 1 and score["verdict"] == "PASS", score
 run = scores_path.parent
 ids = lambda s: re.findall(r"^### Scenario (\d+):", s, re.M)
 all_ids = ids((run / "scenarios-all.md").read_text())
-count = 20 if sys.argv[2] == "dual-provider" else 10
+count = 20 if sys.argv[2] in ("dual-provider", "scoring-fallback") else 10
 assert all_ids == list(map(str, range(1, count + 1))), all_ids
 if sys.argv[2] in ("failed-primary", "failed-supplement", "failed-both", "whitespace-all"):
     scenarios = (run / "scenarios-all.md").read_text()
