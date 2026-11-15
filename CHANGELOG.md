@@ -30,6 +30,9 @@ Shipping's source-review boundaries are covered by
 
 ### Fixed
 
+- Rollback refuses assume-unchanged index entries before restoring files, so
+  hidden local edits and deletions remain intact. Protected lessons stay excluded.
+
 - Shipping stops the quick audit when binary files change, requiring a separate complete review of their content.
 - Shipping stops the quick audit for added, removed or updated submodules, whose source needs a separate complete review.
 - Rollback refuses sparse or skip-worktree exclusions and linked lessons directories

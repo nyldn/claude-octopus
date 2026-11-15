@@ -28,7 +28,9 @@ for tree in ('.claude/skills', 'skills'):
     def recipe(step):
         section = source.split('### Step ' + str(step) + ':', 1)[1]
         return re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for mode in ('complete', 'protected-skip', 'sparse-cone', 'sparse-noncone', 'skip-worktree', 'linked-lessons', 'linked-file'):
+    for mode in ('complete', 'protected-skip', 'protected-assume', 'sparse-cone',
+                 'sparse-noncone', 'skip-worktree', 'skip-assume', 'assume-clean',
+                 'assume-edited', 'assume-deleted', 'linked-lessons', 'linked-file'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             base = Path(temporary)
             repo = base / 'repo'
@@ -66,10 +68,22 @@ for tree in ('.claude/skills', 'skills'):
             if mode.startswith('sparse-'):
                 git('sparse-checkout', 'init', '--cone' if mode == 'sparse-cone' else '--no-cone')
                 git('sparse-checkout', 'set', 'visible' if mode == 'sparse-cone' else '/visible/')
-            elif mode == 'skip-worktree':
+            elif mode in ('skip-worktree', 'skip-assume'):
                 git('update-index', '--skip-worktree', 'hidden/file.txt')
+                if mode == 'skip-assume':
+                    git('update-index', '--assume-unchanged', 'hidden/file.txt')
+            elif mode.startswith('assume-'):
+                git('update-index', '--assume-unchanged', 'hidden/file.txt')
+                if mode == 'assume-edited':
+                    (repo / 'hidden/file.txt').write_text('uncommitted user work\n')
+                elif mode == 'assume-deleted':
+                    (repo / 'hidden/file.txt').unlink()
+                assert not git('status', '--porcelain=v1'), 'fixture did not hide local work'
             elif mode == 'protected-skip':
                 git('update-index', '--skip-worktree', '.octo/LESSONS.md')
+            elif mode == 'protected-assume':
+                git('update-index', '--assume-unchanged', '.octo/LESSONS.md')
+                (repo / '.octo/LESSONS.md').write_text('uncommitted lessons must survive\n')
             # Supply private recovery state for variants that require it. The
             # legacy backup recipe uses a shared /tmp filename, so do not run it.
             backup = base / 'backup'
@@ -84,14 +98,18 @@ for tree in ('.claude/skills', 'skills'):
                         name, value = line.split('=', 1)
                         env[name] = value
             before_tree = git('write-tree')
+            before_flags = git('ls-files', '-v', '-z')
+            hidden = repo / 'hidden/file.txt'
+            before_hidden = hidden.read_bytes() if hidden.exists() else None
             before_head = git('rev-parse', 'HEAD')
             before_tags = git('tag', '-l')
             result = run(6)
-            if mode in ('complete', 'protected-skip'):
+            if mode in ('complete', 'protected-skip', 'protected-assume'):
                 assert result.returncode == 0, (tree, mode, result.stderr)
                 assert (repo / 'visible/file.txt').read_text() == 'checkpoint\n'
                 assert (repo / 'hidden/file.txt').read_text() == 'checkpoint\n'
-                assert (repo / '.octo/LESSONS.md').read_text() == 'current\n'
+                expected_lessons = 'uncommitted lessons must survive\n' if mode == 'protected-assume' else 'current\n'
+                assert (repo / '.octo/LESSONS.md').read_text() == expected_lessons
             else:
                 diagnostic = 'protected lessons' if mode in ('linked-lessons', 'linked-file') else 'complete working tree'
                 if result.returncode == 0 or diagnostic not in result.stderr:
@@ -100,6 +118,8 @@ for tree in ('.claude/skills', 'skills'):
                     failures.append((tree, mode, result.returncode, result.stderr))
                     continue
                 assert git('write-tree') == before_tree, (tree, mode, 'index changed')
+                assert git('ls-files', '-v', '-z') == before_flags, (tree, mode, 'index flags changed')
+                assert (hidden.read_bytes() if hidden.exists() else None) == before_hidden, (tree, mode, 'hidden local work changed')
                 assert (repo / 'visible/file.txt').read_text() == 'current\n'
                 if mode == 'linked-lessons':
                     assert (repo / '.octo').is_symlink()
