@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- API cost estimates apply the whole-request long-context tariff to GPT-5.6,
+  GPT-5.5, GPT-5.4 and GPT-5.4 Pro above 272,000 input tokens.
+
 ## [11.24.0] - 2026-11-15
 
 ### Changed

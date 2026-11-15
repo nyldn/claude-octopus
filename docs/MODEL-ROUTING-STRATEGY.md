@@ -473,6 +473,32 @@ need a per-run `OCTOPUS_MAX_COST_USD` ceiling that covers the projected
 list-price usage for the prompt. Do not persist Astra as a provider
 default, literal tier route, council seat, review-fleet seat, or fallback.
 
+## API cost estimates
+
+Standard API estimates apply OpenAI's whole-request long-context tariff above
+272,000 input tokens: 2x input and 1.5x output. This applies to GPT-5.6 and its
+Sol, Terra and Luna IDs, GPT-5.5, GPT-5.4 and GPT-5.4 Pro, as well as the
+catalogued GPT-6 models. Exactly 272,000 input tokens retains the base tariff.
+The shared pricing table drives reservation, completion and standalone metrics.
+Cached-token costs remain unknown when the ledger lacks a verified cache tariff.
+
+These are list-price estimates. Subscription allowances, account entitlement,
+batch discounts, fast modes, regional premiums and gateway-selected tariffs
+need their own billing evidence. A zero per-call subscription accounting estimate
+does not mean that the service or selected model is free. In particular,
+[Cursor's current billing policy](https://cursor.com/docs/models-and-pricing)
+charges third-party models against prepaid credit at API list prices; its
+included pool covers Cursor models. Octopus's existing zero Cursor estimate
+cannot establish a remaining allowance or the price of a paid third-party run.
+
+Tariff sources checked on 2026-11-15:
+[Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol),
+[Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra),
+[Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna),
+[GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5),
+[GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4), and
+[GPT-5.4 Pro](https://developers.openai.com/api/docs/models/gpt-5.4-pro).
+
 ## Prompt policy
 
 For Opus 5.5, Opus 5, and Sonnet 5, prompts should state the goal, relevant context,
