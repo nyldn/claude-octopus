@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Branch completion reviews the full bounded text diff and stops for binary,
+  submodule or oversized changes that need separate complete review.
 - Parallel cleanup retains worktrees with index flags that can hide local edits or deletions.
 - Parallel workflows stop dependent launches after failed waves or dependencies without a successful exit status.
 - Wave timeouts stop dependent launches and retain worker evidence for inspection and recovery.

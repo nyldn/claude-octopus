@@ -73,11 +73,41 @@ DIFF_FILES=$(git diff --name-only $(git merge-base HEAD main)..HEAD)
 **Always run a quick review — this is automatic, not optional:**
 
 ```bash
-# Quick review via orchestrate.sh (uses available providers)
+# Review the complete committed range. A text diff cannot review binary content
+# or nested submodule source, and a partial prompt cannot establish coverage.
+REVIEW_HEAD=$(git rev-parse --verify 'HEAD^{commit}') || exit 1
+REVIEW_BASE=$(git merge-base "$REVIEW_HEAD" main) || exit 1
+REVIEW_NUMSTAT=$(git diff --no-ext-diff --no-textconv --no-renames --no-relative \
+  --ignore-submodules=none --no-color --numstat "$REVIEW_BASE" "$REVIEW_HEAD" --) || exit 1
+if awk -F '\t' '$1 == "-" || $2 == "-" {found=1} END {exit !found}' <<< "$REVIEW_NUMSTAT"; then
+  echo "Review incomplete: changed binary content needs a separate complete review." >&2
+  exit 1
+fi
+REVIEW_RAW=$(git diff --no-ext-diff --no-textconv --no-renames --no-relative \
+  --ignore-submodules=none --no-color --raw "$REVIEW_BASE" "$REVIEW_HEAD" --) || exit 1
+if awk '$1 == ":160000" || $2 == "160000" {found=1} END {exit !found}' <<< "$REVIEW_RAW"; then
+  echo "Review incomplete: changed submodules need a separate complete source review." >&2
+  exit 1
+fi
+REVIEW_DIFF=$(git diff --no-ext-diff --no-textconv --no-renames --no-relative \
+  --ignore-submodules=none --no-color "$REVIEW_BASE" "$REVIEW_HEAD" --) || exit 1
+REVIEW_BYTES=$(LC_ALL=C printf '%s' "$REVIEW_DIFF" | wc -c) || exit 1
+if [[ "$REVIEW_BYTES" -gt 60000 ]]; then
+  echo "Review incomplete: the complete diff exceeds the 60000-byte quick-review limit. Split it into fully reviewed ranges before continuing." >&2
+  exit 1
+fi
+# Quick review via orchestrate.sh (uses available providers), without truncation.
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
-$(git diff $(git merge-base HEAD main)..HEAD | head -500)"
+$REVIEW_DIFF" || exit 1
+if [[ "$(git rev-parse --verify 'HEAD^{commit}')" != "$REVIEW_HEAD" ]]; then
+  echo "Review incomplete: HEAD changed during review. Review the current committed range again." >&2
+  exit 1
+fi
 ```
+
+Binary, submodule and oversized ranges leave the review incomplete. Obtain and
+record a complete review of those changes before proceeding to Step 3.
 
 **If critical issues found:** Present them and ask whether to fix or ship anyway.
 **If clean:** Continue to Step 3. Show a brief `✓ Review clean — no issues found`.
