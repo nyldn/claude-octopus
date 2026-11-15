@@ -184,32 +184,56 @@ sys.exit(1 if mode == "failed" else 0)
                 self.assertIn('+TAIL_REQUIRES_AUDIT', prompt)
                 self.assertIn('+INSIDE_SOURCE_REQUIRES_AUDIT', prompt)
 
-    def test_shipping_audit_includes_configured_ignored_submodule_changes(self):
+    def test_shipping_audit_rejects_submodule_changes_even_when_configured_ignored(self):
         self.prepare_audit_repository()
         (self.home / 'dependency').mkdir()
         self.audit_git('-C', 'dependency', 'init', '-q')
-        self.audit_git('-C', 'dependency', 'commit', '--allow-empty', '-qm', 'old dependency')
+        dependency_source = self.home / 'dependency/source.py'
+        dependency_source.write_text('original dependency source\n')
+        self.audit_git('-C', 'dependency', 'add', 'source.py')
+        self.audit_git('-C', 'dependency', 'commit', '-qm', 'old dependency')
         old_dependency = self.audit_git('-C', 'dependency', 'rev-parse', 'HEAD')
         self.audit_git('update-index', '--add', '--cacheinfo', '160000,' + old_dependency + ',dependency')
         self.audit_git('commit', '-qm', 'dependency base')
-        self.env['SHIP_AUDIT_BASE'] = self.audit_git('rev-parse', 'HEAD')
-        self.audit_git('-C', 'dependency', 'commit', '--allow-empty', '-qm', 'new dependency')
+        dependency_base = self.audit_git('rev-parse', 'HEAD')
+        dependency_source.write_text('DEPENDENCY_SOURCE_REQUIRES_REVIEW\n')
+        self.audit_git('-C', 'dependency', 'add', 'source.py')
+        self.audit_git('-C', 'dependency', 'commit', '-qm', 'new dependency')
         new_dependency = self.audit_git('-C', 'dependency', 'rev-parse', 'HEAD')
         self.audit_git('update-index', '--cacheinfo', '160000,' + new_dependency + ',dependency')
         (self.home / 'audit-source.txt').write_text('ordinary source update\n')
         self.audit_git('add', 'audit-source.txt')
         self.audit_git('commit', '-qm', 'source and dependency update')
         self.audit_git('config', 'diff.ignoreSubmodules', 'all')
+        self.audit_git('config', 'diff.relative', 'true')
+        self.audit_git('config', 'color.ui', 'always')
         capture = self.home / 'audit-capture.json'
         self.env['FIXTURE_AUDIT_CAPTURE'] = str(capture)
-        for generated in (False, True):
-            with self.subTest(generated=generated):
-                result = self.run_skill('ink', generated=generated)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                prompt = json.loads(capture.read_text())['prompt']
-                self.assertIn('diff --git a/dependency b/dependency', prompt)
-                self.assertIn('-Subproject commit ' + old_dependency, prompt)
-                self.assertIn('+Subproject commit ' + new_dependency, prompt)
+        for change, base in (('updated', dependency_base), ('added', self.audit_base),
+                             ('unchanged', self.audit_git('rev-parse', 'HEAD')),
+                             ('removed', self.audit_git('rev-parse', 'HEAD'))):
+            if change == 'unchanged':
+                (self.home / 'audit-source.txt').write_text('ordinary source without dependency change\n')
+                self.audit_git('add', 'audit-source.txt')
+                self.audit_git('commit', '-qm', 'ordinary source only')
+            if change == 'removed':
+                self.audit_git('rm', '--cached', 'dependency')
+                self.audit_git('commit', '-qm', 'remove dependency')
+            self.env['SHIP_AUDIT_BASE'] = base
+            for generated in (False, True):
+                with self.subTest(generated=generated, change=change):
+                    capture.unlink(missing_ok=True)
+                    result = self.run_skill('ink', generated=generated)
+                    if change == 'unchanged':
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertIn('AUDIT COMPLETE:', result.stdout)
+                        self.assertIn('+ordinary source without dependency change',
+                                      json.loads(capture.read_text())['prompt'])
+                        continue
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    self.assertIn('submodule source requires separate complete review', result.stderr)
+                    self.assertNotIn('AUDIT COMPLETE:', result.stdout)
+                    self.assertFalse(capture.exists(), 'incomplete submodule audit dispatched')
 
     def test_research_only_accepts_its_current_successful_invocation(self):
         for generated in (False, True):
