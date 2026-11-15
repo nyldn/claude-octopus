@@ -34,6 +34,9 @@
   without a host export or matching hook session ID, so out-of-scope edits stay
   blocked after activation. Explicit hosts and Claude session IDs keep precedence.
 
+- Documentation sync commits only its selected paths, preserves unrelated staged
+  work, and stops before reporting completion when staging or committing fails.
+
 - Advisory workers clear inherited and temporary Git environment values before
   dispatch, so a temporary repository selection cannot expose another checkout
   to accidental Git writes from the disposable advisory copy.
