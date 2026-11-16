@@ -455,10 +455,13 @@ try:
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
                 raise ValueError('shipping state must be a regular, unlinked file')
             content = record.read()
-            content, updated = re.subn(r'^(\*\*Status:\*\*|status:)[^\r\n]*',
-                                       r'\1 shipped', content, flags=re.M)
+            history = re.search(r'^## History\b', content, flags=re.M)
+            boundary = history.start() if history else len(content)
+            current, updated = re.subn(r'^(\*\*Status:\*\*|status:)[^\r\n]*',
+                                       r'\1 shipped', content[:boundary], count=1, flags=re.M)
             if not updated:
                 raise ValueError('shipping state has no recognized status field')
+            content = current + content[boundary:]
             content += (f"\n## History - {datetime.now():%Y-%m-%d %H:%M}\n\n"
                         "- **Event:** Project shipped\n"
                         f"- **Archive:** .octo/archive/{archive}/\n"
@@ -478,6 +481,7 @@ try:
                                          metadata.st_mtime_ns, metadata.st_nlink):
                     raise ValueError('shipping state changed while preparing the update')
                 os.replace(temporary, 'STATE.md', src_dir_fd=state, dst_dir_fd=state)
+                os.fsync(state)
             finally:
                 try:
                     os.unlink(temporary, dir_fd=state)
