@@ -479,8 +479,9 @@ try:
                     os.fsync(prepared.fileno())
                 current = os.stat('STATE.md', dir_fd=state, follow_symlinks=False)
                 if (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns,
-                    current.st_nlink) != (metadata.st_dev, metadata.st_ino, metadata.st_size,
-                                         metadata.st_mtime_ns, metadata.st_nlink):
+                    current.st_ctime_ns, current.st_nlink) != (metadata.st_dev, metadata.st_ino,
+                                         metadata.st_size, metadata.st_mtime_ns,
+                                         metadata.st_ctime_ns, metadata.st_nlink):
                     raise ValueError('shipping state changed while preparing the update')
                 os.replace(temporary, 'STATE.md', src_dir_fd=state, dst_dir_fd=state)
                 os.fsync(state)

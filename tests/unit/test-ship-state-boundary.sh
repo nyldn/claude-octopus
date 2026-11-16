@@ -24,10 +24,13 @@ original = original.replace('**Phase:** {{CURRENT_PHASE}}', '**Current Phase:** 
 for tree in ('.claude/skills', 'skills', 'codex-skills'):
     entry = root / tree / 'skill-ship/SKILL.md'
     if not entry.exists():
+        if tree != 'codex-skills':
+            failures.append(f'{tree}: missing skill-ship entry')
+            controls += 1
         continue
     section = entry.read_text().split('#### Step 1: Update STATE.md', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for scenario in ('regular', 'other group', 'ownership failure', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
+    for scenario in ('regular', 'other group', 'ownership failure', 'permission race', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
                      'historical status only', 'dual status legacy first', 'dual status canonical first',
                      'retry', 'directory sync', 'directory sync failure', 'directory sync retry',
                      'missing status', 'missing state', 'missing archive', 'missing validation',
@@ -85,6 +88,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     continue
                 os.chown(target, -1, groups[0])
                 target.chmod(0o640)
+            if scenario == 'permission race':
+                target.chmod(0o640)
             owner = (target.stat().st_uid, target.stat().st_gid) if target.is_file() else None
             environment = dict(os.environ, ARCHIVE_TIMESTAMP='fixture-archive',
                                VALIDATION_FILE='literal $(touch executed) `touch executed`')
@@ -93,6 +98,17 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             if scenario == 'missing validation':
                 environment.pop('VALIDATION_FILE')
             executed_recipe = recipe
+            if scenario == 'permission race':
+                instrumentation = '''
+real_stat = os.stat
+def revoking_stat(path, *args, **kwargs):
+    if path == 'STATE.md' and 'dir_fd' in kwargs:
+        os.chmod(path, 0o600, dir_fd=kwargs['dir_fd'])
+    return real_stat(path, *args, **kwargs)
+os.stat = revoking_stat
+'''
+                executed_recipe = recipe.replace('archive, validation = sys.argv[1:]',
+                                                 instrumentation + '\narchive, validation = sys.argv[1:]')
             if scenario == 'ownership failure':
                 instrumentation = '''
 def denied_fchown(*args):
@@ -154,7 +170,7 @@ os.fsync = checked_fsync
                      and not list(state.glob('.STATE.md.ship-*')))
             if accepted:
                 content = target.read_text()
-                if scenario in ('regular', 'historical status', 'historical legacy status',
+                if scenario in ('regular', 'legacy status', 'historical status', 'historical legacy status',
                                 'dual status legacy first', 'dual status canonical first'):
                     observed = subprocess.check_output(['bash', str(root / 'scripts/octo-state.sh'),
                                                         'read_state'], cwd=project, env=environment, text=True)
@@ -174,7 +190,7 @@ os.fsync = checked_fsync
                          and environment['VALIDATION_FILE'] in content
                          and target.stat().st_mode & 0o777 == (0o640 if scenario == 'other group' else 0o600)
                          and (target.stat().st_uid, target.stat().st_gid) == owner)
-                if scenario == 'historical status':
+                if scenario in ('historical status', 'legacy status'):
                     tier = subprocess.check_output(['bash', str(root / 'scripts/octo-state.sh'),
                                                     'get_context_tier'], cwd=project, env=environment, text=True)
                     continued = subprocess.run(['bash', str(root / 'scripts/octo-state.sh'),
@@ -182,16 +198,27 @@ os.fsync = checked_fsync
                                                cwd=project, env=environment, capture_output=True, text=True)
                     valid = (valid and tier.splitlines()[0] == '=== Context Tier: planning ==='
                              and continued.returncode == 0)
+                    phase = subprocess.run(['bash', str(root / 'scripts/octo-state.sh'),
+                                            'get_phase_status', '4'], cwd=project, env=environment,
+                                           capture_output=True, text=True)
+                    valid = valid and phase.returncode == 0 and phase.stdout == 'shipped\n'
             elif scenario in ('missing archive', 'missing validation', 'hard link', 'missing status',
-                              'partial write', 'historical status only', 'ownership failure'):
+                              'partial write', 'historical status only', 'ownership failure', 'permission race'):
                 valid = valid and target.read_text() == before
                 if scenario == 'ownership failure':
                     valid = valid and (target.stat().st_uid, target.stat().st_gid) == owner
+                if scenario == 'permission race':
+                    valid = valid and target.stat().st_mode & 0o777 == 0o600
             elif scenario == 'missing state':
                 valid = valid and not target.exists()
             if scenario.startswith('directory sync'):
                 expected_syncs = 'file\ndirectory\n' * (2 if scenario.endswith('retry') else 1)
                 valid = valid and (project / 'sync-events').read_text() == expected_syncs
+            if scenario in ('missing status', 'historical status only'):
+                phase = subprocess.run(['bash', str(root / 'scripts/octo-state.sh'),
+                                        'get_phase_status', '4'], cwd=project, env=environment,
+                                       capture_output=True, text=True)
+                valid = valid and phase.returncode == 0 and phase.stdout == 'unknown\n'
             if not valid:
                 failures.append(f'{tree}: {scenario}: exit={result.returncode}')
             controls += 1
@@ -201,4 +228,27 @@ for failure in failures:
 sys.exit(bool(failures))
 PY_CONTROLS
 then test_pass; else test_fail "shipping state boundary controls failed"; fi
+
+test_case "missing required shipping recipes cannot produce a vacuous pass"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_MISSING'
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+root = Path(sys.argv[1])
+source = (root / 'tests/unit/test-ship-state-boundary.sh').read_text()
+controls = source.split("<<'PY_CONTROLS'\n", 1)[1].split('\nPY_CONTROLS', 1)[0]
+with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+    fixture = Path(temporary)
+    templates = fixture / 'config/templates'
+    templates.mkdir(parents=True)
+    shutil.copyfile(root / 'config/templates/STATE.md.template', templates / 'STATE.md.template')
+    result = subprocess.run([sys.executable, '-I', '-', str(fixture), str(fixture)],
+                            input=controls, capture_output=True, text=True, timeout=5)
+    assert result.returncode != 0, result.stdout
+    for tree in ('.claude/skills', 'skills'):
+        assert f'{tree}: missing skill-ship entry' in result.stderr, result.stderr
+PY_MISSING
+then test_pass; else test_fail "missing required recipes were accepted"; fi
 test_summary
