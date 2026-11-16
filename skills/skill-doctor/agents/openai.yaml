@@ -1,5 +1,5 @@
 interface:
   display_name: "Doctor"
-  short_description: "Environment diagnostics — check providers, auth, config,..."
+  short_description: "Start here: check provider setup and plugin health"
 policy:
   allow_implicit_invocation: false

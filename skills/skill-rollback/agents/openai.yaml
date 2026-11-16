@@ -1,5 +1,5 @@
 interface:
   display_name: "Rollback"
-  short_description: "Roll back to a previous checkpoint via git — use when a..."
+  short_description: "Restore a Git checkpoint while preserving recovery evidence"
 policy:
   allow_implicit_invocation: false

@@ -12,6 +12,15 @@ disable-model-invocation: true
 
 # Environment Doctor
 
+## First use in Codex
+
+Start with an explicit `$skill-doctor` request after installation or an update.
+Report the loaded plugin version, provider readiness, and missing prerequisites.
+Keep this first pass diagnostic: do not install software, change configuration,
+start login flows, or run a paid provider task as a repair. Explain any proposed
+repair and use the user's authorization before applying it. A readiness check
+is not proof of model access, billing entitlement, or a successful provider task.
+
 ## Overview
 
 Run environment diagnostics across 15 check categories. Doctor 2.0 identifies

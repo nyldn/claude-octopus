@@ -31,6 +31,8 @@ paths:
   - "**/*.vue"
   - "**/*.svelte"
   - "**/components/**"
+codex_short_description: "Create a UI design direction, tokens, and component guidance"
+codex_display_name: "UI/UX Design"
 ---
 
 ## EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)

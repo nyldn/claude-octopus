@@ -133,4 +133,28 @@ else
     test_fail "ui_short_description did not preserve exact boundaries or trim at a complete word"
 fi
 
+test_case "authored primary and alias UI copy override automatic truncation"
+# Insert the overrides into the existing fixture frontmatter.
+sed -i.bak '/^name: skill-verification-gate/a\
+codex_short_description: "Review evidence before reporting completion"\
+codex_alias_short_description: "Verify behavior through current execution evidence"
+' "$SKILLS_DIR/skill-verification-gate/SKILL.md"
+main >/dev/null
+if grep -Fq 'short_description: "Review evidence before reporting completion"' "$OUTPUT_DIR/skill-verification-gate/agents/openai.yaml" && \
+   grep -Fq 'short_description: "Verify behavior through current execution evidence"' "$OUTPUT_DIR/skill-verify/agents/openai.yaml"; then
+    test_pass
+else
+    test_fail "authored UI copy was ignored"
+fi
+
+test_case "invalid authored UI copy fails generation instead of silent truncation"
+sed -i.bak 's/Review evidence before reporting completion/short/' "$SKILLS_DIR/skill-verification-gate/SKILL.md"
+if ( main ) > "$TEST_TMP_DIR/invalid-ui.log" 2>&1; then
+    test_fail "invalid UI copy was accepted"
+elif grep -q 'Invalid Codex short description' "$TEST_TMP_DIR/invalid-ui.log"; then
+    test_pass
+else
+    test_fail "invalid UI copy failed without its validation diagnostic"
+fi
+
 test_summary

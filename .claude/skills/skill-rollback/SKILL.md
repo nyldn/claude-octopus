@@ -8,6 +8,7 @@ trigger: |
   - "rollback" or "revert" or "undo"
   - "go back to" or "restore checkpoint"
 argument-hint: "[list|<checkpoint-tag>]"
+codex_short_description: "Restore a Git checkpoint while preserving recovery evidence"
 ---
 
 # Checkpoint Rollback

@@ -7,6 +7,7 @@ trigger: |
   EXPLICITLY USE when user mentions:
   - "ship" or "deliver" or "finalize"
   - "done" or "complete the project"
+codex_short_description: "Finalize validated work, delivery records, and checkpoints"
 ---
 
 # Ship Project - Multi-AI Delivery Validation

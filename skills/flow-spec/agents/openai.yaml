@@ -1,5 +1,5 @@
 interface:
   display_name: "Spec"
-  short_description: "NLSpec authoring — use when you need a structured..."
+  short_description: "Write a specification with testable acceptance criteria"
 policy:
   allow_implicit_invocation: false

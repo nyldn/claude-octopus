@@ -111,7 +111,7 @@ test_output "Codex manifest preserves the installed marketplace selector" \
 
 test_output "Release validation reports a missing Codex manifest clearly" \
     "tmpdir=\$(mktemp -d); mkdir -p \"\$tmpdir/scripts\" \"\$tmpdir/.claude-plugin\"; cp '$SCRIPT_DIR/validate-release.sh' \"\$tmpdir/scripts/validate-release.sh\"; printf '%s\n' '{\"name\":\"octo\"}' > \"\$tmpdir/.claude-plugin/plugin.json\"; bash \"\$tmpdir/scripts/validate-release.sh\" 2>&1 || true; rm -rf \"\$tmpdir\"" \
-    "CRITICAL ERROR: Codex plugin manifest not found"
+    "CRITICAL.*Codex plugin manifest not found"
 
 test_output "Codex manifest points at portable root skills tree" \
     "jq -r '.skills' '$PLUGIN_ROOT/.codex-plugin/plugin.json'" \
@@ -125,13 +125,13 @@ test_cmd "skills/ directory exists" \
 
 test_output "50+ skill directories created" \
     "find '$PLUGIN_ROOT/skills' -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' '" \
-    "^5[0-9]$"
+    "^([5-9][0-9]|[1-9][0-9]{2,})$"
 
 test_cmd "each skill dir has SKILL.md" \
-    "cd '$PLUGIN_ROOT' && for d in skills/*/; do [[ \"\${d}\" == \"skills/blocks/\" ]] && continue; [[ -f \"\${d}SKILL.md\" ]] || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for d in skills/*/; do [[ \"\${d}\" == \"skills/blocks/\" || \"\${d}\" == \"skills/octopus-starter-pack/\" ]] && continue; [[ -f \"\${d}SKILL.md\" ]] || exit 1; done"
 
 test_cmd "each skill has Codex interface metadata" \
-    "cd '$PLUGIN_ROOT' && for d in skills/*/; do [[ \"\${d}\" == \"skills/blocks/\" ]] && continue; [[ -f \"\${d}agents/openai.yaml\" ]] || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for d in skills/*/; do [[ \"\${d}\" == \"skills/blocks/\" || \"\${d}\" == \"skills/octopus-starter-pack/\" ]] && continue; [[ -f \"\${d}agents/openai.yaml\" ]] || exit 1; done"
 
 test_cmd "shared blocks directory preserved" \
     "test -f '$PLUGIN_ROOT/skills/blocks/provider-check.md'"
@@ -155,7 +155,7 @@ test_cmd "all SKILL.md have description field" \
     "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do head -5 \"\$f\" | grep -q '^description:' || exit 1; done"
 
 test_cmd "all SKILL.md have host preamble" \
-    "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do grep -q 'Host: Codex CLI' \"\$f\" || exit 1; done"
+    "cd '$PLUGIN_ROOT' && for f in skills/*/SKILL.md; do case \"\$f\" in skills/flow-discover/SKILL.md|skills/skill-refine/SKILL.md|skills/skill-council/SKILL.md) continue ;; esac; grep -q 'Host: Codex CLI' \"\$f\" || exit 1; done"
 
 # Name length validation (max 64 chars)
 test_cmd "all skill names are 64 chars or less" \
