@@ -336,6 +336,10 @@ with tempfile.TemporaryDirectory() as directory:
         ('comment only', '# policy:\n#   allow_implicit_invocation: false\n', False),
         ('duplicate key', 'policy:\n  allow_implicit_invocation: false\n  allow_implicit_invocation: true\n', False),
         ('duplicate policy', 'policy:\n  allow_implicit_invocation: false\npolicy:\n  allow_implicit_invocation: true\n', False),
+        ('spaced duplicate policy', 'policy:\n  allow_implicit_invocation: false\npolicy :\n  allow_implicit_invocation: true\n', False),
+        ('quoted duplicate policy', 'policy:\n  allow_implicit_invocation: false\n"policy":\n  allow_implicit_invocation: true\n', False),
+        ('quoted duplicate key', 'policy:\n  allow_implicit_invocation: false\n  "allow_implicit_invocation": true\n', False),
+        ('spaced duplicate key', 'policy:\n  allow_implicit_invocation: false\n  allow_implicit_invocation : true\n', False),
         ('string false', 'policy:\n  allow_implicit_invocation: "false"\n', False),
         ('explicit invocation', 'interface:\n  display_name: Demo\npolicy:\n  allow_implicit_invocation: false\n', True),
     ]

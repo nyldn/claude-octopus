@@ -181,11 +181,14 @@ def validate_codex_policy(root: Path, skill: Path, errors: list[str]) -> None:
     if not metadata.is_file() or not metadata.resolve().is_relative_to(root):
         errors.append(f"{rel(root, metadata)}: missing or unsafe Codex invocation metadata")
         return
-    # Validate the generator's block-style YAML contract without a YAML dependency.
+    # Accept only the generator's block-style subset, so alternate YAML spellings
+    # cannot introduce duplicate keys that override the explicit-only policy.
     text = metadata.read_text(encoding="utf-8")
-    sections = re.findall(r"(?m)^policy:[ \t]*\n((?:[ \t]+[^\n]*\n|[ \t]*\n)*)", text + "\n")
-    values = re.findall(r"(?m)^  allow_implicit_invocation:[ \t]*([^\n]*)$", sections[0]) if len(sections) == 1 else []
-    if len(re.findall(r"(?m)^policy:", text)) != 1 or values != ["false"]:
+    generated_form = (
+        r"(?:interface:\n  display_name: [^\n]*\n(?:  short_description: [^\n]*\n)?)?"
+        r"policy:\n  allow_implicit_invocation: false\n?"
+    )
+    if not re.fullmatch(generated_form, text):
         errors.append(f"{rel(root, metadata)}: policy.allow_implicit_invocation must be false")
 
 
