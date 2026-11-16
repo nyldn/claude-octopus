@@ -544,10 +544,10 @@ try:
             try:
                 with os.fdopen(output, 'w', encoding='utf-8', newline='') as prepared:
                     os.fchown(prepared.fileno(), metadata.st_uid, metadata.st_gid)
-                    os.fchmod(prepared.fileno(), stat.S_IMODE(metadata.st_mode))
                     prepared.write(content)
                     prepared.flush()
                     copy_access_metadata(record.fileno(), prepared.fileno())
+                    os.fchmod(prepared.fileno(), stat.S_IMODE(metadata.st_mode))
                     os.fsync(prepared.fileno())
                 current = os.stat('STATE.md', dir_fd=state, follow_symlinks=False)
                 if (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns,

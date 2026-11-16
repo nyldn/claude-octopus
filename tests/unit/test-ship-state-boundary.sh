@@ -33,7 +33,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     reader_section = entry.read_text().split('#### Step 2: Read STATE.md Status', 1)[1]
     reader = re.search(r'```bash\n(.*?)\n```', reader_section, re.S)[1]
-    for scenario in ('regular', 'other group', 'ownership failure', 'metadata failure', 'acl', 'inherited acl', 'permission race', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
+    for scenario in ('regular', 'other group', 'ownership failure', 'metadata failure', 'acl', 'inherited acl', 'private preparation', 'permission race', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
                      'historical status only', 'dual status legacy first', 'dual status canonical first',
                      'retry', 'directory sync', 'directory sync failure', 'directory sync retry',
                      'missing status', 'missing state', 'missing archive', 'missing validation',
@@ -94,13 +94,13 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             if scenario == 'permission race':
                 target.chmod(0o640)
             access_metadata = None
-            if scenario in ('acl', 'inherited acl'):
+            if scenario in ('acl', 'inherited acl', 'private preparation'):
                 if sys.platform.startswith('linux'):
                     acl = struct.pack('<I', 2) + b''.join(struct.pack('<HHI', tag, perm, who)
                         for tag, perm, who in ((1, 6, 0xffffffff), (2, 4, 65534),
                                               (4, 0, 0xffffffff), (16, 4, 0xffffffff), (32, 0, 0xffffffff)))
-                    os.setxattr(target if scenario == 'acl' else state,
-                                'system.posix_acl_access' if scenario == 'acl' else 'system.posix_acl_default', acl)
+                    os.setxattr(state if scenario == 'inherited acl' else target,
+                                'system.posix_acl_default' if scenario == 'inherited acl' else 'system.posix_acl_access', acl)
                     os.setxattr(target, 'user.octopus-fixture', b'preserve this attribute')
                     access_metadata = {name: os.getxattr(target, name) for name in os.listxattr(target)}
                 elif sys.platform == 'darwin':
@@ -119,6 +119,18 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             if scenario == 'missing validation':
                 environment.pop('VALIDATION_FILE')
             executed_recipe = recipe
+            if scenario == 'private preparation':
+                target.chmod(0o640)
+                expected_mode = 0o640
+                instrumentation = '''
+original_copy_access_metadata = copy_access_metadata
+def private_copy_access_metadata(source, destination):
+    assert os.fstat(destination).st_mode & 0o077 == 0, 'prepared content was readable before its ACL was installed'
+    original_copy_access_metadata(source, destination)
+copy_access_metadata = private_copy_access_metadata
+'''
+                executed_recipe = recipe.replace('archive, validation = sys.argv[1:]',
+                                                 instrumentation + '\narchive, validation = sys.argv[1:]')
             if scenario == 'metadata failure':
                 instrumentation = '''
 def denied_metadata(*args):
@@ -177,7 +189,7 @@ os.fsync = checked_fsync
                 failures.append(f'{tree}: {scenario}: recipe blocked on target')
                 controls += 1
                 continue
-            accepted = scenario in ('regular', 'other group', 'acl', 'inherited acl', 'legacy status', 'historical status',
+            accepted = scenario in ('regular', 'other group', 'acl', 'inherited acl', 'private preparation', 'legacy status', 'historical status',
                                     'historical legacy status', 'directory sync', 'retry', 'directory sync retry',
                                     'dual status legacy first', 'dual status canonical first')
             retry_valid = True
