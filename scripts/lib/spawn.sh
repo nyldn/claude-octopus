@@ -881,9 +881,15 @@ spawn_agent() {
         role=$(get_role_for_context "$agent_type" "$role_task_type" "$phase")
     fi
 
-    # v8.19.0: Check routing rules for role override
-    local routed_role
-    routed_role=$(match_routing_rule "$task_type" "$prompt" "$role_task_type" 2>/dev/null) || true
+    # v8.19.0: Check routing rules for role override. A consultative advisor
+    # seat keeps its role, and its prompt gets no curated agent persona or
+    # skill context: the launcher's prompt is the seat's whole contract.
+    local routed_role="" curated_routing="${SUPPORTS_AGENT_TYPE_ROUTING:-false}"
+    if [[ "$role" == advisor ]]; then
+        curated_routing=false
+    else
+        routed_role=$(match_routing_rule "$task_type" "$prompt" "$role_task_type" 2>/dev/null) || true
+    fi
     if [[ -n "$routed_role" ]]; then
         log DEBUG "Routing rules override: $role -> $routed_role"
         role="$routed_role"
@@ -939,7 +945,7 @@ spawn_agent() {
 
     # v8.53.0: Pre-compute curated_name before apply_persona so readonly flag is available
     local curated_name_early=""
-    if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
+    if [[ "$curated_routing" == "true" ]]; then
         curated_name_early=$(select_curated_agent "$prompt" "$phase") || true
     fi
 
@@ -983,7 +989,7 @@ ${enhanced_prompt}"
 
     # v8.2.0: Load agent skill context if available (STABLE — deterministic per agent type)
     # NOTE: enforce_context_budget() moved AFTER all injections (v8.10.0 Issue #25)
-    if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
+    if [[ "$curated_routing" == "true" ]]; then
         local curated_agent=""
         curated_agent=$(select_curated_agent "$prompt" "$phase") || true
         if [[ -n "$curated_agent" ]]; then
@@ -1042,7 +1048,7 @@ ${checkpoint_ctx}"
     fi
 
     # v8.2.0: Log enhanced agent fields + v8.5: Inject memory context (VARIABLE)
-    if [[ "$SUPPORTS_AGENT_TYPE_ROUTING" == "true" ]]; then
+    if [[ "$curated_routing" == "true" ]]; then
         local curated_name
         curated_name=$(select_curated_agent "$prompt" "$phase") || true
         if [[ -n "$curated_name" ]]; then

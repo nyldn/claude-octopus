@@ -2938,9 +2938,21 @@ case "$COMMAND" in
         [[ $# -lt 2 ]] && { log ERROR "Usage: spawn <agent> <prompt>"; exit 1; }
         _spawn_target="$1"
         _spawn_role=""
+        # Consultative launchers (brainstorm, debate, deck) mark their seats so the
+        # caller's prompt is the whole contract: no implementer default, persona,
+        # curated skill context or routing-rule override, and read-only tools.
+        case "${OCTOPUS_SPAWN_ROLE:-}" in
+            "") ;;
+            advisor) _spawn_role=advisor ;;
+            *)
+                log ERROR "OCTOPUS_SPAWN_ROLE='${OCTOPUS_SPAWN_ROLE}' is not supported; the only spawn role is advisor"
+                exit 2
+                ;;
+        esac
+        unset OCTOPUS_SPAWN_ROLE
         _spawn_provider="$(resolve_persona_spawn_target "$_spawn_target" 2>/dev/null || true)"
         if [[ -n "$_spawn_provider" ]]; then
-            _spawn_role="$_spawn_target"
+            _spawn_role="${_spawn_role:-$_spawn_target}"
             _spawn_target="$_spawn_provider"
         fi
         case "$_spawn_target" in

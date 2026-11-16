@@ -275,7 +275,7 @@ octo_dispatch_command_model() {
 get_tool_policy() {
     local role="${1:-}"
     case "$role" in
-        researcher|ai-engineer|business-analyst|research-synthesizer|ux-researcher)
+        researcher|ai-engineer|business-analyst|research-synthesizer|ux-researcher|advisor)
             echo "read_search" ;;
         implementer|tdd-orchestrator|debugger|python-pro|typescript-pro|frontend-developer)
             echo "full" ;;

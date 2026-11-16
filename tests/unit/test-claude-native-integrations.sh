@@ -157,7 +157,7 @@ done
 test_case 'a rubric request can still refine a Lighthouse rollout plan'
 if [[ "$(classify_task 'Improve this Lighthouse rollout plan using a rubric')" == native-refine ]]; then test_pass; else test_fail 'rubric intent lost'; fi
 
-for scenario in default-design coding-rule design-rule native-rule rule-order keyword-order explicit-role; do
+for scenario in default-design coding-rule design-rule native-rule rule-order keyword-order explicit-role advisor-role; do
     test_case "direct refinement spawn preserves roles and rule order: $scenario"
     if (
         source "$PROJECT_ROOT/scripts/lib/spawn.sh"
@@ -174,6 +174,7 @@ for scenario in default-design coding-rule design-rule native-rule rule-order ke
             rule-order) rules='[{"match":{"task_type":"design"},"prefer":"reviewer"},{"match":{"task_type":"native-refine"},"prefer":"implementer"}]'; expected=reviewer ;;
             keyword-order) rules='[{"match":{"keywords":"layout"},"prefer":"reviewer"},{"match":{"task_type":"design"},"prefer":"implementer"}]'; expected=reviewer ;;
             explicit-role) rules='[]'; explicit_role=reviewer; expected=reviewer ;;
+            advisor-role) rules='[{"match":{"keywords":"layout"},"prefer":"reviewer"}]'; explicit_role=advisor; expected=advisor ;;
         esac
         printf '{"rules":%s}\n' "$rules" > "$WORKSPACE_DIR/.octo/routing-rules.json"
         log() { printf '%s\n' "$*"; }

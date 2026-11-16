@@ -66,7 +66,7 @@ if [[ "\${1:-}" == "--version" ]]; then
     printf '%s\n' 'codex-cli 0.155.1'
     exit 0
 fi
-cat >/dev/null
+cat > "$E2E/codex-prompt.txt"
 # Answer only after spawn has printed its worker PID and returned.
 sleep 3
 printf '%s\n' 'stub codex progress note on stderr' >&2
@@ -83,6 +83,20 @@ printf '%s\n' 'stub codex: simulated provider failure' >&2
 exit 1
 SH
 chmod +x "$E2E/answer-bin/codex" "$E2E/fail-bin/codex"
+# A Claude Code host new enough for agent-type routing, which adds curated
+# personas and skill context to direct spawns. Only its version probe answers.
+mkdir -p "$E2E/routing-bin"
+ln -s "$E2E/answer-bin/codex" "$E2E/routing-bin/codex"
+cat > "$E2E/routing-bin/claude" <<SH
+#!/usr/bin/env bash
+if [[ "\$*" == --version ]]; then
+    printf '%s\n' '2.1.200 (Claude Code)'
+    exit 0
+fi
+printf '%s %s\n' "\${0##*/}" "\$*" >> "$E2E/tripwire.log"
+exit 1
+SH
+chmod +x "$E2E/routing-bin/claude"
 cat > "$E2E/fleet-builder.sh" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' 'codex|Problem Analysis|fixture'
@@ -520,6 +534,91 @@ if [[ -z "$missing" ]]; then
     test_pass
 else
     test_fail "no background/timeout guidance in: $missing"
+fi
+
+fake_orch="$TEST_TMP_DIR/orch-role"
+cat > "$fake_orch" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\${OCTOPUS_SPAWN_ROLE:-unset}" >> "$TEST_TMP_DIR/spawn-roles"
+printf 'answer from %s\n' "\$2"
+SH
+chmod +x "$fake_orch"
+test_case "every advisor is spawned in the consultative advisor role"
+out="$TEST_TMP_DIR/role"
+mkdir -p "$out"
+rc=0
+count="$(octo_launch_advisors "$fake_orch" agy,agy "$out" t- x 2 2>"$out/error")" || rc=$?
+if [[ "$rc" -eq 0 && "$count" == 2 &&
+      "$(sort -u "$TEST_TMP_DIR/spawn-roles")" == advisor ]]; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count' roles: $(tr '\n' '|' < "$TEST_TMP_DIR/spawn-roles" 2>/dev/null)"
+fi
+
+ADVISOR_TOPIC='Think creatively about: a STAR interview answer coach with a provider abstraction'
+test_case "a direct codex spawn still defaults to the implementer role"
+rc=0
+dry_out="$(in_stub_env "$ORCH" --dry-run spawn codex "$ADVISOR_TOPIC" 2>&1)" || rc=$?
+if [[ "$rc" -eq 0 && "$dry_out" == *"role=implementer"* ]]; then
+    test_pass
+else
+    test_fail "rc=$rc output: $(printf '%s' "$dry_out" | tail -3 | tr '\n' '|')"
+fi
+
+test_case "OCTOPUS_SPAWN_ROLE=advisor replaces the implementer default"
+rc=0
+advisor_out="$(in_stub_env env OCTOPUS_SPAWN_ROLE=advisor \
+    "$ORCH" --dry-run spawn codex "$ADVISOR_TOPIC" 2>&1)" || rc=$?
+if [[ "$rc" -eq 0 && "$advisor_out" == *"role=advisor"* ]]; then
+    test_pass
+else
+    test_fail "rc=$rc output: $(printf '%s' "$advisor_out" | tail -3 | tr '\n' '|')"
+fi
+
+test_case "an unsupported OCTOPUS_SPAWN_ROLE fails before dispatch"
+rc=0
+bad_out="$(in_stub_env env OCTOPUS_SPAWN_ROLE=implementer \
+    "$ORCH" --dry-run spawn codex "$ADVISOR_TOPIC" 2>&1)" || rc=$?
+if [[ "$rc" -ne 0 && "$bad_out" == *"OCTOPUS_SPAWN_ROLE"* && "$bad_out" != *"Would execute"* ]]; then
+    test_pass
+else
+    test_fail "rc=$rc output: $(printf '%s' "$bad_out" | tail -3 | tr '\n' '|')"
+fi
+
+test_case "the advisor role keeps tool-loop providers read-only"
+tool_loop_is_read_only() {
+    (
+        PLUGIN_DIR="$PROJECT_ROOT"
+        # shellcheck source=/dev/null
+        source "$PROJECT_ROOT/scripts/lib/dispatch.sh" >/dev/null 2>&1
+        octo_tool_loop_requires_no_tools "" "$1"
+    )
+}
+if tool_loop_is_read_only advisor && ! tool_loop_is_read_only implementer; then
+    test_pass
+else
+    test_fail "the advisor role would get a write-capable tool loop"
+fi
+
+test_case "an advisor prompt reaches codex without an implementer persona or curated skill context"
+out="$TEST_TMP_DIR/advisor-prompt"
+mkdir -p "$out"
+rm -f "$E2E/codex-prompt.txt"
+rc=0
+count="$(STUB_CODEX_BIN=routing-bin in_stub_env octo_launch_advisors "$ORCH" codex "$out" \
+    octopus-brainstorm- "$ADVISOR_TOPIC
+You are {{advisor}}, an independent brainstorm advisor." 1 2>"$out/error")" || rc=$?
+result_file="$(grep -rl 'independent brainstorm advisor' "$E2E/data" 2>/dev/null |
+    grep '/codex-[^/]*\.md$' | tail -1 || true)"
+prompt="$(cat "$E2E/codex-prompt.txt" 2>/dev/null)"
+if [[ "$rc" -eq 0 && "$count" == 1 ]] &&
+   [[ "$prompt" == *"You are codex, an independent brainstorm advisor."* ]] &&
+   [[ "$prompt" != *"Agent Skill Context"* && "$prompt" != *"Caller contract"* ]] &&
+   [[ "$prompt" != *"senior software engineer"* && "$prompt" != *"Deliverable integrity"* ]] &&
+   grep -qx '# Role: advisor' "$result_file" 2>/dev/null; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count' result=$result_file role: $(grep '^# Role:' "$result_file" 2>/dev/null) prompt sections: $(grep -E '^(## |--- Skill|You are|\*\*Task)' "$E2E/codex-prompt.txt" 2>/dev/null | tr '\n' '|')"
 fi
 
 # Runs last, so the tripwire log covers every stub-environment run above.
