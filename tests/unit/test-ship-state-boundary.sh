@@ -27,7 +27,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
         continue
     section = entry.read_text().split('#### Step 1: Update STATE.md', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for scenario in ('regular', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
+    for scenario in ('regular', 'other group', 'ownership failure', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
                      'historical status only', 'directory sync', 'directory sync failure',
                      'missing status', 'missing state', 'missing archive', 'missing validation',
                      'parent link', 'leaf link', 'dangling link', 'hard link', 'directory', 'fifo'):
@@ -72,6 +72,14 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                               else '**Status:** ready')
                 before += '\n## History - previous shipment\n\n' + historical + '\n'
                 target.write_text(before)
+            if scenario == 'other group':
+                groups = sorted(set(os.getgroups()) - {os.getegid()})
+                if not groups:
+                    print(f'{tree}: alternate-group control unavailable for this account')
+                    continue
+                os.chown(target, -1, groups[0])
+                target.chmod(0o640)
+            owner = (target.stat().st_uid, target.stat().st_gid) if target.is_file() else None
             environment = dict(os.environ, ARCHIVE_TIMESTAMP='fixture-archive',
                                VALIDATION_FILE='literal $(touch executed) `touch executed`')
             if scenario == 'missing archive':
@@ -79,6 +87,14 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             if scenario == 'missing validation':
                 environment.pop('VALIDATION_FILE')
             executed_recipe = recipe
+            if scenario == 'ownership failure':
+                instrumentation = '''
+def denied_fchown(*args):
+    raise PermissionError('injected ownership preservation failure')
+os.fchown = denied_fchown
+'''
+                executed_recipe = recipe.replace('archive, validation = sys.argv[1:]',
+                                                 instrumentation + '\narchive, validation = sys.argv[1:]')
             if scenario.startswith('directory sync'):
                 # Instrument only fsync; execute the otherwise unchanged recipe.
                 instrumentation = '''
@@ -110,7 +126,7 @@ os.fsync = checked_fsync
                 failures.append(f'{tree}: {scenario}: recipe blocked on target')
                 controls += 1
                 continue
-            accepted = scenario in ('regular', 'legacy status', 'historical status',
+            accepted = scenario in ('regular', 'other group', 'legacy status', 'historical status',
                                     'historical legacy status', 'directory sync')
             valid = ((result.returncode == 0) == accepted
                      and (project / 'completed').exists() == accepted
@@ -134,7 +150,8 @@ os.fsync = checked_fsync
                          and content.count('- **Event:** Project shipped') == 1
                          and '- **Archive:** .octo/archive/fixture-archive/' in content
                          and environment['VALIDATION_FILE'] in content
-                         and target.stat().st_mode & 0o777 == 0o600)
+                         and target.stat().st_mode & 0o777 == (0o640 if scenario == 'other group' else 0o600)
+                         and (target.stat().st_uid, target.stat().st_gid) == owner)
                 if scenario == 'historical status':
                     tier = subprocess.check_output(['bash', str(root / 'scripts/octo-state.sh'),
                                                     'get_context_tier'], cwd=project, env=environment, text=True)
@@ -144,8 +161,10 @@ os.fsync = checked_fsync
                     valid = (valid and tier.splitlines()[0] == '=== Context Tier: planning ==='
                              and continued.returncode == 0)
             elif scenario in ('missing archive', 'missing validation', 'hard link', 'missing status',
-                              'partial write', 'historical status only'):
+                              'partial write', 'historical status only', 'ownership failure'):
                 valid = valid and target.read_text() == before
+                if scenario == 'ownership failure':
+                    valid = valid and (target.stat().st_uid, target.stat().st_gid) == owner
             elif scenario == 'missing state':
                 valid = valid and not target.exists()
             if scenario.startswith('directory sync'):

@@ -432,6 +432,7 @@ successful earlier phases. Run this whole block in one shell. A failed update
 stops delivery. Linked state paths and nonregular files are refused before any
 write; preserve them and inspect the project state before retrying. The complete
 replacement is prepared in the opened state directory before atomic publication.
+Preserve the original owner, group and mode; stop if ownership cannot be retained.
 
 ```bash
 python3 -I - "${ARCHIVE_TIMESTAMP:?Restore the completed archive timestamp}" "${VALIDATION_FILE:?Restore the completed validation report}" <<'PY_STATE' || exit 1
@@ -471,6 +472,7 @@ try:
                              0o600, dir_fd=state)
             try:
                 with os.fdopen(output, 'w', encoding='utf-8', newline='') as prepared:
+                    os.fchown(prepared.fileno(), metadata.st_uid, metadata.st_gid)
                     os.fchmod(prepared.fileno(), stat.S_IMODE(metadata.st_mode))
                     prepared.write(content)
                     prepared.flush()
