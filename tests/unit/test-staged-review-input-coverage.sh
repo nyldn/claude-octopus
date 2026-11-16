@@ -27,7 +27,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      'binary removed', 'binary attribute', 'forced text binary',
                      'gitlink added', 'gitlink removed', 'gitlink updated',
                      'oversized', 'transport marker', 'external diff', 'textconv',
-                     'relative config', 'shadow stdlib', 'unstaged excluded'):
+                     'relative config', 'shadow stdlib', 'unstaged excluded',
+                     'forced text hidden NUL', 'forced text trailing NUL'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             project = Path(temporary)
             environment = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
@@ -41,6 +42,11 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             git('config', 'core.hooksPath', os.devnull)
             source = project / 'change.txt'
             source.write_text('original\n')
+            if scenario in ('forced text hidden NUL', 'forced text trailing NUL'):
+                lines = b''.join(f'line {i}\n'.encode() for i in range(200))
+                data = b'binary\0header\n' + lines if scenario == 'forced text hidden NUL' else lines + b'binary\0footer\n'
+                source.write_bytes(data)
+                (project / '.gitattributes').write_text('change.txt diff\n')
             if scenario == 'binary removed':
                 (project / 'asset.bin').write_bytes(b'original\0binary')
             git('add', '.')
@@ -51,7 +57,10 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 git('commit', '-qm', 'submodule baseline')
                 if scenario == 'gitlink updated':
                     git('commit', '--allow-empty', '-qm', 'new submodule revision')
-            if scenario != 'empty':
+            if scenario.startswith('forced text ') and scenario.endswith('NUL'):
+                target = b'line 199' if scenario == 'forced text hidden NUL' else b'line 0'
+                source.write_bytes(source.read_bytes().replace(target, b'STAGED_REVIEW_MARKER'))
+            elif scenario != 'empty':
                 source.write_text('STAGED_REVIEW_MARKER\n')
             if scenario == 'long text':
                 source.write_text(''.join(f'line {i}\n' for i in range(600)) + 'STAGED_REVIEW_MARKER\n')
@@ -98,7 +107,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                                     cwd=cwd, env=dict(environment, CAPTURE=str(project / '.git/prompt')),
                                     capture_output=True, text=True, timeout=5)
             blocked = scenario.startswith(('binary', 'gitlink')) or scenario in (
-                'empty', 'forced text binary', 'oversized', 'transport marker')
+                'empty', 'forced text binary', 'oversized', 'transport marker',
+                'forced text hidden NUL', 'forced text trailing NUL')
             capture = project / '.git/prompt'
             valid = ((result.returncode != 0) == blocked and
                      capture.exists() != blocked and not (project / 'executed').exists() and

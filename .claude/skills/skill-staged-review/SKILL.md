@@ -183,10 +183,26 @@ command = ['git', 'diff', '--cached', '--no-ext-diff', '--no-textconv',
 numstat = subprocess.check_output(command + ['--numstat', '--'])
 if any(line.split(b'\t', 2)[:2] == [b'-', b'-'] for line in numstat.splitlines()):
     sys.exit('Review incomplete: staged binary content needs separate complete review.')
-raw = subprocess.check_output(command + ['--raw', '--'])
-if any(b'160000' in line.split(b' ', 2)[:2] or line.startswith(b':160000 ')
-       for line in raw.splitlines()):
-    sys.exit('Review incomplete: staged submodules need separate complete source review.')
+raw = subprocess.check_output(command + ['--raw', '--no-abbrev', '-z', '--'])
+blobs = set()
+for header in raw.split(b'\0')[::2]:
+    if not header:
+        continue
+    old_mode, new_mode, old_oid, new_oid, status = header.split()
+    if old_mode == b':160000' or new_mode == b'160000':
+        sys.exit('Review incomplete: staged submodules need separate complete source review.')
+    blobs.update(oid for oid in (old_oid, new_oid) if oid.strip(b'0'))
+# Forced-text attributes can hide NUL bytes outside the patch context. Inspect
+# both affected revisions in bounded chunks, including deleted file content.
+for oid in sorted(blobs):
+    with subprocess.Popen(['git', 'cat-file', 'blob', oid.decode('ascii')],
+                          stdout=subprocess.PIPE) as blob:
+        while chunk := blob.stdout.read(65536):
+            if b'\0' in chunk:
+                blob.kill()
+                sys.exit('Review incomplete: a changed blob contains NUL bytes and needs separate complete review.')
+        if blob.wait() != 0:
+            sys.exit('Review incomplete: could not read a changed blob.')
 diff = subprocess.check_output(command + ['--binary', '--'])
 if re.search(rb'(?m)^GIT binary patch$', diff) or b'\0' in diff:
     sys.exit('Review incomplete: staged nontext content needs separate complete review.')
