@@ -250,26 +250,30 @@ Which option? (1-4)
 
 ```bash
 # Get current branch name
-FEATURE_BRANCH=$(git branch --show-current)
+FEATURE_BRANCH=$(git branch --show-current) || exit 1
 : "${BASE_BRANCH:?Restore the verified base branch}"
 
 # Switch to base branch
-git checkout $BASE_BRANCH
+git checkout "$BASE_BRANCH" || exit 1
 
 # Pull latest
-git pull origin $BASE_BRANCH
+git pull origin "$BASE_BRANCH" || exit 1
 
 # Merge feature branch
-git merge $FEATURE_BRANCH
+git merge "$FEATURE_BRANCH" || exit 1
 
 # Verify tests on merged result
-npm test  # or appropriate test command
+npm test || exit 1  # or the appropriate test command, with the same failure guard
 
 # If tests pass, delete feature branch
-git branch -d $FEATURE_BRANCH
+git branch -d "$FEATURE_BRANCH" || exit 1
 ```
 
-**Report:**
+If any integration step fails, stop and report the failed command and recovery
+state. Preserve the feature branch and checkout for repair. Run no later test,
+branch deletion or worktree cleanup after that failure.
+
+**Report only after every command above succeeds:**
 ```
 ✅ Merged $FEATURE_BRANCH into $BASE_BRANCH
 ✅ Tests pass on merged result
