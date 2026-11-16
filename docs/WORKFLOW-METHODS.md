@@ -73,6 +73,11 @@ file with one link. Symbolic links, hard-linked lesson files and special files
 stop delivery before writing. New lesson files are private; existing file
 permissions and lessons remain intact.
 
+Shipping archives open state paths without following links and reject hard-linked
+or nonregular files. Each attempt uses a separate private directory. A missing
+STATE.md or failed copy stops delivery; a partial directory is not a verified
+archive. LESSONS.md remains outside the archive.
+
 ## Host-native by default
 
 Routine architecture, TDD, and debugging run on the current host with no extra
@@ -210,8 +215,3 @@ These methods adapt selected patterns from `mattpocock/skills` under the MIT
 License. See [third-party notices](../THIRD_PARTY_NOTICES.md) and the
 [complete license](../licenses/mattpocock-skills-MIT.txt) for source mappings and
 reuse terms.
-
-Shipping archives open state paths without following links and reject hard-linked
-or nonregular files. Each attempt uses a separate private directory. A missing
-STATE.md or failed copy stops delivery; a partial directory is not a verified
-archive. LESSONS.md remains outside the archive.
