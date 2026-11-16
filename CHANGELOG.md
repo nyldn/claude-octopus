@@ -8,12 +8,13 @@
   files outside the project that share the same inode.
 - Shipping checkpoints stop when the source has changed since its audit and
   tag the exact audited commit. A failed tag stops finalization.
-- Brainstorm, debate and deck advisors spawn in a read-only `advisor` role.
+- Brainstorm, debate and deck advisors spawn in a dedicated `advisor` role.
   Their prompt is no longer wrapped in the implementer persona and the
   architecture-review skill contract, which made Codex answer a brainstorm as
-  an architecture decision, and Cursor and Command Code advisors no longer run
-  in write modes on coding topics. Routing rules no longer reassign advisor
-  seats.
+  an architecture decision. Persona packs and routing rules no longer reassign
+  advisor briefs. Cursor and Command Code advisors default to read-only modes;
+  `OCTOPUS_CURSOR_AGENT_MODE` and `OCTOPUS_COMMANDCODE_PERMISSION_MODE` can
+  override those defaults. Codex retains its configured sandbox mode.
 
 ## [11.24.2] - 2026-11-16
 

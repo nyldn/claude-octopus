@@ -113,6 +113,7 @@ in_stub_env() {
             "PATH=$E2E/${STUB_CODEX_BIN:-answer-bin}:$E2E/tripwire-bin:$PATH" \
             "OCTO_ALLOWED_PROVIDERS=${STUB_ALLOWED_PROVIDERS:-codex}" \
             "OCTOPUS_FLEET_BUILDER=$E2E/fleet-builder.sh" \
+            "OCTOPUS_PERSONA_PACKS=${STUB_PERSONA_PACK:-off}" \
             "OCTOPUS_ADVISOR_WAIT_SECONDS=180"
         cd "$E2E/project"
         "$@"
@@ -600,12 +601,28 @@ else
     test_fail "the advisor role would get a write-capable tool loop"
 fi
 
-test_case "an advisor prompt reaches codex without an implementer persona or curated skill context"
+mkdir -p "$E2E/advisor-pack"
+printf 'name: advisor-fixture\npersonas:\n  - file: persona.md\n    replaces: codex\n' > "$E2E/advisor-pack/pack.yaml"
+printf '%s\n' 'PERSONA PACK IMPLEMENTER MARKER' > "$E2E/advisor-pack/persona.md"
+test_case "the advisor isolation fixture has a working codex persona override"
+pack_content="$(STUB_PERSONA_PACK="$E2E/advisor-pack" in_stub_env bash -c '
+    source "$CLAUDE_PLUGIN_ROOT/scripts/lib/personas.sh"
+    WORKSPACE_DIR="$CLAUDE_PLUGIN_DATA"
+    auto_load_persona_packs >/dev/null
+    get_persona_override_content codex
+')"
+if [[ "$pack_content" == 'PERSONA PACK IMPLEMENTER MARKER' ]]; then
+    test_pass
+else
+    test_fail "persona fixture was not active: $pack_content"
+fi
+
+test_case "an advisor prompt excludes persona packs, implementer personas and curated skill context"
 out="$TEST_TMP_DIR/advisor-prompt"
 mkdir -p "$out"
 rm -f "$E2E/codex-prompt.txt"
 rc=0
-count="$(STUB_CODEX_BIN=routing-bin in_stub_env octo_launch_advisors "$ORCH" codex "$out" \
+count="$(STUB_CODEX_BIN=routing-bin STUB_PERSONA_PACK="$E2E/advisor-pack" in_stub_env octo_launch_advisors "$ORCH" codex "$out" \
     octopus-brainstorm- "$ADVISOR_TOPIC
 You are {{advisor}}, an independent brainstorm advisor." 1 2>"$out/error")" || rc=$?
 result_file="$(grep -rl 'independent brainstorm advisor' "$E2E/data" 2>/dev/null |
@@ -615,6 +632,7 @@ if [[ "$rc" -eq 0 && "$count" == 1 ]] &&
    [[ "$prompt" == *"You are codex, an independent brainstorm advisor."* ]] &&
    [[ "$prompt" != *"Agent Skill Context"* && "$prompt" != *"Caller contract"* ]] &&
    [[ "$prompt" != *"senior software engineer"* && "$prompt" != *"Deliverable integrity"* ]] &&
+   [[ "$prompt" != *"PERSONA PACK IMPLEMENTER MARKER"* ]] &&
    grep -qx '# Role: advisor' "$result_file" 2>/dev/null; then
     test_pass
 else

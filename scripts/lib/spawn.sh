@@ -974,7 +974,7 @@ spawn_agent() {
     enhanced_prompt=$(apply_persona "$role" "$prompt" "false" "${curated_name_early:-}")
 
     # v8.21.0: Check for persona pack override
-    if type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
+    if [[ "$role" != advisor ]] && type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
         local pack_persona
         pack_persona=$(get_persona_override_content "${curated_name_early:-${curated_name:-$agent_type}}" 2>/dev/null)
         if [[ -n "$pack_persona" ]]; then
