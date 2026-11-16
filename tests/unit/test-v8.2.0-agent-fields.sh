@@ -216,11 +216,12 @@ else
     assert_fail "3.2 spawn_agent references select_curated_agent for skill lookup"
 fi
 
-# 3.3: Skills injection gated behind SUPPORTS_AGENT_TYPE_ROUTING
-if grep 'SUPPORTS_AGENT_TYPE_ROUTING.*true' <<< "$SPAWN_AGENT_BODY" >/dev/null; then
-    assert_pass "3.3 Skills injection gated behind SUPPORTS_AGENT_TYPE_ROUTING"
+# 3.3: The host capability feeds the gate that excludes advisor seats.
+if grep -F 'curated_routing="${SUPPORTS_AGENT_TYPE_ROUTING:-false}"' <<< "$SPAWN_AGENT_BODY" >/dev/null &&
+   grep -F 'if [[ "$curated_routing" == "true" ]]; then' <<< "$SPAWN_AGENT_BODY" >/dev/null; then
+    assert_pass "3.3 Skills injection uses the host capability and role gate"
 else
-    assert_fail "3.3 Skills injection gated behind SUPPORTS_AGENT_TYPE_ROUTING"
+    assert_fail "3.3 Skills injection uses the host capability and role gate"
 fi
 
 # 3.4: Debug log line for skill context injection exists
