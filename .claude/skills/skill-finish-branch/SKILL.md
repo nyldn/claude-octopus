@@ -97,9 +97,11 @@ import re
 
 diff = subprocess.check_output([
     'git', 'diff', '--no-ext-diff', '--no-textconv', '--no-renames',
-    '--no-relative', '--ignore-submodules=none', '--no-color',
+    '--no-relative', '--ignore-submodules=none', '--no-color', '--binary',
     sys.argv[1], sys.argv[2], '--',
 ])
+if re.search(rb'(?m)^GIT binary patch$', diff):
+    sys.exit('Review incomplete: the final patch omits binary content and needs a separate complete review.')
 if b'\0' in diff:
     sys.exit('Review incomplete: NUL-containing content needs a separate complete review.')
 if re.search(rb'\[\[OCTOPUS_TRUSTED_JSON_CONTRACT_(?:BEGIN|END):[0-9a-fA-F]{32}\]\]', diff):

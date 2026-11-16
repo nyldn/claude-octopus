@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -27,7 +28,8 @@ for tree in ('.claude/skills', 'skills'):
                      'gitlink updated', 'oversized', 'relative config',
                      'external diff', 'textconv', 'shadow stdlib', 'head changed', 'reviewer failed',
                      'async success', 'async failed', 'async head changed', 'async empty',
-                     'transport marker', 'native teams', 'async inherited hook', 'async chained hook'):
+                     'transport marker', 'native teams', 'async inherited hook', 'async chained hook',
+                     'attribute race'):
         with tempfile.TemporaryDirectory(prefix='branch-review-', dir=sys.argv[2]) as temporary:
             project = Path(temporary) / 'project'
             project.mkdir()
@@ -156,11 +158,27 @@ pathlib.Path(os.environ["REVIEW_CAPTURE"] + ".done").touch()
                 environment['OCTOPUS_AGENT_LIFECYCLE_HOOK'] = str(owned_hook)
             expected_diff = subprocess.check_output([
                 'git', '-C', str(project), 'diff', '--no-ext-diff', '--no-textconv',
-                '--no-renames', '--no-relative', '--ignore-submodules=none', '--no-color',
+                '--no-renames', '--no-relative', '--ignore-submodules=none', '--no-color', '--binary',
                 git('merge-base', 'HEAD', 'main'), 'HEAD', '--'], env=environment).decode().rstrip('\n')
+            if scenario == 'attribute race':
+                wrapper_dir = Path(temporary) / 'bin'
+                wrapper_dir.mkdir()
+                wrapper = wrapper_dir / 'git'
+                wrapper.write_text('''#!/usr/bin/env python3
+import os, pathlib, subprocess, sys
+result = subprocess.run([os.environ["REVIEW_REAL_GIT"], *sys.argv[1:]], stdout=subprocess.PIPE)
+if "--numstat" in sys.argv:
+    pathlib.Path(os.environ["REVIEW_ATTRIBUTES"]).write_text("change.txt -diff\\n")
+sys.stdout.buffer.write(result.stdout)
+sys.exit(result.returncode)
+''')
+                wrapper.chmod(0o755)
+                environment.update(REVIEW_REAL_GIT=shutil.which('git'),
+                                   REVIEW_ATTRIBUTES=str(project / '.gitattributes'),
+                                   PATH=str(wrapper_dir) + os.pathsep + environment['PATH'])
             result = subprocess.run(['bash', '-c', recipe], cwd=cwd, env=environment,
                                     capture_output=True, text=True, timeout=10)
-            blocked = scenario.startswith(('binary', 'gitlink')) or scenario in ('oversized', 'forced text binary', 'transport marker')
+            blocked = scenario.startswith(('binary', 'gitlink')) or scenario in ('oversized', 'forced text binary', 'transport marker', 'attribute race')
             valid = result.returncode != 0 and not capture.exists() if blocked else (
                 result.returncode == 0 and capture.exists() and not marker.exists())
             if scenario.startswith('async'):
