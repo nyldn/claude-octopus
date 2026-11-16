@@ -14,6 +14,8 @@
 - Claude Code discovers native skill instructions while Codex loads its own
   adapted entries. Registered names, manual invocation and the starter pack
   remain available in both hosts.
+- Shipping lessons reject linked state paths, hard-linked lesson files and nonregular files before writing.
+
 - Branch completion dispatches the configured code-reviewer persona so its required review can start.
 - Branch completion reviews the full bounded text diff and stops for binary,
   submodule or oversized changes that need separate complete review.
