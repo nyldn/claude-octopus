@@ -151,6 +151,32 @@ class CodexReferences(unittest.TestCase):
                             self.assertEqual(state.read_text(), original)
                             self.assertEqual(git('tag'), '')
 
+    def test_ship_state_python_ignores_checkout_and_pythonpath_modules(self):
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            text = (ROOT / tree / 'skill-ship/SKILL.md').read_text()
+            recipe = re.search(r"^python3 [^\n]*<<'PY_STATE'\n.*?\nPY_STATE", text, re.M | re.S)[0]
+            for module in ('clean', 'pathlib.py', 're.py', 'sitecustomize.py'):
+                with self.subTest(tree=tree, module=module), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / '.octo').mkdir()
+                    state = root / '.octo/STATE.md'
+                    state.write_text('status: delivery_pending\nprivate project details\n')
+                    state.chmod(0o600)
+                    environment = dict(os.environ, CHECKPOINT_TAG='octo-checkpoint-test')
+                    if module != 'clean':
+                        (root / module).write_text(
+                            "import os\nopen('imported-checkout-module', 'w').write('executed')\n"
+                            "raise RuntimeError('checkout module executed')\n")
+                        # Startup hooks use PYTHONPATH; ordinary imports also search cwd.
+                        environment['PYTHONPATH'] = str(root)
+                    result = subprocess.run(['bash', '-c', recipe], cwd=root, env=environment,
+                                            capture_output=True, text=True, timeout=5)
+                    self.assertFalse((root / 'imported-checkout-module').exists(), result.stderr)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn('status: shipped', state.read_text())
+                    self.assertIn('private project details', state.read_text())
+                    self.assertEqual(state.stat().st_mode & 0o777, 0o600)
+
     def test_ship_state_replacement_preserves_private_permissions(self):
         for tree in ('.claude/skills', 'skills', 'codex-skills'):
             text = (ROOT / tree / 'skill-ship/SKILL.md').read_text()

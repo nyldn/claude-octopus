@@ -423,7 +423,7 @@ git tag -a "$CHECKPOINT_TAG" -m "Project shipped - $(date '+%Y-%m-%d %H:%M:%S')"
 
 echo "Checkpoint created: $CHECKPOINT_TAG"
 # Only successful checkpoint creation permits the shipped transition.
-python3 - "$CHECKPOINT_TAG" <<'PY_STATE'
+python3 -I - "$CHECKPOINT_TAG" <<'PY_STATE'
 from pathlib import Path
 import os, re, stat, sys, tempfile
 path = Path('.octo/STATE.md')
