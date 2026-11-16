@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.24.0",
-  "description": "v11.24.0 \u2014 Preserve local work, validate workflow evidence and support OpenCode 2.x. Run /octo:setup.",
+  "version": "11.24.1",
+  "description": "v11.24.1 \u2014 Protect parallel worker progress and correct long-context cost estimates. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
