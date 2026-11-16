@@ -36,21 +36,22 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Claude Octopus",
-    "shortDescription": "Multi-LLM orchestration \u2014 dispatch to 12 providers from one plugin.",
-    "longDescription": "Claude Octopus orchestrates twelve external AI providers (Codex, Antigravity, Cursor CLI, Grok, Copilot, Qwen, Perplexity, OpenRouter, OrcaRouter, Ollama, OpenCode, and Kimi Code) through structured Double Diamond workflows. 31 personas, 56 commands, 64 skills covering research, implementation, review, TDD, security audits, and more. Provider dispatch includes prompt-size preflight, agent summary tables, circuit breakers, cost tracking, and model routing.",
+    "shortDescription": "Research, build and review",
+    "longDescription": "Claude Octopus helps developers research questions, scope requirements, implement plans, and review changes with multiple AI providers. Start by explicitly invoking $skill-doctor to check plugin health and provider setup. Install and authenticate the provider CLIs or configure API access required by your chosen workflow. External calls use your own provider accounts and may incur usage charges. Check provider availability and agree on scope before dispatch. Invoke a skill explicitly to begin; enabling the plugin does not start a workflow.",
     "composerIcon": "./assets/octopus-icon.svg",
     "developerName": "nyldn",
-    "category": "Orchestration",
+    "category": "Developer Tools",
     "capabilities": [
       "Interactive",
       "Read",
       "Write"
     ],
     "defaultPrompt": [
-      "Research OAuth patterns across providers",
-      "Build a feature using multi-AI implementation",
-      "Review this code with adversarial multi-provider analysis"
+      "Use $skill-doctor to check my Octopus setup and report provider readiness without repairs.",
+      "Use $flow-discover to research OAuth patterns after checking provider availability and costs.",
+      "Use $skill-code-review to review my current changes; present findings without posting to GitHub."
     ],
-    "brandColor": "#6366F1"
+    "brandColor": "#6366F1",
+    "logo": "./assets/octopus-icon.svg"
   }
 }

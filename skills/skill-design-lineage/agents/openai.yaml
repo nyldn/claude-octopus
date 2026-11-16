@@ -1,5 +1,5 @@
 interface:
   display_name: "Design Lineage"
-  short_description: "Persist design documents with branch tracking, revision..."
+  short_description: "Track design revisions and the decisions behind them"
 policy:
   allow_implicit_invocation: false

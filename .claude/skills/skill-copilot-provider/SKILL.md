@@ -11,6 +11,7 @@ trigger: |
 paths:
   - "**/.github/copilot*"
   - "**/.copilot*"
+codex_short_description: "Use an available GitHub Copilot CLI as an external provider"
 ---
 
 # GitHub Copilot Provider Skill

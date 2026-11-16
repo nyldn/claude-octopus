@@ -1,5 +1,5 @@
 interface:
   display_name: "Issues"
-  short_description: "Track project blockers, bugs, and gaps across sessions —..."
+  short_description: "Record project blockers, defects, and gaps for follow-up"
 policy:
   allow_implicit_invocation: false

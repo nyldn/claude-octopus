@@ -375,6 +375,12 @@ write_skill() {
         codex_short_desc="$(ui_short_description "$codex_desc" "$codex_display_name")"
     fi
 
+    codex_short_desc="$(normalize_single_line "$codex_short_desc")"
+    if [[ ${#codex_short_desc} -lt 25 || ${#codex_short_desc} -gt 64 ]]; then
+        printf 'Invalid Codex short description for %s: expected 25-64 characters\n' "$codex_name" >&2
+        return 1
+    fi
+
     mkdir -p "$skill_dir"
 
     {
@@ -535,9 +541,10 @@ main() {
         [[ -n "$codex_display_name" ]] || codex_display_name="$(display_name "$codex_name")"
 
         local codex_short_desc
-        codex_short_desc="$(ui_short_description "$description" "$codex_display_name")"
+        codex_short_desc=$(extract_field "$file" "codex_short_description")
+        [[ -n "$codex_short_desc" ]] || codex_short_desc="$(ui_short_description "$description" "$codex_display_name")"
 
-        write_skill "$file" "$target_dir/$codex_name" "$codex_name" "$codex_desc" "$codex_display_name" "$codex_short_desc"
+        write_skill "$file" "$target_dir/$codex_name" "$codex_name" "$codex_desc" "$codex_display_name" "$codex_short_desc" || return 1
 
         ((count++)) || true
         $VERBOSE && echo "  OK: $basename → skills/$codex_name/SKILL.md"
@@ -555,9 +562,10 @@ main() {
             [[ -n "$alias_display_name" ]] || alias_display_name="$(display_name "$alias_name")"
 
             local alias_short_desc
-            alias_short_desc="$(ui_short_description "$alias_desc" "$alias_display_name")"
+            alias_short_desc=$(extract_field "$file" "codex_alias_short_description")
+            [[ -n "$alias_short_desc" ]] || alias_short_desc="$(ui_short_description "$alias_desc" "$alias_display_name")"
 
-            write_skill "$file" "$target_dir/$alias_name" "$alias_name" "$alias_desc" "$alias_display_name" "$alias_short_desc"
+            write_skill "$file" "$target_dir/$alias_name" "$alias_name" "$alias_desc" "$alias_display_name" "$alias_short_desc" || return 1
             ((count++)) || true
             $VERBOSE && echo "  OK: $basename → skills/$alias_name/SKILL.md (compat alias)"
         fi

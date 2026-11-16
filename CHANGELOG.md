@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Codex plugin listings include the existing logo artwork, complete skill
+  descriptions, and explicit starter prompts. First-use guidance explains
+  provider setup, readiness limits, and account costs.
+
 ## [11.24.2] - 2026-11-16
 
 ### Fixed

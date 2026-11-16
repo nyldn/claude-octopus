@@ -4,6 +4,8 @@ disable-model-invocation: true
 description: Write an AI-optimized PRD using multi-AI orchestration — use when scoping a new feature or product
 context: fork
 agent: Plan
+codex_short_description: "Write product requirements with scope and success criteria"
+codex_display_name: "Product Requirements"
 ---
 
 # STOP - SKILL ALREADY LOADED

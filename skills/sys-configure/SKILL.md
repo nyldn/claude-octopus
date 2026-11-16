@@ -1,6 +1,6 @@
 ---
 name: sys-configure
-description: "Configure Claude Octopus — redirects to /octo:setup interactive wizard"
+description: "Configure Octopus providers, authentication, and workflow preferences"
 disable-model-invocation: true
 ---
 
@@ -12,7 +12,10 @@ disable-model-invocation: true
 
 # Configuration to setup redirect
 
-This skill is an alias for `/octo:setup`. When triggered, invoke the setup command directly.
+On Claude Code, this skill opens `/octo:setup`. On Codex, read the setup instructions
+from the verified plugin installation and follow the steps supported by the current
+host. Do not execute a Claude slash command in a shell or claim setup succeeded
+without checking the resulting configuration.
 
 Setup uses a separate, private resume receipt. It rechecks readiness before
 trusting a recorded stage, leaves interrupted human login incomplete, and marks
@@ -20,7 +23,8 @@ the receipt complete only after strict configuration persistence and readback.
 The user runs browser-opening authentication in their own terminal. Remote
 sessions never open it automatically.
 
-**Action:** Run `/octo:setup` — the interactive setup wizard handles all configuration:
+**Action:** On Claude Code, run `/octo:setup`. On Codex, load the setup instructions
+below in the current conversation. The setup flow covers:
 - Provider installation and auth
 - RTK token optimization
 - Work mode selection

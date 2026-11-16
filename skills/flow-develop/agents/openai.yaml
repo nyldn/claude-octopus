@@ -1,5 +1,5 @@
 interface:
   display_name: "Develop"
-  short_description: "Multi-AI implementation using available external providers..."
+  short_description: "Implement an agreed plan and verify the changes"
 policy:
   allow_implicit_invocation: false
