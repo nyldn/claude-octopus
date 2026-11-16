@@ -136,14 +136,11 @@ estimate_agent_call_cost() {
     local input_tokens output_tokens pricing input_price output_price
     input_tokens=$(estimate_tokens "$prompt")
     output_tokens=$((input_tokens * 2))
-    pricing=$(get_model_pricing "$model" "$agent_type")
+    pricing=$(get_model_pricing "$model" "$agent_type" "$input_tokens")
     input_price="${pricing%%:*}"
     output_price="${pricing##*:}"
     [[ "$input_price" =~ ^[0-9]+([.][0-9]+)?$ ]] || input_price=0
     [[ "$output_price" =~ ^[0-9]+([.][0-9]+)?$ ]] || output_price=0
-    pricing="$(octo_effective_model_pricing "$model" "$input_tokens" "$input_price" "$output_price")"
-    input_price="${pricing%%:*}"
-    output_price="${pricing##*:}"
     awk -v input_tokens="$input_tokens" -v output_tokens="$output_tokens" \
         -v input_price="$input_price" -v output_price="$output_price" \
         'BEGIN {printf "%.6f\n", (input_tokens * input_price + output_tokens * output_price) / 1000000}'
@@ -212,12 +209,9 @@ calculate_agent_cost() {
     local output_tokens=$((input_tokens * 2))
 
     local pricing
-    pricing=$(get_model_pricing "$model" "$agent_type")
+    pricing=$(get_model_pricing "$model" "$agent_type" "$input_tokens")
     local input_price="${pricing%%:*}"
     local output_price="${pricing##*:}"
-    pricing="$(octo_effective_model_pricing "$model" "$input_tokens" "$input_price" "$output_price")"
-    input_price="${pricing%%:*}"
-    output_price="${pricing##*:}"
 
     # Cost = (input_tokens / 1M) * input_price + (output_tokens / 1M) * output_price
     local cost=$(awk "BEGIN {printf \"%.4f\", (($input_tokens / 1000000.0) * $input_price) + (($output_tokens / 1000000.0) * $output_price)}")
@@ -635,12 +629,9 @@ record_agent_complete() {
 
         # Calculate cost with the measured token components.
         local pricing
-        pricing=$(get_model_pricing "$model" "$agent_type")
+        pricing=$(get_model_pricing "$model" "$agent_type" "$input_tokens")
         local input_price="${pricing%%:*}"
         local output_price="${pricing##*:}"
-        pricing="$(octo_effective_model_pricing "$model" "$input_tokens" "$input_price" "$output_price")"
-        input_price="${pricing%%:*}"
-        output_price="${pricing##*:}"
         local cost="" cost_status="$usage_source"
         if [[ "$cached_input_tokens" =~ ^[0-9]+$ && "$cache_write_tokens" =~ ^[0-9]+$ &&
               "$reasoning_tokens" =~ ^[0-9]+$ ]] &&
@@ -887,5 +878,15 @@ get_model_pricing() {
         fi
     done < "$OCTOPUS_MODEL_PRICING_FILE"
 
-    printf '%s\n' "${provider_override:-${model_price:-${provider_price:-$default_price}}}"
+    # Provider overrides define the complete route tariff, including zero-cost
+    # subscription accounting. Model request rules apply only without one.
+    if [[ -n "$provider_override" ]]; then
+        printf '%s\n' "$provider_override"
+        return 0
+    fi
+    local pricing="${model_price:-${provider_price:-$default_price}}"
+    if [[ -n "${3:-}" ]]; then
+        pricing="$(octo_effective_model_pricing "$model" "$3" "${pricing%%:*}" "${pricing##*:}")" || return 1
+    fi
+    printf '%s\n' "$pricing"
 }

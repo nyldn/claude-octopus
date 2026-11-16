@@ -6,15 +6,29 @@
 
 - Branch completion reviews the full bounded text diff and stops for binary,
   submodule or oversized changes that need separate complete review.
-- Parallel cleanup retains worktrees with index flags that can hide local edits or deletions.
-- Parallel workflows stop dependent launches after failed waves or dependencies without a successful exit status.
-- Wave timeouts stop dependent launches and retain worker evidence for inspection and recovery.
-- Parallel result summaries require a completion marker before reporting a
-  successful worker, so interrupted or still-running work is not counted as done.
 
-- New parallel work-package branches start from one frozen base commit across
-  launches and waves, so a fetch or branch update cannot change their baseline.
-  Retries retain later work on branches that descend from that base.
+## [11.24.1] - 2026-11-15
+
+### Fixed
+
+- Parallel workers share one frozen base commit across launches and waves;
+  retries preserve descendant commits.
+- Dependent waves stop after failed prerequisites, invalid exit status or timeouts.
+  Timeouts retain worker evidence for inspection and recovery.
+- Result summaries require completion markers before counting successful workers.
+- Cleanup retains worktrees whose index flags can hide local edits or deletions.
+- API estimates apply whole-request long-context tariffs to supported GPT-5.4,
+  GPT-5.5 and GPT-5.6 model IDs above 272,000 input tokens.
+- Usage reports recognize qualified model IDs, and provider billing overrides
+  retain precedence across reservations, ledgers and standalone metrics.
+
+Merged changes: [#1335](https://github.com/nyldn/claude-octopus/pull/1335),
+[#1338](https://github.com/nyldn/claude-octopus/pull/1338),
+[#1337](https://github.com/nyldn/claude-octopus/pull/1337),
+[#1339](https://github.com/nyldn/claude-octopus/pull/1339), and
+[#1336](https://github.com/nyldn/claude-octopus/pull/1336).
+The parallel fixes address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime and installed-host acceptance work remains open.
 
 ## [11.24.0] - 2026-11-15
 
