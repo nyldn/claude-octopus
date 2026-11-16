@@ -10,6 +10,8 @@ if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_CONTROLS'
 import os
 from pathlib import Path
 import re
+import resource
+import signal
 import subprocess
 import sys
 import tempfile
@@ -24,7 +26,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
         continue
     section = entry.read_text().split('#### Step 1: Update STATE.md', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for scenario in ('regular', 'legacy status', 'missing status', 'missing state', 'missing archive', 'missing validation',
+    for scenario in ('regular', 'partial write', 'legacy status', 'missing status', 'missing state', 'missing archive', 'missing validation',
                      'parent link', 'leaf link', 'dangling link', 'hard link', 'directory', 'fifo'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             directory = Path(temporary)
@@ -66,9 +68,15 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 environment.pop('ARCHIVE_TIMESTAMP')
             if scenario == 'missing validation':
                 environment.pop('VALIDATION_FILE')
+            def limit_write():
+                signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+                limit = original.index('**Status:**') + 64
+                resource.setrlimit(resource.RLIMIT_FSIZE, (limit, limit))
+
             try:
                 result = subprocess.run(['bash', '-c', recipe + '\nprintf done > completed'],
-                                        cwd=project, env=environment, capture_output=True, text=True, timeout=2)
+                                        cwd=project, env=environment, capture_output=True, text=True, timeout=2,
+                                        preexec_fn=limit_write if scenario == 'partial write' else None)
             except subprocess.TimeoutExpired:
                 failures.append(f'{tree}: {scenario}: recipe blocked on target')
                 controls += 1
@@ -78,7 +86,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      and (project / 'completed').exists() == accepted
                      and victim.read_text() == original
                      and not (outside / 'missing').exists()
-                     and not (project / 'executed').exists())
+                     and not (project / 'executed').exists()
+                     and not list(state.glob('.STATE.md.ship-*')))
             if accepted:
                 content = target.read_text()
                 if scenario == 'regular':
@@ -92,7 +101,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                          and '- **Archive:** .octo/archive/fixture-archive/' in content
                          and environment['VALIDATION_FILE'] in content
                          and target.stat().st_mode & 0o777 == 0o600)
-            elif scenario in ('missing archive', 'missing validation', 'hard link', 'missing status'):
+            elif scenario in ('missing archive', 'missing validation', 'hard link', 'missing status', 'partial write'):
                 valid = valid and target.read_text() == before
             elif scenario == 'missing state':
                 valid = valid and not target.exists()

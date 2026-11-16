@@ -430,7 +430,8 @@ partial directory for inspection; never use it as a completed archive.
 Restore the exact archive timestamp and validation report retained from the
 successful earlier phases. Run this whole block in one shell. A failed update
 stops delivery. Linked state paths and nonregular files are refused before any
-write; preserve them and inspect the project state before retrying.
+write; preserve them and inspect the project state before retrying. The complete
+replacement is prepared in the opened state directory before atomic publication.
 
 ```bash
 python3 -I - "${ARCHIVE_TIMESTAMP:?Restore the completed archive timestamp}" "${VALIDATION_FILE:?Restore the completed validation report}" <<'PY_STATE' || exit 1
@@ -438,6 +439,7 @@ from contextlib import ExitStack
 from datetime import datetime
 import os
 import re
+import secrets
 import stat
 import sys
 
@@ -461,9 +463,26 @@ try:
                         "- **Event:** Project shipped\n"
                         f"- **Archive:** .octo/archive/{archive}/\n"
                         f"- **Validation:** {validation}\n\n")
-            record.seek(0)
-            record.write(content)
-            record.truncate()
+            temporary = '.STATE.md.ship-' + secrets.token_hex(8)
+            output = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o600, dir_fd=state)
+            try:
+                with os.fdopen(output, 'w', encoding='utf-8', newline='') as prepared:
+                    os.fchmod(prepared.fileno(), stat.S_IMODE(metadata.st_mode))
+                    prepared.write(content)
+                    prepared.flush()
+                    os.fsync(prepared.fileno())
+                current = os.stat('STATE.md', dir_fd=state, follow_symlinks=False)
+                if (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns,
+                    current.st_nlink) != (metadata.st_dev, metadata.st_ino, metadata.st_size,
+                                         metadata.st_mtime_ns, metadata.st_nlink):
+                    raise ValueError('shipping state changed while preparing the update')
+                os.replace(temporary, 'STATE.md', src_dir_fd=state, dst_dir_fd=state)
+            finally:
+                try:
+                    os.unlink(temporary, dir_fd=state)
+                except FileNotFoundError:
+                    pass
 except (OSError, ValueError) as error:
     sys.exit(f'Shipping state update failed; stop delivery and inspect the state paths: {error}')
 PY_STATE
