@@ -245,4 +245,47 @@ else
     test_fail "statuses: $statuses (expected $expected)"
 fi
 
+test_case "user values in wrapped recipes remain literal shell data"
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_LITERAL'
+import pathlib
+import re
+import shlex
+import subprocess
+import sys
+
+root, scratch = map(pathlib.Path, sys.argv[1:])
+marker = scratch / 'unexpected-expansion'
+payload = f'''a 'single' and "double" quote; $HOME $(touch {marker}) `touch {marker}`
+second line \\ final'''
+targets = {
+    '.claude/skills/flow-define/SKILL.md': ['USER_REQUEST', 'user_flow', 'approach', 'out_of_scope'],
+    '.claude/skills/skill-debate/SKILL.md': ['QUESTION', 'CONTEXT', 'MAX_WORDS', 'DEBATE_DIR', 'ADVISORS', 'REQUIRED_EXTERNAL_ADVISORS', 'SUCCESSFUL_EXTERNAL_ADVISORS', 'HOST_ADVISOR_SUCCESS'],
+    'commands/brainstorm.md': ['TOPIC', 'SUCCESSFUL_EXTERNAL_ADVISORS', 'HOST_ADVISOR_SUCCESS'],
+}
+for source, names in list(targets.items()):
+    if source.startswith('.claude/'):
+        targets[source.removeprefix('.claude/')] = names
+targets['.cursor-plugin/commands/octo-brainstorm.md'] = targets['commands/brainstorm.md']
+for source, names in targets.items():
+    text = (root / source).read_text()
+    for name in names:
+        assignments = re.findall(rf'(?m)^{name}=(.*)$', text)
+        literals = [value for value in assignments if value.startswith(('"[', "'[")) or 'Should we use Redis' in value]
+        assert literals, (source, name, 'missing input assignment')
+        for literal in literals:
+            # Insert exactly the quote-escaped contents of the value into the
+            # recipe's existing quote delimiters. The old double quotes execute
+            # command substitutions; single quotes preserve every byte.
+            quoted = shlex.quote(payload)
+            assignment = name + '=' + literal[0] + quoted[1:-1] + literal[-1]
+            result = subprocess.run(['bash', '-c', assignment + '\nprintf %s "$' + name + '"'], capture_output=True, text=True)
+            assert result.returncode == 0 and result.stdout == payload, (source, name, result.stderr, result.stdout)
+            assert not marker.exists(), (source, name, 'executed input')
+PY_LITERAL
+then
+    test_pass
+else
+    test_fail "a recipe expanded or altered user input"
+fi
+
 test_summary

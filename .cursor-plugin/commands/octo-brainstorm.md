@@ -140,12 +140,15 @@ Launch external providers in parallel through Octopus routing. This block waits 
 advisor to finish, often several minutes, so run it with `run_in_background: true`; a
 foreground 600000 ms timeout stops it after 10 minutes, while the launcher waits up to
 `OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). It prints each collected answer before it
-exits, because `$RUN_DIR` is deleted on exit:
+exits, because `$RUN_DIR` is deleted on exit. Insert the topic and carried values
+as single-quoted shell literals, escaping each embedded single quote as `'\''`,
+or generate each complete value with Python's `shlex.quote`. Never interpolate
+untrusted text into double-quoted shell source:
 
 ```bash
 # Runs under bash even when the host shell is zsh.
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
-TOPIC="[TOPIC]"
+TOPIC='[TOPIC]'
 ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
 [[ -x "$ORCH" ]] || { echo "Octopus orchestrator not found: $ORCH"; exit 1; }
 ORCH_HELP="$("$ORCH" help --full 2>&1 || true)"
@@ -215,8 +218,8 @@ starts with no variables from earlier blocks, so fill in its first two lines:
 ```bash
 # Runs under bash even when the host shell is zsh.
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
-SUCCESSFUL_EXTERNAL_ADVISORS="[SUCCESSFUL_EXTERNAL_ADVISORS printed by the launch block]"
-HOST_ADVISOR_SUCCESS="[1 if the host advisor completed with usable output, else 0]"
+SUCCESSFUL_EXTERNAL_ADVISORS='[SUCCESSFUL_EXTERNAL_ADVISORS printed by the launch block]'
+HOST_ADVISOR_SUCCESS='[1 if the host advisor completed with usable output, else 0]'
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
     "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then

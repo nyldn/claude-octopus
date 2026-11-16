@@ -258,18 +258,23 @@ Use the debate synthesis to set the approach context for the Define phase.
 
 **After gathering answers, create context file:**
 
+Insert the request and answers as single-quoted shell literals. Escape every
+embedded single quote as `'\''`, or generate each complete value with Python's
+`shlex.quote`. Keep dollar signs, backticks and newlines literal. Do not put
+untrusted values inside double quotes in shell source.
+
 ```bash
 # Runs under bash even when the host shell is zsh.
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Source context manager
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/context-manager.sh"
 
-USER_REQUEST="[The user's original feature request]"
+USER_REQUEST='[Original user feature request]'
 
 # Extract user answers from AskUserQuestion results
-user_flow="[Answer from question 1]"
-approach="[Answer from question 2]"
-out_of_scope="[Answer from question 3]"
+user_flow='[Answer from question 1]'
+approach='[Answer from question 2]'
+out_of_scope='[Answer from question 3]'
 
 # Create context file with user vision
 create_templated_context \
