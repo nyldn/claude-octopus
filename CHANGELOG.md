@@ -14,6 +14,7 @@
 - Claude Code discovers native skill instructions while Codex loads its own
   adapted entries. Registered names, manual invocation and the starter pack
   remain available in both hosts.
+- Staged reviews stop for binary, submodule, empty or oversized input instead of reporting incomplete source coverage as a review.
 - Shipping lessons reject linked state paths, hard-linked lesson files and nonregular files before writing.
 
 - Branch completion dispatches the configured code-reviewer persona so its required review can start.

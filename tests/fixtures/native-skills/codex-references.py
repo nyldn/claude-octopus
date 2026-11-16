@@ -257,6 +257,9 @@ exec(sys.stdin.read())
             text = (ROOT / tree / 'skill-staged-review/SKILL.md').read_text()
             block = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
                          if 'REVIEW_OUTPUT_DIR=$(mktemp' in b)
+            admission = next(b for b in re.findall(r'```bash\n(.*?)\n```', text, re.S)
+                             if 'PY_STAGED_DIFF' in b)
+            block = admission + '\n' + block
             with self.subTest(tree=tree), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 (root / 'scripts/lib').mkdir(parents=True)
@@ -283,8 +286,8 @@ exec(sys.stdin.read())
                 env.pop('DIFF_CONTENT', None)
                 subprocess.run(['git', 'init', '-q', '-b', 'main', temporary],
                                env=env, check=True)
-                cases = (('x' * 64000, 'fitting'), ('x' * 150000, 'bytes'),
-                         ('界' * 30000, 'bytes'), ('x' * 150000, 'local'), ('x' * 64000, 'context'))
+                cases = (('x' * 58000, 'fitting'), ('x' * 150000, 'bytes'),
+                         ('界' * 30000, 'bytes'), ('x' * 58000, 'local'), ('x' * 58000, 'context'))
                 for content, mode in cases:
                     with self.subTest(mode=mode, bytes=len(content.encode())):
                         capture = root / 'prompt'
@@ -298,7 +301,7 @@ exec(sys.stdin.read())
                                                 capture_output=True, text=True, timeout=5)
                         if mode == 'bytes':
                             self.assertNotEqual(result.returncode, 0, result.stderr)
-                            self.assertIn('Review incomplete: the full prompt exceeds', result.stderr)
+                            self.assertIn('Review incomplete:', result.stderr)
                             self.assertFalse(capture.exists(), 'oversized prompt dispatched')
                         elif mode == 'local':
                             self.assertEqual(result.returncode, 0, result.stderr)
