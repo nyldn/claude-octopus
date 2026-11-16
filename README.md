@@ -36,21 +36,14 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Workflows recover after compaction when progress is stored as a count. The
-restored context includes completed phases and blockers without failing the
-PostCompact hook.
+Brainstorm, debate and deck advisors keep the question you gave them instead of
+inheriting an implementation persona or an architecture-review format. Advisor
+tool policies default to read-only behavior. Provider permission overrides and
+Codex's configured sandbox still apply.
 
-Branch completion starts its configured reviewer and waits for a completed
-answer on the full committed text diff. Binary, submodule and oversized changes
-require a separate complete review before branch completion can continue.
-Staged reviews use one immutable snapshot and stop for empty, conflicted or
-incomplete source input. Later staging requires a fresh review.
-
-Shipping lessons require a regular file in a real project state directory.
-Linked state paths, hard-linked lessons and special files stop delivery before
-writing. Existing lessons and file permissions are preserved.
-Shipping archives also reject linked paths and special files, use private copies,
-and stop delivery if a required state copy fails. Quick shipping audits also reject binary bytes hidden by forced-text Git attributes.
+Shipping checkpoints name the exact clean revision that passed the audit.
+Changed source or a failed tag stops finalization. Rollback history stays in
+the repository confirmed by the preview and refuses hard-linked state files.
 
 See [review and recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery).
 

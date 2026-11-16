@@ -91,6 +91,18 @@ work before clearing those exclusions and reauditing. Finalization requires an
 exclusive worktree with other source writers stopped; concurrent source writes
 are unsupported. HEAD is checked again after the source-state checks.
 
+Rollback history requires the exact repository root retained from the confirmed
+preview, along with the target and safety checkpoint names. A later shell in
+another clone stops before writing, even when its tags match. History writes
+reject hard-linked state files so an external file sharing the inode remains
+unchanged.
+
+Brainstorm, debate and deck launch advisors with an explicit advisor role. Their
+briefs keep their own format instead of inheriting implementer or architecture
+instructions. Direct spawn callers can select this role with
+`OCTOPUS_SPAWN_ROLE=advisor`; other nonempty values are rejected. Provider
+permission overrides and the configured Codex sandbox remain in effect.
+
 ## Host-native by default
 
 Routine architecture, TDD, and debugging run on the current host with no extra

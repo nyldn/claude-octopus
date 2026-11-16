@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- Direct spawn callers can select `OCTOPUS_SPAWN_ROLE=advisor` to keep the
+  advisor brief and read/search tool policy without implementer or architecture
+  persona injection. Other nonempty values are rejected. ([#1353](https://github.com/nyldn/claude-octopus/pull/1353))
+
 ### Fixed
 
 - Rollback history verifies the confirmed repository before appending, so a
