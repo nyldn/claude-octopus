@@ -10,6 +10,7 @@ if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_CONTROLS'
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -28,7 +29,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      'gitlink added', 'gitlink removed', 'gitlink updated',
                      'oversized', 'transport marker', 'external diff', 'textconv',
                      'relative config', 'shadow stdlib', 'unstaged excluded',
-                     'forced text hidden NUL', 'forced text trailing NUL'):
+                     'forced text hidden NUL', 'forced text trailing NUL', 'unmerged', 'index race'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             project = Path(temporary)
             environment = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
@@ -102,19 +103,46 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 git('config', 'diff.relative', 'true')
                 cwd = project / 'subdir'
                 cwd.mkdir()
-            before = git('write-tree')
+            if scenario == 'unmerged':
+                old = git('rev-parse', 'HEAD:change.txt')
+                new = git('rev-parse', ':change.txt')
+                git('update-index', '--force-remove', 'change.txt')
+                records = f'100644 {old} 1\tchange.txt\n100644 {new} 2\tchange.txt\n100644 {old} 3\tchange.txt\n'
+                subprocess.run(['git', 'update-index', '--index-info'], input=records, text=True,
+                               cwd=project, env=environment, check=True)
+            before = git('ls-files', '--stage', '-z')
+            expected = subprocess.check_output(['git', 'diff', '--cached', '--no-ext-diff',
+                '--no-textconv', '--no-renames', '--no-relative', '--ignore-submodules=none',
+                '--no-color', '--binary', '--'], cwd=project, env=environment, text=True).rstrip('\n')
+            call_environment = dict(environment, CAPTURE=str(project / '.git/prompt'))
+            expected_index = before
+            if scenario == 'index race':
+                binary_dir = project / '.git/bin'
+                binary_dir.mkdir()
+                wrapper = binary_dir / 'git'
+                wrapper.write_text('#!' + sys.executable + '\nimport os, subprocess, sys\n'
+                    'real = os.environ["REAL_GIT"]\n'
+                    'result = subprocess.run([real, *sys.argv[1:]])\n'
+                    'if sys.argv[1] == "diff" and "--raw" in sys.argv:\n'
+                    '    subprocess.run([real, "update-index", "--add", "--cacheinfo", "160000," + os.environ["RACE_HEAD"] + ",nested"], check=True)\n'
+                    'sys.exit(result.returncode)\n')
+                wrapper.chmod(0o755)
+                race_head = git('rev-parse', 'HEAD')
+                call_environment.update(PATH=str(binary_dir) + ':' + environment['PATH'],
+                                        REAL_GIT=shutil.which('git'), RACE_HEAD=race_head)
+                expected_index += f'160000 {race_head} 0\tnested\0'
             result = subprocess.run(['bash', '-c', recipe + '\nprintf "%s" "$DIFF_CONTENT" > "$CAPTURE"'],
-                                    cwd=cwd, env=dict(environment, CAPTURE=str(project / '.git/prompt')),
+                                    cwd=cwd, env=call_environment,
                                     capture_output=True, text=True, timeout=5)
             blocked = scenario.startswith(('binary', 'gitlink')) or scenario in (
                 'empty', 'forced text binary', 'oversized', 'transport marker',
-                'forced text hidden NUL', 'forced text trailing NUL')
+                'forced text hidden NUL', 'forced text trailing NUL', 'unmerged')
             capture = project / '.git/prompt'
             valid = ((result.returncode != 0) == blocked and
                      capture.exists() != blocked and not (project / 'executed').exists() and
-                     git('write-tree') == before)
+                     git('ls-files', '--stage', '-z') == expected_index)
             if not blocked and capture.exists():
-                valid = valid and '+STAGED_REVIEW_MARKER' in capture.read_text()
+                valid = valid and capture.read_text() == expected
                 valid = valid and 'UNSTAGED_MUST_NOT_BE_REVIEWED' not in capture.read_text()
             if not valid:
                 failures.append(f'{tree}: {scenario}: exit={result.returncode} {result.stderr}')

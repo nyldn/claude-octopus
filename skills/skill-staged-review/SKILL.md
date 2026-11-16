@@ -181,12 +181,26 @@ import re
 import subprocess
 import sys
 
-command = ['git', 'diff', '--cached', '--no-ext-diff', '--no-textconv',
+# write-tree refuses unresolved index entries and freezes the admitted index.
+staged = subprocess.check_output(['git', 'write-tree']).decode().strip()
+head = subprocess.run(['git', 'rev-parse', '--verify', '--quiet', 'HEAD^{tree}'],
+                      capture_output=True, text=True)
+if head.returncode == 0:
+    base = head.stdout.strip()
+else:
+    # Only a confirmed unborn branch may use an empty baseline. Other HEAD
+    # discovery errors must stop rather than silently changing the review range.
+    branch = subprocess.check_output(['git', 'symbolic-ref', '--quiet', 'HEAD']).decode().strip()
+    if subprocess.run(['git', 'show-ref', '--verify', '--quiet', branch]).returncode != 1:
+        sys.exit('Review incomplete: cannot resolve the staged review baseline.')
+    base = subprocess.check_output(['git', 'hash-object', '-w', '-t', 'tree', '--stdin'],
+                                   input=b'').decode().strip()
+command = ['git', 'diff', '--no-ext-diff', '--no-textconv',
            '--no-renames', '--no-relative', '--ignore-submodules=none', '--no-color']
-numstat = subprocess.check_output(command + ['--numstat', '--'])
+numstat = subprocess.check_output(command + ['--numstat', base, staged, '--'])
 if any(line.split(b'\t', 2)[:2] == [b'-', b'-'] for line in numstat.splitlines()):
     sys.exit('Review incomplete: staged binary content needs separate complete review.')
-raw = subprocess.check_output(command + ['--raw', '--no-abbrev', '-z', '--'])
+raw = subprocess.check_output(command + ['--raw', '--no-abbrev', '-z', base, staged, '--'])
 blobs = set()
 for header in raw.split(b'\0')[::2]:
     if not header:
@@ -206,7 +220,7 @@ for oid in sorted(blobs):
                 sys.exit('Review incomplete: a changed blob contains NUL bytes and needs separate complete review.')
         if blob.wait() != 0:
             sys.exit('Review incomplete: could not read a changed blob.')
-diff = subprocess.check_output(command + ['--binary', '--'])
+diff = subprocess.check_output(command + ['--binary', base, staged, '--'])
 if re.search(rb'(?m)^GIT binary patch$', diff) or b'\0' in diff:
     sys.exit('Review incomplete: staged nontext content needs separate complete review.')
 if re.search(rb'\[\[OCTOPUS_TRUSTED_JSON_CONTRACT_(?:BEGIN|END):[0-9a-fA-F]{32}\]\]', diff):
@@ -215,6 +229,7 @@ if not diff:
     sys.exit('Review incomplete: no staged changes. Select the intended review range explicitly.')
 if len(diff) > 60000:
     sys.exit('Review incomplete: staged input exceeds the 60000-byte quick-review limit. Arrange complete file-based review.')
+print(f'Review snapshot: base tree {base}, staged tree {staged}', file=sys.stderr)
 sys.stdout.buffer.write(diff)
 PY_STAGED_DIFF
 ) || exit 1
@@ -223,7 +238,8 @@ PY_STAGED_DIFF
 If this admission step fails, stop before provider dispatch or a clean-review
 claim. Binary and submodule changes require a separate complete content review;
 their Git notices and object IDs do not establish source coverage. Keep the
-entire admitted text in the prompt, including its final lines.
+entire admitted text in the prompt, including its final lines. Review covers
+the printed immutable staged snapshot; later staging requires a fresh review.
 
 **If external providers are available — dispatch focused reviews through Octopus routing:**
 ```bash
