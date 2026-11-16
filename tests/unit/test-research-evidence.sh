@@ -298,7 +298,8 @@ for skill_file in "$TEST_TMP_DIR/discover-contract.md"; do
        || "$skill_content" != *'RUN_NONCE="$(od -An -N16 -tx1 /dev/urandom | tr -d '\''[:space:]'\'')"'* \
        || "$skill_content" != *'RUN_ID="flow-${RUN_TIMESTAMP}-${RUN_NONCE}"'* \
        || "$skill_content" != *'probe-${RUN_TIMESTAMP}-${RUN_NONCE}-<index>'* \
-       || "$skill_content" != *"--research-run '<run_id>'"* \
+       || "$skill_content" != *'--research-run <run_id>'* \
+       || "$skill_content" == *"--research-run '<run_id>'"* \
        || "$skill_content" == *"RUN_ID='<run_id>'"* \
        || "$skill_content" != *'probe-synthesis-${RUN_ID}.md'* \
        || "$skill_gate_block" != *'"$RUN_ID" "$SYNTHESIS_FILE"'* \
