@@ -36,53 +36,20 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-OpenCode 2.x dispatch uses its supported private-server mode and recognizes saved
-SQLite and environment logins. Existing OpenCode 1.x protection remains available.
-OpenCode 2.x is still unavailable in bounded Tangle runs. See
-[OpenCode compatibility](docs/PROVIDERS.md#opencode-cli-generations).
+Parallel workers start from one frozen commit, so a base-branch update cannot
+change their baseline between launches or waves. Retries retain commits already
+made on each worker's branch.
 
-Council reviews verify source quotations more accurately and keep waiting for
-the current round when an earlier one has already finished. Interrupted Council
-launches retain cancellation results for every started seat. Antigravity can retry
-a configured Gemini model after a capacity error, with the answering model recorded.
-See [Council](docs/COUNCIL.md) and
-[Antigravity fallback configuration](config/providers/agy/CLAUDE.md).
+Dependent waves stop after failed prerequisites, invalid exit status or timeouts.
+Result summaries require a completion marker before counting a successful worker.
+Timeouts retain workers and their evidence for inspection and recovery. Cleanup
+also retains worktrees whose Git index flags can hide local edits or deletions.
 
-Quick tasks commit only their selected files and preserve unrelated staged work.
-Resuming a task queue starts an unblocked task, and reports when every pending
-task is waiting on dependencies.
-Checkpoint rollback checks for unsaved changes before restoring the complete
-tracked checkpoint, keeps current lessons, and records the exact recovery tags.
-Confirmation is tied to the previewed repository, branch, revision and checkpoint;
-changing context requires another preview.
-Changed submodules require manual restoration, and rollback stops before changing
-ordinary files or the index.
-Sparse checkout, skip-worktree or assume-unchanged flags outside lessons, linked `.octo`
-directories, and linked lessons files also stop restoration before changing files.
-Research verifies the report produced by its current invocation. Provider quota
-and authentication failures update their original seat instead of leaving a
-stale running entry. Debate state keeps quoted and multiline questions readable
-when saved as JSON. Parallel summaries restore the package count before reading
-worker results, including when aggregation resumes in a fresh shell. Linux review
-previews and advisory copies also work beneath search-only directories.
-Advisory workers clear inherited and temporary Git repository settings before
-running, keeping their Git writes inside the disposable advisory copy.
-
-Shipping audits bind their review to the confirmed committed source range and
-stop when source changes, required review fails, or evidence is incomplete.
-Changed submodules and files Git classifies as binary require a separate complete
-source review before shipping.
-Freeze enforcement retains Codex session identity across later hook processes.
-
-Factory requires visible scenarios and independent holdout evidence before
-implementation. Failed implementation, evaluation or evidence writes stop the
-run, and final scoring preserves the validated holdout result.
-Satisfaction scoring requires valid values for every dimension and clears the
-previous score before retrying, so incomplete evaluation cannot report completion.
-
-External URL checks reject ambiguous authorities that could reach loopback
-services, including userinfo and bracketed IPv6 forms. This fixes authority
-parsing; DNS rebinding and redirect validation remain outside this change.
+API cost estimates apply long-context tariffs consistently across reservations,
+usage reports and standalone metrics. Qualified model IDs retain catalog rates,
+and provider billing overrides take precedence. Subscription allowances,
+cached-token tariffs and gateway billing require their own evidence. See
+[API cost estimates](docs/MODEL-ROUTING-STRATEGY.md#api-cost-estimates).
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.24.0 — Preserve local work, validate workflow evidence and support OpenCode 2.x.**
