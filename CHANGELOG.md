@@ -9,6 +9,8 @@
   reader so canonical status takes precedence over legacy and historical fields.
   Atomic replacements preserve access ACLs and extended attributes, and stop
   before publication if that metadata cannot be retained.
+- Rollback history verifies the confirmed repository before appending, so a
+  later shell in another clone cannot record recovery in the wrong project.
 - Rollback history refuses hard-linked state files before appending, protecting
   files outside the project that share the same inode.
 - Shipping checkpoints stop when the source has changed since its audit and
