@@ -491,6 +491,7 @@ rc=0
 block_out="$(STUB_ALLOWED_PROVIDERS='codex claude' in_stub_env \
     bash -c "$(team_block "$PROJECT_ROOT/commands/brainstorm.md")" 2>"$TEST_TMP_DIR/team.err")" || rc=$?
 if [[ "$rc" -eq 0 ]] &&
+   grep -qx 'HOST_CLAUDE_ALLOWED=true' <<< "$block_out" &&
    grep -qx 'SUCCESSFUL_EXTERNAL_ADVISORS=1' <<< "$block_out" &&
    grep -Fqx 'STUB CODEX ANSWER 4242' <<< "$block_out" &&
    grep -Fqx 'final answer line' <<< "$block_out"; then
@@ -508,6 +509,7 @@ if command -v zsh >/dev/null 2>&1; then
     block_out="$(STUB_ALLOWED_PROVIDERS='codex claude' in_stub_env \
         zsh -fc "$(team_block "$PROJECT_ROOT/commands/brainstorm.md")" 2>"$TEST_TMP_DIR/team-zsh.err")" || rc=$?
     if [[ "$rc" -eq 0 ]] &&
+       grep -qx 'HOST_CLAUDE_ALLOWED=true' <<< "$block_out" &&
        grep -qx 'SUCCESSFUL_EXTERNAL_ADVISORS=1' <<< "$block_out" &&
        grep -Fqx 'STUB CODEX ANSWER 4242' <<< "$block_out" &&
        grep -Fqx 'final answer line' <<< "$block_out"; then

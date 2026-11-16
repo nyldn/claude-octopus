@@ -373,8 +373,10 @@ AskUserQuestion({
 ### Step 3: Parse Arguments & Build Debate Fleet
 
 The blocks that load `consultative-advisors.sh` run under bash even when the host
-shell is zsh, where each one runs as a separate bash process. Set any value an
-earlier block printed at the top of the block that uses it.
+shell is zsh, where each one runs as a separate bash process. No block sees the
+variables an earlier block set, so set each block's inputs first: inside the
+heredoc for a wrapped block, before the block otherwise. Take them from the
+user's request and from the values earlier blocks print.
 
 ```bash
 # Runs under bash even when the host shell is zsh.
@@ -461,6 +463,7 @@ with Path(path).open('w', encoding='utf-8') as stream:
     json.dump(state, stream, ensure_ascii=False, indent=2)
     stream.write('\n')
 PY_DEBATE_STATE
+printf 'DEBATE_DIR=%s\n' "$DEBATE_DIR"
 ```
 
 ### Step 5: Conduct Rounds
@@ -476,6 +479,12 @@ An advisor that fails leaves no file:
 ```bash
 # Runs under bash even when the host shell is zsh.
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+QUESTION="[QUESTION from Step 3]"
+CONTEXT="[Clarifying context from Step 2]"
+MAX_WORDS="[--max-words value, default 300]"
+DEBATE_DIR="[DEBATE_DIR printed by Step 4]"
+ADVISORS="[ADVISORS printed by Step 3]"
+REQUIRED_EXTERNAL_ADVISORS="[REQUIRED_EXTERNAL_ADVISORS printed by Step 3]"
 ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 DEBATE_PROMPT="You are {{advisor}} participating in debate round 1.
@@ -520,11 +529,14 @@ Cover: implementation feasibility, hidden gotchas, concrete effort estimates, an
 )
 ```
 
-After all allowed advisors finish, enforce the two-provider minimum:
+After all allowed advisors finish, enforce the two-provider minimum. Fill in the
+block's first two lines:
 
 ```bash
 # Runs under bash even when the host shell is zsh.
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+SUCCESSFUL_EXTERNAL_ADVISORS="[SUCCESSFUL_EXTERNAL_ADVISORS printed by the round's launch block]"
+HOST_ADVISOR_SUCCESS="[1 if the allowed Sonnet task completed with usable output, else 0]"
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
     "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then

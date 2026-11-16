@@ -101,13 +101,36 @@ for pattern in ('commands/*.md', 'skills/*/SKILL.md', '.claude/skills/*/SKILL.md
                 '.cursor-plugin/commands/*.md'):
     documents.extend(sorted(root.glob(pattern)))
 
+nested_heredoc_re = re.compile(r"<<-?'([A-Za-z_][A-Za-z0-9_]*)'\n.*?\n\1\n", re.S)
+reference_re = re.compile(r'\$\{?([A-Za-z_][A-Za-z0-9_]*)')
+assigned_re = re.compile(r'(?:^|[\s;!(])([A-Za-z_][A-Za-z0-9_]*)=')
+loop_re = re.compile(r'\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\b')
+read_re = re.compile(r'\bread((?:\s+[^\s;|<>]+)+)')
+environment = {'HOME', 'TMPDIR', 'PATH'}
+environment_prefixes = ('CLAUDE_', 'CODEX_', 'OCTOPUS_', 'OCTO_')
+
+
+def unset_inputs(block):
+    body = block.split(wrapper, 1)[1].rsplit('OCTO_BASH', 1)[0]
+    body = nested_heredoc_re.sub('\n', body)
+    assigned = set(assigned_re.findall(body)) | set(loop_re.findall(body))
+    for names in read_re.findall(body):
+        assigned |= {name for name in names.split()
+                     if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name)}
+    return sorted(name for name in set(reference_re.findall(body)) - assigned
+                  if name not in environment and not name.startswith(environment_prefixes))
+
+
 problems = []
 checked = 0
 for document in documents:
     lines = document.read_text().split('\n')
     i = 0
+    prose_start = 0
     while i < len(lines):
         if not re.match(r'^\s*```bash\s*$', lines[i]):
+            if re.match(r'^\s*```', lines[i]):
+                prose_start = i + 1
             i += 1
             continue
         start = i
@@ -115,31 +138,52 @@ for document in documents:
         while j < len(lines) and not re.match(r'^\s*```\s*$', lines[j]):
             j += 1
         block = textwrap.dedent('\n'.join(lines[start + 1:j]))
+        prose = '\n'.join(lines[prose_start:start])
         i = j + 1
+        prose_start = i
+        where = f'{document.relative_to(root)}:{start + 1}'
+        code = [line for line in block.split('\n')
+                if line.strip() and not line.lstrip().startswith('#')]
+        wrapped = bool(code) and code[0] == wrapper and code[-1] == 'OCTO_BASH'
+        if wrapped:
+            missing = [name for name in unset_inputs(block)
+                       if 'Export' not in prose or f'`{name}`' not in prose]
+            if missing:
+                problems.append(f'input: {where}: uses {", ".join(missing)} without setting it '
+                                'inside the heredoc or naming it for export before the block')
         sourced = sourced_libs(block)
         called = set(call_re.findall(block)) if call_re else set()
         if not sourced and not called:
             continue
         checked += 1
-        where = f'{document.relative_to(root)}:{start + 1}'
-        code = [line for line in block.split('\n')
-                if line.strip() and not line.lstrip().startswith('#')]
-        if not code or code[0] != wrapper or code[-1] != 'OCTO_BASH':
-            problems.append(f'{where}: not wrapped to run under bash')
+        if not wrapped:
+            problems.append(f'wrap: {where}: not wrapped to run under bash')
         unsourced = sorted({functions[name] for name in called} - sourced)
         if unsourced:
-            problems.append(f'{where}: calls functions from {", ".join(unsourced)} without sourcing it')
+            problems.append(f'wrap: {where}: calls functions from {", ".join(unsourced)} without sourcing it')
 
 if checked < 9:
-    problems.append(f'only {checked} blocks load a bash-only library; the scan is not finding them')
+    problems.append(f'wrap: only {checked} blocks load a bash-only library; the scan is not finding them')
 print('\n'.join(problems))
 CHECK
 rc=0
 report="$(python3 "$TEST_TMP_DIR/scan-blocks.py" "$PROJECT_ROOT" ${BASH_ONLY_LIBS[@]+"${BASH_ONLY_LIBS[@]}"})" || rc=$?
-if [[ "$rc" -eq 0 && -z "$report" ]]; then
+wrap_report="$(grep '^wrap: ' <<< "$report" || true)"
+if [[ "$rc" -eq 0 && -z "$wrap_report" ]]; then
     test_pass
 else
-    test_fail "rc=$rc $(printf '%s' "$report" | tr '\n' '|')"
+    test_fail "rc=$rc $(printf '%s' "$wrap_report" | tr '\n' '|')"
+fi
+
+# Under zsh a wrapped block is a separate bash process, which sees only exported
+# variables, and no host shell keeps variables between tool calls. A value set
+# outside the heredoc, or by an earlier block, is empty inside it.
+test_case "every wrapped block sets its inputs inside the heredoc or names them for export"
+input_report="$(grep '^input: ' <<< "$report" || true)"
+if [[ "$rc" -eq 0 && -z "$input_report" ]]; then
+    test_pass
+else
+    test_fail "rc=$rc $(printf '%s' "$input_report" | tr '\n' '|')"
 fi
 
 # A heredoc inside $( ... ) is re-parsed by bash 3.2 (macOS /bin/bash), which

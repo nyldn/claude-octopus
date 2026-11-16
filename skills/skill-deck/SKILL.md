@@ -303,8 +303,8 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    `SEAT_DIR` to its fresh writable artifact directory, and `SEAT_WAIT_SECONDS`
    to the approved deadline. The launcher's six arguments include the output
    prefix and the required success count; a single-seat collection requires 1.
-   Set these values at the top of the recipe: under a zsh host shell it runs as
-   a separate bash process.
+   Export these values before the recipe: under a zsh host shell it runs as a
+   separate bash process, which sees only exported variables.
 
    <!-- deck-seat-collection:start -->
    ```bash

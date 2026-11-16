@@ -162,6 +162,7 @@ HOST_ADVISOR_SUCCESS=0
 if octo_consultative_host_allowed; then
   HOST_CLAUDE_ALLOWED=true
 fi
+printf 'HOST_CLAUDE_ALLOWED=%s\n' "$HOST_CLAUDE_ALLOWED"
 REQUIRED_EXTERNAL_ADVISORS=$(octo_consultative_required_external_count)
 if ! ADVISORS=$("$ADVISOR_SELECTOR" research standard "$TOPIC"); then
   echo "No eligible external brainstorm advisors are available." >&2
@@ -190,10 +191,11 @@ done
 OCTO_BASH
 ```
 
-**Claude Agent**: Launch this advisor only when `HOST_CLAUDE_ALLOWED=true`. If
-Claude is disallowed, do not invoke the Agent tool. Set `HOST_ADVISOR_SUCCESS=1`
-only after the allowed host advisor completes with usable output; otherwise set
-it to `0`.
+**Claude Agent**: Launch this advisor only when the launch block printed
+`HOST_CLAUDE_ALLOWED=true`, which it prints before it waits for the external
+advisors. If Claude is disallowed, do not invoke the Agent tool. Set
+`HOST_ADVISOR_SUCCESS=1` only after the allowed host advisor completes with
+usable output; otherwise set it to `0`.
 
 ```text
 Think creatively about: [TOPIC]
@@ -208,13 +210,14 @@ Your role: Pattern spotter and paradox hunter.
 Be specific and creative. Avoid generic advice.
 ```
 
-After all allowed advisors finish, enforce the two-provider minimum. Under a zsh
-host shell the block runs in a separate bash, so set `SUCCESSFUL_EXTERNAL_ADVISORS`
-(printed by the launch block) and `HOST_ADVISOR_SUCCESS` at its top:
+After all allowed advisors finish, enforce the two-provider minimum. The block
+starts with no variables from earlier blocks, so fill in its first two lines:
 
 ```bash
 # Runs under bash even when the host shell is zsh.
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+SUCCESSFUL_EXTERNAL_ADVISORS="[SUCCESSFUL_EXTERNAL_ADVISORS printed by the launch block]"
+HOST_ADVISOR_SUCCESS="[1 if the host advisor completed with usable output, else 0]"
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
     "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then

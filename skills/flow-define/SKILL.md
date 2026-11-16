@@ -235,6 +235,8 @@ if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'
 # Source context manager
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/context-manager.sh"
 
+USER_REQUEST="[The user's original feature request]"
+
 # Extract user answers from AskUserQuestion results
 user_flow="[Answer from question 1]"
 approach="[Answer from question 2]"

@@ -8,6 +8,8 @@
   recipe and define run their shell blocks under bash when the host shell is zsh,
   as Claude Code's Bash tool is on macOS. The bash-only libraries they load now
   stop with that fix instead of reporting the advisor allowlist as unavailable.
+  Those blocks set their inputs inside the bash block or name them for export,
+  and print what later steps need, including whether host Claude may join.
 
 ## [11.24.2] - 2026-11-16
 
