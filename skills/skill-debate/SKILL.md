@@ -352,18 +352,20 @@ AskUserQuestion({
 
 The blocks that load `consultative-advisors.sh` run under bash even when the host
 shell is zsh, where each one runs as a separate bash process. No block sees the
-variables an earlier block set, so set each block's inputs first: inside the
-heredoc for a wrapped block, before the block otherwise. Take them from the
-user's request and from the values earlier blocks print. Insert every carried
+variables an earlier block set, so set each block's inputs first: before the
+heredoc as exported assignments for a wrapped block, before the block otherwise.
+Take them from the user's request and from the values earlier blocks print. Insert every carried
 value as a single-quoted shell literal, escaping each embedded single quote as
 `'\''`, or generate the complete value with Python's `shlex.quote`. This keeps
 quotes, dollar signs, backticks and newlines literal instead of executing them.
+Keep user values outside the fixed heredoc, so a request line equal to
+`OCTO_BASH` cannot terminate it.
 
 ```bash
 # Runs under bash even when the host shell is zsh.
+export QUESTION='Should we use Redis or in-memory cache?'
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Extract question and flags
-QUESTION='Should we use Redis or in-memory cache?'
 ROUNDS=3
 STYLE="thorough"
 
@@ -459,13 +461,13 @@ An advisor that fails leaves no file:
 
 ```bash
 # Runs under bash even when the host shell is zsh.
+export QUESTION='[QUESTION from Step 3]'
+export CONTEXT='[Clarifying context from Step 2]'
+export MAX_WORDS='[--max-words value, default 300]'
+export DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
+export ADVISORS='[ADVISORS printed by Step 3]'
+export REQUIRED_EXTERNAL_ADVISORS='[REQUIRED_EXTERNAL_ADVISORS printed by Step 3]'
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
-QUESTION='[QUESTION from Step 3]'
-CONTEXT='[Clarifying context from Step 2]'
-MAX_WORDS='[--max-words value, default 300]'
-DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
-ADVISORS='[ADVISORS printed by Step 3]'
-REQUIRED_EXTERNAL_ADVISORS='[REQUIRED_EXTERNAL_ADVISORS printed by Step 3]'
 ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 DEBATE_PROMPT="You are {{advisor}} participating in debate round 1.
@@ -511,13 +513,13 @@ Cover: implementation feasibility, hidden gotchas, concrete effort estimates, an
 ```
 
 After all allowed advisors finish, enforce the two-provider minimum. Fill in the
-block's first two lines:
+block's export lines:
 
 ```bash
 # Runs under bash even when the host shell is zsh.
+export SUCCESSFUL_EXTERNAL_ADVISORS='[SUCCESSFUL_EXTERNAL_ADVISORS printed by the round'"'"'s launch block]'
+export HOST_ADVISOR_SUCCESS='[1 if the allowed Sonnet task completed with usable output, else 0]'
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
-SUCCESSFUL_EXTERNAL_ADVISORS='[SUCCESSFUL_EXTERNAL_ADVISORS printed by the round'"'"'s launch block]'
-HOST_ADVISOR_SUCCESS='[1 if the allowed Sonnet task completed with usable output, else 0]'
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
     "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then

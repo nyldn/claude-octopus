@@ -8,10 +8,9 @@
   recipe and define run their shell blocks under bash when the host shell is zsh,
   as Claude Code's Bash tool is on macOS. The bash-only libraries they load now
   stop with that fix instead of reporting the advisor allowlist as unavailable.
-  Those blocks set their inputs inside the bash block or name them for export,
-  and print what later steps need, including whether host Claude may join.
-  Request text and carried values use shell literals to avoid expansion during
-  those handoffs.
+  Those blocks export literal inputs before the heredoc and print what later
+  steps need, including whether host Claude may join. Request text cannot expand
+  as shell code or terminate the fixed heredoc.
 - Rollback history refuses hard-linked state files before appending, protecting
   files outside the project that share the same inode.
 - Shipping checkpoints stop when the source has changed since its audit and

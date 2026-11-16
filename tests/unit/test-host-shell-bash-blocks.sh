@@ -114,6 +114,7 @@ def unset_inputs(block):
     body = block.split(wrapper, 1)[1].rsplit('OCTO_BASH', 1)[0]
     body = nested_heredoc_re.sub('\n', body)
     assigned = set(assigned_re.findall(body)) | set(loop_re.findall(body))
+    assigned |= set(re.findall(r'(?m)^export ([A-Za-z_][A-Za-z0-9_]*)=', block.split(wrapper, 1)[0]))
     for names in read_re.findall(body):
         assigned |= {name for name in names.split()
                      if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name)}
@@ -144,7 +145,12 @@ for document in documents:
         where = f'{document.relative_to(root)}:{start + 1}'
         code = [line for line in block.split('\n')
                 if line.strip() and not line.lstrip().startswith('#')]
-        wrapped = bool(code) and code[0] == wrapper and code[-1] == 'OCTO_BASH'
+        prefix = block.split(wrapper, 1)[0] if wrapper in block else ''
+        prefix_code = [line for line in prefix.splitlines()
+                       if line.strip() and not line.lstrip().startswith('#')]
+        wrapped = (wrapper in code and code[-1] == 'OCTO_BASH'
+                   and all(re.match(r'^export [A-Za-z_][A-Za-z0-9_]*=', line)
+                           for line in prefix_code))
         if wrapped:
             missing = [name for name in unset_inputs(block)
                        if 'Export' not in prose or f'`{name}`' not in prose]
@@ -256,7 +262,10 @@ import sys
 root, scratch = map(pathlib.Path, sys.argv[1:])
 marker = scratch / 'unexpected-expansion'
 payload = f'''a 'single' and "double" quote; $HOME $(touch {marker}) `touch {marker}`
+OCTO_BASH
+touch {marker}
 second line \\ final'''
+wrapper = 'if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<\'OCTO_BASH\''
 targets = {
     '.claude/skills/flow-define/SKILL.md': ['USER_REQUEST', 'user_flow', 'approach', 'out_of_scope'],
     '.claude/skills/skill-debate/SKILL.md': ['QUESTION', 'CONTEXT', 'MAX_WORDS', 'DEBATE_DIR', 'ADVISORS', 'REQUIRED_EXTERNAL_ADVISORS', 'SUCCESSFUL_EXTERNAL_ADVISORS', 'HOST_ADVISOR_SUCCESS'],
@@ -269,7 +278,7 @@ targets['.cursor-plugin/commands/octo-brainstorm.md'] = targets['commands/brains
 for source, names in targets.items():
     text = (root / source).read_text()
     for name in names:
-        assignments = re.findall(rf'(?m)^{name}=(.*)$', text)
+        assignments = re.findall(rf'(?m)^(?:export )?{name}=(.*)$', text)
         literals = [value for value in assignments if value.startswith(('"[', "'[")) or 'Should we use Redis' in value]
         assert literals, (source, name, 'missing input assignment')
         for literal in literals:
@@ -277,10 +286,33 @@ for source, names in targets.items():
             # recipe's existing quote delimiters. The old double quotes execute
             # command substitutions; single quotes preserve every byte.
             quoted = shlex.quote(payload)
-            assignment = name + '=' + literal[0] + quoted[1:-1] + literal[-1]
-            result = subprocess.run(['bash', '-c', assignment + '\nprintf %s "$' + name + '"'], capture_output=True, text=True)
+            assignment = 'export ' + name + '=' + literal[0] + quoted[1:-1] + literal[-1]
+            # Execute the complete production wrapper. Its input assignment must
+            # precede the heredoc, not become part of its shell source.
+            blocks = re.findall(r'```bash\n(.*?)\n```', text, re.S)
+            block = next(block for block in blocks if f'{name}={literal}' in block)
+            prefix, body = block.split(wrapper, 1)
+            assert f'export {name}={literal}' in prefix, (source, name, 'input inside heredoc')
+            program = assignment + '\n' + wrapper + '\nprintf %s "$' + name + '"\nOCTO_BASH\n'
+            result = subprocess.run(['bash', '-c', program], capture_output=True, text=True)
             assert result.returncode == 0 and result.stdout == payload, (source, name, result.stderr, result.stdout)
             assert not marker.exists(), (source, name, 'executed input')
+# Also execute the entire Define recipe against an inert context manager.
+plugin = scratch / 'literal-plugin'
+(plugin / 'scripts').mkdir(parents=True)
+(plugin / 'scripts/context-manager.sh').write_text(
+    'create_templated_context() { printf %s "$USER_REQUEST" > "$OCTO_LITERAL_CAPTURE"; }\n')
+text = (root / '.claude/skills/flow-define/SKILL.md').read_text()
+block = next(block for block in re.findall(r'```bash\n(.*?)\n```', text, re.S)
+             if 'USER_REQUEST=' in block)
+block = re.sub(r'(?m)^((?:export )?USER_REQUEST=).*$',
+               lambda match: match[1] + shlex.quote(payload), block)
+import os
+capture = scratch / 'literal-request'
+environment = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(plugin), OCTO_LITERAL_CAPTURE=str(capture))
+result = subprocess.run(['bash', '-c', block], env=environment, capture_output=True, text=True)
+assert result.returncode == 0 and capture.read_text() == payload, (result.returncode, result.stderr)
+assert not marker.exists(), 'heredoc collision executed a host command'
 PY_LITERAL
 then
     test_pass

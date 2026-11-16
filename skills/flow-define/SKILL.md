@@ -229,23 +229,21 @@ Use the debate synthesis to set the approach context for the Define phase.
 
 **After gathering answers, create context file:**
 
-Insert the request and answers as single-quoted shell literals. Escape every
-embedded single quote as `'\''`, or generate each complete value with Python's
+Export the request and answers before the heredoc as single-quoted shell
+literals. Escape every embedded single quote as `'\''`, or generate each complete value with Python's
 `shlex.quote`. Keep dollar signs, backticks and newlines literal. Do not put
-untrusted values inside double quotes in shell source.
+untrusted values inside double quotes in shell source. Keep user values outside
+the fixed heredoc so their lines cannot terminate it.
 
 ```bash
 # Runs under bash even when the host shell is zsh.
+export USER_REQUEST='[Original user feature request]'
+export user_flow='[Answer from question 1]'
+export approach='[Answer from question 2]'
+export out_of_scope='[Answer from question 3]'
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Source context manager
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/context-manager.sh"
-
-USER_REQUEST='[Original user feature request]'
-
-# Extract user answers from AskUserQuestion results
-user_flow='[Answer from question 1]'
-approach='[Answer from question 2]'
-out_of_scope='[Answer from question 3]'
 
 # Create context file with user vision
 create_templated_context \
