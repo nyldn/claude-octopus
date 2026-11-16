@@ -86,7 +86,10 @@ Shipping checkpoints require the repository and clean commit recorded by the
 completed audit. Later source changes require a fresh audit. The tag names that
 exact commit, and a tag failure stops finalization.
 Sparse checkout and index flags that can hide tracked edits also stop the
-checkpoint. Preserve local work before clearing those exclusions and reauditing.
+checkpoint, including hidden exclusions in initialized submodules. Preserve local
+work before clearing those exclusions and reauditing. Finalization requires an
+exclusive worktree with other source writers stopped; concurrent source writes
+are unsupported. HEAD is checked again after the source-state checks.
 
 ## Host-native by default
 

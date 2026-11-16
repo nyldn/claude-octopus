@@ -28,13 +28,15 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
         for scenario, nested in itertools.product(('clean', 'missing head', 'missing root', 'advanced head',
                          'unstaged', 'staged', 'untracked', 'wrong root', 'tag exists',
                          'assume modified', 'assume deleted', 'skip modified',
-                         'skip deleted', 'sparse config'), (False, True)):
+                         'skip deleted', 'sparse config', 'submodule clean', 'submodule hidden',
+                         'submodule nested hidden', 'submodule skip', 'submodule dirty',
+                         'concurrent commit'), (False, True)):
             with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                 physical = Path(temporary) / 'physical'
                 physical.mkdir()
                 alias = Path(temporary) / 'aliased-temp'
                 alias.symlink_to(physical, target_is_directory=True)
-                project = (alias / 'project').resolve()
+                project = alias / 'project'
                 project.mkdir()
                 env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
                 env.update(GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
@@ -51,8 +53,21 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 (project / 'source.txt').write_text('audited source\n')
                 git('add', '.')
                 git('commit', '-qm', 'audited revision')
+                if scenario.startswith('submodule '):
+                    child = Path(temporary) / 'child'
+                    child.mkdir()
+                    subprocess.run(['git', 'init', '-q', str(child)], env=env, check=True)
+                    (child / 'child.txt').write_text('audited child\n')
+                    subprocess.run(['git', '-C', str(child), 'add', '.'], env=env, check=True)
+                    subprocess.run(['git', '-C', str(child), 'commit', '-qm', 'child'], env=env, check=True)
+                    git('-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', str(child), 'sub')
+                    if scenario == 'submodule nested hidden':
+                        git('-C', 'sub', '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', str(child), 'nested')
+                        git('-C', 'sub', 'commit', '-qam', 'nested child')
+                    git('add', '.')
+                    git('commit', '-qm', 'audited submodules')
                 audited = git('rev-parse', 'HEAD')
-                env.update(AUDIT_HEAD=audited, AUDIT_REPO=str(project))
+                env.update(AUDIT_HEAD=audited, AUDIT_REPO=git('rev-parse', '--show-toplevel'))
                 (project / '.octo').mkdir()
                 (project / '.octo/STATE.md').write_text('status: delivery_pending\n')
                 if scenario == 'missing head':
@@ -81,6 +96,14 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     assert git('status', '--porcelain=v1') == ''
                 elif scenario == 'sparse config':
                     git('config', 'core.sparseCheckout', 'true')
+                if scenario.startswith('submodule ') and scenario != 'submodule clean':
+                    sub = 'sub/nested' if scenario == 'submodule nested hidden' else 'sub'
+                    if scenario != 'submodule dirty':
+                        flag = '--skip-worktree' if scenario == 'submodule skip' else '--assume-unchanged'
+                        git('-C', sub, 'update-index', flag, 'child.txt')
+                    (project / sub / 'child.txt').write_text('unaudited child\n')
+                    if scenario != 'submodule dirty':
+                        assert git('status', '--porcelain=v1', '--ignore-submodules=none') == ''
                 before_head = git('rev-parse', 'HEAD')
                 before_index = git('write-tree')
                 before_flags = git('ls-files', '-v')
@@ -91,12 +114,26 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 command = ['bash', '-eu' if strict else '-c']
                 if strict:
                     command.append('-c')
+                if scenario == 'concurrent commit':
+                    real_git = subprocess.check_output(['which', 'git'], text=True).strip()
+                    wrapper_dir = Path(temporary) / 'bin'
+                    wrapper_dir.mkdir()
+                    wrapper = wrapper_dir / 'git'
+                    wrapper.write_text('#!/usr/bin/env bash\n'
+                                       'if [[ "$*" == *"status --porcelain=v1"* && ! -e "$RACE_MARKER" ]]; then\n'
+                                       '  touch "$RACE_MARKER"\n'
+                                       '  "$CHECKPOINT_TEST_GIT" -C "$AUDIT_REPO" commit --allow-empty -qm concurrent || exit 1\n'
+                                       'fi\nexec "$CHECKPOINT_TEST_GIT" "$@"\n')
+                    wrapper.chmod(0o755)
+                    env.update(CHECKPOINT_TEST_GIT=real_git, RACE_MARKER=str(Path(temporary) / 'raced'),
+                               PATH=str(wrapper_dir) + os.pathsep + env['PATH'])
                 result = subprocess.run(command + [recipe + '\nprintf done > completed'],
                                         cwd=invocation_directory, env=env, capture_output=True, text=True, timeout=10)
-                accepted = scenario == 'clean'
+                accepted = scenario in ('clean', 'submodule clean')
                 valid = ((result.returncode == 0) == accepted
                          and (invocation_directory / 'completed').exists() == accepted
-                         and git('rev-parse', 'HEAD') == before_head
+                         and (git('rev-parse', 'HEAD') != before_head if scenario == 'concurrent commit'
+                              else git('rev-parse', 'HEAD') == before_head)
                          and git('write-tree') == before_index
                          and git('ls-files', '-v') == before_flags
                          and git('status', '--porcelain=v1') == before_status)

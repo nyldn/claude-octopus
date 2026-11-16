@@ -449,7 +449,9 @@ EOF
 Restore the exact `AUDIT_REPO` and `AUDIT_HEAD` retained from Phase 2. A later
 commit or uncommitted source requires a fresh audit before a shipped checkpoint.
 Ignored local delivery records are not included in a Git tag; report them
-separately. Stop finalization if checkpoint creation fails.
+separately. Stop finalization if checkpoint creation fails. Use an exclusive
+worktree for finalization, with other source writers stopped. Concurrent edits
+and commits during checkpoint creation are unsupported.
 
 ```bash
 # Bind the checkpoint to the source revision that actually passed the audit.
@@ -461,17 +463,39 @@ python3 -I - "$CHECKPOINT_REPO" <<'PY_CHECKPOINT_INDEX' || exit 1
 import subprocess
 import sys
 
-# Status can omit local edits hidden by these index flags or sparse checkout.
-sparse = subprocess.run(['git', '-C', sys.argv[1], 'config', '--bool', 'core.sparseCheckout'],
-                        capture_output=True)
-entries = subprocess.check_output(['git', '-C', sys.argv[1], 'ls-files', '-v', '-z']).split(b'\0')
-if sparse.returncode not in (0, 1) or sparse.stdout.strip() == b'true' or any(
-    entry[:1].upper() == b'S' or entry[:1].islower() for entry in entries
-):
-    sys.exit('Checkpoint pending: preserve local work and clear sparse, skip-worktree or assume-unchanged exclusions before auditing again.')
+# Check each initialized submodule too: parent status can hide child index flags.
+import os
+
+pending = [sys.argv[1]]
+seen = set()
+while pending:
+    root = pending.pop()
+    canonical = os.path.realpath(root)
+    if canonical in seen:
+        sys.exit('Checkpoint pending: repeated submodule worktree; inspect it before auditing again.')
+    seen.add(canonical)
+    sparse = subprocess.run(['git', '-C', root, 'config', '--bool', 'core.sparseCheckout'],
+                            capture_output=True)
+    entries = subprocess.check_output(['git', '-C', root, 'ls-files', '-v', '-z']).split(b'\0')
+    if sparse.returncode not in (0, 1) or sparse.stdout.strip() == b'true' or any(
+        entry[:1].upper() == b'S' or entry[:1].islower() for entry in entries
+    ):
+        sys.exit('Checkpoint pending: preserve local work and clear sparse, skip-worktree or assume-unchanged exclusions before auditing again.')
+    if subprocess.check_output(['git', '-C', root, 'status', '--porcelain=v1',
+                                '--untracked-files=all', '--ignore-submodules=none']):
+        sys.exit('Checkpoint pending: source or submodule changed; audit the current clean revision.')
+    staged = subprocess.check_output(['git', '-C', root, 'ls-files', '--stage', '-z'])
+    for entry in staged.split(b'\0'):
+        if not entry.startswith(b'160000 '):
+            continue
+        child = os.path.join(root, os.fsdecode(entry.split(b'\t', 1)[1]))
+        if os.path.exists(os.path.join(child, '.git')):
+            pending.append(child)
+
 PY_CHECKPOINT_INDEX
 CHECKPOINT_STATUS=$(git status --porcelain=v1 --untracked-files=all --ignore-submodules=none) || exit 1
-if [[ "$CHECKPOINT_REPO" != "$AUDIT_REPO" || "$CHECKPOINT_COMMIT" != "$AUDIT_HEAD" || -n "$CHECKPOINT_STATUS" ]]; then
+CHECKPOINT_FINAL_COMMIT=$(git rev-parse --verify HEAD^{commit}) || exit 1
+if [[ "$CHECKPOINT_FINAL_COMMIT" != "$CHECKPOINT_COMMIT" || "$CHECKPOINT_REPO" != "$AUDIT_REPO" || "$CHECKPOINT_COMMIT" != "$AUDIT_HEAD" || -n "$CHECKPOINT_STATUS" ]]; then
   echo "Checkpoint pending: source changed after the audit; audit the current clean revision." >&2
   exit 1
 fi
