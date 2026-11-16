@@ -108,6 +108,7 @@ pathlib.Path(os.environ["REVIEW_CAPTURE"] + ".done").touch()
             launcher = plugin / 'scripts/orchestrate.sh'
             launcher.write_text('#!/usr/bin/env python3\nimport json, os, subprocess, sys\n'
                                 'assert os.environ.get("OCTOPUS_OVERSIZE_STRATEGY") == "fail"\n'
+                                'subprocess.run(["bash", "-c", \'source "$1"; AGENTS_CONFIG="$2"; resolve_persona_spawn_target "$3" >/dev/null\', "fixture", os.environ["REVIEW_AGENTS"], os.environ["REVIEW_CONFIG"], sys.argv[2]], check=True)\n'
                                 'with open(os.environ["REVIEW_CAPTURE"], "w") as output:\n'
                                 '    json.dump(sys.argv[1:], output)\n'
                                 'if os.environ["REVIEW_SCENARIO"] == "head changed":\n'
@@ -148,7 +149,8 @@ pathlib.Path(os.environ["REVIEW_CAPTURE"] + ".done").touch()
                 cwd.mkdir()
             environment.update(CLAUDE_PLUGIN_ROOT=str(plugin), REVIEW_CAPTURE=str(capture),
                                REVIEW_DRIVER_MARKER=str(marker), REVIEW_SCENARIO=scenario,
-                               REVIEW_WORKER=str(worker), TMPDIR=temporary)
+                               REVIEW_WORKER=str(worker), REVIEW_AGENTS=str(root / "scripts/lib/agents.sh"),
+                               REVIEW_CONFIG=str(root / "agents/config.yaml"), TMPDIR=temporary)
             hook_marker = Path(temporary) / 'previous-hook-events'
             owned_hook = Path(temporary) / 'previous-hook.sh'
             owned_hook.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> "$REVIEW_HOOK_CAPTURE"\n')
