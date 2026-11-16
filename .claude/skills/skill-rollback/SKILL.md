@@ -325,6 +325,8 @@ safety checkpoint; do not claim that rollback completed.
 
 Restore `CHECKPOINT_TAG` to the exact target used by the successful Step 6
 restoration and `SAFETY_CHECKPOINT_TAG` to the exact name printed by Step 4.
+Restore `ROLLBACK_PREVIEW_ROOT` from the confirmed preview too. History must run
+in that repository; matching checkpoint tags in another clone are insufficient.
 Carry these literal values into this shell call even when earlier shell
 variables no longer exist. Do not reconstruct the safety tag from a new clock
 value or select a different tag by age. If either value is unavailable, report
@@ -334,6 +336,11 @@ before any append.
 
 ```bash
 ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
+: "${ROLLBACK_PREVIEW_ROOT:?Restore the confirmed preview root from Step 2}"
+if [[ "$ROLLBACK_ROOT" != "$ROLLBACK_PREVIEW_ROOT" ]]; then
+  echo "Rollback history was not updated: repository differs from the confirmed preview." >&2
+  exit 1
+fi
 python3 -I - "$ROLLBACK_ROOT" "${CHECKPOINT_TAG:-}" "${SAFETY_CHECKPOINT_TAG:-}" <<'PY_HISTORY' || exit 1
 from contextlib import ExitStack
 from datetime import datetime
