@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Shipping audits reject binary bytes hidden by forced-text Git attributes,
+  including content outside the displayed patch context and deleted blobs.
+
+### Fixed
+
 - Shipping archives reject linked state paths and special files, keep copies
   private, and stop delivery when any required copy fails.
 - Staged reviews stop for binary, submodule, empty or oversized input instead of reporting incomplete source coverage as a review.

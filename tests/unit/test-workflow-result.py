@@ -240,11 +240,16 @@ sys.exit(1 if mode == "failed" else 0)
         capture = self.home / 'audit-capture.json'
         self.env['FIXTURE_AUDIT_CAPTURE'] = str(capture)
         # Include quoting-sensitive names and an explicitly binary text file.
-        for filename, content in (('asset file.bin', b'old\x00bytes'),
-                                  ('asset\tfile\n.bin', b'old\x00bytes'),
-                                  ('declared.bin', b'print("old")\n')):
+        # NULs beyond the first read chunk and outside update-patch context must
+        # still reject forced-text assets. Include both old and deleted blobs.
+        large_binary = b'unchanged context\n' * 5000 + b'old\x00bytes\n' + b'same context\n' * 5000
+        for filename, content, forced in (('asset file.bin', b'old\x00bytes', False),
+                                          ('asset\tfile\n.bin', b'old\x00bytes', False),
+                                          ('declared.bin', b'print("old")\n', False),
+                                          ('forced.bin', large_binary, True),
+                                          ('forced\tline\n.bin', large_binary, True)):
             path = self.home / filename
-            (self.home / '.gitattributes').write_text('declared.bin -diff\n')
+            (self.home / '.gitattributes').write_text('*.bin diff\n' if forced else 'declared.bin -diff\n')
             self.audit_git('add', '-f', '.gitattributes')
             base = self.audit_git('rev-parse', 'HEAD')
             for change in ('added', 'updated', 'unchanged', 'removed'):
