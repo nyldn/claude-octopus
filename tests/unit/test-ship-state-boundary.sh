@@ -20,6 +20,7 @@ root = Path(sys.argv[1])
 failures = []
 controls = 0
 original = (root / 'config/templates/STATE.md.template').read_text().replace('{{STATUS}}', 'ready')
+original = original.replace('**Phase:** {{CURRENT_PHASE}}', '**Current Phase:** 4')
 for tree in ('.claude/skills', 'skills', 'codex-skills'):
     entry = root / tree / 'skill-ship/SKILL.md'
     if not entry.exists():
@@ -119,16 +120,29 @@ os.fsync = checked_fsync
                      and not list(state.glob('.STATE.md.ship-*')))
             if accepted:
                 content = target.read_text()
-                if scenario == 'regular':
+                if scenario in ('regular', 'historical status', 'historical legacy status'):
                     observed = subprocess.check_output(['bash', str(root / 'scripts/octo-state.sh'),
                                                         'read_state'], cwd=project, env=environment, text=True)
-                    valid = valid and 'status=shipped' in observed.splitlines()
+                    valid = (valid and 'status=shipped' in observed.splitlines()
+                             and all('=' in line for line in observed.splitlines()))
+                    phase = subprocess.run(['bash', str(root / 'scripts/octo-state.sh'),
+                                            'get_phase_status', '4'], cwd=project, env=environment,
+                                           capture_output=True, text=True)
+                    valid = valid and phase.returncode == 0 and phase.stdout == 'shipped\n'
                 expected = re.sub(r'^(\*\*Status:\*\*|status:)[^\r\n]*', r'\1 shipped', before, count=1, flags=re.M)
                 valid = (valid and content.startswith(expected)
                          and content.count('- **Event:** Project shipped') == 1
                          and '- **Archive:** .octo/archive/fixture-archive/' in content
                          and environment['VALIDATION_FILE'] in content
                          and target.stat().st_mode & 0o777 == 0o600)
+                if scenario == 'historical status':
+                    tier = subprocess.check_output(['bash', str(root / 'scripts/octo-state.sh'),
+                                                    'get_context_tier'], cwd=project, env=environment, text=True)
+                    continued = subprocess.run(['bash', str(root / 'scripts/octo-state.sh'),
+                                                'write_state', '--position', 'Post-shipment follow-up'],
+                                               cwd=project, env=environment, capture_output=True, text=True)
+                    valid = (valid and tier.splitlines()[0] == '=== Context Tier: planning ==='
+                             and continued.returncode == 0)
             elif scenario in ('missing archive', 'missing validation', 'hard link', 'missing status',
                               'partial write', 'historical status only'):
                 valid = valid and target.read_text() == before

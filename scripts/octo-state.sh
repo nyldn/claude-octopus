@@ -430,7 +430,8 @@ read_state() {
     last_updated=$(grep -E "^\*\*Last Updated:\*\*" "$STATE_FILE" | sed 's/\*\*Last Updated:\*\* //' || echo "unknown")
     current_phase=$(grep -E "^\*\*Current Phase:\*\*" "$STATE_FILE" | sed 's/\*\*Current Phase:\*\* //' || echo "0")
     current_position=$(grep -E "^\*\*Current Position:\*\*" "$STATE_FILE" | sed 's/\*\*Current Position:\*\* //' || echo "unknown")
-    status=$(grep -E "^\*\*Status:\*\*" "$STATE_FILE" | sed 's/\*\*Status:\*\* //' || echo "unknown")
+    status=$(sed -n '/^## History/q;s/^\*\*Status:\*\* //p' "$STATE_FILE" || echo "unknown")
+    status="${status:-unknown}"
     
     # Output as simple key=value pairs for easy parsing
     echo "schema=$schema"
@@ -492,7 +493,8 @@ write_state() {
     current_schema=$(grep -E "^\*\*Schema:\*\*" "$STATE_FILE" | sed 's/\*\*Schema:\*\* //' || echo "2.0")
     current_phase_val=$(grep -E "^\*\*Current Phase:\*\*" "$STATE_FILE" | sed 's/\*\*Current Phase:\*\* //' || echo "1")
     current_position_val=$(grep -E "^\*\*Current Position:\*\*" "$STATE_FILE" | sed 's/\*\*Current Position:\*\* //' || echo "unknown")
-    current_status=$(grep -E "^\*\*Status:\*\*" "$STATE_FILE" | sed 's/\*\*Status:\*\* //' || echo "ready")
+    current_status=$(sed -n '/^## History/q;s/^\*\*Status:\*\* //p' "$STATE_FILE" || echo "ready")
+    current_status="${current_status:-ready}"
     current_history_format=$(sed -n 's/^\*\*History Format:\*\* //p' "$STATE_FILE")
     case "$current_history_format" in
         ''|status-first-v1) ;;
@@ -609,7 +611,7 @@ get_phase_status() {
     [[ -f "$STATE_FILE" ]] || error "State file not found. Run 'init_project' first."
     current_phase=$(sed -n 's/^\*\*Current Phase:\*\* //p' "$STATE_FILE")
     if [[ "$current_phase" == "$phase" ]]; then
-        current_status=$(sed -n 's/^\*\*Status:\*\* //p' "$STATE_FILE")
+        current_status=$(sed -n '/^## History/q;s/^\*\*Status:\*\* //p' "$STATE_FILE")
         validate_status "$current_status"
         printf '%s\n' "$current_status"
         return
@@ -714,7 +716,8 @@ get_context_tier() {
             tier="minimal"
         else
             local status
-            status=$(grep -E "^\*\*Status:\*\*" "$STATE_FILE" | sed 's/\*\*Status:\*\* //' || echo "ready")
+            status=$(sed -n '/^## History/q;s/^\*\*Status:\*\* //p' "$STATE_FILE" || echo "ready")
+            status="${status:-ready}"
             
             case "$status" in
                 ready|planned|planning|complete|shipped)
