@@ -153,14 +153,9 @@ record_agent_complete() {
     fi
     local pricing input_price output_price
     if declare -f get_model_pricing >/dev/null 2>&1; then
-        pricing="$(get_model_pricing "$model" "$agent_type")"
+        pricing="$(get_model_pricing "$model" "$agent_type" "$input_tokens")"
         input_price="${pricing%%:*}"
         output_price="${pricing##*:}"
-        if declare -f octo_effective_model_pricing >/dev/null 2>&1; then
-            pricing="$(octo_effective_model_pricing "$model" "$input_tokens" "$input_price" "$output_price")"
-            input_price="${pricing%%:*}"
-            output_price="${pricing##*:}"
-        fi
     else
         input_price="$(get_model_cost "$model")"
         output_price="$input_price"

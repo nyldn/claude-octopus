@@ -92,11 +92,18 @@ else
     test_fail "current model metadata or namespaced pricing is missing"
 fi
 
-test_case "GPT-6 long-context pricing changes only above 272000 input tokens"
+test_case "OpenAI long-context pricing changes only above 272000 input tokens"
 if PRICING_FILE="$pricing_file" python3 - <<'PY'
 import os, subprocess
 root = os.path.dirname(os.path.dirname(os.environ["PRICING_FILE"]))
-for model, input_rate, output_rate in [("gpt-6.1-terra", 1, 5), ("gpt-6.1-sol", 2, 10), ("gpt-6-sol", 2, 10), ("gpt-6-luna", .1, .5)]:
+for model, input_rate, output_rate in [
+    ("gpt-6.1-terra", 1, 5), ("gpt-6.1-sol", 2, 10),
+    ("gpt-6-sol", 2, 10), ("gpt-6-luna", .1, .5),
+    ("gpt-5.6", 4, 20), ("gpt-5.6-sol", 4, 20),
+    ("gpt-5.6-terra", 2, 12), ("gpt-5.6-luna", .2, 1.2),
+    ("gpt-5.5", 5, 30), ("gpt-5.4", 2.5, 15),
+    ("gpt-5.4-pro", 30, 180),
+]:
     for input_tokens in (271999, 272000, 272001):
         # Exercise the billing function, including canonical namespace handling.
         command = 'source "$1/scripts/lib/models.sh"; source "$1/scripts/lib/cost.sh"; is_api_based_provider() { return 0; }; estimate_tokens() { printf "%s" "$test_input_tokens"; }; test_input_tokens="$3"; estimate_agent_call_cost codex-api "$2" ignored'
@@ -108,7 +115,7 @@ PY
 then
     test_pass
 else
-    test_fail "GPT-6 pricing lost the threshold or whole-request multiplier"
+    test_fail "OpenAI pricing lost the threshold or whole-request multiplier"
 fi
 
 test_case "Haiku 5.5 can be saved as a budget pin"

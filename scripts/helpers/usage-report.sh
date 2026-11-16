@@ -130,6 +130,20 @@ def records():
 def bucket():
     return {"queries": 0, "tokens_in": 0, "tokens_out": 0, "est_cost_usd": 0.0}
 
+def pricing_model(model):
+    """Normalize known billing IDs without guessing at custom model identities."""
+    candidates = [model]
+    if model.endswith((":nitro", ":floor")):
+        candidates.append(model.rsplit(":", 1)[0])
+    for candidate in tuple(candidates):
+        if ":" in candidate:
+            candidates.append(candidate.split(":", 1)[1])
+    for candidate in tuple(candidates):
+        if "/" in candidate:
+            candidates.append(candidate.rsplit("/", 1)[1])
+    return next((candidate for candidate in candidates
+                 if candidate in MODEL_RATES or candidate in REQUEST_RULES), model)
+
 def pricing_provider(provider):
     """Match the provider-family normalization used by scripts/lib/cost.sh."""
     provider = provider.lower().replace("_", "-")
@@ -173,14 +187,14 @@ totals = bucket()
 for r in records():
     prov = (r.get("provider") or "unknown").lower()
     price_prov = pricing_provider(prov)
-    model = (r.get("model") or "").lower()
+    model = pricing_model((r.get("model") or "").lower())
     tin = int(r.get("est_tokens_in") or r.get("tokens_in") or 0)
     tout = int(r.get("est_tokens_out") or r.get("tokens_out") or 0)
-    rate = PROVIDER_OVERRIDES.get(
-        price_prov, MODEL_RATES.get(model, RATES.get(price_prov, DEFAULT_RATE)))
+    override = PROVIDER_OVERRIDES.get(price_prov)
+    rate = override if override is not None else MODEL_RATES.get(model, RATES.get(price_prov, DEFAULT_RATE))
     threshold, input_multiplier, output_multiplier = REQUEST_RULES.get(
         model, (None, 1.0, 1.0))
-    if threshold is not None and tin > threshold:
+    if override is None and threshold is not None and tin > threshold:
         rate = (rate[0] * input_multiplier, rate[1] * output_multiplier)
     cost = tin / 1e6 * rate[0] + tout / 1e6 * rate[1]
     for target in (by_provider[prov], totals):
