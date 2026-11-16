@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Shipping checkpoints stop when the source has changed since its audit and
+  tag the exact audited commit. A failed tag stops finalization.
+
 ## [11.24.2] - 2026-11-16
 
 ### Fixed

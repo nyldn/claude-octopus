@@ -249,7 +249,7 @@ if [[ "$AUDIT_CURRENT_REPO" != "$AUDIT_REPO" || "$AUDIT_CURRENT_HEAD" != "$AUDIT
   echo "Audit incomplete: source changed during review; audit the new revision." >&2
   exit 1
 fi
-printf 'AUDIT_BASE=%s\nAUDIT_HEAD=%s\n' "$AUDIT_BASE" "$AUDIT_HEAD"
+printf 'AUDIT_REPO=%s\nAUDIT_BASE=%s\nAUDIT_HEAD=%s\n' "$AUDIT_REPO" "$AUDIT_BASE" "$AUDIT_HEAD"
 echo "AUDIT COMPLETE: $VALIDATION_FILE"
 ```
 
@@ -266,7 +266,7 @@ echo "AUDIT COMPLETE: $VALIDATION_FILE"
 Step 2 must exit successfully and validate a fresh `delivery-*.md` report
 whose launcher status is `COMPLETE`. A report from a previous deliver run,
 a partial report, or a failed command cannot pass this audit.
-Use the exact validated path and `AUDIT_BASE`/`AUDIT_HEAD` printed by Step 2
+Use the exact validated path and `AUDIT_REPO`/`AUDIT_BASE`/`AUDIT_HEAD` printed by Step 2
 for the summary. These identify the source supplied to the audit. A later source
 revision needs a fresh audit. A complete launcher report still requires reading
 the findings and confirming the actual review coverage; it does not prove that
@@ -446,11 +446,38 @@ EOF
 
 #### Step 2: Create Shipped Checkpoint
 
+Restore the exact `AUDIT_REPO` and `AUDIT_HEAD` retained from Phase 2. A later
+commit or uncommitted source requires a fresh audit before a shipped checkpoint.
+Ignored local delivery records are not included in a Git tag; report them
+separately. Stop finalization if checkpoint creation fails.
+
 ```bash
-# Create git checkpoint tag
+# Bind the checkpoint to the source revision that actually passed the audit.
+: "${AUDIT_REPO:?Restore the audited repository from Phase 2}"
+: "${AUDIT_HEAD:?Restore the audited commit from Phase 2}"
+CHECKPOINT_REPO=$(git rev-parse --show-toplevel) || exit 1
+CHECKPOINT_COMMIT=$(git rev-parse --verify HEAD^{commit}) || exit 1
+python3 -I - <<'PY_CHECKPOINT_INDEX' || exit 1
+import subprocess
+import sys
+
+# Status can omit local edits hidden by these index flags or sparse checkout.
+sparse = subprocess.run(['git', 'config', '--bool', 'core.sparseCheckout'],
+                        capture_output=True)
+entries = subprocess.check_output(['git', 'ls-files', '-v', '-z']).split(b'\0')
+if sparse.returncode not in (0, 1) or sparse.stdout.strip() == b'true' or any(
+    entry[:1].upper() == b'S' or entry[:1].islower() for entry in entries
+):
+    sys.exit('Checkpoint pending: preserve local work and clear sparse, skip-worktree or assume-unchanged exclusions before auditing again.')
+PY_CHECKPOINT_INDEX
+CHECKPOINT_STATUS=$(git status --porcelain=v1 --untracked-files=all --ignore-submodules=none) || exit 1
+if [[ "$CHECKPOINT_REPO" != "$AUDIT_REPO" || "$CHECKPOINT_COMMIT" != "$AUDIT_HEAD" || -n "$CHECKPOINT_STATUS" ]]; then
+  echo "Checkpoint pending: source changed after the audit; audit the current clean revision." >&2
+  exit 1
+fi
 CHECKPOINT_TAG="octo-checkpoint-shipped-${ARCHIVE_TIMESTAMP}"
 
-git tag -a "$CHECKPOINT_TAG" -m "Project shipped - $(date '+%Y-%m-%d %H:%M:%S')"
+git tag -a "$CHECKPOINT_TAG" "$CHECKPOINT_COMMIT" -m "Project shipped - $(date '+%Y-%m-%d %H:%M:%S')" || exit 1
 
 echo "Checkpoint created: $CHECKPOINT_TAG"
 ```
@@ -522,7 +549,8 @@ Restore with: `/octo:rollback {CHECKPOINT_TAG}`
 | Project not ready | Show remaining phases |
 | orchestrate.sh fails | Show error logs, suggest retry |
 | Critical audit issues | Block ship, show issues |
-| Git tag fails | Warn but continue (non-blocking) |
+| Source changed after audit | Stop and audit the current clean revision |
+| Git tag fails | Stop finalization; preserve the existing tag and delivery records |
 
 ---
 
