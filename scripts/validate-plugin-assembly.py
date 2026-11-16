@@ -174,6 +174,21 @@ def validate_json_files(root: Path, errors: list[str]) -> None:
             validate_json(root, file, errors)
 
 
+def validate_codex_policy(root: Path, skill: Path, errors: list[str]) -> None:
+    if not skill.is_relative_to(root / "codex-skills"):
+        return
+    metadata = skill.parent / "agents" / "openai.yaml"
+    if not metadata.is_file() or not metadata.resolve().is_relative_to(root):
+        errors.append(f"{rel(root, metadata)}: missing or unsafe Codex invocation metadata")
+        return
+    # Validate the generator's block-style YAML contract without a YAML dependency.
+    text = metadata.read_text(encoding="utf-8")
+    sections = re.findall(r"(?m)^policy:[ \t]*\n((?:[ \t]+[^\n]*\n|[ \t]*\n)*)", text + "\n")
+    values = re.findall(r"(?m)^  allow_implicit_invocation:[ \t]*([^\n]*)$", sections[0]) if len(sections) == 1 else []
+    if len(re.findall(r"(?m)^policy:", text)) != 1 or values != ["false"]:
+        errors.append(f"{rel(root, metadata)}: policy.allow_implicit_invocation must be false")
+
+
 def validate_skills(root: Path, errors: list[str]) -> int:
     checked = 0
     if (root / ".codex-plugin" / "plugin.json").is_file():
@@ -200,6 +215,7 @@ def validate_skills(root: Path, errors: list[str]) -> int:
                 validate_name=True,
                 expected={"disable-model-invocation": "true"},
             )
+            validate_codex_policy(root, file, errors)
             checked += 1
 
     return checked

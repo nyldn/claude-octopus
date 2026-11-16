@@ -272,6 +272,9 @@ with tempfile.TemporaryDirectory() as directory:
     result = validate()
     assert result.returncode != 0 and 'generated skill directory is empty' in result.stderr, result.stderr
     generated.write_text(valid)
+    metadata = generated.parent / 'agents/openai.yaml'
+    metadata.parent.mkdir()
+    metadata.write_text('policy:\n  allow_implicit_invocation: false\n')
     assert validate().returncode == 0
     codex_data = json.loads(codex_manifest.read_text())
     for value in [[], None, 'not a manifest', 42, True]:
@@ -309,6 +312,54 @@ with tempfile.TemporaryDirectory() as directory:
 print('21 custom-registration cases and required Codex-tree controls passed')
 PY_REGISTRATIONS
 then test_pass; else test_fail "registered frontmatter or required Codex-tree check failed"; fi
+
+test_case "Codex assembly requires explicit invocation policy for every entry"
+if python3 - "$PROJECT_ROOT" <<'PY_CODEX_POLICY'
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+validator = Path(sys.argv[1]) / 'scripts/validate-plugin-assembly.py'
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    manifest = root / '.claude-plugin/plugin.json'
+    manifest.parent.mkdir()
+    manifest.write_text(json.dumps({'name': 'fixture', 'version': '0.0.0', 'description': 'fixture'}))
+    valid_skill = '---\nname: demo\ndescription: fixture\ndisable-model-invocation: true\n---\nBody.\n'
+    cases = [
+        ('missing file', None, False),
+        ('missing policy', 'interface:\n  display_name: Demo\n', False),
+        ('implicit invocation', 'policy:\n  allow_implicit_invocation: true\n', False),
+        ('wrong section', 'interface:\n  allow_implicit_invocation: false\n', False),
+        ('comment only', '# policy:\n#   allow_implicit_invocation: false\n', False),
+        ('duplicate key', 'policy:\n  allow_implicit_invocation: false\n  allow_implicit_invocation: true\n', False),
+        ('duplicate policy', 'policy:\n  allow_implicit_invocation: false\npolicy:\n  allow_implicit_invocation: true\n', False),
+        ('string false', 'policy:\n  allow_implicit_invocation: "false"\n', False),
+        ('explicit invocation', 'interface:\n  display_name: Demo\npolicy:\n  allow_implicit_invocation: false\n', True),
+    ]
+    checked = 0
+    for entry in ['demo', 'octopus-starter-pack/demo']:
+        skill = root / 'codex-skills' / entry / 'SKILL.md'
+        skill.parent.mkdir(parents=True)
+        skill.write_text(valid_skill)
+        metadata = skill.parent / 'agents/openai.yaml'
+        metadata.parent.mkdir()
+        for name, content, accepted in cases:
+            if content is None:
+                metadata.unlink(missing_ok=True)
+            else:
+                metadata.write_text(content)
+            result = subprocess.run([sys.executable, str(validator), '--root', str(root)],
+                                    capture_output=True, text=True, timeout=10)
+            assert (result.returncode == 0) == accepted, (entry, name, result.stdout, result.stderr)
+            if not accepted:
+                assert str(metadata.relative_to(root)) in result.stderr, (entry, name, result.stderr)
+            checked += 1
+    print(f'{checked} top-level and nested Codex policy controls passed')
+PY_CODEX_POLICY
+then test_pass; else test_fail "Codex invocation metadata drift was accepted"; fi
 
 test_case "registered hook commands execute from a plugin path containing spaces"
 if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PYHOOKS'

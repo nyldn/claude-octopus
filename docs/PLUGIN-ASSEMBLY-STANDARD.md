@@ -56,7 +56,10 @@ Each skill must include YAML frontmatter with:
 
 For Codex, also declare `policy.allow_implicit_invocation: false` in each
 skill's `agents/openai.yaml`. Claude frontmatter does not replace this host
-policy. See [plugin compatibility](PLUGIN-COMPATIBILITY.md) for validation scope.
+policy. Assembly validation requires the generated block-style policy with a
+single boolean `false`, including nested starter-pack entries. Missing metadata,
+duplicate policies and implicit invocation fail validation. See
+[plugin compatibility](PLUGIN-COMPATIBILITY.md) for validation scope.
 
 Skill bodies should use this shape when practical:
 
