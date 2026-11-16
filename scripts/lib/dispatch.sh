@@ -1848,7 +1848,7 @@ apply_persona() {
     persona=$(get_persona_instruction "$persona_role")
 
     if [[ -z "$persona" ]]; then
-        printf '%s\n' "$prompt"
+        apply_tool_policy "$persona_role" "$prompt" "$agent_name"
         return
     fi
 

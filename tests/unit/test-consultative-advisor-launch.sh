@@ -97,6 +97,25 @@ printf '%s %s\n' "\${0##*/}" "\$*" >> "$E2E/tripwire.log"
 exit 1
 SH
 chmod +x "$E2E/routing-bin/claude"
+mkdir -p "$E2E/agy-bin"
+ln -s "$E2E/answer-bin/codex" "$E2E/agy-bin/codex"
+cat > "$E2E/agy-bin/agy" <<SH
+#!/usr/bin/env bash
+if [[ "\${1:-}" == --version ]]; then
+    printf '%s\n' 'agy 0.3.0'
+    exit 0
+fi
+while (( \$# > 0 )); do
+    if [[ "\$1" == --print && \$# -ge 2 ]]; then
+        printf '%s' "\$2" > "$E2E/agy-prompt.txt"
+        printf '%s\n' 'STUB AGY ANSWER'
+        exit 0
+    fi
+    shift
+done
+exit 1
+SH
+chmod +x "$E2E/agy-bin/agy"
 cat > "$E2E/fleet-builder.sh" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' 'codex|Problem Analysis|fixture'
@@ -602,7 +621,7 @@ else
 fi
 
 mkdir -p "$E2E/advisor-pack"
-printf 'name: advisor-fixture\npersonas:\n  - file: persona.md\n    replaces: codex\n' > "$E2E/advisor-pack/pack.yaml"
+printf 'name: advisor-fixture\npersonas:\n  - file: persona.md\n    replaces: codex\n  - file: persona.md\n    replaces: agy\n' > "$E2E/advisor-pack/pack.yaml"
 printf '%s\n' 'PERSONA PACK IMPLEMENTER MARKER' > "$E2E/advisor-pack/persona.md"
 test_case "the advisor isolation fixture has a working codex persona override"
 pack_content="$(STUB_PERSONA_PACK="$E2E/advisor-pack" in_stub_env bash -c '
@@ -633,10 +652,28 @@ if [[ "$rc" -eq 0 && "$count" == 1 ]] &&
    [[ "$prompt" != *"Agent Skill Context"* && "$prompt" != *"Caller contract"* ]] &&
    [[ "$prompt" != *"senior software engineer"* && "$prompt" != *"Deliverable integrity"* ]] &&
    [[ "$prompt" != *"PERSONA PACK IMPLEMENTER MARKER"* ]] &&
+   [[ "$prompt" == *"TOOL POLICY: You MUST NOT use Write, Edit, or Bash for modifications."* ]] &&
    grep -qx '# Role: advisor' "$result_file" 2>/dev/null; then
     test_pass
 else
     test_fail "rc=$rc count='$count' result=$result_file role: $(grep '^# Role:' "$result_file" 2>/dev/null) prompt sections: $(grep -E '^(## |--- Skill|You are|\*\*Task)' "$E2E/codex-prompt.txt" 2>/dev/null | tr '\n' '|')"
+fi
+
+test_case "a synchronous AGY advisor excludes persona packs and receives the role policy"
+out="$TEST_TMP_DIR/agy-advisor-prompt"
+mkdir -p "$out"
+rc=0
+count="$(STUB_CODEX_BIN=agy-bin STUB_ALLOWED_PROVIDERS=agy STUB_PERSONA_PACK="$E2E/advisor-pack" \
+    in_stub_env octo_launch_advisors "$ORCH" agy "$out" octopus-brainstorm- \
+    "$ADVISOR_TOPIC You are {{advisor}}, an independent brainstorm advisor." 1 2>"$out/error")" || rc=$?
+prompt="$(cat "$E2E/agy-prompt.txt" 2>/dev/null)"
+if [[ "$rc" -eq 0 && "$count" == 1 ]] &&
+   [[ "$prompt" == *"You are agy, an independent brainstorm advisor."* ]] &&
+   [[ "$prompt" != *"PERSONA PACK IMPLEMENTER MARKER"* ]] &&
+   [[ "$prompt" == *"TOOL POLICY: You MUST NOT use Write, Edit, or Bash for modifications."* ]]; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count' AGY advisor isolation or policy missing"
 fi
 
 # Runs last, so the tripwire log covers every stub-environment run above.
