@@ -59,6 +59,11 @@ patch within its transport limit. Binary, submodule and oversized changes leave
 review incomplete until a separate complete review is available. A changed HEAD
 requires a fresh review before completion.
 
+Staged reviews check and emit one immutable snapshot. Empty or conflicted indexes,
+changed binary files, submodules and oversized input stop before review. Binary
+content remains uncovered even when attributes force a text patch. Later staging
+requires a fresh review of the new snapshot.
+
 After compaction, workflow context recovery accepts both numeric progress counts
 and lists of completed phases. A zero count omits the completed-phases line;
 positive counts and phase lists retain their progress information.

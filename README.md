@@ -43,6 +43,9 @@ PostCompact hook.
 Branch completion starts its configured reviewer and waits for a completed
 answer on the full committed text diff. Binary, submodule and oversized changes
 require a separate complete review before branch completion can continue.
+Staged reviews use one immutable snapshot and stop for empty, conflicted or
+incomplete source input. Later staging requires a fresh review.
+
 Shipping lessons require a regular file in a real project state directory.
 Linked state paths, hard-linked lessons and special files stop delivery before
 writing. Existing lessons and file permissions are preserved.
