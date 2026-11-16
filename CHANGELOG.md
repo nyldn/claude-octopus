@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.24.2] - 2026-11-16
+
 ### Fixed
 
 - PostCompact restores workflow context when completed phases are stored as a count, and accepts scalar blockers.
