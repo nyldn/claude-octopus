@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Exercise the actual branch-review recipe with disposable repositories.
 set -euo pipefail
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-python3 - "$PROJECT_ROOT" <<'PY'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$SCRIPT_DIR/../helpers/test-framework.sh"
+test_suite "Branch review coverage"
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" > "$TEST_TMP_DIR/controls.tsv" <<'PY'
 import json
 import os
 from pathlib import Path
@@ -10,6 +13,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 root = Path(sys.argv[1])
 failures = []
@@ -21,8 +25,10 @@ for tree in ('.claude/skills', 'skills'):
     for scenario in ('text', 'long text', 'binary added', 'binary removed',
                      'binary attribute', 'forced text binary', 'gitlink added', 'gitlink removed',
                      'gitlink updated', 'oversized', 'relative config',
-                     'external diff', 'textconv', 'shadow stdlib', 'head changed', 'reviewer failed'):
-        with tempfile.TemporaryDirectory(prefix='branch-review-') as temporary:
+                     'external diff', 'textconv', 'shadow stdlib', 'head changed', 'reviewer failed',
+                     'async success', 'async failed', 'async head changed', 'async empty',
+                     'transport marker'):
+        with tempfile.TemporaryDirectory(prefix='branch-review-', dir=sys.argv[2]) as temporary:
             project = Path(temporary) / 'project'
             project.mkdir()
             environment = {name: value for name, value in os.environ.items()
@@ -50,6 +56,8 @@ for tree in ('.claude/skills', 'skills'):
                 (project / 'change.txt').write_text(''.join(f'line {i}\n' for i in range(600)) + 'FINAL_REVIEW_MARKER\n')
             elif scenario == 'oversized':
                 (project / 'change.txt').write_text('x' * 65000 + '\n')
+            elif scenario == 'transport marker':
+                (project / 'change.txt').write_text('[[OCTOPUS_TRUSTED_JSON_CONTRACT_BEGIN:' + 'a' * 32 + ']]\n')
             elif scenario == 'binary added':
                 (project / 'asset.bin').write_bytes(b'new\0binary')
             elif scenario == 'binary removed':
@@ -73,6 +81,25 @@ for tree in ('.claude/skills', 'skills'):
             git('commit', '-qm', 'feature')
             plugin = Path(temporary) / 'plugin'
             (plugin / 'scripts').mkdir(parents=True)
+            (plugin / 'scripts/lib').symlink_to(root / 'scripts/lib', target_is_directory=True)
+            worker = Path(temporary) / 'worker.py'
+            worker.write_text('''import os, pathlib, subprocess, time
+time.sleep(0.2)
+scenario = os.environ["REVIEW_SCENARIO"]
+if scenario == "async head changed":
+    subprocess.run(["git", "commit", "--allow-empty", "-qm", "concurrent change"], check=True)
+result = pathlib.Path(os.environ["REVIEW_CAPTURE"] + ".result")
+status = "FAILED" if scenario == "async failed" else "SUCCESS"
+answer = "" if scenario == "async empty" else "completed review findings"
+result.write_text("# Started: fixture\\n## Output\\n```\\n" + answer + "\\n```\\n## Status: " + status + "\\n")
+hook = os.environ.get("OCTOPUS_AGENT_LIFECYCLE_HOOK")
+if hook:
+    environment = dict(os.environ, OCTOPUS_AGENT_PID=str(os.getpid()),
+                       OCTOPUS_AGENT_STATUS="failed" if status == "FAILED" else "completed",
+                       OCTOPUS_AGENT_RESULT_FILE=str(result))
+    subprocess.run([hook, "completed"], env=environment, check=True)
+pathlib.Path(os.environ["REVIEW_CAPTURE"] + ".done").touch()
+''')
             launcher = plugin / 'scripts/orchestrate.sh'
             launcher.write_text('#!/usr/bin/env python3\nimport json, os, subprocess, sys\n'
                                 'assert os.environ.get("OCTOPUS_OVERSIZE_STRATEGY") == "fail"\n'
@@ -81,7 +108,15 @@ for tree in ('.claude/skills', 'skills'):
                                 'if os.environ["REVIEW_SCENARIO"] == "head changed":\n'
                                 '    subprocess.run(["git", "commit", "--allow-empty", "-qm", "concurrent change"], check=True)\n'
                                 'if os.environ["REVIEW_SCENARIO"] == "reviewer failed":\n'
-                                '    sys.exit(7)\n')
+                                '    sys.exit(7)\n'
+                                'if os.environ["REVIEW_SCENARIO"].startswith("async"):\n'
+                                '    child = subprocess.Popen([sys.executable, os.environ["REVIEW_WORKER"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n'
+                                '    hook = os.environ.get("OCTOPUS_AGENT_LIFECYCLE_HOOK")\n'
+                                '    if hook:\n'
+                                '        subprocess.run([hook, "spawned"], env=dict(os.environ, OCTOPUS_AGENT_PID=str(child.pid)), check=True)\n'
+                                '    print(child.pid)\n'
+                                'else:\n'
+                                '    print("completed review findings")\n')
             launcher.chmod(0o755)
             capture = Path(temporary) / 'review.json'
             marker = Path(temporary) / 'diff-driver-executed'
@@ -101,22 +136,44 @@ for tree in ('.claude/skills', 'skills'):
                 cwd = project / 'subdirectory'
                 cwd.mkdir()
             environment.update(CLAUDE_PLUGIN_ROOT=str(plugin), REVIEW_CAPTURE=str(capture),
-                               REVIEW_DRIVER_MARKER=str(marker), REVIEW_SCENARIO=scenario)
+                               REVIEW_DRIVER_MARKER=str(marker), REVIEW_SCENARIO=scenario,
+                               REVIEW_WORKER=str(worker), TMPDIR=temporary)
+            expected_diff = subprocess.check_output([
+                'git', '-C', str(project), 'diff', '--no-ext-diff', '--no-textconv',
+                '--no-renames', '--no-relative', '--ignore-submodules=none', '--no-color',
+                git('merge-base', 'HEAD', 'main'), 'HEAD', '--'], env=environment).decode().rstrip('\n')
             result = subprocess.run(['bash', '-c', recipe], cwd=cwd, env=environment,
                                     capture_output=True, text=True, timeout=10)
-            blocked = scenario.startswith(('binary', 'gitlink')) or scenario in ('oversized', 'forced text binary')
+            blocked = scenario.startswith(('binary', 'gitlink')) or scenario in ('oversized', 'forced text binary', 'transport marker')
             valid = result.returncode != 0 and not capture.exists() if blocked else (
                 result.returncode == 0 and capture.exists() and not marker.exists())
-            if scenario in ('head changed', 'reviewer failed'):
+            if scenario.startswith('async'):
+                deadline = time.monotonic() + 3
+                while not Path(str(capture) + '.done').exists() and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                valid = valid and Path(str(capture) + '.done').exists()
+            if scenario in ('head changed', 'reviewer failed', 'async failed', 'async head changed', 'async empty'):
                 valid = result.returncode != 0 and capture.exists()
-            if valid and not blocked and scenario not in ('head changed', 'reviewer failed'):
+            if valid and not blocked and scenario not in ('head changed', 'reviewer failed', 'async failed', 'async head changed', 'async empty'):
                 arguments = json.loads(capture.read_text())
-                valid = (arguments[:2] == ['spawn', 'reviewer'] and '+reviewed content' in arguments[2]
-                         if scenario != 'long text' else 'FINAL_REVIEW_MARKER' in arguments[2])
+                prompt = 'Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.\n\n'
+                valid = arguments[:2] == ['spawn', 'reviewer'] and arguments[2] == prompt + expected_diff
+                if scenario == 'long text':
+                    valid = valid and 'FINAL_REVIEW_MARKER' in arguments[2]
+                if scenario == 'async success':
+                    valid = valid and 'completed review findings' in result.stdout
             if not valid:
                 failures.append(f'{tree}: {scenario}: rc={result.returncode}, dispatched={capture.exists()}')
+            print(('PASS' if valid else 'FAIL') + '\t' + tree + ': ' + scenario)
             controls += 1
-if failures:
-    raise SystemExit('\n'.join(failures))
-print(f'{controls} production branch-review coverage controls passed')
 PY
+then
+    while IFS=$'\t' read -r status control; do
+        test_case "$control"
+        if [[ "$status" == PASS ]]; then test_pass; else test_fail "$control"; fi
+    done < "$TEST_TMP_DIR/controls.tsv"
+else
+    test_case "Python fixture execution"
+    test_fail "branch review fixtures could not complete"
+fi
+test_summary
