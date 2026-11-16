@@ -51,6 +51,18 @@ Architecture is named `octopus-architecture`; the other direct methods include
 /octo:auto "Prototype a parser to measure throughput"
 ```
 
+## Review and compaction recovery
+
+Branch completion dispatches the configured `code-reviewer` persona and waits
+for its completed answer. The quick review covers the complete committed text
+patch within its transport limit. Binary, submodule and oversized changes leave
+review incomplete until a separate complete review is available. A changed HEAD
+requires a fresh review before completion.
+
+After compaction, workflow context recovery accepts both numeric progress counts
+and lists of completed phases. A zero count omits the completed-phases line;
+positive counts and phase lists retain their progress information.
+
 ## Host-native by default
 
 Routine architecture, TDD, and debugging run on the current host with no extra

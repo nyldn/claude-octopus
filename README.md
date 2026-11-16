@@ -36,20 +36,14 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Parallel workers start from one frozen commit, so a base-branch update cannot
-change their baseline between launches or waves. Retries retain commits already
-made on each worker's branch.
+Workflows recover after compaction when progress is stored as a count. The
+restored context includes completed phases and blockers without failing the
+PostCompact hook.
 
-Dependent waves stop after failed prerequisites, invalid exit status or timeouts.
-Result summaries require a completion marker before counting a successful worker.
-Timeouts retain workers and their evidence for inspection and recovery. Cleanup
-also retains worktrees whose Git index flags can hide local edits or deletions.
-
-API cost estimates apply long-context tariffs consistently across reservations,
-usage reports and standalone metrics. Qualified model IDs retain catalog rates,
-and provider billing overrides take precedence. Subscription allowances,
-cached-token tariffs and gateway billing require their own evidence. See
-[API cost estimates](docs/MODEL-ROUTING-STRATEGY.md#api-cost-estimates).
+Branch completion starts its configured reviewer and waits for a completed
+answer on the full committed text diff. Binary, submodule and oversized changes
+require a separate complete review before branch completion can continue.
+See [review and recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery).
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.24.1 — Protect parallel worker progress and correct long-context cost estimates.**
