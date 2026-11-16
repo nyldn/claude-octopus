@@ -341,7 +341,11 @@ with tempfile.TemporaryDirectory() as directory:
         ('quoted duplicate key', 'policy:\n  allow_implicit_invocation: false\n  "allow_implicit_invocation": true\n', False),
         ('spaced duplicate key', 'policy:\n  allow_implicit_invocation: false\n  allow_implicit_invocation : true\n', False),
         ('string false', 'policy:\n  allow_implicit_invocation: "false"\n', False),
-        ('explicit invocation', 'interface:\n  display_name: Demo\npolicy:\n  allow_implicit_invocation: false\n', True),
+        ('unclosed interface', 'interface: [\npolicy:\n  allow_implicit_invocation: false\n', False),
+        ('unclosed display sequence', 'interface:\n  display_name: [\npolicy:\n  allow_implicit_invocation: false\n', False),
+        ('unclosed display quote', 'interface:\n  display_name: "Demo\npolicy:\n  allow_implicit_invocation: false\n', False),
+        ('unknown scalar escape', 'interface:\n  display_name: "Demo\\q"\npolicy:\n  allow_implicit_invocation: false\n', False),
+        ('explicit invocation', 'interface:\n  display_name: "Demo"\npolicy:\n  allow_implicit_invocation: false\n', True),
     ]
     checked = 0
     for entry in ['demo', 'octopus-starter-pack/demo']:

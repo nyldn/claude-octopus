@@ -184,8 +184,9 @@ def validate_codex_policy(root: Path, skill: Path, errors: list[str]) -> None:
     # Accept only the generator's block-style subset, so alternate YAML spellings
     # cannot introduce duplicate keys that override the explicit-only policy.
     text = metadata.read_text(encoding="utf-8")
+    scalar = r'"(?:[^"\\\x00-\x1f]|\\["\\])*"'
     generated_form = (
-        r"(?:interface:\n  display_name: [^\n]*\n(?:  short_description: [^\n]*\n)?)?"
+        rf"(?:interface:\n  display_name: {scalar}\n(?:  short_description: {scalar}\n)?)?"
         r"policy:\n  allow_implicit_invocation: false\n?"
     )
     if not re.fullmatch(generated_form, text):
