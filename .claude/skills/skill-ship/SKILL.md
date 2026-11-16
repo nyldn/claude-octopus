@@ -303,8 +303,9 @@ try:
         descriptor = os.open('LESSONS.md', os.O_WRONLY | os.O_APPEND | os.O_CREAT |
                              os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=directory)
         with os.fdopen(descriptor, 'w') as output:
-            if not stat.S_ISREG(os.fstat(output.fileno()).st_mode):
-                sys.exit('Cannot append lessons: LESSONS.md must be a regular file.')
+            status = os.fstat(output.fileno())
+            if not stat.S_ISREG(status.st_mode) or status.st_nlink != 1:
+                sys.exit('Cannot append lessons: LESSONS.md must be a regular file with one link.')
             output.write(f"\n## {date.today().isoformat()} - Project Delivery\n"
                          f"\n### What Went Well\n- {sys.argv[1]}\n"
                          f"\n### What Could Improve\n- {sys.argv[2]}\n"

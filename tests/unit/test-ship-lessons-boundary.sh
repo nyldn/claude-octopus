@@ -24,7 +24,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     section = entry.read_text().split('#### Step 2: Append to LESSONS.md', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for scenario in ('existing', 'new', 'leaf link', 'dangling link', 'parent link',
-                     'directory', 'fifo'):
+                     'directory', 'fifo', 'hard link'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             directory = Path(temporary)
             project = directory / 'project'
@@ -39,6 +39,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             if scenario == 'existing':
                 target.write_text('old lessons\n')
                 target.chmod(0o600)
+            elif scenario == 'hard link':
+                os.link(victim, target)
             elif scenario == 'leaf link':
                 target.symlink_to(victim)
             elif scenario == 'dangling link':
