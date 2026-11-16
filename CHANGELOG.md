@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Shipping state updates reject linked or nonregular files and stop delivery when
+  required context is missing or a write fails.
+
 ## [11.24.2] - 2026-11-16
 
 ### Fixed

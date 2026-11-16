@@ -422,21 +422,43 @@ partial directory for inspection; never use it as a completed archive.
 
 #### Step 1: Update STATE.md
 
+Restore the exact archive timestamp and validation report retained from the
+successful earlier phases. Run this whole block in one shell. A failed update
+stops delivery. Linked state paths and nonregular files are refused before any
+write; preserve them and inspect the project state before retrying.
+
 ```bash
-# Update status to shipped
-sed -i '' 's/^status:.*/status: shipped/' .octo/STATE.md 2>/dev/null || \
-    sed -i 's/^status:.*/status: shipped/' .octo/STATE.md
+python3 -I - "${ARCHIVE_TIMESTAMP:?Restore the completed archive timestamp}" "${VALIDATION_FILE:?Restore the completed validation report}" <<'PY_STATE' || exit 1
+from contextlib import ExitStack
+from datetime import datetime
+import os
+import re
+import stat
+import sys
 
-# Append history entry
-cat >> .octo/STATE.md << EOF
-
-## History - $(date '+%Y-%m-%d %H:%M')
-
-- **Event:** Project shipped
-- **Archive:** .octo/archive/${ARCHIVE_TIMESTAMP}/
-- **Validation:** ${VALIDATION_FILE}
-
-EOF
+archive, validation = sys.argv[1:]
+try:
+    with ExitStack() as opened:
+        state = os.open('.octo', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        opened.callback(os.close, state)
+        descriptor = os.open('STATE.md', os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             dir_fd=state)
+        metadata = os.fstat(descriptor)
+        with os.fdopen(descriptor, 'r+', encoding='utf-8', newline='') as record:
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+                raise ValueError('shipping state must be a regular, unlinked file')
+            content = record.read()
+            content = re.sub(r'^status:[^\r\n]*', 'status: shipped', content, flags=re.M)
+            content += (f"\n## History - {datetime.now():%Y-%m-%d %H:%M}\n\n"
+                        "- **Event:** Project shipped\n"
+                        f"- **Archive:** .octo/archive/{archive}/\n"
+                        f"- **Validation:** {validation}\n\n")
+            record.seek(0)
+            record.write(content)
+            record.truncate()
+except (OSError, ValueError) as error:
+    sys.exit(f'Shipping state update failed; stop delivery and inspect the state paths: {error}')
+PY_STATE
 ```
 
 #### Step 2: Create Shipped Checkpoint
