@@ -326,7 +326,8 @@ Carry these literal values into this shell call even when earlier shell
 variables no longer exist. Do not reconstruct the safety tag from a new clock
 value or select a different tag by age. If either value is unavailable, report
 that history was not updated rather than writing an incomplete recovery entry.
-Symlinked state paths and non-regular files are refused before any append.
+Symlinked state paths, hard-linked state files and non-regular files are refused
+before any append.
 
 ```bash
 ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
@@ -354,8 +355,9 @@ try:
             except FileNotFoundError:
                 sys.exit(0)  # History remains optional when its state path is absent.
             opened.callback(os.close, descriptor)
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError("rollback state must be a regular file")
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise ValueError("rollback state must be a regular, unlinked file")
         if not target or not safety:
             raise ValueError("restore the exact target from Step 6 and safety tag from Step 4")
         for tag in (target, safety):
