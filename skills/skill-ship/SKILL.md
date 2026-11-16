@@ -453,15 +453,20 @@ try:
             content = record.read()
             history = re.search(r'^## History\b', content, flags=re.M)
             boundary = history.start() if history else len(content)
-            current, updated = re.subn(r'^(\*\*Status:\*\*|status:)[^\r\n]*',
-                                       r'\1 shipped', content[:boundary], count=1, flags=re.M)
+            current, past = content[:boundary], content[boundary:]
+            status_field = (r'\*\*Status:\*\*' if re.search(r'^\*\*Status:\*\*', current, flags=re.M)
+                            else 'status:')
+            current, updated = re.subn(r'^(' + status_field + r')[^\r\n]*',
+                                       r'\1 shipped', current, count=1, flags=re.M)
             if not updated:
                 raise ValueError('shipping state has no recognized status field')
-            content = current + content[boundary:]
-            content += (f"\n## History - {datetime.now():%Y-%m-%d %H:%M}\n\n"
-                        "- **Event:** Project shipped\n"
-                        f"- **Archive:** .octo/archive/{archive}/\n"
-                        f"- **Validation:** {validation}\n\n")
+            content = current + past
+            archive_entry = f"- **Archive:** .octo/archive/{archive}/"
+            if archive_entry not in past.splitlines():
+                content += (f"\n## History - {datetime.now():%Y-%m-%d %H:%M}\n\n"
+                            "- **Event:** Project shipped\n"
+                            f"{archive_entry}\n"
+                            f"- **Validation:** {validation}\n\n")
             temporary = '.STATE.md.ship-' + secrets.token_hex(8)
             output = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                              0o600, dir_fd=state)

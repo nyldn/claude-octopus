@@ -28,7 +28,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     section = entry.read_text().split('#### Step 1: Update STATE.md', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for scenario in ('regular', 'other group', 'ownership failure', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
-                     'historical status only', 'directory sync', 'directory sync failure',
+                     'historical status only', 'dual status legacy first', 'dual status canonical first',
+                     'retry', 'directory sync', 'directory sync failure', 'directory sync retry',
                      'missing status', 'missing state', 'missing archive', 'missing validation',
                      'parent link', 'leaf link', 'dangling link', 'hard link', 'directory', 'fifo'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
@@ -61,6 +62,11 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             before = original
             if scenario == 'legacy status':
                 before = original.replace('**Status:** ready', 'status: complete')
+                target.write_text(before)
+            elif scenario.startswith('dual status'):
+                statuses = ('status: complete\n**Status:** ready' if scenario.endswith('legacy first')
+                            else '**Status:** ready\nstatus: complete')
+                before = original.replace('**Status:** ready', statuses)
                 target.write_text(before)
             elif scenario == 'missing status':
                 before = original.replace('**Status:** ready', 'Other field: keep')
@@ -112,7 +118,7 @@ os.fsync = checked_fsync
 '''
                 executed_recipe = recipe.replace('archive, validation = sys.argv[1:]',
                                                  instrumentation + '\narchive, validation = sys.argv[1:]')
-                environment['FAIL_DIRECTORY_SYNC'] = '1' if scenario.endswith('failure') else '0'
+                environment['FAIL_DIRECTORY_SYNC'] = '1' if scenario.endswith(('failure', 'retry')) else '0'
             def limit_write():
                 signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
                 limit = original.index('**Status:**') + 64
@@ -127,8 +133,20 @@ os.fsync = checked_fsync
                 controls += 1
                 continue
             accepted = scenario in ('regular', 'other group', 'legacy status', 'historical status',
-                                    'historical legacy status', 'directory sync')
+                                    'historical legacy status', 'directory sync', 'retry', 'directory sync retry',
+                                    'dual status legacy first', 'dual status canonical first')
+            retry_valid = True
+            if scenario in ('retry', 'directory sync retry'):
+                published = target.read_text()
+                retry_valid = ((result.returncode == 0) == (scenario == 'retry')
+                               and (project / 'completed').exists() == (scenario == 'retry')
+                               and published.count('- **Event:** Project shipped') == 1)
+                environment['FAIL_DIRECTORY_SYNC'] = '0'
+                result = subprocess.run(['bash', '-c', executed_recipe + '\nprintf done > completed'],
+                                        cwd=project, env=environment, capture_output=True, text=True, timeout=2)
+                retry_valid = retry_valid and target.read_text() == published
             valid = ((result.returncode == 0) == accepted
+                     and retry_valid
                      and (project / 'completed').exists() == accepted
                      and victim.read_text() == original
                      and not (outside / 'missing').exists()
@@ -136,7 +154,8 @@ os.fsync = checked_fsync
                      and not list(state.glob('.STATE.md.ship-*')))
             if accepted:
                 content = target.read_text()
-                if scenario in ('regular', 'historical status', 'historical legacy status'):
+                if scenario in ('regular', 'historical status', 'historical legacy status',
+                                'dual status legacy first', 'dual status canonical first'):
                     observed = subprocess.check_output(['bash', str(root / 'scripts/octo-state.sh'),
                                                         'read_state'], cwd=project, env=environment, text=True)
                     valid = (valid and 'status=shipped' in observed.splitlines()
@@ -145,7 +164,10 @@ os.fsync = checked_fsync
                                             'get_phase_status', '4'], cwd=project, env=environment,
                                            capture_output=True, text=True)
                     valid = valid and phase.returncode == 0 and phase.stdout == 'shipped\n'
-                expected = re.sub(r'^(\*\*Status:\*\*|status:)[^\r\n]*', r'\1 shipped', before, count=1, flags=re.M)
+                if scenario.startswith('dual status'):
+                    expected = before.replace('**Status:** ready', '**Status:** shipped', 1)
+                else:
+                    expected = re.sub(r'^(\*\*Status:\*\*|status:)[^\r\n]*', r'\1 shipped', before, count=1, flags=re.M)
                 valid = (valid and content.startswith(expected)
                          and content.count('- **Event:** Project shipped') == 1
                          and '- **Archive:** .octo/archive/fixture-archive/' in content
@@ -168,7 +190,8 @@ os.fsync = checked_fsync
             elif scenario == 'missing state':
                 valid = valid and not target.exists()
             if scenario.startswith('directory sync'):
-                valid = valid and (project / 'sync-events').read_text() == 'file\ndirectory\n'
+                expected_syncs = 'file\ndirectory\n' * (2 if scenario.endswith('retry') else 1)
+                valid = valid and (project / 'sync-events').read_text() == expected_syncs
             if not valid:
                 failures.append(f'{tree}: {scenario}: exit={result.returncode}')
             controls += 1
