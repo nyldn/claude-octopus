@@ -10,6 +10,10 @@
   stop with that fix instead of reporting the advisor allowlist as unavailable.
   Those blocks set their inputs inside the bash block or name them for export,
   and print what later steps need, including whether host Claude may join.
+- Rollback history refuses hard-linked state files before appending, protecting
+  files outside the project that share the same inode.
+- Shipping checkpoints stop when the source has changed since its audit and
+  tag the exact audited commit. A failed tag stops finalization.
 
 ## [11.24.2] - 2026-11-16
 
