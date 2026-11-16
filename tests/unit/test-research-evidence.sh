@@ -1437,4 +1437,79 @@ _source_verification_case known-match populated '- There are 21 templates [sourc
 _source_verification_case known-mismatch populated '- There are 901 templates [source:S001] [inference, counted by glob].' 1 1 'number_mismatch '
 _source_verification_case known-unfetched unfetched '- There are 21 templates [source:S001].' 0 0 'number_unverified '
 
+for declared_case in \
+    'tickets PLAT-1927..PLAT-1931|1927 1928 1929 1930 1931' \
+    'plat-1927 to 1931, as parallel as possible|1927 1928 1929 1930 1931' \
+    'PLAT-1927-1931|1927 1928 1929 1930 1931' \
+    'PLAT-1928, 1929 and 1930|1928 1929 1930' \
+    'PLAT-1928 and 300 other bugs|1928' \
+    'Apply PLAT-1927 to 1500 orgs|1927' \
+    'PLAT-1927..AUTH-1931|1927 1931' \
+    'T-12, R-7 and SHA-1|'; do
+    declared_prompt=${declared_case%%|*}
+    declared_expected=${declared_case#*|}
+    test_case "prompt declares ticket numbers: $declared_prompt"
+    declared_actual=$(printf '%s\n' "$declared_prompt" | research_declared_identifier_numbers)
+    if [[ "$declared_actual" == "$declared_expected" ]]; then test_pass
+    else test_fail "expected [$declared_expected], got [$declared_actual]"; fi
+done
+
+research_declared_ids="1927 1928 1929 1930 1931"
+for reference_text in 'Build 1928, 1929, 1930 and 1931 in parallel.' 'PLAT-1931 shares the service with 1928.' "It keeps 1927's output unchanged." '1931 exclusively owns the loader.' 'The tickets 1928-1931 stack on it.'; do
+    test_case "a declared ticket number is an identifier: $reference_text"
+    reference_claims=$(research_extract_numbers "$reference_text")
+    if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "ticket number became a claim: $reference_claims"; fi
+done
+for quantity_case in '1928 ms at p95|1928' '1929% of rows|1929%' '1928.5 seconds|1928.5' 'It sent 1930 requests.|1930' 'It has 1932 users.|1932'; do
+    quantity_text=${quantity_case%%|*}
+    test_case "a quantity beside declared tickets requires evidence: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text")
+    if [[ "$quantity_claims" == "${quantity_case#*|}" ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
+done
+research_declared_ids=""
+
+research_probe_index_list="0 1 2 3 4"
+test_case "a probe number naming one of this run's results is an identifier"
+probe_claims=$(research_extract_numbers 'codex probe 4 said reach; **probe** 2 agreed.')
+if [[ -z "$probe_claims" ]]; then test_pass; else test_fail "probe reference became a claim: $probe_claims"; fi
+for quantity_case in 'the probe 7 said reach|7' 'It ran the probe 4 times.|4' 'probe 3 MiB|3'; do
+    quantity_text=${quantity_case%%|*}
+    test_case "a probe number that names no result requires evidence: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text")
+    if [[ "$quantity_claims" == "${quantity_case#*|}" ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
+done
+research_probe_index_list=""
+test_case "without run context, probe numbers and bare tickets stay claims"
+context_claims=$(research_extract_numbers 'codex probe 4 said reach, as did 1928.' | LC_ALL=C sort | tr '\n' ' ')
+if [[ "$context_claims" == "1928 4 " ]]; then test_pass; else test_fail "claims without run context: $context_claims"; fi
+
+test_case "verification reads declared tickets from the prompt and probe numbers from the run's results"
+declared_root="$tmp_root/declared-project"
+mkdir -p "$declared_root/src"
+printf '%s\n' 'export function handle() {' '  return { status: 500 };' '}' > "$declared_root/src/handler.ts"
+RESULTS_DIR="$tmp_root/declared-results"
+mkdir -p "$RESULTS_DIR"
+unset RESEARCH_RUN_DIR RESEARCH_RUN_ID RESEARCH_TASK_GROUP RESEARCH_PROMPT RESEARCH_INTENSITY RESEARCH_PROVIDER_RESULTS_DIR RESEARCH_PROJECT_ROOT
+OCTOPUS_RESEARCH_RUN_ID="declared-identifiers"
+OCTOPUS_RESEARCH_RESUME=false
+OCTOPUS_RESEARCH_FETCH_MAX=0
+PROJECT_ROOT="$declared_root" research_run_begin "1700000042" "Split readers for PLAT-1927..PLAT-1931" "standard"
+printf '%s\n' '# codex probe' > "$RESULTS_DIR/codex-probe-1700000042-1.md"
+declared_draft="$RESEARCH_RUN_DIR/declared.md"
+{
+    printf '%s\n' '# Findings'
+    printf '%s\n' '- PLAT-1931 shares the handler with 1928 (`src/handler.ts:2`).'
+    printf '%s\n' '- Codex probe 1 said membership; the handler returns 500 (`src/handler.ts:2`).'
+    printf '%s\n' '- The handler returns 1929 rows (`src/handler.ts:2`).'
+} > "$declared_draft"
+declared_status=0
+(cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+declared_checks=$(jq -r '[.checks[] | "\(.line):\(.kind):\(.detail)"] | join(" ")' "$RESEARCH_RUN_DIR/verification.json" 2>/dev/null)
+if [[ "$declared_status" -ne 0 && "$declared_checks" == "4:number_mismatch:1929" ]] \
+   && jq -e '.claims_checked == 3 and .failures == 1' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
+    test_pass
+else
+    test_fail "status=$declared_status checks=$declared_checks report=$(cat "$RESEARCH_RUN_DIR/verification.json" 2>/dev/null)"
+fi
+
 test_summary

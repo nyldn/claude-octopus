@@ -612,6 +612,69 @@ research_source_field() {
     fi
 }
 
+# A research prompt that names tickets declares their numbers: "PLAT-1927",
+# "PLAT-1928, 1929 and 1930", "PLAT-1927..PLAT-1931" or "plat-1927 to 1931".
+# The synthesis may then refer to a declared ticket by its bare number, as in
+# "1931 shares the file with 1928". Only numbers of three or more digits are
+# declared. A bare list or range member must keep the digit count of the
+# identifier before it and stay within 100 of it, so "PLAT-1928 and 300 other
+# bugs" and "PLAT-1927 to 1500 orgs" declare 1928 and 1927 only. A range
+# expands only when it ascends by at most 50.
+research_declared_identifier_numbers() {
+    LC_ALL=C awk '
+    function declare(number) {
+        if (length(number) < 3 || (number in seen)) return
+        seen[number] = 1
+        out = out (out == "" ? "" : " ") number
+    }
+    { text = text " " $0 }
+    END {
+        rest = text
+        while (match(rest, /[A-Za-z][A-Za-z0-9_]*-[0-9]+/)) {
+            token = substr(rest, RSTART, RLENGTH)
+            rest = substr(rest, RSTART + RLENGTH)
+            prefix = tolower(token); sub(/-[0-9]+$/, "", prefix)
+            number = token; sub(/^.*-/, "", number)
+            declare(number)
+            last = number
+            while (match(rest, /^([ \t]*,[ \t]*|[ \t]*,?[ \t]*(and|or|&)[ \t]+|[ \t]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru)[ \t]*)([A-Za-z][A-Za-z0-9_]*-)?[0-9]+/)) {
+                segment = substr(rest, 1, RLENGTH)
+                member = segment; sub(/^.*[^0-9]/, "", member)
+                joiner = segment; sub(/([A-Za-z][A-Za-z0-9_]*-)?[0-9]+$/, "", joiner)
+                member_prefix = ""
+                if (match(segment, /[A-Za-z][A-Za-z0-9_]*-[0-9]+$/)) {
+                    member_prefix = tolower(substr(segment, RSTART, RLENGTH)); sub(/-[0-9]+$/, "", member_prefix)
+                }
+                if (member_prefix != "" && member_prefix != prefix) break
+                if (member_prefix == "" && (length(member) != length(last) || member - last > 100 || last - member > 100)) break
+                rest = substr(rest, length(segment) + 1)
+                if (joiner !~ /,|(^|[^a-z])(and|or)([^a-z]|$)|&/ && member - last > 0 && member - last <= 50) {
+                    for (step = last + 1; step < member + 0; step++) declare(step "")
+                }
+                declare(member)
+                last = member
+            }
+        }
+        print out
+    }'
+}
+
+# Probe results are numbered artifacts (`codex-probe-<group>-4.md`), and a
+# synthesis comparing them writes "codex probe 4 said reach". A number after
+# "probe" names one of this run's results only when that artifact exists.
+research_probe_indices() {
+    local results_dir="${RESEARCH_PROVIDER_RESULTS_DIR:-${RESULTS_DIR:-}}" task_group="${RESEARCH_TASK_GROUP:-}"
+    local result index indices=""
+    [[ -n "$results_dir" && -n "$task_group" ]] || return 0
+    for result in "$results_dir"/*-probe-"$task_group"-*.md; do
+        [[ -f "$result" ]] || continue
+        index=${result##*-}
+        index=${index%.md}
+        [[ "$index" =~ ^[0-9]+$ ]] && indices="$indices $index"
+    done
+    printf '%s\n' "${indices# }"
+}
+
 research_extract_numbers() {
     local line="$1"
     # Do not mistake ordered-list markers ("1." / "2)" / "**3.**") for
@@ -624,9 +687,25 @@ research_extract_numbers() {
 # "points 2 and 3", "item 4:". A whole number after point(s) or item(s), or
 # continuing such a list with a comma, "and", "or" or "&", is not a numeric claim
 # when no other word follows it. "2 retries", "point 40 requests" and
-# "section 2" are still checked.
+# "section 2" are still checked. A bare number the research prompt declared as
+# a ticket, or "probe N" naming one of this run's probe results, is an
+# identifier unless a unit is attached to it or follows it.
 research_numeric_claims() {
-    LC_ALL=C awk '
+    LC_ALL=C awk -v declared_ids="${research_declared_ids:-}" -v probe_indices="${research_probe_index_list:-}" '
+    BEGIN {
+        count = split(declared_ids, parts, /[ \t]+/)
+        for (i = 1; i <= count; i++) if (parts[i] != "") declared[parts[i]] = 1
+        count = split(probe_indices, parts, /[ \t]+/)
+        for (i = 1; i <= count; i++) if (parts[i] != "") probe_index[parts[i]] = 1
+        reference_unit = "^[ \\t]+[*_]*(ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x)([^0-9a-z_]|$)"
+    }
+    function declared_reference(number, before, after) {
+        if (number !~ /^[0-9]+$/) return 0
+        if (after ~ /^([.,][0-9]|[A-Za-z%]|[ \t]*%|\302\260|\302\265|\316\274)/) return 0
+        if (tolower(after) ~ reference_unit) return 0
+        if (number in declared) return 1
+        return ((number in probe_index) && tolower(before) ~ /(^|[^0-9a-z_])[*_]*probes?[*_]*[ \t]+$/)
+    }
     function unformat(text,    at, marker, width, previous, following, depth, result, piece, scan, paren_depth, marks, starts, drops, ticks, next_tick, parens, close_paren, destination_depth) {
         # Pair equal-length backtick runs once. Literal code and destinations
         # must not open or close emphasis in the surrounding prose.
@@ -769,6 +848,10 @@ research_numeric_claims() {
             if (before ~ /([A-Za-z_#]|\302\247)$/ || hyphen_word ~ /^[A-Za-z]/ \
                 || (start == id_end + 1 && before ~ /-$/) \
                 || (length(word) >= 7 && length(word) <= 40 && word ~ /^[0-9a-f]*[a-f][0-9a-f]*$/)) {
+                id_end = pos
+                continue
+            }
+            if (declared_reference(substr(line, start, len), before, after)) {
                 id_end = pos
                 continue
             }
@@ -968,6 +1051,11 @@ research_verify_synthesis() {
     if [[ -n "$project_root" ]]; then
         project_root=$(cd "$project_root" 2>/dev/null && pwd -P) || project_root=""
     fi
+    local research_declared_ids="" research_probe_index_list
+    if [[ -r "$run_dir/prompt.txt" ]]; then
+        research_declared_ids=$(research_declared_identifier_numbers < "$run_dir/prompt.txt")
+    fi
+    research_probe_index_list=$(research_probe_indices)
     while IFS= read -r line || [[ -n "$line" ]]; do
         line_no=$((line_no + 1))
         [[ "$line_no" != 1 || "$line" != '# PROBE Phase Synthesis' ]] || probe_header=true
