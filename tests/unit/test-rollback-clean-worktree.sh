@@ -266,6 +266,40 @@ with tempfile.TemporaryDirectory() as temporary:
         state.parent.unlink()
         saved.rename(state.parent)
         checks += 1
+        # A hard link bypasses O_NOFOLLOW while sharing an external inode.
+        failures = []
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            entry = root / tree / 'skill-rollback/SKILL.md'
+            if not entry.exists():
+                continue
+            section = entry.read_text().split('### Step 7: Update STATE.md (If Exists)', 1)[1]
+            history_recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+            for linked in (False, True):
+                victim.write_bytes(before)
+                if linked:
+                    os.link(victim, state)
+                else:
+                    state.write_bytes(before)
+                state.chmod(0o600)
+                result = subprocess.run(['bash', '-c', history_recipe + '\nprintf done > history-completed'],
+                                        cwd=nested, env=dict(env, SAFETY_CHECKPOINT_TAG=safety),
+                                        capture_output=True, timeout=5)
+                completed = nested / 'history-completed'
+                valid = ((result.returncode == 0) == (not linked)
+                         and completed.exists() == (not linked)
+                         and victim.read_bytes() == before
+                         and state.stat().st_mode & 0o777 == 0o600)
+                if linked:
+                    valid = valid and state.read_bytes() == before
+                else:
+                    valid = valid and '- **Safety checkpoint:** ' + safety in state.read_text()
+                if not valid:
+                    failures.append((tree, linked, result.returncode))
+                state.unlink()
+                if completed.exists():
+                    completed.unlink()
+                checks += 1
+        assert not failures, ('rollback history escaped its state boundary', failures)
     os.mkfifo(state)
     result = subprocess.run(['bash', '-c', recipe(7)], cwd=nested,
                             env=dict(env, SAFETY_CHECKPOINT_TAG=safety),
