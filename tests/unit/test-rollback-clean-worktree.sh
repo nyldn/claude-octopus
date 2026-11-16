@@ -239,6 +239,34 @@ with tempfile.TemporaryDirectory() as temporary:
     assert '- **Safety checkpoint:** ' + safety + '\n' in history, history
     assert not (nested / '.octo/STATE.md').exists()
     checks += 1
+    # A later shell can accidentally run in another clone with identical tags.
+    # That clone must never receive the confirmed repository's recovery entry.
+    failures = []
+    with tempfile.TemporaryDirectory() as other:
+        clone = Path(other) / 'clone'
+        git('clone', '-q', '--no-local', str(repo), str(clone))
+        clone_state = clone / '.octo/STATE.md'
+        clone_state.write_text('other repository state\n')
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            entry = root / tree / 'skill-rollback/SKILL.md'
+            if not entry.exists():
+                continue
+            section = entry.read_text().split('### Step 7: Update STATE.md (If Exists)', 1)[1]
+            history_recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+            for context in ('missing', 'empty', 'other clone'):
+                values = dict(env, SAFETY_CHECKPOINT_TAG=safety)
+                if context == 'missing':
+                    values.pop('ROLLBACK_PREVIEW_ROOT', None)
+                elif context == 'empty':
+                    values['ROLLBACK_PREVIEW_ROOT'] = ''
+                before = state.read_bytes(), clone_state.read_bytes()
+                working = clone if context == 'other clone' else nested
+                result = subprocess.run(['bash', '-c', history_recipe], cwd=working,
+                                        env=values, capture_output=True, timeout=5)
+                if result.returncode == 0 or (state.read_bytes(), clone_state.read_bytes()) != before:
+                    failures.append((tree, context, result.returncode))
+                checks += 1
+    assert not failures, ('history accepted an unconfirmed repository', failures)
     # Checkpoints can track symlinks, including a state path outside the repo.
     evil_tag = 'octo-checkpoint-$(id)'
     git('tag', evil_tag)
