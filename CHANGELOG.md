@@ -14,6 +14,12 @@
 - Claude Code discovers native skill instructions while Codex loads its own
   adapted entries. Registered names, manual invocation and the starter pack
   remain available in both hosts.
+
+## [11.24.2] - 2026-11-16
+
+### Fixed
+
+- PostCompact restores workflow context when completed phases are stored as a count, and accepts scalar blockers.
 - Shipping archives reject linked state paths and special files, keep copies
   private, and stop delivery when any required copy fails.
 - Staged reviews stop for binary, submodule, empty or oversized input instead of reporting incomplete source coverage as a review.
@@ -22,6 +28,15 @@
 - Branch completion dispatches the configured code-reviewer persona so its required review can start.
 - Branch completion reviews the full bounded text diff and stops for binary,
   submodule or oversized changes that need separate complete review.
+
+Merged changes: [#1340](https://github.com/nyldn/claude-octopus/pull/1340),
+[#1342](https://github.com/nyldn/claude-octopus/pull/1342),
+[#1343](https://github.com/nyldn/claude-octopus/pull/1343),
+[#1344](https://github.com/nyldn/claude-octopus/pull/1344),
+[#1345](https://github.com/nyldn/claude-octopus/pull/1345), and
+[#1346](https://github.com/nyldn/claude-octopus/pull/1346).
+The review fixes address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime and installed-host acceptance work remains open.
 
 ## [11.24.1] - 2026-11-15
 
