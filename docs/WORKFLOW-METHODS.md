@@ -51,6 +51,37 @@ Architecture is named `octopus-architecture`; the other direct methods include
 /octo:auto "Prototype a parser to measure throughput"
 ```
 
+## Review and compaction recovery
+
+Branch completion dispatches the configured `code-reviewer` persona and waits
+for its completed answer. The quick review covers the complete committed text
+patch within its transport limit. Binary, submodule and oversized changes leave
+review incomplete until a separate complete review is available. A changed HEAD
+requires a fresh review before completion.
+
+Staged reviews check and emit one immutable snapshot. Empty or conflicted indexes,
+changed binary files, submodules and oversized input stop before review. Binary
+content remains uncovered even when attributes force a text patch. Later staging
+requires a fresh review of the new snapshot.
+
+After compaction, workflow context recovery accepts both numeric progress counts
+and lists of completed phases. A zero count omits the completed-phases line;
+positive counts and phase lists retain their progress information.
+
+Shipping lessons require a real `.octo` directory and a regular `LESSONS.md`
+file with one link. Symbolic links, hard-linked lesson files and special files
+stop delivery before writing. New lesson files are private; existing file
+permissions and lessons remain intact.
+
+Shipping archives open state paths without following links and reject hard-linked
+or nonregular files. Each attempt uses a separate private directory. A missing
+STATE.md or failed copy stops delivery; a partial directory is not a verified
+archive. LESSONS.md remains outside the archive.
+
+Quick shipping audits inspect both changed blob revisions for binary bytes,
+including bytes hidden by forced-text attributes or outside patch context.
+Changed binary content needs a separate complete review before shipping.
+
 ## Host-native by default
 
 Routine architecture, TDD, and debugging run on the current host with no extra
