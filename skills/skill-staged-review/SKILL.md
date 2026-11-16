@@ -174,9 +174,40 @@ echo "Stub detection complete: $STUB_ISSUES issues found"
 **Check provider availability and dispatch in parallel:**
 
 ```bash
-# Get the diff for review
-DIFF_CONTENT=$(git diff --cached 2>/dev/null || git diff HEAD~1..HEAD 2>/dev/null || git diff)
+# Admit the complete staged text before any review. Do not substitute another
+# range when staged input is empty or cannot be read.
+DIFF_CONTENT=$(python3 -I - <<'PY_STAGED_DIFF'
+import re
+import subprocess
+import sys
+
+command = ['git', 'diff', '--cached', '--no-ext-diff', '--no-textconv',
+           '--no-renames', '--no-relative', '--ignore-submodules=none', '--no-color']
+numstat = subprocess.check_output(command + ['--numstat', '--'])
+if any(line.split(b'\t', 2)[:2] == [b'-', b'-'] for line in numstat.splitlines()):
+    sys.exit('Review incomplete: staged binary content needs separate complete review.')
+raw = subprocess.check_output(command + ['--raw', '--'])
+if any(b'160000' in line.split(b' ', 2)[:2] or line.startswith(b':160000 ')
+       for line in raw.splitlines()):
+    sys.exit('Review incomplete: staged submodules need separate complete source review.')
+diff = subprocess.check_output(command + ['--binary', '--'])
+if re.search(rb'(?m)^GIT binary patch$', diff) or b'\0' in diff:
+    sys.exit('Review incomplete: staged nontext content needs separate complete review.')
+if re.search(rb'\[\[OCTOPUS_TRUSTED_JSON_CONTRACT_(?:BEGIN|END):[0-9a-fA-F]{32}\]\]', diff):
+    sys.exit('Review incomplete: transport markers need separate lossless review.')
+if not diff:
+    sys.exit('Review incomplete: no staged changes. Select the intended review range explicitly.')
+if len(diff) > 60000:
+    sys.exit('Review incomplete: staged input exceeds the 60000-byte quick-review limit. Arrange complete file-based review.')
+sys.stdout.buffer.write(diff)
+PY_STAGED_DIFF
+) || exit 1
 ```
+
+If this admission step fails, stop before provider dispatch or a clean-review
+claim. Binary and submodule changes require a separate complete content review;
+their Git notices and object IDs do not establish source coverage. Keep the
+entire admitted text in the prompt, including its final lines.
 
 **If external providers are available — dispatch focused reviews through Octopus routing:**
 ```bash
