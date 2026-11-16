@@ -30,7 +30,11 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                          'assume modified', 'assume deleted', 'skip modified',
                          'skip deleted', 'sparse config'), (False, True)):
             with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
-                project = Path(temporary) / 'project'
+                physical = Path(temporary) / 'physical'
+                physical.mkdir()
+                alias = Path(temporary) / 'aliased-temp'
+                alias.symlink_to(physical, target_is_directory=True)
+                project = (alias / 'project').resolve()
                 project.mkdir()
                 env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
                 env.update(GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
