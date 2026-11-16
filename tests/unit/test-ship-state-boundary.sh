@@ -267,6 +267,65 @@ sys.exit(bool(failures))
 PY_CONTROLS
 then test_pass; else test_fail "shipping state boundary controls failed"; fi
 
+test_case "macOS missing ACL is distinct from a metadata read failure"
+if python3 -I - "$PROJECT_ROOT" <<'PY_MAC_ACL'
+import ast
+import ctypes
+import errno
+import os
+from pathlib import Path
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
+
+source = (Path(sys.argv[1]) / '.claude/skills/skill-ship/SKILL.md').read_text()
+runtime = source.split("<<'PY_STATE' || exit 1\n", 1)[1].split('\nPY_STATE', 1)[0]
+function = next(node for node in ast.parse(runtime).body
+                if isinstance(node, ast.FunctionDef) and node.name == 'copy_access_metadata')
+scope = {'sys': SimpleNamespace(platform='darwin'), 'os': os}
+exec(compile(ast.Module(body=[function], type_ignores=[]), '<shipping-metadata>', 'exec'), scope)
+
+class NativeFunction:
+    def __init__(self, callback):
+        self.callback = callback
+    def __call__(self, *args):
+        return self.callback(*args)
+
+for read_error in (errno.ENOENT, errno.EACCES):
+    changes = []
+    released = []
+    text = ctypes.create_string_buffer(b'empty ACL')
+    def get_acl(fd):
+        ctypes.set_errno(read_error)
+        return None
+    def set_acl(fd, acl):
+        changes.append((fd, acl))
+        return 0
+    def to_text(acl, length):
+        length._obj.value = len(b'empty ACL')
+        return ctypes.addressof(text)
+    native = SimpleNamespace(**{name: NativeFunction(callback) for name, callback in {
+        'fcopyfile': lambda *args: 0, 'acl_get_fd': get_acl,
+        'acl_set_fd': set_acl, 'acl_init': lambda count: 123,
+        'acl_free': lambda acl: released.append(acl) or 0, 'acl_to_text': to_text,
+    }.items()})
+    with patch.object(ctypes, 'CDLL', return_value=native):
+        if read_error == errno.ENOENT:
+            scope['copy_access_metadata'](10, 20)
+            assert changes == [(20, 123)], changes
+            assert released.count(123) == 2, released
+        else:
+            try:
+                scope['copy_access_metadata'](10, 20)
+            except OSError as error:
+                assert error.errno == errno.EACCES, error
+            else:
+                raise AssertionError('a genuine metadata read failure was ignored')
+            assert not changes, changes
+print('Absent-ACL replacement and permission-error refusal contracts passed')
+PY_MAC_ACL
+then test_pass; else test_fail "macOS absent-ACL contract failed"; fi
+
 test_case "missing required shipping recipes cannot produce a vacuous pass"
 if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_MISSING'
 from pathlib import Path

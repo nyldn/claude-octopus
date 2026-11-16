@@ -452,16 +452,29 @@ import sys
 def copy_access_metadata(source, destination):
     if sys.platform == 'darwin':
         import ctypes
+        import errno
         native = ctypes.CDLL(None, use_errno=True)
         native.fcopyfile.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
         native.fcopyfile.restype = ctypes.c_int
         native.acl_get_fd.argtypes = [ctypes.c_int]
         native.acl_get_fd.restype = ctypes.c_void_p
+        native.acl_init.argtypes = [ctypes.c_int]
+        native.acl_init.restype = ctypes.c_void_p
         native.acl_set_fd.argtypes = [ctypes.c_int, ctypes.c_void_p]
         native.acl_set_fd.restype = ctypes.c_int
         native.acl_free.argtypes = [ctypes.c_void_p]
         native.acl_to_text.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ssize_t)]
         native.acl_to_text.restype = ctypes.c_void_p
+        def read_acl(descriptor):
+            ctypes.set_errno(0)
+            acl = native.acl_get_fd(descriptor)
+            if not acl and ctypes.get_errno() == errno.ENOENT:
+                # An absent ACL is an empty access policy, not a read error.
+                # Setting this empty ACL removes inherited replacement grants.
+                acl = native.acl_init(0)
+            if not acl:
+                raise OSError(ctypes.get_errno(), 'could not read state ACL')
+            return acl
         def acl_text(acl):
             length = ctypes.c_ssize_t()
             text = native.acl_to_text(acl, ctypes.byref(length))
@@ -471,17 +484,13 @@ def copy_access_metadata(source, destination):
                 return ctypes.string_at(text, length.value)
             finally:
                 native.acl_free(text)
-        original_acl = native.acl_get_fd(source)
-        if not original_acl:
-            raise OSError(ctypes.get_errno(), 'could not read state ACL')
+        original_acl = read_acl(source)
         try:
             # COPYFILE_XATTR only. fcopyfile can merge inherited ACL grants;
             # replace the ACL explicitly and verify it instead.
             if native.fcopyfile(source, destination, None, 4) != 0 or native.acl_set_fd(destination, original_acl) != 0:
                 raise OSError(ctypes.get_errno(), 'could not preserve state access metadata')
-            copied_acl = native.acl_get_fd(destination)
-            if not copied_acl:
-                raise OSError(ctypes.get_errno(), 'could not read prepared state ACL')
+            copied_acl = read_acl(destination)
             try:
                 if acl_text(original_acl) != acl_text(copied_acl):
                     raise ValueError('prepared state ACL differs from the original')
