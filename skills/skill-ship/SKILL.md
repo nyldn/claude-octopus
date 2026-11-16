@@ -60,12 +60,16 @@ Run `/octo:embrace [description]` to start a new project.
 
 #### Step 2: Read STATE.md Status
 
+If neither plugin-root variable is set, replace the `OCTO_ROOT` fallback with
+the installed plugin root before running this block.
+
 ```bash
 # Check if STATE.md exists and read status
 if [[ -f ".octo/STATE.md" ]]; then
-    # Read current status
-    STATUS=$(grep -E "^status:" .octo/STATE.md | cut -d':' -f2 | xargs || echo "unknown")
-    CURRENT_PHASE=$(grep -E "^current_phase:" .octo/STATE.md | cut -d':' -f2 | xargs || echo "unknown")
+    OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+    STATE_SNAPSHOT=$(bash "$OCTO_ROOT/scripts/octo-state.sh" read_state) || exit 1
+    STATUS=$(printf '%s\n' "$STATE_SNAPSHOT" | sed -n 's/^status=//p')
+    CURRENT_PHASE=$(printf '%s\n' "$STATE_SNAPSHOT" | sed -n 's/^current_phase=//p')
 else
     STATUS="unknown"
     CURRENT_PHASE="unknown"

@@ -30,6 +30,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
         continue
     section = entry.read_text().split('#### Step 1: Update STATE.md', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    reader_section = entry.read_text().split('#### Step 2: Read STATE.md Status', 1)[1]
+    reader = re.search(r'```bash\n(.*?)\n```', reader_section, re.S)[1]
     for scenario in ('regular', 'other group', 'ownership failure', 'permission race', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
                      'historical status only', 'dual status legacy first', 'dual status canonical first',
                      'retry', 'directory sync', 'directory sync failure', 'directory sync retry',
@@ -92,7 +94,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 target.chmod(0o640)
             owner = (target.stat().st_uid, target.stat().st_gid) if target.is_file() else None
             environment = dict(os.environ, ARCHIVE_TIMESTAMP='fixture-archive',
-                               VALIDATION_FILE='literal $(touch executed) `touch executed`')
+                               VALIDATION_FILE='literal $(touch executed) `touch executed`',
+                               CLAUDE_PLUGIN_ROOT=str(root), CODEX_PLUGIN_ROOT=str(root))
             if scenario == 'missing archive':
                 environment.pop('ARCHIVE_TIMESTAMP')
             if scenario == 'missing validation':
@@ -176,6 +179,10 @@ os.fsync = checked_fsync
                                                         'read_state'], cwd=project, env=environment, text=True)
                     valid = (valid and 'status=shipped' in observed.splitlines()
                              and all('=' in line for line in observed.splitlines()))
+                    skill_status = subprocess.run(['bash', '-c', reader], cwd=project,
+                                                  env=environment, capture_output=True, text=True, timeout=2)
+                    valid = (valid and skill_status.returncode == 0
+                             and skill_status.stdout == 'Status: shipped\nCurrent Phase: 4\n')
                     phase = subprocess.run(['bash', str(root / 'scripts/octo-state.sh'),
                                             'get_phase_status', '4'], cwd=project, env=environment,
                                            capture_output=True, text=True)
