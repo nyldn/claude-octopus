@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- API estimates apply long-context tariffs to GPT-5.6, GPT-5.5, GPT-5.4
+  and GPT-5.4 Pro above 272,000 input tokens.
+- Usage reports apply catalog pricing and request tariffs to qualified model IDs while preserving custom-model fallbacks.
+- Provider billing overrides bypass model request tariffs in usage reports and API cost estimates.
 - Parallel cleanup retains worktrees with index flags that can hide local edits or deletions.
 - Parallel workflows stop dependent launches after failed waves or dependencies without a successful exit status.
 - Wave timeouts stop dependent launches and retain worker evidence for inspection and recovery.

@@ -15,13 +15,20 @@ request-rule	gpt-6-sol	272000	2.00	1.50	Whole-request multiplier when input exce
 model	gpt-6-luna	0.10	0.50	OpenAI focused tasks
 request-rule	gpt-6-luna	272000	2.00	1.50	Whole-request multiplier when input exceeds threshold
 model	gpt-5.6	4.00	20.00	Codex frontier alias
+request-rule	gpt-5.6	272000	2.00	1.50	Whole-request multiplier above 272K input; verified 2026-11-15 against official OpenAI model page
 model	gpt-5.6-sol	4.00	20.00	Codex frontier
+request-rule	gpt-5.6-sol	272000	2.00	1.50	Whole-request multiplier above 272K input; verified 2026-11-15 against official OpenAI model page
 model	gpt-5.6-terra	2.00	12.00	Codex balanced
+request-rule	gpt-5.6-terra	272000	2.00	1.50	Whole-request multiplier above 272K input; verified 2026-11-15 against official OpenAI model page
 model	gpt-5.6-luna	0.20	1.20	Codex budget
+request-rule	gpt-5.6-luna	272000	2.00	1.50	Whole-request multiplier above 272K input; verified 2026-11-15 against official OpenAI model page
 model	gpt-5.5	5.00	30.00	OpenAI
+request-rule	gpt-5.5	272000	2.00	1.50	Whole-request multiplier above 272K input; verified 2026-11-15 against official OpenAI model page
 model	gpt-5.5-pro	30.00	180.00	OpenAI Pro
 model	gpt-5.4	2.50	15.00	OpenAI
+request-rule	gpt-5.4	272000	2.00	1.50	Whole-request multiplier above 272K input; verified 2026-11-15 against official OpenAI model page
 model	gpt-5.4-pro	30.00	180.00	OpenAI Pro
+request-rule	gpt-5.4-pro	272000	2.00	1.50	Whole-request multiplier above 272K input; verified 2026-11-15 against official OpenAI model page
 model	gpt-5.3-codex	1.75	14.00	OpenAI Codex
 model	gpt-5.3-codex-spark	1.75	14.00	OpenAI Codex Spark
 model	gpt-5.2-codex	1.75	14.00	OpenAI Codex
