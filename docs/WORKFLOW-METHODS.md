@@ -78,6 +78,10 @@ or nonregular files. Each attempt uses a separate private directory. A missing
 STATE.md or failed copy stops delivery; a partial directory is not a verified
 archive. LESSONS.md remains outside the archive.
 
+Quick shipping audits inspect both changed blob revisions for binary bytes,
+including bytes hidden by forced-text attributes or outside patch context.
+Changed binary content needs a separate complete review before shipping.
+
 ## Host-native by default
 
 Routine architecture, TDD, and debugging run on the current host with no extra

@@ -50,7 +50,7 @@ Shipping lessons require a regular file in a real project state directory.
 Linked state paths, hard-linked lessons and special files stop delivery before
 writing. Existing lessons and file permissions are preserved.
 Shipping archives also reject linked paths and special files, use private copies,
-and stop delivery if a required state copy fails.
+and stop delivery if a required state copy fails. Quick shipping audits also reject binary bytes hidden by forced-text Git attributes.
 
 See [review and recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery).
 
