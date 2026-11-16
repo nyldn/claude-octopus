@@ -43,8 +43,14 @@ command -v jq &>/dev/null || exit 0
 phase=$(jq -r '.phase // empty' "$SNAPSHOT" 2>/dev/null)
 workflow=$(jq -r '.workflow // empty' "$SNAPSHOT" 2>/dev/null)
 autonomy=$(jq -r '.autonomy // empty' "$SNAPSHOT" 2>/dev/null)
-completed=$(jq -r '.completed_phases // [] | join(", ")' "$SNAPSHOT" 2>/dev/null)
-blockers=$(jq -r '.blockers // [] | join("; ")' "$SNAPSHOT" 2>/dev/null)
+# completed_phases is a count when written by workflows.sh and a list in older
+# snapshots. join() on a number makes jq exit 5, which set -e turns into a
+# failed hook, so accept both shapes and never let a read abort the hook.
+completed=$(jq -r '.completed_phases // [] |
+    if type == "array" then join(", ")
+    elif type == "number" then (if . > 0 then "\(.) phase(s)" else "" end)
+    else tostring end' "$SNAPSHOT" 2>/dev/null) || completed=""
+blockers=$(jq -r '.blockers // [] | if type == "array" then join("; ") else tostring end' "$SNAPSHOT" 2>/dev/null) || blockers=""
 
 if [[ -n "$phase" && "$phase" != "null" ]]; then
     echo "[Octopus PostCompact] Context recovered after compaction:"
