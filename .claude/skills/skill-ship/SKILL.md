@@ -457,14 +457,14 @@ separately. Stop finalization if checkpoint creation fails.
 : "${AUDIT_HEAD:?Restore the audited commit from Phase 2}"
 CHECKPOINT_REPO=$(git rev-parse --show-toplevel) || exit 1
 CHECKPOINT_COMMIT=$(git rev-parse --verify HEAD^{commit}) || exit 1
-python3 -I - <<'PY_CHECKPOINT_INDEX' || exit 1
+python3 -I - "$CHECKPOINT_REPO" <<'PY_CHECKPOINT_INDEX' || exit 1
 import subprocess
 import sys
 
 # Status can omit local edits hidden by these index flags or sparse checkout.
-sparse = subprocess.run(['git', 'config', '--bool', 'core.sparseCheckout'],
+sparse = subprocess.run(['git', '-C', sys.argv[1], 'config', '--bool', 'core.sparseCheckout'],
                         capture_output=True)
-entries = subprocess.check_output(['git', 'ls-files', '-v', '-z']).split(b'\0')
+entries = subprocess.check_output(['git', '-C', sys.argv[1], 'ls-files', '-v', '-z']).split(b'\0')
 if sparse.returncode not in (0, 1) or sparse.stdout.strip() == b'true' or any(
     entry[:1].upper() == b'S' or entry[:1].islower() for entry in entries
 ):

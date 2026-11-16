@@ -8,6 +8,7 @@ test_suite "Shipping checkpoint provenance"
 test_case "only the audited clean revision receives a shipped checkpoint"
 if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_CONTROLS'
 import os
+import itertools
 from pathlib import Path
 import re
 import subprocess
@@ -24,10 +25,10 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     section = entry.read_text().split('#### Step 2: Create Shipped Checkpoint', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for strict in (False, True):
-        for scenario in ('clean', 'missing head', 'missing root', 'advanced head',
+        for scenario, nested in itertools.product(('clean', 'missing head', 'missing root', 'advanced head',
                          'unstaged', 'staged', 'untracked', 'wrong root', 'tag exists',
                          'assume modified', 'assume deleted', 'skip modified',
-                         'skip deleted', 'sparse config'):
+                         'skip deleted', 'sparse config'), (False, True)):
             with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                 project = Path(temporary) / 'project'
                 project.mkdir()
@@ -81,14 +82,16 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 before_flags = git('ls-files', '-v')
                 before_status = git('status', '--porcelain=v1')
                 before_tags = git('show-ref', '--tags') if scenario == 'tag exists' else ''
+                invocation_directory = project / 'nested' if nested else project
+                invocation_directory.mkdir(exist_ok=True)
                 command = ['bash', '-eu' if strict else '-c']
                 if strict:
                     command.append('-c')
                 result = subprocess.run(command + [recipe + '\nprintf done > completed'],
-                                        cwd=project, env=env, capture_output=True, text=True, timeout=10)
+                                        cwd=invocation_directory, env=env, capture_output=True, text=True, timeout=10)
                 accepted = scenario == 'clean'
                 valid = ((result.returncode == 0) == accepted
-                         and (project / 'completed').exists() == accepted
+                         and (invocation_directory / 'completed').exists() == accepted
                          and git('rev-parse', 'HEAD') == before_head
                          and git('write-tree') == before_index
                          and git('ls-files', '-v') == before_flags
@@ -100,7 +103,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 else:
                     valid = valid and git('tag') == ''
                 if not valid:
-                    failures.append(f'{tree}: {scenario}, strict={strict}, exit={result.returncode}')
+                    failures.append(f'{tree}: {scenario}, nested={nested}, strict={strict}, exit={result.returncode}')
                 checked += 1
 print(f'{checked - len(failures)}/{checked} actual checkpoint controls passed')
 for failure in failures:
