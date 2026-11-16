@@ -125,6 +125,11 @@ OCTOPUS_OVERSIZE_STRATEGY=fail \
 "$REVIEW_ROOT/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
 
 $REVIEW_DIFF" > "$REVIEW_OUTPUT_DIR/spawn.txt" || exit 1
+# Native Agent Teams emits a dispatch receipt without a collectable answer.
+if grep -q '^AGENT_TEAMS_DISPATCH:' "$REVIEW_OUTPUT_DIR/spawn.txt"; then
+  echo "Review incomplete: native dispatch produced no answer. Use a supervised subprocess review." >&2
+  exit 1
+fi
 if ! _octo_advisor_collect "$REVIEW_EVENT_LOG" "$REVIEW_OUTPUT_DIR/spawn.txt" \
     "$REVIEW_OUTPUT_DIR/answer.md" "$(( $(date +%s) + 600 ))"; then
   echo "Review incomplete; inspect $REVIEW_OUTPUT_DIR before retrying." >&2

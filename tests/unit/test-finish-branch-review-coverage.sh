@@ -27,12 +27,15 @@ for tree in ('.claude/skills', 'skills'):
                      'gitlink updated', 'oversized', 'relative config',
                      'external diff', 'textconv', 'shadow stdlib', 'head changed', 'reviewer failed',
                      'async success', 'async failed', 'async head changed', 'async empty',
-                     'transport marker'):
+                     'transport marker', 'native teams', 'async inherited hook', 'async chained hook'):
         with tempfile.TemporaryDirectory(prefix='branch-review-', dir=sys.argv[2]) as temporary:
             project = Path(temporary) / 'project'
             project.mkdir()
-            environment = {name: value for name, value in os.environ.items()
-                           if not name.startswith('GIT_')}
+            source_environment = dict(os.environ)
+            if scenario == 'async inherited hook':
+                source_environment['OCTOPUS_AGENT_LIFECYCLE_HOOK'] = str(Path(temporary) / 'previous-hook.sh')
+            environment = {name: value for name, value in source_environment.items()
+                           if not name.startswith('GIT_') and name != 'OCTOPUS_AGENT_LIFECYCLE_HOOK'}
             environment.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1',
                                GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
                                GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid')
@@ -109,6 +112,12 @@ pathlib.Path(os.environ["REVIEW_CAPTURE"] + ".done").touch()
                                 '    subprocess.run(["git", "commit", "--allow-empty", "-qm", "concurrent change"], check=True)\n'
                                 'if os.environ["REVIEW_SCENARIO"] == "reviewer failed":\n'
                                 '    sys.exit(7)\n'
+                                'if os.environ["REVIEW_SCENARIO"] == "native teams":\n'
+                                '    hook = os.environ.get("OCTOPUS_AGENT_LIFECYCLE_HOOK")\n'
+                                '    if hook:\n'
+                                '        subprocess.run([hook, "spawned"], env=dict(os.environ, OCTOPUS_AGENT_PID=""), check=True)\n'
+                                '    print("AGENT_TEAMS_DISPATCH: reviewer")\n'
+                                '    sys.exit(0)\n'
                                 'if os.environ["REVIEW_SCENARIO"].startswith("async"):\n'
                                 '    child = subprocess.Popen([sys.executable, os.environ["REVIEW_WORKER"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n'
                                 '    hook = os.environ.get("OCTOPUS_AGENT_LIFECYCLE_HOOK")\n'
@@ -138,6 +147,13 @@ pathlib.Path(os.environ["REVIEW_CAPTURE"] + ".done").touch()
             environment.update(CLAUDE_PLUGIN_ROOT=str(plugin), REVIEW_CAPTURE=str(capture),
                                REVIEW_DRIVER_MARKER=str(marker), REVIEW_SCENARIO=scenario,
                                REVIEW_WORKER=str(worker), TMPDIR=temporary)
+            hook_marker = Path(temporary) / 'previous-hook-events'
+            owned_hook = Path(temporary) / 'previous-hook.sh'
+            owned_hook.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> "$REVIEW_HOOK_CAPTURE"\n')
+            owned_hook.chmod(0o755)
+            environment['REVIEW_HOOK_CAPTURE'] = str(hook_marker)
+            if scenario == 'async chained hook':
+                environment['OCTOPUS_AGENT_LIFECYCLE_HOOK'] = str(owned_hook)
             expected_diff = subprocess.check_output([
                 'git', '-C', str(project), 'diff', '--no-ext-diff', '--no-textconv',
                 '--no-renames', '--no-relative', '--ignore-submodules=none', '--no-color',
@@ -152,9 +168,9 @@ pathlib.Path(os.environ["REVIEW_CAPTURE"] + ".done").touch()
                 while not Path(str(capture) + '.done').exists() and time.monotonic() < deadline:
                     time.sleep(0.02)
                 valid = valid and Path(str(capture) + '.done').exists()
-            if scenario in ('head changed', 'reviewer failed', 'async failed', 'async head changed', 'async empty'):
+            if scenario in ('head changed', 'reviewer failed', 'async failed', 'async head changed', 'async empty', 'native teams'):
                 valid = result.returncode != 0 and capture.exists()
-            if valid and not blocked and scenario not in ('head changed', 'reviewer failed', 'async failed', 'async head changed', 'async empty'):
+            if valid and not blocked and scenario not in ('head changed', 'reviewer failed', 'async failed', 'async head changed', 'async empty', 'native teams'):
                 arguments = json.loads(capture.read_text())
                 prompt = 'Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.\n\n'
                 valid = arguments[:2] == ['spawn', 'reviewer'] and arguments[2] == prompt + expected_diff
@@ -162,6 +178,10 @@ pathlib.Path(os.environ["REVIEW_CAPTURE"] + ".done").touch()
                     valid = valid and 'FINAL_REVIEW_MARKER' in arguments[2]
                 if scenario == 'async success':
                     valid = valid and 'completed review findings' in result.stdout
+                if scenario == 'async inherited hook':
+                    valid = valid and not hook_marker.exists()
+                if scenario == 'async chained hook':
+                    valid = valid and hook_marker.read_text().splitlines() == ['spawned', 'completed']
             if not valid:
                 failures.append(f'{tree}: {scenario}: rc={result.returncode}, dispatched={capture.exists()}')
             print(('PASS' if valid else 'FAIL') + '\t' + tree + ': ' + scenario)
