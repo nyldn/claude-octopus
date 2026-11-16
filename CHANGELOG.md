@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Branch completion reviews the full bounded text diff and stops for binary,
+  submodule or oversized changes that need separate complete review.
+
 ## [11.24.1] - 2026-11-15
 
 ### Fixed

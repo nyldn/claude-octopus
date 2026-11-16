@@ -65,11 +65,87 @@ DIFF_FILES=$(git diff --name-only $(git merge-base HEAD main)..HEAD)
 **Always run a quick review — this is automatic, not optional:**
 
 ```bash
-# Quick review via orchestrate.sh (uses available providers)
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
+# Review the complete committed range. A text diff cannot review binary content
+# or nested submodule source, and a partial prompt cannot establish coverage.
+REVIEW_HEAD=$(git rev-parse --verify 'HEAD^{commit}') || exit 1
+REVIEW_BASE=$(git merge-base "$REVIEW_HEAD" main) || exit 1
+REVIEW_NUMSTAT=$(git diff --no-ext-diff --no-textconv --no-renames --no-relative \
+  --ignore-submodules=none --no-color --numstat "$REVIEW_BASE" "$REVIEW_HEAD" --) || exit 1
+if awk -F '\t' '$(1) == "-" || $(2) == "-" {found=1} END {exit !found}' <<< "$REVIEW_NUMSTAT"; then
+  echo "Review incomplete: changed binary content needs a separate complete review." >&2
+  exit 1
+fi
+REVIEW_RAW=$(git diff --no-ext-diff --no-textconv --no-renames --no-relative \
+  --ignore-submodules=none --no-color --raw "$REVIEW_BASE" "$REVIEW_HEAD" --) || exit 1
+if awk '$(1) == ":160000" || $(2) == "160000" {found=1} END {exit !found}' <<< "$REVIEW_RAW"; then
+  echo "Review incomplete: changed submodules need a separate complete source review." >&2
+  exit 1
+fi
+# Inspect bytes before Bash command substitution, which discards NUL bytes.
+REVIEW_DIFF=$(python3 -I - "$REVIEW_BASE" "$REVIEW_HEAD" <<'PY_REVIEW_DIFF'
+import subprocess
+import sys
+import re
 
-$(git diff $(git merge-base HEAD main)..HEAD | head -500)"
+diff = subprocess.check_output([
+    'git', 'diff', '--no-ext-diff', '--no-textconv', '--no-renames',
+    '--no-relative', '--ignore-submodules=none', '--no-color', '--binary',
+    sys.argv[1], sys.argv[2], '--',
+])
+if re.search(rb'(?m)^GIT binary patch$', diff):
+    sys.exit('Review incomplete: the final patch omits binary content and needs a separate complete review.')
+if b'\0' in diff:
+    sys.exit('Review incomplete: NUL-containing content needs a separate complete review.')
+if re.search(rb'\[\[OCTOPUS_TRUSTED_JSON_CONTRACT_(?:BEGIN|END):[0-9a-fA-F]{32}\]\]', diff):
+    sys.exit('Review incomplete: transport markers need a separate lossless review.')
+if len(diff) > 60000:
+    sys.exit('Review incomplete: the full diff exceeds the 60000-byte quick-review limit. Split it into fully reviewed ranges before continuing.')
+sys.stdout.buffer.write(diff)
+PY_REVIEW_DIFF
+) || exit 1
+# Collect the completed answer, rather than accepting a launch PID as a review.
+REVIEW_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+source "$REVIEW_ROOT/scripts/lib/consultative-advisors.sh" || exit 1
+REVIEW_OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-review-results.XXXXXX") || exit 1
+printf 'REVIEW_OUTPUT_DIR=%s\n' "$REVIEW_OUTPUT_DIR"
+REVIEW_EVENT_LOG="$REVIEW_OUTPUT_DIR/events"
+: > "$REVIEW_EVENT_LOG" || exit 1
+cat > "$REVIEW_OUTPUT_DIR/lifecycle.sh" <<'REVIEW_HOOK'
+#!/usr/bin/env bash
+printf '%s\t%s\t%s\t%s\n' "${1:-}" "${OCTOPUS_AGENT_PID:-}" \
+  "${OCTOPUS_AGENT_STATUS:-}" "${OCTOPUS_AGENT_RESULT_FILE:-}" >> "$OCTO_BRANCH_REVIEW_EVENTS" || exit 1
+if [[ -n "${OCTO_BRANCH_REVIEW_PREV_HOOK:-}" && -x "$OCTO_BRANCH_REVIEW_PREV_HOOK" ]]; then
+  exec "$OCTO_BRANCH_REVIEW_PREV_HOOK" "$@"
+fi
+REVIEW_HOOK
+chmod +x "$REVIEW_OUTPUT_DIR/lifecycle.sh" || exit 1
+REVIEW_PREV_HOOK="${OCTOPUS_AGENT_LIFECYCLE_HOOK:-}"
+OCTOPUS_AGENT_LIFECYCLE_HOOK="$REVIEW_OUTPUT_DIR/lifecycle.sh" \
+OCTO_BRANCH_REVIEW_EVENTS="$REVIEW_EVENT_LOG" \
+OCTO_BRANCH_REVIEW_PREV_HOOK="$REVIEW_PREV_HOOK" \
+OCTOPUS_OVERSIZE_STRATEGY=fail \
+"$REVIEW_ROOT/scripts/orchestrate.sh" spawn reviewer "Review this diff for bugs, security issues, and code quality problems. Be concise — only flag real issues, not style preferences.
+
+$REVIEW_DIFF" > "$REVIEW_OUTPUT_DIR/spawn.txt" || exit 1
+# Native Agent Teams emits a dispatch receipt without a collectable answer.
+if grep -q '^AGENT_TEAMS_DISPATCH:' "$REVIEW_OUTPUT_DIR/spawn.txt"; then
+  echo "Review incomplete: native dispatch produced no answer. Use a supervised subprocess review." >&2
+  exit 1
+fi
+if ! _octo_advisor_collect "$REVIEW_EVENT_LOG" "$REVIEW_OUTPUT_DIR/spawn.txt" \
+    "$REVIEW_OUTPUT_DIR/answer.md" "$(( $(date +%s) + 600 ))"; then
+  echo "Review incomplete; inspect $REVIEW_OUTPUT_DIR before retrying." >&2
+  exit 1
+fi
+cat "$REVIEW_OUTPUT_DIR/answer.md" || exit 1
+if [[ "$(git rev-parse --verify 'HEAD^{commit}')" != "$REVIEW_HEAD" ]]; then
+  echo "Review incomplete: HEAD changed during review. Review the current committed range again." >&2
+  exit 1
+fi
 ```
+
+Binary, submodule and oversized ranges leave the review incomplete. Obtain and
+record a complete review of those changes before proceeding to Step 3.
 
 **If critical issues found:** Present them and ask whether to fix or ship anyway.
 **If clean:** Continue to Step 3. Show a brief `✓ Review clean — no issues found`.
