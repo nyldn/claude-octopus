@@ -289,27 +289,35 @@ Before finalizing, let's capture what we learned from this project.
 If user provides lessons (not "skip"):
 
 ```bash
-# Generate timestamp
-TIMESTAMP=$(date '+%Y-%m-%d')
+# Open both path components without following links. Keep the directory open
+# through the append so a replaced .octo path cannot redirect the write.
+python3 -I - "$USER_WHAT_WENT_WELL" "$USER_WHAT_COULD_IMPROVE" "$USER_KEY_LEARNINGS" <<'PY_LESSONS'
+from datetime import date
+import os
+import stat
+import sys
 
-# Ensure LESSONS.md exists
-touch .octo/LESSONS.md
-
-# Append lessons
-cat >> .octo/LESSONS.md << EOF
-
-## ${TIMESTAMP} - Project Delivery
-
-### What Went Well
-- ${USER_WHAT_WENT_WELL}
-
-### What Could Improve
-- ${USER_WHAT_COULD_IMPROVE}
-
-### Key Learnings
-- ${USER_KEY_LEARNINGS}
-
-EOF
+try:
+    directory = os.open('.octo', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        descriptor = os.open('LESSONS.md', os.O_WRONLY | os.O_APPEND | os.O_CREAT |
+                             os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=directory)
+        with os.fdopen(descriptor, 'w') as output:
+            if not stat.S_ISREG(os.fstat(output.fileno()).st_mode):
+                sys.exit('Cannot append lessons: LESSONS.md must be a regular file.')
+            output.write(f"\n## {date.today().isoformat()} - Project Delivery\n"
+                         f"\n### What Went Well\n- {sys.argv[1]}\n"
+                         f"\n### What Could Improve\n- {sys.argv[2]}\n"
+                         f"\n### Key Learnings\n- {sys.argv[3]}\n\n")
+    finally:
+        os.close(directory)
+except OSError as error:
+    sys.exit(f'Cannot append delivery lessons safely: {error}')
+PY_LESSONS
+if [[ $? -ne 0 ]]; then
+  echo "Lessons were not captured; stop delivery and inspect the state paths." >&2
+  exit 1
+fi
 ```
 
 **Count total lessons:**
