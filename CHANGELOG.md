@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Brainstorm Team mode, debate, branch-completion review, the deck red-team seat
+  recipe and define run their shell blocks under bash when the host shell is zsh,
+  as Claude Code's Bash tool is on macOS. The bash-only libraries they load now
+  stop with that fix instead of reporting the advisor allowlist as unavailable.
+
 ## [11.24.2] - 2026-11-16
 
 ### Fixed

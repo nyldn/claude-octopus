@@ -2,6 +2,14 @@
 # Shared admission and launch contract for brainstorm and debate advisors.
 # Sourced library: do not change the caller's shell options.
 
+# Hosts may run a command's shell block in zsh. This library needs bash
+# (BASH_SOURCE, arrays, BASH_REMATCH), so stop with the fix rather than fail
+# later with an unrelated error.
+if [ -z "${BASH_VERSION:-}" ]; then
+    printf 'ERROR: consultative-advisors.sh must be sourced from bash; run the calling block under bash\n' >&2
+    return 1 2>/dev/null || exit 1
+fi
+
 _octo_consultative_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 _octo_consultative_allowlist="${_octo_consultative_lib_dir}/provider-allowlist.sh"
 if [[ ! -r "$_octo_consultative_allowlist" ]] ||

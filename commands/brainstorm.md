@@ -144,6 +144,8 @@ foreground 600000 ms timeout stops it after 10 minutes, while the launcher waits
 exits, because `$RUN_DIR` is deleted on exit:
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
 TOPIC="[TOPIC]"
 ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
 [[ -x "$ORCH" ]] || { echo "Octopus orchestrator not found: $ORCH"; exit 1; }
@@ -185,6 +187,7 @@ for response_file in "$RUN_DIR"/octopus-brainstorm-*.md; do
   printf '\n===== %s =====\n' "$(basename "$response_file" .md | sed 's/^octopus-brainstorm-//')"
   cat "$response_file"
 done
+OCTO_BASH
 ```
 
 **Claude Agent**: Launch this advisor only when `HOST_CLAUDE_ALLOWED=true`. If
@@ -205,14 +208,20 @@ Your role: Pattern spotter and paradox hunter.
 Be specific and creative. Avoid generic advice.
 ```
 
-After all allowed advisors finish, enforce the two-provider minimum:
+After all allowed advisors finish, enforce the two-provider minimum. Under a zsh
+host shell the block runs in a separate bash, so set `SUCCESSFUL_EXTERNAL_ADVISORS`
+(printed by the launch block) and `HOST_ADVISOR_SUCCESS` at its top:
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
     "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then
   echo "Team brainstorm requires two successful, allowlisted providers." >&2
   exit 1
 fi
+OCTO_BASH
 ```
 
 #### Step 2d: Collect and Synthesize Perspectives

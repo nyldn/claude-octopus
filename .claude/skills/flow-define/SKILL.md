@@ -87,6 +87,8 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 **MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
 provider_check_output=$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh")
 provider_status_lines=$(printf '%s\n' "$provider_check_output" | awk '
   /^PROVIDER_CHECK_START$/ { capture=1; next }
@@ -128,6 +130,9 @@ fi
 
 # Task status for the banner's Tasks line, if the session has one.
 task_status=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
+printf 'Provider Availability:\n%s' "$provider_availability"
+printf 'Tasks: %s\n' "$task_status"
+OCTO_BASH
 ```
 
 List every provider the check reports, not only Claude. A banner showing one seat when several ran misrepresents what the user is paying for.
@@ -254,6 +259,8 @@ Use the debate synthesis to set the approach context for the Define phase.
 **After gathering answers, create context file:**
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Source context manager
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/context-manager.sh"
 
@@ -272,6 +279,7 @@ create_templated_context \
   "$out_of_scope"
 
 echo "📋 Context captured and saved to .claude-octopus/context/define-context.md"
+OCTO_BASH
 ```
 
 **This context will be used to:**

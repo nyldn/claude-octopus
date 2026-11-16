@@ -347,7 +347,14 @@ AskUserQuestion({
 - Incorporate all other answers into the debate context.
 
 ### Step 3: Parse Arguments & Build Debate Fleet
+
+The blocks that load `consultative-advisors.sh` run under bash even when the host
+shell is zsh, where each one runs as a separate bash process. Set any value an
+earlier block printed at the top of the block that uses it.
+
 ```bash
+# Runs under bash even when the host shell is zsh.
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Extract question and flags
 QUESTION="Should we use Redis or in-memory cache?"
 ROUNDS=3
@@ -367,6 +374,9 @@ if ! ADVISORS=$("$ADVISOR_SELECTOR" debate standard "$QUESTION"); then
   echo "No eligible external debate advisors are available." >&2
   exit 1
 fi
+printf 'HOST_CLAUDE_ALLOWED=%s\nREQUIRED_EXTERNAL_ADVISORS=%s\nADVISORS=%s\n' \
+  "$HOST_CLAUDE_ALLOWED" "$REQUIRED_EXTERNAL_ADVISORS" "$ADVISORS"
+OCTO_BASH
 ```
 
 **The `build-fleet.sh debate` command** selects up to 3 debaters from different model families (for example, codex/OpenAI, agy/Google Antigravity, and copilot/Microsoft) to maximize training-bias diversity. Do not hardcode provider pairs; use the runtime `ADVISORS` list.
@@ -440,7 +450,10 @@ the launcher waits up to `OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). Each a
 An advisor that fails leaves no file:
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
 ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
+source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 DEBATE_PROMPT="You are {{advisor}} participating in debate round 1.
 
 DEBATE QUESTION: ${QUESTION}
@@ -453,6 +466,8 @@ if ! SUCCESSFUL_EXTERNAL_ADVISORS=$(octo_launch_advisors "$ORCH" "$ADVISORS" \
   echo "The required external debate advisors did not complete successfully." >&2
   exit 1
 fi
+printf 'SUCCESSFUL_EXTERNAL_ADVISORS=%s\n' "$SUCCESSFUL_EXTERNAL_ADVISORS"
+OCTO_BASH
 ```
 
 #### 5.2: Launch optional host subagent (Pragmatic Implementer)
@@ -484,11 +499,15 @@ Cover: implementation feasibility, hidden gotchas, concrete effort estimates, an
 After all allowed advisors finish, enforce the two-provider minimum:
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
     "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then
   echo "A debate requires two successful, allowlisted providers." >&2
   exit 1
 fi
+OCTO_BASH
 ```
 
 **WHY Sonnet and not just more Opus?** Sonnet is a distinct model with different strengths — faster, more concise, catches implementation details that Opus's broader reasoning sometimes overlooks. Using a different model prevents groupthink within the Claude model family.

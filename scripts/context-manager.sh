@@ -2,6 +2,11 @@
 # Context file management for Claude Octopus
 # Manages phase context files that capture user vision and decisions
 
+if [ -z "${BASH_VERSION:-}" ]; then
+    printf 'ERROR: context-manager.sh must be sourced from bash; run the calling block under bash\n' >&2
+    return 1 2>/dev/null || exit 1
+fi
+
 set -euo pipefail
 
 # Configuration. Use the same project-namespaced host workspace as every other
