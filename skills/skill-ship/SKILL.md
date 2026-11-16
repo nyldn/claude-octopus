@@ -183,7 +183,41 @@ while IFS=$'\t' read -r added removed path; do
     exit 1
   fi
 done <<< "$AUDIT_NUMSTAT"
-AUDIT_DIFF=$(git -C "$AUDIT_REPO" diff --no-relative --ignore-submodules=none --submodule=short --no-ext-diff --no-textconv --no-color --binary "$AUDIT_BASE" "$AUDIT_HEAD" --) || exit 1
+# Inspect immutable changed blobs before shell substitution can discard NULs.
+# Attributes can force binary blobs to text, even with NULs outside patch context.
+AUDIT_DIFF=$(python3 -I - "$AUDIT_REPO" "$AUDIT_BASE" "$AUDIT_HEAD" <<'PY_AUDIT_DIFF'
+import re
+import subprocess
+import sys
+
+repo, base, head = sys.argv[1:]
+command = ['git', '-C', repo, 'diff', '--no-relative', '--no-renames',
+           '--ignore-submodules=none', '--submodule=short', '--no-ext-diff',
+           '--no-textconv', '--no-color']
+raw = subprocess.check_output(command + ['--raw', '--no-abbrev', '-z', base, head, '--'])
+blobs = set()
+for header in raw.split(b'\0')[::2]:
+    if not header:
+        continue
+    old_mode, new_mode, old_oid, new_oid, status = header.split()
+    if old_mode == b':160000' or new_mode == b'160000':
+        sys.exit('Audit incomplete: submodule source requires separate complete review before shipping.')
+    blobs.update(oid for oid in (old_oid, new_oid) if oid.strip(b'0'))
+for oid in sorted(blobs):
+    with subprocess.Popen(['git', '-C', repo, 'cat-file', 'blob', oid.decode('ascii')],
+                          stdout=subprocess.PIPE) as blob:
+        while chunk := blob.stdout.read(65536):
+            if b'\0' in chunk:
+                blob.kill()
+                sys.exit('Audit incomplete: binary content requires separate complete review before shipping.')
+        if blob.wait() != 0:
+            sys.exit('Audit incomplete: could not read a changed blob.')
+diff = subprocess.check_output(command + ['--binary', base, head, '--'])
+if re.search(rb'(?m)^GIT binary patch$', diff) or b'\0' in diff:
+    sys.exit('Audit incomplete: binary content requires separate complete review before shipping.')
+sys.stdout.buffer.write(diff)
+PY_AUDIT_DIFF
+) || exit 1
 if [[ -z "$AUDIT_DIFF" ]]; then
   echo "Audit incomplete: the confirmed delivery range has no changes." >&2
   exit 1

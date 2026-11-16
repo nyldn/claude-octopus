@@ -19,6 +19,8 @@
 
 ### Fixed
 
+- Shipping audits reject binary bytes hidden by forced-text Git attributes,
+  including content outside the displayed patch context and deleted blobs.
 - PostCompact restores workflow context when completed phases are stored as a count, and accepts scalar blockers.
 - Shipping archives reject linked state paths and special files, keep copies
   private, and stop delivery when any required copy fails.
