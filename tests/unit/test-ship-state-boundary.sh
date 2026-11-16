@@ -17,14 +17,14 @@ import tempfile
 root = Path(sys.argv[1])
 failures = []
 controls = 0
-original = 'status: complete\ncurrent_phase: 4\n\n## Existing history\nKeep this entry.\n'
+original = (root / 'config/templates/STATE.md.template').read_text().replace('{{STATUS}}', 'ready')
 for tree in ('.claude/skills', 'skills', 'codex-skills'):
     entry = root / tree / 'skill-ship/SKILL.md'
     if not entry.exists():
         continue
     section = entry.read_text().split('#### Step 1: Update STATE.md', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for scenario in ('regular', 'missing state', 'missing archive', 'missing validation',
+    for scenario in ('regular', 'legacy status', 'missing status', 'missing state', 'missing archive', 'missing validation',
                      'parent link', 'leaf link', 'dangling link', 'hard link', 'directory', 'fifo'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             directory = Path(temporary)
@@ -53,6 +53,13 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             elif scenario != 'missing state':
                 target.write_text(original)
                 target.chmod(0o600)
+            before = original
+            if scenario == 'legacy status':
+                before = original.replace('**Status:** ready', 'status: complete')
+                target.write_text(before)
+            elif scenario == 'missing status':
+                before = original.replace('**Status:** ready', 'Other field: keep')
+                target.write_text(before)
             environment = dict(os.environ, ARCHIVE_TIMESTAMP='fixture-archive',
                                VALIDATION_FILE='literal $(touch executed) `touch executed`')
             if scenario == 'missing archive':
@@ -66,7 +73,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 failures.append(f'{tree}: {scenario}: recipe blocked on target')
                 controls += 1
                 continue
-            accepted = scenario == 'regular'
+            accepted = scenario in ('regular', 'legacy status')
             valid = ((result.returncode == 0) == accepted
                      and (project / 'completed').exists() == accepted
                      and victim.read_text() == original
@@ -74,13 +81,19 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      and not (project / 'executed').exists())
             if accepted:
                 content = target.read_text()
-                valid = (valid and content.startswith(original.replace('status: complete', 'status: shipped'))
+                if scenario == 'regular':
+                    observed = subprocess.check_output(['bash', str(root / 'scripts/octo-state.sh'),
+                                                        'read_state'], cwd=project, env=environment, text=True)
+                    valid = valid and 'status=shipped' in observed.splitlines()
+                valid = (valid and content.startswith(before.replace('**Status:** ready', '**Status:** shipped').replace('status: complete', 'status: shipped'))
                          and content.count('- **Event:** Project shipped') == 1
+                         and ('**Status:** shipped' in content if scenario == 'regular' else 'status: shipped' in content)
+                         and '**Status:** ready' not in content
                          and '- **Archive:** .octo/archive/fixture-archive/' in content
                          and environment['VALIDATION_FILE'] in content
                          and target.stat().st_mode & 0o777 == 0o600)
-            elif scenario in ('missing archive', 'missing validation', 'hard link'):
-                valid = valid and target.read_text() == original
+            elif scenario in ('missing archive', 'missing validation', 'hard link', 'missing status'):
+                valid = valid and target.read_text() == before
             elif scenario == 'missing state':
                 valid = valid and not target.exists()
             if not valid:

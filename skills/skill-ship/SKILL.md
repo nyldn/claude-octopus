@@ -448,7 +448,10 @@ try:
             if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
                 raise ValueError('shipping state must be a regular, unlinked file')
             content = record.read()
-            content = re.sub(r'^status:[^\r\n]*', 'status: shipped', content, flags=re.M)
+            content, updated = re.subn(r'^(\*\*Status:\*\*|status:)[^\r\n]*',
+                                       r'\1 shipped', content, flags=re.M)
+            if not updated:
+                raise ValueError('shipping state has no recognized status field')
             content += (f"\n## History - {datetime.now():%Y-%m-%d %H:%M}\n\n"
                         "- **Event:** Project shipped\n"
                         f"- **Archive:** .octo/archive/{archive}/\n"
