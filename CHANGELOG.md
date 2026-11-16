@@ -6,6 +6,8 @@
 
 - Shipping state updates reject linked or nonregular files and stop delivery when
   required context is missing or a write fails.
+- Shipping checkpoints stop when the source has changed since its audit and
+  tag the exact audited commit. A failed tag stops finalization.
 
 ## [11.24.2] - 2026-11-16
 
