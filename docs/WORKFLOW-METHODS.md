@@ -63,6 +63,11 @@ After compaction, workflow context recovery accepts both numeric progress counts
 and lists of completed phases. A zero count omits the completed-phases line;
 positive counts and phase lists retain their progress information.
 
+Shipping lessons require a real `.octo` directory and a regular `LESSONS.md`
+file with one link. Symbolic links, hard-linked lesson files and special files
+stop delivery before writing. New lesson files are private; existing file
+permissions and lessons remain intact.
+
 ## Host-native by default
 
 Routine architecture, TDD, and debugging run on the current host with no extra

@@ -5,14 +5,16 @@
 ### Fixed
 
 - PostCompact restores workflow context when completed phases are stored as a count, and accepts scalar blockers.
+- Shipping lessons reject linked state paths, hard-linked lesson files and nonregular files before writing.
 
 - Branch completion dispatches the configured code-reviewer persona so its required review can start.
 - Branch completion reviews the full bounded text diff and stops for binary,
   submodule or oversized changes that need separate complete review.
 
 Merged changes: [#1340](https://github.com/nyldn/claude-octopus/pull/1340),
-[#1342](https://github.com/nyldn/claude-octopus/pull/1342), and
-[#1343](https://github.com/nyldn/claude-octopus/pull/1343).
+[#1342](https://github.com/nyldn/claude-octopus/pull/1342),
+[#1343](https://github.com/nyldn/claude-octopus/pull/1343), and
+[#1344](https://github.com/nyldn/claude-octopus/pull/1344).
 The branch-review fixes address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
 its broader runtime and installed-host acceptance work remains open.
 

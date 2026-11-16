@@ -43,6 +43,10 @@ PostCompact hook.
 Branch completion starts its configured reviewer and waits for a completed
 answer on the full committed text diff. Binary, submodule and oversized changes
 require a separate complete review before branch completion can continue.
+Shipping lessons require a regular file in a real project state directory.
+Linked state paths, hard-linked lessons and special files stop delivery before
+writing. Existing lessons and file permissions are preserved.
+
 See [review and recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery).
 
 <!-- BEGIN CURRENT RELEASE -->
