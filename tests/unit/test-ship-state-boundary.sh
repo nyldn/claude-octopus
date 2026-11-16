@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import resource
 import signal
+import struct
 import subprocess
 import sys
 import tempfile
@@ -32,7 +33,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     reader_section = entry.read_text().split('#### Step 2: Read STATE.md Status', 1)[1]
     reader = re.search(r'```bash\n(.*?)\n```', reader_section, re.S)[1]
-    for scenario in ('regular', 'other group', 'ownership failure', 'permission race', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
+    for scenario in ('regular', 'other group', 'ownership failure', 'metadata failure', 'acl', 'inherited acl', 'permission race', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
                      'historical status only', 'dual status legacy first', 'dual status canonical first',
                      'retry', 'directory sync', 'directory sync failure', 'directory sync retry',
                      'missing status', 'missing state', 'missing archive', 'missing validation',
@@ -92,6 +93,23 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 target.chmod(0o640)
             if scenario == 'permission race':
                 target.chmod(0o640)
+            access_metadata = None
+            if scenario in ('acl', 'inherited acl'):
+                if sys.platform.startswith('linux'):
+                    acl = struct.pack('<I', 2) + b''.join(struct.pack('<HHI', tag, perm, who)
+                        for tag, perm, who in ((1, 6, 0xffffffff), (2, 4, 65534),
+                                              (4, 0, 0xffffffff), (16, 4, 0xffffffff), (32, 0, 0xffffffff)))
+                    os.setxattr(target if scenario == 'acl' else state,
+                                'system.posix_acl_access' if scenario == 'acl' else 'system.posix_acl_default', acl)
+                    os.setxattr(target, 'user.octopus-fixture', b'preserve this attribute')
+                    access_metadata = {name: os.getxattr(target, name) for name in os.listxattr(target)}
+                elif sys.platform == 'darwin':
+                    # Native macOS ACLs must survive both explicit and inherited grants.
+                    subprocess.run(['chmod', '+a', f'user:{os.getuid()} allow read' +
+                                    (',file_inherit' if scenario == 'inherited acl' else ''),
+                                    str(state if scenario == 'inherited acl' else target)], check=True)
+                    access_metadata = subprocess.check_output(['ls', '-le', str(target)], text=True).splitlines()[1:]
+            expected_mode = target.stat().st_mode & 0o777 if target.is_file() else None
             owner = (target.stat().st_uid, target.stat().st_gid) if target.is_file() else None
             environment = dict(os.environ, ARCHIVE_TIMESTAMP='fixture-archive',
                                VALIDATION_FILE='literal $(touch executed) `touch executed`',
@@ -101,6 +119,14 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             if scenario == 'missing validation':
                 environment.pop('VALIDATION_FILE')
             executed_recipe = recipe
+            if scenario == 'metadata failure':
+                instrumentation = '''
+def denied_metadata(*args):
+    raise PermissionError('injected access metadata preservation failure')
+copy_access_metadata = denied_metadata
+'''
+                executed_recipe = recipe.replace('archive, validation = sys.argv[1:]',
+                                                 instrumentation + '\narchive, validation = sys.argv[1:]')
             if scenario == 'permission race':
                 instrumentation = '''
 real_stat = os.stat
@@ -151,7 +177,7 @@ os.fsync = checked_fsync
                 failures.append(f'{tree}: {scenario}: recipe blocked on target')
                 controls += 1
                 continue
-            accepted = scenario in ('regular', 'other group', 'legacy status', 'historical status',
+            accepted = scenario in ('regular', 'other group', 'acl', 'inherited acl', 'legacy status', 'historical status',
                                     'historical legacy status', 'directory sync', 'retry', 'directory sync retry',
                                     'dual status legacy first', 'dual status canonical first')
             retry_valid = True
@@ -195,8 +221,13 @@ os.fsync = checked_fsync
                          and content.count('- **Event:** Project shipped') == 1
                          and '- **Archive:** .octo/archive/fixture-archive/' in content
                          and environment['VALIDATION_FILE'] in content
-                         and target.stat().st_mode & 0o777 == (0o640 if scenario == 'other group' else 0o600)
+                         and target.stat().st_mode & 0o777 == expected_mode
                          and (target.stat().st_uid, target.stat().st_gid) == owner)
+                if access_metadata is not None:
+                    if sys.platform.startswith('linux'):
+                        valid = valid and access_metadata == {name: os.getxattr(target, name) for name in os.listxattr(target)}
+                    else:
+                        valid = valid and access_metadata == subprocess.check_output(['ls', '-le', str(target)], text=True).splitlines()[1:]
                 if scenario in ('historical status', 'legacy status'):
                     tier = subprocess.check_output(['bash', str(root / 'scripts/octo-state.sh'),
                                                     'get_context_tier'], cwd=project, env=environment, text=True)
@@ -210,7 +241,7 @@ os.fsync = checked_fsync
                                            capture_output=True, text=True)
                     valid = valid and phase.returncode == 0 and phase.stdout == 'shipped\n'
             elif scenario in ('missing archive', 'missing validation', 'hard link', 'missing status',
-                              'partial write', 'historical status only', 'ownership failure', 'permission race'):
+                              'partial write', 'historical status only', 'ownership failure', 'metadata failure', 'permission race'):
                 valid = valid and target.read_text() == before
                 if scenario == 'ownership failure':
                     valid = valid and (target.stat().st_uid, target.stat().st_gid) == owner

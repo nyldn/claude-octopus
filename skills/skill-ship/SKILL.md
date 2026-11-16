@@ -431,7 +431,8 @@ successful earlier phases. Run this whole block in one shell. A failed update
 stops delivery. Linked state paths and nonregular files are refused before any
 write; preserve them and inspect the project state before retrying. The complete
 replacement is prepared in the opened state directory before atomic publication.
-Preserve the original owner, group and mode; stop if ownership cannot be retained.
+Preserve the original owner, group, mode, ACL and extended attributes. Stop before
+publication if the access metadata cannot be retained.
 
 ```bash
 python3 -I - "${ARCHIVE_TIMESTAMP:?Restore the completed archive timestamp}" "${VALIDATION_FILE:?Restore the completed validation report}" <<'PY_STATE' || exit 1
@@ -442,6 +443,58 @@ import re
 import secrets
 import stat
 import sys
+
+def copy_access_metadata(source, destination):
+    if sys.platform == 'darwin':
+        import ctypes
+        native = ctypes.CDLL(None, use_errno=True)
+        native.fcopyfile.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+        native.fcopyfile.restype = ctypes.c_int
+        native.acl_get_fd.argtypes = [ctypes.c_int]
+        native.acl_get_fd.restype = ctypes.c_void_p
+        native.acl_set_fd.argtypes = [ctypes.c_int, ctypes.c_void_p]
+        native.acl_set_fd.restype = ctypes.c_int
+        native.acl_free.argtypes = [ctypes.c_void_p]
+        native.acl_to_text.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ssize_t)]
+        native.acl_to_text.restype = ctypes.c_void_p
+        def acl_text(acl):
+            length = ctypes.c_ssize_t()
+            text = native.acl_to_text(acl, ctypes.byref(length))
+            if not text:
+                raise OSError(ctypes.get_errno(), 'could not inspect state ACL')
+            try:
+                return ctypes.string_at(text, length.value)
+            finally:
+                native.acl_free(text)
+        original_acl = native.acl_get_fd(source)
+        if not original_acl:
+            raise OSError(ctypes.get_errno(), 'could not read state ACL')
+        try:
+            # COPYFILE_XATTR only. fcopyfile can merge inherited ACL grants;
+            # replace the ACL explicitly and verify it instead.
+            if native.fcopyfile(source, destination, None, 4) != 0 or native.acl_set_fd(destination, original_acl) != 0:
+                raise OSError(ctypes.get_errno(), 'could not preserve state access metadata')
+            copied_acl = native.acl_get_fd(destination)
+            if not copied_acl:
+                raise OSError(ctypes.get_errno(), 'could not read prepared state ACL')
+            try:
+                if acl_text(original_acl) != acl_text(copied_acl):
+                    raise ValueError('prepared state ACL differs from the original')
+            finally:
+                native.acl_free(copied_acl)
+        finally:
+            native.acl_free(original_acl)
+    elif sys.platform.startswith('linux'):
+        attributes = {name: os.getxattr(source, name) for name in os.listxattr(source)}
+        # A directory's default ACL can otherwise add grants to the replacement.
+        for name in set(os.listxattr(destination)) - attributes.keys():
+            os.removexattr(destination, name)
+        for name, value in attributes.items():
+            os.setxattr(destination, name, value)
+        if attributes != {name: os.getxattr(destination, name) for name in os.listxattr(destination)}:
+            raise ValueError('state access metadata could not be retained')
+    else:
+        raise ValueError('state access metadata preservation is unsupported on this platform')
 
 archive, validation = sys.argv[1:]
 try:
@@ -480,6 +533,7 @@ try:
                     os.fchmod(prepared.fileno(), stat.S_IMODE(metadata.st_mode))
                     prepared.write(content)
                     prepared.flush()
+                    copy_access_metadata(record.fileno(), prepared.fileno())
                     os.fsync(prepared.fileno())
                 current = os.stat('STATE.md', dir_fd=state, follow_symlinks=False)
                 if (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns,

@@ -7,6 +7,8 @@
 - Shipping state updates reject linked or nonregular files and stop delivery when
   required context is missing or a write fails. Readiness uses the shared state
   reader so canonical status takes precedence over legacy and historical fields.
+  Atomic replacements preserve access ACLs and extended attributes, and stop
+  before publication if that metadata cannot be retained.
 - Rollback history refuses hard-linked state files before appending, protecting
   files outside the project that share the same inode.
 - Shipping checkpoints stop when the source has changed since its audit and
