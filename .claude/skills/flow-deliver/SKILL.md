@@ -285,21 +285,27 @@ or rerun the workflow to recover a shell variable.
 
 **After validation is complete, record final metrics:**
 
+Stop on a failed state write or summary read. Preserve earlier successful writes
+for inspection; do not present completion or proceed to shipping. After repairing
+the failure, resume at the failed operation. Do not repeat successful context or
+metrics writes: `phases_completed` is incremented, so replaying the whole block
+would count this phase twice. If only the summary failed, rerun `show_summary`.
+
 ```bash
 # Update deliver phase context with validation summary
 validation_summary=$(head -30 "$VALIDATION_FILE" | grep -A 2 "## Summary\|Pass\|Fail" | tail -2 | tr '\n' ' ')
 
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
   "deliver" \
-  "$validation_summary"
+  "$validation_summary" || exit 1
 
 # Update final metrics (completion of full workflow)
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1" || exit 1
 
 # Display final state summary
 echo ""
-echo "📊 Session Complete - Final Metrics:"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" show_summary
+echo "📊 Final Session Metrics:"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" show_summary || exit 1
 ```
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
@@ -901,7 +907,7 @@ request:
 # Run this block only when the user explicitly requested shipping.
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
   --status "complete" \
-  --history "All phases complete, ready to ship"
+  --history "All phases complete, ready to ship" || exit 1
 
 # Display completion message with next steps
 echo ""

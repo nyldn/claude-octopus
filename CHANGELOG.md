@@ -8,6 +8,9 @@
 - Accept probe references backed by results from the current run.
 - Keep currency, fractions, formatted units and measured range endpoints under evidence verification.
 
+- Deliver stops after failed context, metrics or ready-to-ship state writes and
+  failed summary reads, preserving earlier state without reporting completion.
+
 ## [11.25.1] - 2026-11-17
 
 ### Fixed
