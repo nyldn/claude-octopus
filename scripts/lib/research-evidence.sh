@@ -699,10 +699,21 @@ research_numeric_claims() {
         for (i = 1; i <= count; i++) if (parts[i] != "") probe_index[parts[i]] = 1
         reference_unit = "^[ \\t]+[*_]*(ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?)([^0-9a-z_]|$)"
     }
-    function declared_reference(number, before, after) {
+    function quantity_suffix(after) {
+        # Units may be code-formatted or use Unicode prefixes. Keep these
+        # checks local: code spans elsewhere still carry literal identifiers.
+        sub(/^[ \t]*[*_`(]+/, " ", after)
+        return (tolower(after) ~ reference_unit || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274)/)
+    }
+    function declared_reference(number, before, after,    range_tail) {
         if (number !~ /^[0-9]+$/) return 0
-        if (after ~ /^([.,][0-9]|[A-Za-z%]|[ \t]*%|\302\260|\302\265|\316\274)/) return 0
-        if (tolower(after) ~ reference_unit || after ~ /^[ \t]*\[/) return 0
+        if (before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_`]*$/) return 0
+        if (before ~ /[0-9][ \t]*\/[ \t*_`]*$/ || after ~ /^[ \t]*\/[ \t*_`]*[0-9]/) return 0
+        if (after ~ /^([.,][0-9]|[A-Za-z%])/) return 0
+        if (quantity_suffix(after)) return 0
+        # A unit on the final endpoint makes the start a quantity too.
+        range_tail = after
+        if (sub(/^[ \t]*(-|\342\200\223|\342\200\224|\342\210\222|to)[ \t]*[*_`]*[0-9]+([.,][0-9]+)*[*_`]*/, "", range_tail) && quantity_suffix(range_tail)) return 0
         if (number in declared) return 1
         return ((number in probe_index) && tolower(before) ~ /(^|[^0-9a-z_])[*_]*probes?[*_]*[ \t]+$/)
     }

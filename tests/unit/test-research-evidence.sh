@@ -1455,14 +1455,16 @@ for declared_case in \
 done
 
 test_case "oversized ticket ranges terminate without floating-point expansion"
-if python3 - "$PROJECT_ROOT/scripts/lib/research-evidence.sh" <<'PY_RANGE'
+if ! command -v python3 >/dev/null 2>&1; then
+    test_fail "python3 is required for the oversized range test"
+elif python3 - "$PROJECT_ROOT/scripts/lib/research-evidence.sh" <<'PY_RANGE'
 import resource
 import subprocess
 import sys
 
 for prompt in ["PLAT-9007199254740992..PLAT-9007199254740994",
                "PLAT-9999999999999998..PLAT-9999999999999999"]:
-    first, last = [part.removeprefix("PLAT-") for part in prompt.split("..")]
+    first, last = [part[len("PLAT-"):] for part in prompt.split("..")]
     result = subprocess.run(
         ["bash", "-c", 'source "$1"; research_declared_identifier_numbers', "fixture", sys.argv[1]],
         input=prompt, text=True, capture_output=True, timeout=5,
@@ -1477,10 +1479,31 @@ for reference_text in 'Build 1928, 1929, 1930 and 1931 in parallel.' 'PLAT-1931 
     reference_claims=$(research_extract_numbers "$reference_text")
     if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "ticket number became a claim: $reference_claims"; fi
 done
-for quantity_case in '1928 ms at p95|1928' '1929% of rows|1929%' '1928.5 seconds|1928.5' 'It sent 1930 requests.|1930' 'It has 1932 users.|1932' 'Latency is 1928 [ms](units.md).|1928' 'Latency is 1928 [requests](units.md).|1928' 'Latency is 1928-1932 ms.|1932' 'Latency is 1928–1932 ms.|1932' 'Latency is 1928—1932 ms.|1932' 'The payload weighs 1928 kg.|1928' 'It traveled 1928 km.|1928' 'It has 1928 errors.|1928' 'It has 1928 items.|1928'; do
+for quantity_case in '1928 ms at p95|1928' '1929% of rows|1929%' '1928.5 seconds|1928.5' 'It sent 1930 requests.|1930' 'It has 1932 users.|1932' 'Latency is 1928 [ms](units.md).|1928' 'Latency is 1928 [requests](units.md).|1928' 'Latency is 1928-1932 ms.|1928 1932' 'Latency is 1928–1932 ms.|1928 1932' 'Latency is 1928—1932 ms.|1928 1932' 'The payload weighs 1928 kg.|1928' 'It traveled 1928 km.|1928' 'It has 1928 errors.|1928' 'It has 1928 items.|1928'; do
     quantity_text=${quantity_case%%|*}
     test_case "a quantity beside declared tickets requires evidence: $quantity_text"
-    quantity_claims=$(research_extract_numbers "$quantity_text")
+    quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
+    if [[ "$quantity_claims" == "${quantity_case#*|}" ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
+done
+for quantity_case in \
+    'The monthly cost is $1928.|1928' \
+    'The cost is €1928.|1928' \
+    'The cost is £1928.|1928' \
+    'The cost is ¥1928.|1928' \
+    'The cost is ₹1928.|1928' \
+    'The charge is $ **1928**.|1928' \
+    'Latency is 1928 `ms`.|1928' \
+    'Latency is 1928 ``ms``.|1928' \
+    'The dose is 1928 µg.|1928' \
+    'The dose is 1928 μg.|1928' \
+    'The temperature is 1928 °C.|1928' \
+    '1928/2000 tests pass.|1928 2000' \
+    '500/1928 tests pass.|1928 500' \
+    'Latency is 1928-1931 ms.|1928 1931' \
+    'Latency is 1928 to 1931 `ms`.|1928 1931'; do
+    quantity_text=${quantity_case%%|*}
+    test_case "declared identifiers retain explicit quantity syntax: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
     if [[ "$quantity_claims" == "${quantity_case#*|}" ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
 done
 research_declared_ids=""
@@ -1525,11 +1548,26 @@ declared_draft="$RESEARCH_RUN_DIR/declared.md"
 declared_status=0
 (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
 declared_checks=$(jq -r '[.checks[] | "\(.line):\(.kind):\(.detail)"] | join(" ")' "$RESEARCH_RUN_DIR/verification.json" 2>/dev/null)
-if [[ "$declared_status" -ne 0 && "$declared_checks" == "4:number_mismatch:1929 5:number_mismatch:1928 6:number_mismatch:1932 7:number_mismatch:1928" ]] \
-   && jq -e '.claims_checked == 6 and .failures == 4' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
+if [[ "$declared_status" -ne 0 && "$declared_checks" == "4:number_mismatch:1929 5:number_mismatch:1928 6:number_mismatch:1928 6:number_mismatch:1932 7:number_mismatch:1928" ]] \
+   && jq -e '.claims_checked == 6 and .failures == 5' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
     test_pass
 else
     test_fail "status=$declared_status checks=$declared_checks report=$(cat "$RESEARCH_RUN_DIR/verification.json" 2>/dev/null)"
 fi
+
+for quantity_text in 'The monthly cost is $1928.' 'The cost is €1928.' \
+    'Latency is 1928 `ms`.' 'The dose is 1928 µg.' \
+    'Latency is 1928-1932 ms.' '1928/2000 tests pass.'; do
+    test_case "synthesis rejects unsupported declared quantity: $quantity_text"
+    # Only the range endpoint is supported, proving the start is still checked.
+    printf '%s\n' 'return 1932;' > "$declared_root/src/handler.ts"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported declared quantity passed: $quantity_text"; fi
+done
 
 test_summary

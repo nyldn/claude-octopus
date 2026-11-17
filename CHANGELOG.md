@@ -4,18 +4,9 @@
 
 ### Fixed
 
-- Research verification no longer fails a synthesis for naming a ticket by
-  the bare number its prompt declared. A probe about "PLAT-1927..PLAT-1931"
-  whose synthesis wrote "PLAT-1931 shares the file with 1928" next to a
-  workspace citation failed with `number_mismatch` for 1928, and the repair
-  pass kept those failures. Numbers of three or more digits that the prompt
-  declares as tickets (`PLAT-1928`, `PLAT-1928, 1929 and 1930`,
-  `PLAT-1927..PLAT-1931`, `plat-1927 to 1931`) are now identifiers. A bare list
-  or range member must keep the digit count of the identifier before it and stay
-  within 100 of it, so "PLAT-1927 to 1500 orgs" declares 1927 only.
-  "codex probe 4 said reach" is also skipped when this run has probe result 4.
-  A number with an attached or following unit, such as `1928 ms`, `1929%` or
-  `1930 requests`, is still checked.
+- Fix research verification failing on bare ticket numbers declared in the prompt.
+- Accept probe references backed by results from the current run.
+- Keep currency, fractions, formatted units and measured range endpoints under evidence verification.
 - Branch completion validates its branch, repository and required PR description
   before pushing, and stops PR creation after a failed push instead of reporting
   successful publication.
