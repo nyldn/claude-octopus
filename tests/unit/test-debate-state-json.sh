@@ -11,12 +11,21 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
 
 root = Path(sys.argv[1])
 checks = 0
+
+def render_inputs(recipe, environment):
+    # The host fills the standalone block's explicit handoff assignments.
+    for name in ('QUESTION', 'ROUNDS', 'STYLE', 'ADVISORS', 'USER_GOAL', 'USER_PRIORITY', 'USER_CONSTRAINTS'):
+        recipe = re.sub(rf'(?m)^{name}=.*$',
+                        lambda match: name + '=' + shlex.quote(environment[name]), recipe)
+    return recipe
+
 for tree in ('.claude/skills', 'skills'):
     text = (root / tree / 'skill-debate/SKILL.md').read_text()
     section = text.split('### Step 4: Setup Debate Folder', 1)[1]
@@ -41,7 +50,7 @@ for tree in ('.claude/skills', 'skills'):
                        QUESTION=question, ROUNDS='3', STYLE='thorough', ADVISORS=advisors,
                        USER_GOAL=context['goal'], USER_PRIORITY=context['priority'],
                        USER_CONSTRAINTS=context['constraints'])
-            result = subprocess.run(['/bin/bash', '-eu', '-c', recipe], cwd=home,
+            result = subprocess.run(['/bin/bash', '-eu', '-c', render_inputs(recipe, env)], cwd=home,
                                     env=env, capture_output=True, text=True, timeout=5)
             assert not (home / 'SHADOW_MODULE_EXECUTED').exists(), (tree, result.stderr)
             assert result.returncode == 0, (tree, result.stderr)
@@ -61,7 +70,7 @@ for tree in ('.claude/skills', 'skills'):
             env = dict(os.environ, HOME=directory, CLAUDE_CODE_SESSION='fixture',
                        QUESTION='fixture', ROUNDS=rounds, STYLE='thorough', ADVISORS='codex',
                        USER_GOAL='', USER_PRIORITY='', USER_CONSTRAINTS='')
-            result = subprocess.run(['/bin/bash', '-c', recipe + '\necho DEBATE_CONTINUED'],
+            result = subprocess.run(['/bin/bash', '-c', render_inputs(recipe, env) + '\necho DEBATE_CONTINUED'],
                                     cwd=directory, env=env, capture_output=True, text=True, timeout=5)
             assert result.returncode != 0, (tree, rounds, result.stdout)
             assert 'DEBATE_CONTINUED' not in result.stdout, (tree, rounds)

@@ -140,10 +140,16 @@ Launch external providers in parallel through Octopus routing. This block waits 
 advisor to finish, often several minutes, so run it with `run_in_background: true`; a
 foreground 600000 ms timeout stops it after 10 minutes, while the launcher waits up to
 `OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). It prints each collected answer before it
-exits, because `$RUN_DIR` is deleted on exit:
+exits, because `$RUN_DIR` is deleted on exit. Insert the topic and carried values
+as single-quoted shell literals, escaping each embedded single quote as `'\''`,
+or generate each complete value with Python's `shlex.quote`. Never interpolate
+untrusted text into double-quoted shell source. Keep user values outside
+the fixed heredoc so their lines cannot terminate it.
 
 ```bash
-TOPIC="[TOPIC]"
+# Runs under bash even when the host shell is zsh.
+export TOPIC='[TOPIC]'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
 [[ -x "$ORCH" ]] || { echo "Octopus orchestrator not found: $ORCH"; exit 1; }
 ORCH_HELP="$("$ORCH" help --full 2>&1 || true)"
@@ -159,6 +165,7 @@ HOST_ADVISOR_SUCCESS=0
 if octo_consultative_host_allowed; then
   HOST_CLAUDE_ALLOWED=true
 fi
+printf 'HOST_CLAUDE_ALLOWED=%s\n' "$HOST_CLAUDE_ALLOWED"
 REQUIRED_EXTERNAL_ADVISORS=$(octo_consultative_required_external_count)
 if ! ADVISORS=$("$ADVISOR_SELECTOR" research standard "$TOPIC"); then
   echo "No eligible external brainstorm advisors are available." >&2
@@ -184,12 +191,14 @@ for response_file in "$RUN_DIR"/octopus-brainstorm-*.md; do
   printf '\n===== %s =====\n' "$(basename "$response_file" .md | sed 's/^octopus-brainstorm-//')"
   cat "$response_file"
 done
+OCTO_BASH
 ```
 
-**Claude Agent**: Launch this advisor only when `HOST_CLAUDE_ALLOWED=true`. If
-Claude is disallowed, do not invoke the Agent tool. Set `HOST_ADVISOR_SUCCESS=1`
-only after the allowed host advisor completes with usable output; otherwise set
-it to `0`.
+**Claude Agent**: Launch this advisor only when the launch block printed
+`HOST_CLAUDE_ALLOWED=true`, which it prints before it waits for the external
+advisors. If Claude is disallowed, do not invoke the Agent tool. Set
+`HOST_ADVISOR_SUCCESS=1` only after the allowed host advisor completes with
+usable output; otherwise set it to `0`.
 
 ```text
 Think creatively about: [TOPIC]
@@ -204,14 +213,21 @@ Your role: Pattern spotter and paradox hunter.
 Be specific and creative. Avoid generic advice.
 ```
 
-After all allowed advisors finish, enforce the two-provider minimum:
+After all allowed advisors finish, enforce the two-provider minimum. The block
+starts with no variables from earlier blocks, so fill in its two export lines:
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+export SUCCESSFUL_EXTERNAL_ADVISORS='[SUCCESSFUL_EXTERNAL_ADVISORS printed by the launch block]'
+export HOST_ADVISOR_SUCCESS='[1 if the host advisor completed with usable output, else 0]'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
+source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
     "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then
   echo "Team brainstorm requires two successful, allowlisted providers." >&2
   exit 1
 fi
+OCTO_BASH
 ```
 
 #### Step 2d: Collect and Synthesize Perspectives

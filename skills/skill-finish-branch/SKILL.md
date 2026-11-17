@@ -65,6 +65,8 @@ DIFF_FILES=$(git diff --name-only $(git merge-base HEAD main)..HEAD)
 **Always run a quick review — this is automatic, not optional:**
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Review the complete committed range. A text diff cannot review binary content
 # or nested submodule source, and a partial prompt cannot establish coverage.
 REVIEW_HEAD=$(git rev-parse --verify 'HEAD^{commit}') || exit 1
@@ -142,6 +144,7 @@ if [[ "$(git rev-parse --verify 'HEAD^{commit}')" != "$REVIEW_HEAD" ]]; then
   echo "Review incomplete: HEAD changed during review. Review the current committed range again." >&2
   exit 1
 fi
+OCTO_BASH
 ```
 
 Binary, submodule and oversized ranges leave the review incomplete. Obtain and
