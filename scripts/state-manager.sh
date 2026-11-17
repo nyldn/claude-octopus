@@ -264,8 +264,8 @@ PY
     commit=$(git rev-parse HEAD 2>/dev/null || echo 'none')
     updated=$(jq --arg key "$completion_key" --arg context "$context" \
         --arg decision "$decision" --arg commit "$commit" --arg date "$(date -u +%Y-%m-%d)" '
+        .context.define = $context |
         if .phase_completions.define[$key] == true then . else
-            .context.define = $context |
             (if $decision == "" then . else
                 .decisions += [{phase: "define", decision: $decision,
                     rationale: "Consensus from multi-AI definition phase", date: $date, commit: $commit}]

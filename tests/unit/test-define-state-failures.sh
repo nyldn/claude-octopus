@@ -99,7 +99,8 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     for path, content, expected in ((synthesis, 'plain requirements', 1),
                                     (synthesis, 'plain requirements', 1),
                                     (directory / 'second.md', 'plain requirements', 2),
-                                    (synthesis, 'revised requirements', 3)):
+                                    (synthesis, 'revised requirements', 3),
+                                    (synthesis, 'plain requirements', 3)):
         path.write_text(content)
         result = subprocess.run([str(helper), 'complete_define', str(path), content, ''],
                                 env=env, capture_output=True, text=True)
@@ -140,7 +141,12 @@ for persistence in (None, 'false', 'true'):
             result = subprocess.run(['bash', '-euo', 'pipefail', '-c', recipe], env=env, cwd=directory, capture_output=True, text=True)
             state = json.loads((directory / 'state/state.json').read_text())
             project_state = directory / '.octo/STATE.md'
+            phase_status = subprocess.run([str(root / 'scripts/octo-state.sh'), 'get_phase_status', '2'],
+                                          env=env, cwd=directory, capture_output=True, text=True)
             valid_project = (project_state.exists() and '**Status:** complete' in project_state.read_text()
+                             and '**Current Phase:** 2' in project_state.read_text()
+                             and '**Current Position:** Definition' in project_state.read_text()
+                             and phase_status.returncode == 0 and phase_status.stdout.strip() == 'complete'
                              if persistence == 'true' else not (directory / '.octo').exists())
             if result.returncode or not valid_project or state['metrics']['phases_completed'] != 1 or len(state['decisions']) != 1:
                 failures.append(f'actual helpers: persistence={persistence}, attempt={attempt}, exit={result.returncode}')

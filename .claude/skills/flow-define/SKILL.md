@@ -427,7 +427,7 @@ fi
   "$SYNTHESIS_FILE" "$key_definition" "$decision_made" || exit 1
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
   "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
-    --status "complete" --history "Define phase completed" || exit 1
+    --phase 2 --position "Definition" --status "complete" --history "Define phase completed" || exit 1
 fi
 ```
 

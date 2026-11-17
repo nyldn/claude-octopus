@@ -2,8 +2,6 @@
 
 ## [Unreleased]
 
-## [11.25.1] - 2026-11-17
-
 ### Fixed
 
 - Interrupted project initialization recovers missing files while preserving saved project content.
@@ -12,6 +10,10 @@
   completion only after its synthesis is saved to the roadmap. Its decision and
   completed-phase count are recorded together once per synthesis before results
   or task completion are presented.
+
+## [11.25.1] - 2026-11-17
+
+### Fixed
 
 - Brainstorm Team mode, debate, branch-completion review, the deck red-team seat
   recipe and define run their shell blocks under bash when the host shell is zsh,
