@@ -304,20 +304,16 @@ init_project() {
         return 0
     fi
     
-    # Check if already initialized
-    if [[ -d "$OCTO_DIR" ]]; then
-        if [[ -f "$STATE_FILE" ]]; then
-            warning ".octo/ directory already exists. Use 'read_state' to view current state."
-            return 0
-        fi
+    if [[ -d "$OCTO_DIR" && -f "$STATE_FILE" ]]; then
+        warning ".octo/ directory already exists. Preserving existing files and creating missing files."
     fi
-    
+
     # Create directory structure
     mkdir -p "$OCTO_DIR"
     mkdir -p "$OCTO_DIR/phases"
     mkdir -p "$OCTO_DIR/codebase"
     
-    # Generate template files
+    # Fill missing files after partial initialization; preserve existing content.
     [[ -e "$STATE_FILE" || -L "$STATE_FILE" ]] || atomic_write "$STATE_FILE" "$(generate_state_template)"
     [[ -e "$PROJECT_FILE" || -L "$PROJECT_FILE" ]] || atomic_write "$PROJECT_FILE" "$(generate_project_template)"
     [[ -e "$ROADMAP_FILE" || -L "$ROADMAP_FILE" ]] || atomic_write "$ROADMAP_FILE" "$(generate_roadmap_template)"

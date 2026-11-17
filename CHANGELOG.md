@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- Interrupted project initialization recovers missing files while preserving saved project content.
+
 - Define stops after failed decision, context or metrics writes, and records
   completion only after its synthesis is saved to the roadmap. Its decision and
   completed-phase count are recorded together once per synthesis before results

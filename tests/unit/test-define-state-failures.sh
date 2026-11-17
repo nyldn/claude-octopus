@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -143,6 +144,55 @@ for persistence in (None, 'false', 'true'):
                              if persistence == 'true' else not (directory / '.octo').exists())
             if result.returncode or not valid_project or state['metrics']['phases_completed'] != 1 or len(state['decisions']) != 1:
                 failures.append(f'actual helpers: persistence={persistence}, attempt={attempt}, exit={result.returncode}')
+            checked += 1
+# A failed first roadmap publication must recover through the same recipe.
+for tree in ('.claude/skills', 'skills'):
+    entry = root / tree / 'flow-define/SKILL.md'
+    section = entry.read_text().split('### STEP 6:', 1)[1].split('### STEP 7:', 1)[0]
+    recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+        directory = Path(temporary)
+        synthesis = directory / 'synthesis.md'
+        synthesis.write_text('## Problem Definition\nselected the recovery approach\n')
+        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(root), CODEX_PLUGIN_ROOT=str(root),
+                   SYNTHESIS_FILE=str(synthesis), OCTOPUS_PROJECT_PERSISTENCE='true',
+                   OCTOPUS_WORKFLOW_STATE_DIR=str(directory / 'state'))
+        subprocess.run([str(helper), 'init_state'], env=env, cwd=directory, capture_output=True, check=True)
+        shim = directory / 'bin'
+        shim.mkdir()
+        mover = shim / 'mv'
+        mover.write_text('#!/bin/sh\n[ "$2" != ".octo/ROADMAP.md" ] || exit 23\n'
+                         'exec "' + shutil.which('mv') + '" "$@"\n')
+        mover.chmod(0o755)
+        failed_env = dict(env, PATH=str(shim) + os.pathsep + env['PATH'])
+        program = recipe + '\nprintf "completion reached\\n"'
+        result = subprocess.run(['bash', '-euo', 'pipefail', '-c', program], env=failed_env,
+                                cwd=directory, capture_output=True, text=True, timeout=10)
+        state_file = directory / '.octo/STATE.md'
+        project_file = directory / '.octo/PROJECT.md'
+        if result.returncode == 0 or not state_file.is_file() or (directory / '.octo/ROADMAP.md').exists():
+            failures.append(f'{tree}: initial roadmap publication did not fail partially')
+        checked += 1
+        # Keep user edits in both already-published files during initialization.
+        state_file.write_text(state_file.read_text() + '\nRetained state note\n')
+        project_file.write_text('Retained project vision\n')
+        state_before = state_file.read_bytes()
+        project_before = project_file.read_bytes()
+        initialized = subprocess.run([str(root / 'scripts/octo-state.sh'), 'init_project'], env=env,
+                                     cwd=directory, capture_output=True, text=True, timeout=10)
+        if (initialized.returncode or not (directory / '.octo/ROADMAP.md').is_file() or
+                state_file.read_bytes() != state_before or project_file.read_bytes() != project_before):
+            failures.append(f'{tree}: init retry did not restore missing files while preserving existing files')
+        checked += 1
+        for attempt in range(2):
+            result = subprocess.run(['bash', '-euo', 'pipefail', '-c', program], env=env,
+                                    cwd=directory, capture_output=True, text=True, timeout=10)
+            state = json.loads((directory / 'state/state.json').read_text())
+            if (result.returncode or 'completion reached' not in result.stdout or
+                    state['metrics']['phases_completed'] != 1 or len(state['decisions']) != 1 or
+                    'Retained state note' not in state_file.read_text() or
+                    project_file.read_bytes() != project_before):
+                failures.append(f'{tree}: partial-init recipe retry {attempt} failed or duplicated completion')
             checked += 1
 # Shell echo options must not change JSON string escapes during publication.
 with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
