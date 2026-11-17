@@ -1477,7 +1477,7 @@ for reference_text in 'Build 1928, 1929, 1930 and 1931 in parallel.' 'PLAT-1931 
     reference_claims=$(research_extract_numbers "$reference_text")
     if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "ticket number became a claim: $reference_claims"; fi
 done
-for quantity_case in '1928 ms at p95|1928' '1929% of rows|1929%' '1928.5 seconds|1928.5' 'It sent 1930 requests.|1930' 'It has 1932 users.|1932' 'Latency is 1928 [ms](units.md).|1928' 'Latency is 1928 [requests](units.md).|1928' 'Latency is 1928-1932 ms.|1932' 'Latency is 1928–1932 ms.|1932' 'Latency is 1928—1932 ms.|1932'; do
+for quantity_case in '1928 ms at p95|1928' '1929% of rows|1929%' '1928.5 seconds|1928.5' 'It sent 1930 requests.|1930' 'It has 1932 users.|1932' 'Latency is 1928 [ms](units.md).|1928' 'Latency is 1928 [requests](units.md).|1928' 'Latency is 1928-1932 ms.|1932' 'Latency is 1928–1932 ms.|1932' 'Latency is 1928—1932 ms.|1932' 'The payload weighs 1928 kg.|1928' 'It traveled 1928 km.|1928' 'It has 1928 errors.|1928' 'It has 1928 items.|1928'; do
     quantity_text=${quantity_case%%|*}
     test_case "a quantity beside declared tickets requires evidence: $quantity_text"
     quantity_claims=$(research_extract_numbers "$quantity_text")
@@ -1520,12 +1520,13 @@ declared_draft="$RESEARCH_RUN_DIR/declared.md"
     printf '%s\n' '- The handler returns 1929 rows (`src/handler.ts:2`).'
     printf '%s\n' '- Latency is 1928 [ms](units.md) (`src/handler.ts:2`).'
     printf '%s\n' '- Latency is 1928-1932 ms (`src/handler.ts:2`).'
+    printf '%s\n' '- The payload weighs 1928 kg (`src/handler.ts:2`).'
 } > "$declared_draft"
 declared_status=0
 (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
 declared_checks=$(jq -r '[.checks[] | "\(.line):\(.kind):\(.detail)"] | join(" ")' "$RESEARCH_RUN_DIR/verification.json" 2>/dev/null)
-if [[ "$declared_status" -ne 0 && "$declared_checks" == "4:number_mismatch:1929 5:number_mismatch:1928 6:number_mismatch:1932" ]] \
-   && jq -e '.claims_checked == 5 and .failures == 3' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
+if [[ "$declared_status" -ne 0 && "$declared_checks" == "4:number_mismatch:1929 5:number_mismatch:1928 6:number_mismatch:1932 7:number_mismatch:1928" ]] \
+   && jq -e '.claims_checked == 6 and .failures == 4' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
     test_pass
 else
     test_fail "status=$declared_status checks=$declared_checks report=$(cat "$RESEARCH_RUN_DIR/verification.json" 2>/dev/null)"

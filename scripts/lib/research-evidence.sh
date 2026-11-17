@@ -697,7 +697,7 @@ research_numeric_claims() {
         for (i = 1; i <= count; i++) if (parts[i] != "") declared[parts[i]] = 1
         count = split(probe_indices, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") probe_index[parts[i]] = 1
-        reference_unit = "^[ \\t]+[*_]*(ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x)([^0-9a-z_]|$)"
+        reference_unit = "^[ \\t]+[*_]*(ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?)([^0-9a-z_]|$)"
     }
     function declared_reference(number, before, after) {
         if (number !~ /^[0-9]+$/) return 0
