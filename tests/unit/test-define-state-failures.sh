@@ -106,8 +106,9 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     state_file = directory / 'state/state.json'
     before = state_file.read_bytes()
     synthesis.write_text('unpublished requirements')
-    for operation in ('python3', 'jq', 'atomic_write'):
+    for operation in ('python3', 'jq', 'atomic_write', 'cp', 'mv', 'echo'):
         for conditional in (False, True):
+            state_file.write_bytes(before)
             call = 'complete_define "$2" "unpublished context" "new decision"'
             if conditional:
                 call = 'if ' + call + '; then exit 0; else exit $?; fi'
@@ -115,6 +116,8 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                                      'test', str(helper), str(synthesis)], env=env, capture_output=True, text=True)
             if result.returncode == 0 or state_file.read_bytes() != before or 'Recorded Define completion' in result.stdout:
                 failures.append(f'{operation} failure accepted, conditional={conditional}')
+            if operation in ('cp', 'mv', 'echo') and list(state_file.parent.glob('state.json.tmp.*')):
+                failures.append(f'{operation} failure left unpublished temporary state')
             checked += 1
 # Execute both production helpers from a fresh project, with persistence unset,
 # disabled and enabled, including replay after a failed project status write.

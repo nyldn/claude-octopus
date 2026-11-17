@@ -174,7 +174,10 @@ atomic_write() {
     local temp_file="${STATE_FILE}.tmp.$$"
 
     # Write to temp file
-    echo "$content" > "$temp_file"
+    if ! echo "$content" > "$temp_file"; then
+        rm -f "$temp_file"
+        return 1
+    fi
 
     # Validate JSON
     if ! jq empty "$temp_file" 2>/dev/null; then
@@ -184,11 +187,17 @@ atomic_write() {
 
     # Backup current state
     if [ -f "$STATE_FILE" ]; then
-        cp "$STATE_FILE" "$BACKUP_FILE"
+        if ! cp "$STATE_FILE" "$BACKUP_FILE"; then
+            rm -f "$temp_file"
+            return 1
+        fi
     fi
 
     # Atomic move
-    mv "$temp_file" "$STATE_FILE"
+    if ! mv "$temp_file" "$STATE_FILE"; then
+        rm -f "$temp_file"
+        return 1
+    fi
 }
 
 # Set current workflow and phase
