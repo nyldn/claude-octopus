@@ -303,9 +303,14 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    `SEAT_DIR` to its fresh writable artifact directory, and `SEAT_WAIT_SECONDS`
    to the approved deadline. The launcher's six arguments include the output
    prefix and the required success count; a single-seat collection requires 1.
+   Export these values in the same shell invocation as the recipe: under a zsh
+   host shell it runs as a separate bash process, which sees only exported
+   variables from that invocation.
 
    <!-- deck-seat-collection:start -->
    ```bash
+   # Runs under bash even when the host shell is zsh.
+   if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
    case "${ADVISOR_ID%%:*}" in
        openai-compatible*|openai-tools*|atlascloud*|cheaperinference*|uberllm*|api-route*|litellm*)
            printf 'Seat incomplete: transport cannot bound request count\n' >&2
@@ -324,6 +329,7 @@ flag, run it against the draft skeleton before requesting approval or rendering:
        printf 'Seat incomplete: %s\n' "$SEAT_DIR" >&2
        exit 1
    fi
+   OCTO_BASH
    ```
    <!-- deck-seat-collection:end -->
 

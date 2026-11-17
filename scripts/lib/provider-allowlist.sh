@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+if [ -z "${BASH_VERSION:-}" ]; then
+    printf 'ERROR: provider-allowlist.sh must be sourced from bash; run the calling block under bash\n' >&2
+    return 1 2>/dev/null || exit 1
+fi
 _provider_allowlist_registry_dir="${BASH_SOURCE[0]%/*}"
 [[ "$_provider_allowlist_registry_dir" == "${BASH_SOURCE[0]}" ]] && _provider_allowlist_registry_dir="."
 _provider_allowlist_registry_dir="$(cd "$_provider_allowlist_registry_dir" && pwd)"

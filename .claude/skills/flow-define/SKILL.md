@@ -87,6 +87,8 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 **MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 provider_check_output=$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh")
 provider_status_lines=$(printf '%s\n' "$provider_check_output" | awk '
   /^PROVIDER_CHECK_START$/ { capture=1; next }
@@ -128,6 +130,9 @@ fi
 
 # Task status for the banner's Tasks line, if the session has one.
 task_status=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
+printf 'Provider Availability:\n%s' "$provider_availability"
+printf 'Tasks: %s\n' "$task_status"
+OCTO_BASH
 ```
 
 List every provider the check reports, not only Claude. A banner showing one seat when several ran misrepresents what the user is paying for.
@@ -253,14 +258,21 @@ Use the debate synthesis to set the approach context for the Define phase.
 
 **After gathering answers, create context file:**
 
+Export the request and answers before the heredoc as single-quoted shell
+literals. Escape every embedded single quote as `'\''`, or generate each complete value with Python's
+`shlex.quote`. Keep dollar signs, backticks and newlines literal. Do not put
+untrusted values inside double quotes in shell source. Keep user values outside
+the fixed heredoc so their lines cannot terminate it.
+
 ```bash
+# Runs under bash even when the host shell is zsh.
+export USER_REQUEST='[Original user feature request]'
+export user_flow='[Answer from question 1]'
+export approach='[Answer from question 2]'
+export out_of_scope='[Answer from question 3]'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Source context manager
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/context-manager.sh"
-
-# Extract user answers from AskUserQuestion results
-user_flow="[Answer from question 1]"
-approach="[Answer from question 2]"
-out_of_scope="[Answer from question 3]"
 
 # Create context file with user vision
 create_templated_context \
@@ -272,6 +284,7 @@ create_templated_context \
   "$out_of_scope"
 
 echo "📋 Context captured and saved to .claude-octopus/context/define-context.md"
+OCTO_BASH
 ```
 
 **This context will be used to:**

@@ -7,6 +7,14 @@
 - Define stops after failed decision, context or metrics writes, and records
   completion only after its synthesis is saved to the roadmap.
 
+- Brainstorm Team mode, debate, branch-completion review, the deck red-team seat
+  recipe and define run their shell blocks under bash when the host shell is zsh,
+  as Claude Code's Bash tool is on macOS. The bash-only libraries they load now
+  stop with that fix instead of reporting the advisor allowlist as unavailable.
+  Those blocks export literal inputs before the heredoc and print what later
+  steps need, including whether host Claude may join. Request text cannot expand
+  as shell code or terminate the fixed heredoc. Bash children receive the provider
+  allowlist, and later debate steps restore their run directory.
 - Develop stops after a failed implementation decision, context or metrics write,
   preserving earlier state for inspection instead of presenting completion.
 
