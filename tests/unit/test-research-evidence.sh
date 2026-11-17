@@ -1440,6 +1440,7 @@ _source_verification_case known-unfetched unfetched '- There are 21 templates [s
 for declared_case in \
     'tickets PLAT-1927..PLAT-1931|1927 1928 1929 1930 1931' \
     'plat-1927 to 1931, as parallel as possible|1927 1928 1929 1930 1931' \
+    'PLAT-01928..PLAT-01931|01928 01929 01930 01931' \
     'PLAT-1927-1931|1927 1928 1929 1930 1931' \
     'PLAT-1928, 1929 and 1930|1928 1929 1930' \
     'PLAT-1928 and 300 other bugs|1928' \
@@ -1531,7 +1532,19 @@ for quantity_case in \
     'Latencies are 1928,1929 ms.|1928,1929' \
     'The count is 1,928 users.|1,928' \
     'The latency is 1928.1929 ms.|1928.1929' \
-    'Build 1928,1940 in parallel.|1928,1940'; do
+    'Build 1928,1940 in parallel.|1928,1940' \
+    'The cost is 1928 USD.|1928' \
+    'The cost is 1928 dollars.|1928' \
+    'The cost is USD 1928.|1928' \
+    'The cost is 1928 EUR.|1928' \
+    'The cost is 1928 euros.|1928' \
+    'Latencies are 1928 & 1932 ms.|1928 1932' \
+    'Latency is 1928 ± 20 ms.|1928 20' \
+    'The sum is 2 + 1928.|1928 2' \
+    'The difference is 2000 - 1928.|1928 2000' \
+    'The product is 2 * 1928.|1928 2' \
+    'The product is 2 × 1928.|1928 2' \
+    'The sum is 1928 + 2.|1928 2'; do
     quantity_text=${quantity_case%%|*}
     test_case "declared identifiers retain explicit quantity syntax: $quantity_text"
     quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
@@ -1596,10 +1609,15 @@ for quantity_text in 'The monthly cost is $1928.' 'The cost is €1928.' \
     'Latency is 1928 through 1932 ms.' 'Latency is 1928 thru 1932 ms.' \
     'Latency is [1928](#low)-[1931](#high) ms.' \
     'The ratio is 1928:1931.' 'The ratio is `1928`:`1931`.' \
-    'Latencies are 1928, 1929, and 1931 ms.'; do
+    'Latencies are 1928, 1929, and 1931 ms.' \
+    'The cost is 1928 USD.' 'The cost is 1928 dollars.' \
+    'The cost is USD 1928.' 'The cost is 1928 EUR.' 'The cost is 1928 euros.' \
+    'Latencies are 1928 & 1932 ms.' 'Latency is 1928 ± 20 ms.' \
+    'The sum is 2 + 1928.' 'The difference is 2000 - 1928.' \
+    'The product is 2 * 1928.' 'The product is 2 × 1928.'; do
     test_case "synthesis rejects unsupported declared quantity: $quantity_text"
     # Only the range endpoint is supported, proving the start is still checked.
-    printf '%s\n' 'return 1932;' > "$declared_root/src/handler.ts"
+    printf '%s\n' 'return [1932, 20, 2, 2000];' > "$declared_root/src/handler.ts"
     printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
     declared_status=0
     (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
@@ -1623,5 +1641,13 @@ printf '%s\n' 'current run' > "$probe_exact_dir/codex-probe-audit-4.md"
 test_case "probe indices retain the current artifact beside a prefixed group"
 exact_indices=$(RESEARCH_PROVIDER_RESULTS_DIR="$probe_exact_dir" RESEARCH_TASK_GROUP=audit research_probe_indices)
 if [[ "$exact_indices" == 4 ]]; then test_pass; else test_fail "incorrect exact indices: $exact_indices"; fi
+
+test_case "zero-padded range members stay identifiers in actual synthesis verification"
+printf '%s\n' 'Check PLAT-01928..PLAT-01931' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' '- Build 01929 in parallel (`src/handler.ts:1`).' > "$declared_draft"
+declared_status=0
+(cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+if [[ "$declared_status" -eq 0 ]] && jq -e '.failures == 0' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+else test_fail "padded ticket reference rejected"; fi
 
 test_summary

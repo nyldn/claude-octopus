@@ -649,7 +649,7 @@ research_declared_identifier_numbers() {
                 if (member_prefix == "" && (length(member) != length(last) || member - last > 100 || last - member > 100)) break
                 rest = substr(rest, length(segment) + 1)
                 if (length(member) <= 15 && joiner !~ /,|(^|[^a-z])(and|or)([^a-z]|$)|&/ && member - last > 0 && member - last <= 50) {
-                    for (step = last + 1; step < member + 0; step++) declare(step "")
+                    for (step = last + 1; step < member + 0; step++) declare(sprintf("%0*d", length(last), step))
                 }
                 declare(member)
                 last = member
@@ -700,7 +700,8 @@ research_numeric_claims() {
         count = split(probe_indices, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") probe_index[parts[i]] = 1
         unit_modifier = "((active|new|concurrently|concurrent|total|remaining|failed|successful|additional|unique|daily|monthly|average|maximum|minimum|peak)[ \\t]+)?"
-        reference_unit = "^[ \\t]+[*_]*" unit_modifier unit_modifier unit_modifier "(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?)([^0-9a-z_]|$)"
+        currency_unit = "(usd|eur|gbp|jpy|cny|rmb|inr|aud|cad|chf|krw|rub|brl|zar|nzd|hkd|sgd|aed|dollars?|euros?|pounds?|yen|yuan|renminbi|rupees?|francs?|rubles?|reals?|rands?|won|dirhams?|krona|kroner)"
+        reference_unit = "^[ \\t]+[*_]*" unit_modifier unit_modifier unit_modifier "(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|" currency_unit ")([^0-9a-z_]|$)"
     }
     function quantity_suffix(after) {
         # Units may be code-formatted or use Unicode prefixes. Keep these
@@ -719,12 +720,15 @@ research_numeric_claims() {
         if (number !~ /^[0-9]+(,[0-9]+)*$/) return 0
         if (number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
         if (before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_`]*$/) return 0
+        if (tolower(before) ~ ("(^|[^a-z])" currency_unit "[ \\t*_]*$")) return 0
+        if (before ~ /[0-9][ \t*_]*[+*=][ \t*_]*$|[0-9][ \t*_]*(\302\261|\303\227|\303\267)[ \t*_]*$/) return 0
+        if (before ~ /[0-9][ \t*_]+-[ \t*_]+$/ || after ~ /^[ \t*_]+-[ \t*_]+[0-9]/) return 0
         if (before ~ /[0-9][ \t*_]*[\/:][ \t*_]*$/ || after ~ /^[ \t*_]*[\/:][ \t*_]*[0-9]/) return 0
         if (after ~ /^([.,][0-9]|[A-Za-z%])/) return 0
-        if (quantity_suffix(after) || after ~ /^[ \t*_`]*\+/) return 0
+        if (quantity_suffix(after) || after ~ /^[ \t*_`]*[+*=]/) return 0
         # A trailing unit makes earlier range endpoints and list members quantities.
         range_tail = after
-        if (sub(/^([ \t*_]*(-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", range_tail) && quantity_suffix(range_tail)) return 0
+        if (sub(/^([ \t*_]*(-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", range_tail) && quantity_suffix(range_tail)) return 0
         member_count = split(number, members, /,/)
         for (member = 1; member <= member_count; member++) if (!(members[member] in declared)) break
         if (member > member_count) return 1
