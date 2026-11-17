@@ -1454,13 +1454,30 @@ for declared_case in \
     else test_fail "expected [$declared_expected], got [$declared_actual]"; fi
 done
 
+test_case "oversized ticket ranges terminate without floating-point expansion"
+if python3 - "$PROJECT_ROOT/scripts/lib/research-evidence.sh" <<'PY_RANGE'
+import resource
+import subprocess
+import sys
+
+for prompt in ["PLAT-9007199254740992..PLAT-9007199254740994",
+               "PLAT-9999999999999998..PLAT-9999999999999999"]:
+    first, last = [part.removeprefix("PLAT-") for part in prompt.split("..")]
+    result = subprocess.run(
+        ["bash", "-c", 'source "$1"; research_declared_identifier_numbers', "fixture", sys.argv[1]],
+        input=prompt, text=True, capture_output=True, timeout=5,
+        preexec_fn=lambda: resource.setrlimit(resource.RLIMIT_CPU, (1, 1)))
+    assert result.returncode == 0 and result.stdout.strip() == f"{first} {last}", result
+PY_RANGE
+then test_pass; else test_fail "oversized identifier range stalled or expanded"; fi
+
 research_declared_ids="1927 1928 1929 1930 1931"
 for reference_text in 'Build 1928, 1929, 1930 and 1931 in parallel.' 'PLAT-1931 shares the service with 1928.' "It keeps 1927's output unchanged." '1931 exclusively owns the loader.' 'The tickets 1928-1931 stack on it.'; do
     test_case "a declared ticket number is an identifier: $reference_text"
     reference_claims=$(research_extract_numbers "$reference_text")
     if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "ticket number became a claim: $reference_claims"; fi
 done
-for quantity_case in '1928 ms at p95|1928' '1929% of rows|1929%' '1928.5 seconds|1928.5' 'It sent 1930 requests.|1930' 'It has 1932 users.|1932'; do
+for quantity_case in '1928 ms at p95|1928' '1929% of rows|1929%' '1928.5 seconds|1928.5' 'It sent 1930 requests.|1930' 'It has 1932 users.|1932' 'Latency is 1928 [ms](units.md).|1928' 'Latency is 1928 [requests](units.md).|1928' 'Latency is 1928-1932 ms.|1932' 'Latency is 1928–1932 ms.|1932' 'Latency is 1928—1932 ms.|1932'; do
     quantity_text=${quantity_case%%|*}
     test_case "a quantity beside declared tickets requires evidence: $quantity_text"
     quantity_claims=$(research_extract_numbers "$quantity_text")
@@ -1501,12 +1518,14 @@ declared_draft="$RESEARCH_RUN_DIR/declared.md"
     printf '%s\n' '- PLAT-1931 shares the handler with 1928 (`src/handler.ts:2`).'
     printf '%s\n' '- Codex probe 1 said membership; the handler returns 500 (`src/handler.ts:2`).'
     printf '%s\n' '- The handler returns 1929 rows (`src/handler.ts:2`).'
+    printf '%s\n' '- Latency is 1928 [ms](units.md) (`src/handler.ts:2`).'
+    printf '%s\n' '- Latency is 1928-1932 ms (`src/handler.ts:2`).'
 } > "$declared_draft"
 declared_status=0
 (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
 declared_checks=$(jq -r '[.checks[] | "\(.line):\(.kind):\(.detail)"] | join(" ")' "$RESEARCH_RUN_DIR/verification.json" 2>/dev/null)
-if [[ "$declared_status" -ne 0 && "$declared_checks" == "4:number_mismatch:1929" ]] \
-   && jq -e '.claims_checked == 3 and .failures == 1' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
+if [[ "$declared_status" -ne 0 && "$declared_checks" == "4:number_mismatch:1929 5:number_mismatch:1928 6:number_mismatch:1932" ]] \
+   && jq -e '.claims_checked == 5 and .failures == 3' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then
     test_pass
 else
     test_fail "status=$declared_status checks=$declared_checks report=$(cat "$RESEARCH_RUN_DIR/verification.json" 2>/dev/null)"

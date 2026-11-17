@@ -648,7 +648,7 @@ research_declared_identifier_numbers() {
                 if (member_prefix != "" && member_prefix != prefix) break
                 if (member_prefix == "" && (length(member) != length(last) || member - last > 100 || last - member > 100)) break
                 rest = substr(rest, length(segment) + 1)
-                if (joiner !~ /,|(^|[^a-z])(and|or)([^a-z]|$)|&/ && member - last > 0 && member - last <= 50) {
+                if (length(member) <= 15 && joiner !~ /,|(^|[^a-z])(and|or)([^a-z]|$)|&/ && member - last > 0 && member - last <= 50) {
                     for (step = last + 1; step < member + 0; step++) declare(step "")
                 }
                 declare(member)
@@ -702,7 +702,7 @@ research_numeric_claims() {
     function declared_reference(number, before, after) {
         if (number !~ /^[0-9]+$/) return 0
         if (after ~ /^([.,][0-9]|[A-Za-z%]|[ \t]*%|\302\260|\302\265|\316\274)/) return 0
-        if (tolower(after) ~ reference_unit) return 0
+        if (tolower(after) ~ reference_unit || after ~ /^[ \t]*\[/) return 0
         if (number in declared) return 1
         return ((number in probe_index) && tolower(before) ~ /(^|[^0-9a-z_])[*_]*probes?[*_]*[ \t]+$/)
     }
@@ -852,7 +852,7 @@ research_numeric_claims() {
                 continue
             }
             if (declared_reference(substr(line, start, len), before, after)) {
-                id_end = pos
+                if (after !~ /^[ \t]*(-|\342\200\223|\342\200\224|\342\210\222)[ \t]*[*_]*[0-9]/) id_end = pos
                 continue
             }
             if (ordinal_reference(before, after, start - emphasis_width, substr(line, start, len))) {
