@@ -1505,7 +1505,15 @@ for quantity_case in \
     'Latency is 1928–1931µs.|1928 1931' \
     'Latency is 1928-1931`ms`.|1928 1931' \
     'Latency is between 1928 and 1931 ms.|1928 1931' \
-    'Latencies are 1928, 1929 and 1931 ms.|1928 1929 1931'; do
+    'Latencies are 1928, 1929 and 1931 ms.|1928 1929 1931' \
+    '`1928`/2000 tests pass.|1928 2000' \
+    '2000/`1928` tests pass.|1928 2000' \
+    '`2000`/`1928` tests pass.|1928 2000' \
+    '`1928`/`1931` tests pass.|1928 1931' \
+    'The service has 1928 active users.|1928' \
+    'The service has 1928 new concurrently active users.|1928' \
+    'The service has 1928 **active users**.|1928' \
+    'Latency is `1928`-`1931`ms.|1928 1931'; do
     quantity_text=${quantity_case%%|*}
     test_case "declared identifiers retain explicit quantity syntax: $quantity_text"
     quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
@@ -1562,7 +1570,8 @@ fi
 
 for quantity_text in 'The monthly cost is $1928.' 'The cost is €1928.' \
     'Latency is 1928 `ms`.' 'The dose is 1928 µg.' \
-    'Latency is 1928-1932 ms.' 'Latency is 1928-1932ms.' 'Latency is between 1928 and 1932 ms.' '1928/2000 tests pass.'; do
+    'Latency is 1928-1932 ms.' 'Latency is 1928-1932ms.' 'Latency is between 1928 and 1932 ms.' '1928/2000 tests pass.' \
+    '`1928`/2000 tests pass.' '`2000`/`1928` tests pass.' 'The service has 1928 active users.'; do
     test_case "synthesis rejects unsupported declared quantity: $quantity_text"
     # Only the range endpoint is supported, proving the start is still checked.
     printf '%s\n' 'return 1932;' > "$declared_root/src/handler.ts"
