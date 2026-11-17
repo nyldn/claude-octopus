@@ -45,6 +45,11 @@ Shipping checkpoints name the exact clean revision that passed the audit.
 Changed source or a failed tag stops finalization. Rollback history stays in
 the repository confirmed by the preview and refuses hard-linked state files.
 
+Shipment status updates preserve the original access policy and publish a complete
+replacement. Failed preparation or persistence stops delivery, and retrying the
+same archive records shipment history once. Canonical and legacy status files
+use the same current-state boundary.
+
 See [review and recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery).
 
 <!-- BEGIN CURRENT RELEASE -->

@@ -103,6 +103,13 @@ instructions. Direct spawn callers can select this role with
 `OCTOPUS_SPAWN_ROLE=advisor`; other nonempty values are rejected. Provider
 permission overrides and the configured Codex sandbox remain in effect.
 
+Shipment-state replacement installs the original access policy before writing
+content and verifies it again before publication. Owner, group, mode, ACLs and
+extended attributes remain intact. Linked or nonregular state paths, missing
+context, preparation failures and persistence failures stop delivery. The current
+status ends before History, with canonical status taking precedence over legacy
+status. Retrying the same completed archive does not duplicate shipment history.
+
 ## Host-native by default
 
 Routine architecture, TDD, and debugging run on the current host with no extra
