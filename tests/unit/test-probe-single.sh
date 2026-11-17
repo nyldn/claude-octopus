@@ -83,6 +83,39 @@ with tempfile.TemporaryDirectory() as directory:
 PY
 then test_pass; else test_fail "file validation stalled, changed content or dispatched an empty perspective"; fi
 
+test_case "refinement probe preserves blind input and rejects compression"
+if python3 - "$WORKFLOWS" "$BASH" <<'PYTEST'
+import os, subprocess, sys, tempfile
+from pathlib import Path
+program = r'''
+source "$1"
+export OCTOPUS_REFINEMENT_JUDGE=true SUPPORTS_AGENT_TYPE_ROUTING=false
+RESULTS_DIR="$2/results" LOGS_DIR="$2/logs" PROJECT_ROOT="$2"
+log() { :; }
+preflight_check() { return 0; }
+classify_task() { echo research; }
+match_routing_rule() { return 1; }
+apply_persona() { echo leaked-persona >> "$2/persona-read"; echo altered; }
+get_persona_override_content() { echo unrelated-secret; }
+enforce_context_budget() { if [[ "$CHANGE_REQUEST" == yes ]]; then echo truncated; else printf '%s' "$1"; fi; }
+get_agent_model() { echo fixed-model; }
+octo_resolve_agent_command() { printf '%s' "$5" > "$CAPTURE_BYTES"; return 125; }
+probe_single_agent codex 'frozen judge input' fixture
+'''
+with tempfile.TemporaryDirectory() as d:
+    capture = Path(d)/'captured'
+    for change, expected in [('no', 125), ('yes', 2)]:
+        result = subprocess.run([sys.argv[2], '-c', program, '_', sys.argv[1], d],
+            env=dict(os.environ, CHANGE_REQUEST=change, CAPTURE_BYTES=str(capture)), capture_output=True)
+        assert result.returncode == expected, (result.returncode, result.stderr)
+        if change == 'no':
+            assert capture.read_text() == str(len('frozen judge input'.encode()))
+            capture.unlink()
+        else:
+            assert not capture.exists(), 'changed request reached command resolution'
+PYTEST
+then test_pass; else test_fail "judge request gained unselected context or compression was dispatched"; fi
+
 # ── probe_single_agent writes result files ───────────────────────────────────
 
 assert_contains "$PROBE_SINGLE_SRC" \

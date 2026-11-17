@@ -35,24 +35,29 @@ target in their prompts. The host preserves their actual responses and runtime
 identities. The lower total is the reported aggregate. This conservative rule
 does not remove model bias or turn the score into a probability of correctness.
 
-Before any external call, including model-assisted research, the host must
-inspect the candidate, supporting evidence, and accessible project context for
-credentials and private tokens. Repeat the inspection for new content before
-dispatch. If secrets are found, stop the run and identify the affected input or
-file without quoting its secret values. The current adapter cannot isolate
-judges from the secret-bearing original or other readable files. A sanitized
-copy, a changed working directory, or an instruction to ignore the original
-does not establish that isolation and must not be used to continue the run.
-Secret-bearing inputs are unsupported until an execution boundary prevents
-those reads. This host inspection is not an automatic secret scanner or a
-guarantee of data isolation.
+Before any external call, including model-assisted research, inspect only the
+candidate and selected supporting evidence for credentials and private tokens.
+Repeat for new content. Do not open unrelated credential files, enumerate their
+keys, or scan the whole repository. If a selected input contains a secret, stop
+and name that input without quoting its values. Do not silently redact or
+change the frozen candidate. Host inspection is not an automatic secret scanner.
 
-The initial judge adapter supports Claude and Codex. It forces a read-only
-Codex sandbox, disables configured Codex MCP servers, apps, and plugins, and limits Claude
-to Read/Glob/Grep with ambient MCP disabled. Codex MCP inventory failures stop
-dispatch without printing its configuration or credential values.
-Other judge providers are rejected until they have an enforced read-only
-adapter. Authentication retries are disabled; one reserved call is one attempt.
+The mandatory judge adapter stages only the blind request in a fresh private
+directory. Claude requires `--restricted --safe-mode`, Read/Glob/Grep and no
+ambient MCP. Codex uses a scoped filesystem profile admitting only that directory
+and platform runtime files, disables tool network access and approval escalation,
+clears the tool-process environment, and disables MCP, apps, plugins, hooks and
+memory. Before dispatch, a local Codex sandbox probe must read the request and
+reject an unrelated sentinel. Unsupported clients fail before a provider call.
+The staging directory is removed after dispatch. Provider authentication stays
+with the client; credentials are not copied into the request directory.
+
+This confines model file tools; it is not an OS sandbox around the trusted CLI
+client itself or its authentication code. Only candidate, rubric, purpose,
+constraints and guard evidence selected by the host belong in the blind prompt.
+External research needs an equally constrained adapter or must stop with a named
+capability gap. A scratch directory or a prompt instruction alone is insufficient.
+Authentication retries remain disabled and every reserved call counts as an attempt.
 
 The workflow keeps the best verified candidate. It cannot pass with a blocking
 finding, failed or unverified required check, a criterion below its minimum, or

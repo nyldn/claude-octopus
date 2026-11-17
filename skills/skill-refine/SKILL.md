@@ -25,10 +25,19 @@ if [[ -n "${OCTO_SKILL_FILE:-}" ]]; then
     OCTO_ROOT="$(dirname "$OCTO_ROOT")"
   done
 fi
-[[ -n "$OCTO_ROOT" && -f "$OCTO_ROOT/scripts/refinement-judge.sh" && -f "$OCTO_ROOT/scripts/refinement-score.py" && -f "$OCTO_ROOT/scripts/refinement-run.py" && -f "$OCTO_ROOT/skills/skill-refine/SKILL.md" ]] || {
+[[ -n "$OCTO_ROOT" && -d "$OCTO_ROOT" ]] || {
   printf '%s\n' 'Cannot resolve this installed Octopus skill' >&2
   exit 1
 }
+for component in scripts/refinement-judge.sh scripts/refinement-pair.py \
+  scripts/refinement-score.py scripts/refinement-run.py \
+  scripts/helpers/preflight.sh scripts/helpers/refinement-input-boundary.py \
+  scripts/helpers/refinement-codex-policy.py skills/skill-refine/SKILL.md; do
+  [[ -f "$OCTO_ROOT/$component" ]] || {
+    printf 'Missing installed Octopus component: %s\n' "$component" >&2
+    exit 1
+  }
+done
 ```
 Keep this absolute root in the workflow context and include its assignment in
 each new shell invocation. Shell variables may not persist between tool calls.
@@ -44,16 +53,20 @@ snapshot with the appropriate host tools. If you cannot inspect it, stop and
 name the missing capability. Do not score an unseen attachment or a URL title.
 
 Before any external provider call, including model-assisted research, inspect
-the candidate, supporting evidence, and accessible project context for
-credentials and private tokens. Repeat this inspection for new content before
-dispatch. If secrets are found, stop the run before research or judging and
-report the affected input or file without quoting its secret values. Do not
-continue by creating a sanitized copy, changing working directories, or asking
-a judge to ignore the original. The current adapter restricts writes and tools;
-it does not enforce isolation from the secret-bearing original or other
-readable files. Secret-bearing inputs require an execution boundary that
-prevents those reads, which this adapter does not provide. Host inspection is
-not an automatic secret scanner or a guarantee of data isolation.
+only the candidate and the supporting evidence selected for that call for
+credentials and private tokens. Repeat for new content before dispatch. Do not
+open unrelated credential files, enumerate their keys, or scan the whole project
+as part of this check. If a selected input contains a secret, stop before
+research or judging and name the affected input without quoting its values.
+Do not silently redact inputs or change the frozen candidate to continue.
+
+Judges receive only the complete frozen request in a fresh private directory.
+The mandatory adapter confines file reads to that directory, disables ambient
+integrations and automatic context, and rejects unsupported clients before
+calling a provider. A different working directory alone is not isolation.
+Never bypass this adapter or replace its enforcement with prompt instructions.
+Host inspection is not an automatic secret scanner. External research must use
+an equally constrained adapter; otherwise stop and name that capability gap.
 
 Record the audience, intended outcome, constraints, editable paths, and what
 must be preserved. A request to improve a plan authorizes editing the plan,
@@ -105,9 +118,9 @@ the next phase, and reload its resource after compaction before resuming it:
 4. Load `skills/skill-refine/references/phase-4.md` before edits and rescoring.
 5. Load `skills/skill-refine/references/phase-5.md` before delivery and trajectory.
 
-Before external research or judging, inspect candidate, evidence and accessible
-context for secrets as required above. Run declared guards before model review.
-Choose exactly Claude and Codex with `preflight.sh --providers claude,codex`,
+Before external research or judging, inspect the selected candidate and evidence
+for secrets as required above. Run declared guards before model review.
+Choose exactly Claude and Codex with `bash "$OCTO_ROOT/scripts/helpers/preflight.sh" --providers claude,codex --json`,
 without changing the council roster. Preserve fixed explicit models and efforts,
 record requested and resolved identities, and stop on a required provider failure.
 A readiness receipt is selection evidence only. Fresh dispatch auth, quota, and

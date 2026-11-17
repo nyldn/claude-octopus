@@ -25,6 +25,13 @@ class RunControlTest(unittest.TestCase):
         self.scripts = self.base/'scripts'; self.scripts.mkdir()
         for name in ('refinement-run.py','refinement-pair.py','refinement-judge.sh','refinement-score.py'):
             shutil.copy2(ROOT/'scripts'/name, self.scripts/name)
+        spec = importlib.util.spec_from_file_location('boundary_fixture', ROOT / 'tests/fixtures/refinement-boundary.py')
+        fixture = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fixture)
+        binaries = fixture.install(ROOT, self.scripts)
+        original_path = os.environ['PATH']
+        os.environ['PATH'] = binaries + os.pathsep + original_path
+        self.addCleanup(os.environ.__setitem__, 'PATH', original_path)
         backend = self.scripts/'orchestrate.sh'
         backend.write_text('#!/bin/sh\ncase "$*" in *codex:codex-fixed*) [ "${FAIL_CODEX:-0}" != 1 ] || exit 1;; esac\nprintf "inert judge result\\n"\n')
         backend.chmod(0o755)
