@@ -29,7 +29,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for strict in (False, True):
         for conditional in (False, True):
-            for scenario in ('success', 'init_project', 'update_roadmap', 'update_state', 'complete_define', 'missing', 'empty', 'persistence off'):
+            for scenario in ('success', 'init_project', 'update_roadmap', 'update_state', 'complete_define', 'missing', 'empty', 'persistence off', 'headingless'):
                 with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                     temporary = Path(temporary)
                     plugin = temporary / 'plugin'
@@ -37,7 +37,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     calls = temporary / 'calls'
                     synthesis = temporary / 'synthesis.md'
                     if scenario != 'missing':
-                        synthesis.write_text('## Problem Definition\nselected the approach\n' if scenario != 'empty' else '')
+                        synthesis.write_text('plain requirements without a heading' if scenario == 'headingless' else
+                                             '## Problem Definition\nselected the approach\n' if scenario != 'empty' else '')
                     env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(plugin), CODEX_PLUGIN_ROOT=str(plugin),
                                SYNTHESIS_FILE=str(synthesis), STATE_CALLS=str(calls), FAIL_OPERATION=scenario,
                                OCTOPUS_WORKFLOW_STATE_DIR=str(temporary / 'state'),
@@ -55,10 +56,11 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     program = recipe + '\nprintf "completion reached\\n"'
                     if conditional:
                         program = '(\n' + program + '\n) && exit 0; exit $?'
-                    succeeds = scenario in ('success', 'persistence off')
+                    succeeds = scenario in ('success', 'persistence off', 'headingless')
                     attempts = 2 if succeeds else 1
                     for attempt in range(attempts):
-                        result = subprocess.run(['bash', '-euc' if strict else '-c', program],
+                        command = ['bash', '-euo', 'pipefail', '-c', program] if strict else ['bash', '-c', program]
+                        result = subprocess.run(command,
                                                 env=env, cwd=temporary, capture_output=True, text=True, timeout=10)
                         state = json.loads((temporary / 'state/state.json').read_text())
                         operations = (['complete_define'] if scenario == 'persistence off' else
@@ -71,8 +73,9 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                                  observed == expected * (attempt + 1) and
                                  ('completion reached' in result.stdout) == succeeds and
                                  state['metrics']['phases_completed'] == int(completed) and
-                                 len(state['decisions']) == int(completed) and
-                                 (not completed or state['context']['define'].strip() == '## Problem Definition selected the approach'))
+                                 len(state['decisions']) == int(completed and scenario != 'headingless') and
+                                 (not completed or state['context']['define'].strip() ==
+                                  ('' if scenario == 'headingless' else '## Problem Definition selected the approach')))
                         if not valid:
                             failures.append(f'{tree}: {scenario}, strict={strict}, conditional={conditional}, '
                                             f'attempt={attempt}, exit={result.returncode}, calls={observed}, state={state}')
@@ -106,7 +109,7 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     state_file = directory / 'state/state.json'
     before = state_file.read_bytes()
     synthesis.write_text('unpublished requirements')
-    for operation in ('python3', 'jq', 'atomic_write', 'cp', 'mv', 'echo'):
+    for operation in ('python3', 'jq', 'atomic_write', 'cp', 'mv', 'printf'):
         for conditional in (False, True):
             state_file.write_bytes(before)
             call = 'complete_define "$2" "unpublished context" "new decision"'
@@ -116,7 +119,7 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                                      'test', str(helper), str(synthesis)], env=env, capture_output=True, text=True)
             if result.returncode == 0 or state_file.read_bytes() != before or 'Recorded Define completion' in result.stdout:
                 failures.append(f'{operation} failure accepted, conditional={conditional}')
-            if operation in ('cp', 'mv', 'echo') and list(state_file.parent.glob('state.json.tmp.*')):
+            if operation in ('cp', 'mv', 'printf') and list(state_file.parent.glob('state.json.tmp.*')):
                 failures.append(f'{operation} failure left unpublished temporary state')
             checked += 1
 # Execute both production helpers from a fresh project, with persistence unset,
@@ -133,7 +136,7 @@ for persistence in (None, 'false', 'true'):
             env['OCTOPUS_PROJECT_PERSISTENCE'] = persistence
         subprocess.run([str(helper), 'init_state'], env=env, cwd=directory, capture_output=True, check=True)
         for attempt in range(2):
-            result = subprocess.run(['bash', '-euc', recipe], env=env, cwd=directory, capture_output=True, text=True)
+            result = subprocess.run(['bash', '-euo', 'pipefail', '-c', recipe], env=env, cwd=directory, capture_output=True, text=True)
             state = json.loads((directory / 'state/state.json').read_text())
             project_state = directory / '.octo/STATE.md'
             valid_project = (project_state.exists() and '**Status:** complete' in project_state.read_text()
@@ -141,6 +144,20 @@ for persistence in (None, 'false', 'true'):
             if result.returncode or not valid_project or state['metrics']['phases_completed'] != 1 or len(state['decisions']) != 1:
                 failures.append(f'actual helpers: persistence={persistence}, attempt={attempt}, exit={result.returncode}')
             checked += 1
+# Shell echo options must not change JSON string escapes during publication.
+with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+    directory = Path(temporary)
+    env = dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(directory / 'state'))
+    subprocess.run([str(helper), 'init_state'], env=env, capture_output=True, check=True)
+    synthesis = directory / 'synthesis.md'
+    synthesis.write_text('literal backslash context')
+    context = r'keep C:\new\temp and literal \t unchanged'
+    result = subprocess.run(['bash', '-c', 'source "$1"; shopt -s xpg_echo; complete_define "$2" "$3" ""',
+                             'test', str(helper), str(synthesis), context], env=env, capture_output=True, text=True)
+    state = json.loads((directory / 'state/state.json').read_text())
+    if result.returncode or state['context']['define'] != context:
+        failures.append('shell echo options changed literal JSON content')
+    checked += 1
 print(f'{checked - len(failures)}/{checked} actual Define persistence/retry controls passed')
 for failure in failures:
     print(failure, file=sys.stderr)

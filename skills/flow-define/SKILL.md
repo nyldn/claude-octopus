@@ -383,7 +383,7 @@ status is marked complete. A failed status write can safely retry this operation
   echo "Definition synthesis is missing, unreadable or empty; completion stopped." >&2
   exit 1
 }
-key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|## Summary" | tail -3 | tr '\n' ' ')
+key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|## Summary" | tail -3 | tr '\n' ' ') || key_definition=""
 decision_made=$(echo "$key_definition" | grep -o "decided to\|chose to\|selected\|using [A-Za-z0-9 ]*" | head -1) || decision_made=""
 
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then

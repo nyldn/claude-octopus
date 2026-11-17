@@ -174,7 +174,7 @@ atomic_write() {
     local temp_file="${STATE_FILE}.tmp.$$"
 
     # Write to temp file
-    if ! echo "$content" > "$temp_file"; then
+    if ! printf '%s\n' "$content" > "$temp_file"; then
         rm -f "$temp_file"
         return 1
     fi
