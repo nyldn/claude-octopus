@@ -94,7 +94,7 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     original = state_file.read_text()
     good = subprocess.run([str(helper), 'show_summary'], env=env, capture_output=True, text=True)
     assert good.returncode == 0 and 'Active Blockers: 0' in good.stdout
-    for corrupted in ('invalid JSON', json.dumps(dict(json.loads(original), blockers=None)),
+    for corrupted in ('', ' \n\t', 'invalid JSON', json.dumps(dict(json.loads(original), blockers=None)),
                       json.dumps({key: value for key, value in json.loads(original).items() if key != 'blockers'})):
         state_file.write_text(corrupted)
         result = subprocess.run([str(helper), 'show_summary'], env=env, capture_output=True, text=True)
@@ -102,7 +102,7 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     state_file.write_text(original)
     restored = subprocess.run([str(helper), 'show_summary'], env=env, capture_output=True, text=True)
     assert restored.returncode == 0 and restored.stdout == good.stdout
-print('5/5 production summary controls passed')
+print('7/7 production summary controls passed')
 PY_SUMMARY
 then test_pass; else test_fail "summary read failure was hidden"; fi
 test_summary

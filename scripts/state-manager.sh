@@ -380,7 +380,7 @@ show_summary() {
     fi
 
     local summary
-    summary=$(jq -r '[
+    summary=$(jq -er '[
         "=== Claude Octopus State Summary ===", "",
         "Project ID: \(.project_id)",
         "Session Start: \(.session_start)",
