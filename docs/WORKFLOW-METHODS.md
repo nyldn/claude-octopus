@@ -51,6 +51,28 @@ Architecture is named `octopus-architecture`; the other direct methods include
 /octo:auto "Prototype a parser to measure throughput"
 ```
 
+## Completion and publication recovery
+
+Develop stops at the first failed implementation decision, context or metrics
+write. It also stops if the post-development checkpoint or either completion
+state write fails. Inspect earlier successful writes and any existing checkpoint
+tag before retrying; completion does not imply that partial state was rolled
+back or that repeating a metrics increment is safe.
+
+Branch completion checks the repository, branch and required PR description
+before pushing. A failed push stops PR creation and preserves local work. If a
+GitHub write has an unknown outcome, use the reported repository and branch to
+check for an existing PR before retrying.
+
+## Shell context recovery
+
+Brainstorm Team mode, debate, definition, branch-completion review and deck
+red-team blocks run under Bash when the host shell is zsh. Use the literal
+assignments printed by a block when a later tool call starts a fresh shell.
+In debate, restore the printed run directory before collecting advisor results.
+A failed provider-allowlist or advisor-library load stops the block; inspect
+that error before retrying.
+
 ## Review and compaction recovery
 
 Branch completion dispatches the configured `code-reviewer` persona and waits

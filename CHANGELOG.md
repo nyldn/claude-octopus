@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.25.1] - 2026-11-17
+
 ### Fixed
 
 - Deliver stops after failed context, metrics or ready-to-ship state writes and
@@ -23,6 +25,13 @@
 - Branch completion validates its branch, repository and required PR description
   before pushing, and stops PR creation after a failed push instead of reporting
   successful publication.
+
+Merged changes: [#1359](https://github.com/nyldn/claude-octopus/pull/1359),
+[#1360](https://github.com/nyldn/claude-octopus/pull/1360),
+[#1361](https://github.com/nyldn/claude-octopus/pull/1361), and
+[#1350](https://github.com/nyldn/claude-octopus/pull/1350).
+These address focused parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime, provenance and installed-host acceptance work remains open.
 
 ## [11.25.0] - 2026-11-16
 
