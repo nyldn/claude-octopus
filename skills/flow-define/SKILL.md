@@ -359,6 +359,9 @@ or rerun the workflow to recover a shell variable.
 
 **After synthesis is verified, record findings and decisions in state:**
 
+Stop this block if any write fails. Preserve earlier successful writes for
+inspection before retrying; do not present definition completion.
+
 ```bash
 # Extract key definition from synthesis
 key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|## Summary" | tail -3 | tr '\n' ' ')
@@ -371,16 +374,16 @@ if [[ -n "$decision_made" ]]; then
   "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" write_decision \
     "define" \
     "$decision_made" \
-    "Consensus from multi-AI definition phase"
+    "Consensus from multi-AI definition phase" || exit 1
 fi
 
 # Update define phase context
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
   "define" \
-  "$key_definition"
+  "$key_definition" || exit 1
 
 # Update metrics
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1" || exit 1
 ```
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
@@ -754,21 +757,26 @@ Grasp workflows typically cost 0.01-0.05 USD per task depending on complexity.
 ## Post-Definition: State Update
 
 After definition completes:
-1. Update `.octo/STATE.md` with completion
-2. Populate `.octo/ROADMAP.md` with defined phases and success criteria
+1. Populate `.octo/ROADMAP.md` with defined phases and success criteria
+2. Update `.octo/STATE.md` with completion only after the roadmap write succeeds
+
+Missing or empty synthesis and failed writes stop finalization. Preserve any
+successful roadmap update for inspection before retrying the completion write.
 
 ```bash
-# Update state after Definition completion
+# Populate ROADMAP.md before recording completion.
+[[ -f "$SYNTHESIS_FILE" && -r "$SYNTHESIS_FILE" && -s "$SYNTHESIS_FILE" ]] || {
+  echo "Definition synthesis is missing, unreadable or empty; completion stopped." >&2
+  exit 1
+}
+echo "📝 Updating .octo/ROADMAP.md with defined phases..."
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_roadmap \
+  --from-synthesis "$SYNTHESIS_FILE" || exit 1
+
+# Update state only after the roadmap is persisted.
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
   --status "complete" \
-  --history "Define phase completed"
-
-# Populate ROADMAP.md with defined requirements
-if [[ -f "$SYNTHESIS_FILE" ]]; then
-  echo "📝 Updating .octo/ROADMAP.md with defined phases..."
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_roadmap \
-    --from-synthesis "$SYNTHESIS_FILE"
-fi
+  --history "Define phase completed" || exit 1
 ```
 
 

@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Define stops after failed decision, context or metrics writes, and records
+  completion only after its synthesis is saved to the roadmap.
+
 - Develop stops after a failed implementation decision, context or metrics write,
   preserving earlier state for inspection instead of presenting completion.
 
