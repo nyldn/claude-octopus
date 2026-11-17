@@ -20,7 +20,9 @@ checked = 0
 for tree in ('.claude/skills', 'skills', 'codex-skills'):
     entry = root / tree / 'flow-deliver/SKILL.md'
     if not entry.exists():
-        continue
+        if tree == 'codex-skills':
+            continue
+        raise AssertionError(f'Missing maintained skill entry: {entry}')
     text = entry.read_text()
     for section, operations in (
         ('### STEP 6: Update State', ['update_context', 'update_metrics', 'show_summary']),
@@ -94,15 +96,62 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     original = state_file.read_text()
     good = subprocess.run([str(helper), 'show_summary'], env=env, capture_output=True, text=True)
     assert good.returncode == 0 and 'Active Blockers: 0' in good.stdout
-    for corrupted in ('', ' \n\t', 'invalid JSON', json.dumps(dict(json.loads(original), blockers=None)),
-                      json.dumps({key: value for key, value in json.loads(original).items() if key != 'blockers'})):
+    corruptions = ('', ' \n\t', 'invalid JSON', original + original,
+                      json.dumps(dict(json.loads(original), blockers={})),
+                      json.dumps(dict(json.loads(original), blockers='active')),
+                      json.dumps(dict(json.loads(original), blockers=None)),
+                      json.dumps({key: value for key, value in json.loads(original).items() if key != 'blockers'}))
+    for corrupted in corruptions:
         state_file.write_text(corrupted)
         result = subprocess.run([str(helper), 'show_summary'], env=env, capture_output=True, text=True)
         assert result.returncode != 0 and not result.stdout, (result.returncode, result.stdout)
     state_file.write_text(original)
     restored = subprocess.run([str(helper), 'show_summary'], env=env, capture_output=True, text=True)
     assert restored.returncode == 0 and restored.stdout == good.stdout
-print('7/7 production summary controls passed')
+print(f'{len(corruptions) + 2}/{len(corruptions) + 2} production summary controls passed')
 PY_SUMMARY
 then test_pass; else test_fail "summary read failure was hidden"; fi
+test_case "resume a failed summary without repeating successful metrics writes"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_RETRY'
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+
+root = Path(sys.argv[1])
+helper = root / 'scripts/state-manager.sh'
+for tree in ('.claude/skills', 'skills'):
+    text = (root / tree / 'flow-deliver/SKILL.md').read_text()
+    section = text.split('### STEP 6:', 1)[1].split('### STEP 7:', 1)[0]
+    assert 'resume at the failed operation' in section
+    assert 'Do not repeat successful context or' in section
+    recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    resume = recipe.split('# Display final state summary', 1)[1]
+    with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+        directory = Path(temporary)
+        validation = directory / 'validation.md'
+        validation.write_text('## Summary\nPass\nreview accepted\n')
+        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(root), CODEX_PLUGIN_ROOT=str(root),
+                   VALIDATION_FILE=str(validation), OCTOPUS_WORKFLOW_STATE_DIR=str(directory / 'state'))
+        subprocess.run([str(helper), 'init_state'], env=env, capture_output=True, check=True)
+        state_file = directory / 'state/state.json'
+        state = json.loads(state_file.read_text())
+        state['blockers'] = None
+        state_file.write_text(json.dumps(state))
+        failed = subprocess.run(['bash', '-euc', recipe], env=env, capture_output=True, text=True)
+        state = json.loads(state_file.read_text())
+        assert failed.returncode != 0 and state['metrics']['phases_completed'] == 1
+        assert state['context']['deliver'].strip() == 'Pass review accepted'
+        state['blockers'] = []
+        state_file.write_text(json.dumps(state))
+        before = state_file.read_bytes()
+        retried = subprocess.run(['bash', '-euc', resume], env=env, capture_output=True, text=True)
+        assert retried.returncode == 0 and 'Active Blockers: 0' in retried.stdout
+        assert state_file.read_bytes() == before, 'summary retry repeated a successful write'
+print('2/2 production failed-summary resume controls passed')
+PY_RETRY
+then test_pass; else test_fail "summary retry repeated successful writes"; fi
 test_summary

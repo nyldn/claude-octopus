@@ -286,7 +286,10 @@ or rerun the workflow to recover a shell variable.
 **After validation is complete, record final metrics:**
 
 Stop on a failed state write or summary read. Preserve earlier successful writes
-for inspection before retrying; do not present completion or proceed to shipping.
+for inspection; do not present completion or proceed to shipping. After repairing
+the failure, resume at the failed operation. Do not repeat successful context or
+metrics writes: `phases_completed` is incremented, so replaying the whole block
+would count this phase twice. If only the summary failed, rerun `show_summary`.
 
 ```bash
 # Update deliver phase context with validation summary

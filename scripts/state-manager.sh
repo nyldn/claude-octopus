@@ -380,7 +380,10 @@ show_summary() {
     fi
 
     local summary
-    summary=$(jq -er '[
+    summary=$(jq -ser '
+        if length != 1 then error("Expected one state document") else .[0] end |
+        if (.blockers | type) != "array" then error("Expected a blocker array") else . end |
+        [
         "=== Claude Octopus State Summary ===", "",
         "Project ID: \(.project_id)",
         "Session Start: \(.session_start)",
