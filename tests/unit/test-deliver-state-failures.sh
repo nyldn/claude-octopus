@@ -76,4 +76,33 @@ for failure in failures:
 sys.exit(bool(failures))
 PY_CONTROLS
 then test_pass; else test_fail "Deliver continued after a failed state operation"; fi
+test_case "actual summary reads fail without printing success-shaped output"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_SUMMARY'
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+root = Path(sys.argv[1])
+helper = root / 'scripts/state-manager.sh'
+with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+    directory = Path(temporary)
+    env = dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(directory))
+    subprocess.run([str(helper), 'init_state'], env=env, capture_output=True, check=True)
+    state_file = directory / 'state.json'
+    original = state_file.read_text()
+    good = subprocess.run([str(helper), 'show_summary'], env=env, capture_output=True, text=True)
+    assert good.returncode == 0 and 'Active Blockers: 0' in good.stdout
+    for corrupted in ('invalid JSON', json.dumps(dict(json.loads(original), blockers=None)),
+                      json.dumps({key: value for key, value in json.loads(original).items() if key != 'blockers'})):
+        state_file.write_text(corrupted)
+        result = subprocess.run([str(helper), 'show_summary'], env=env, capture_output=True, text=True)
+        assert result.returncode != 0 and not result.stdout, (result.returncode, result.stdout)
+    state_file.write_text(original)
+    restored = subprocess.run([str(helper), 'show_summary'], env=env, capture_output=True, text=True)
+    assert restored.returncode == 0 and restored.stdout == good.stdout
+print('5/5 production summary controls passed')
+PY_SUMMARY
+then test_pass; else test_fail "summary read failure was hidden"; fi
 test_summary
