@@ -5,11 +5,18 @@
 ### Fixed
 
 - Interrupted project initialization recovers missing files while preserving saved project content.
+- Initialization preserves a file created concurrently before its template can be published.
+- Concurrent workflow-state writers retain each other's decisions, context, blockers and completion counts.
 
 - Define stops after failed decision, context or metrics writes, and records
   completion only after its synthesis is saved to the roadmap. Its decision and
   completed-phase count are recorded together once per synthesis before results
   or task completion are presented.
+- Discover rejects missing or empty synthesis and stops after failed context or
+  metrics writes, preserving earlier state instead of presenting completion.
+
+- Deliver stops after failed context, metrics or ready-to-ship state writes and
+  failed summary reads, preserving earlier state without reporting completion.
 
 ## [11.25.1] - 2026-11-17
 

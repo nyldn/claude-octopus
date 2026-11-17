@@ -166,9 +166,9 @@ for tree in ('.claude/skills', 'skills'):
         subprocess.run([str(helper), 'init_state'], env=env, cwd=directory, capture_output=True, check=True)
         shim = directory / 'bin'
         shim.mkdir()
-        mover = shim / 'mv'
-        mover.write_text('#!/bin/sh\n[ "$2" != ".octo/ROADMAP.md" ] || exit 23\n'
-                         'exec "' + shutil.which('mv') + '" "$@"\n')
+        mover = shim / 'python3'
+        mover.write_text('#!/bin/sh\n[ "${3:-}" != ".octo/ROADMAP.md" ] || exit 23\n'
+                         'exec "' + shutil.which('python3') + '" "$@"\n')
         mover.chmod(0o755)
         failed_env = dict(env, PATH=str(shim) + os.pathsep + env['PATH'])
         program = recipe + '\nprintf "completion reached\\n"'

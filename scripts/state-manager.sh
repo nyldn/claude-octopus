@@ -80,8 +80,28 @@ success() {
     echo -e "${GREEN}SUCCESS:${NC} $1"
 }
 
+# All state writers hold the same lock from their first read through publication.
+# Each caller is a subshell, so its exit trap cannot replace the host's traps.
+state_writer_lock() {
+    local attempts rc
+    mkdir -p "$STATE_DIR" || return 1
+    source "$(dirname "${BASH_SOURCE[0]}")/lib/events.sh" || return 1
+    for ((attempts = 0; attempts < 5; attempts++)); do
+        if _octo_event_lock "$STATE_FILE"; then
+            trap '_octo_event_unlock "$STATE_FILE"' EXIT
+            return 0
+        else
+            rc=$?
+            [[ "$rc" -eq 75 ]] || return "$rc"
+        fi
+    done
+    printf '%s\n' "Workflow state is busy; no update was published." >&2
+    return 75
+}
+
 # Initialize state file with default structure
-init_state() {
+init_state() (
+    state_writer_lock || return $?
     # Create directory if it doesn't exist
     mkdir -p "$STATE_DIR"
     mkdir -p "$STATE_DIR/context"
@@ -133,7 +153,7 @@ init_state() {
 EOF
 
     success "Initialized state file at $STATE_FILE"
-}
+)
 
 # Read and display current state
 read_state() {
@@ -201,7 +221,8 @@ atomic_write() {
 }
 
 # Set current workflow and phase
-set_current_workflow() {
+set_current_workflow() (
+    state_writer_lock || return $?
     local workflow="$1"
     local phase="${2:-null}"
 
@@ -216,10 +237,11 @@ set_current_workflow() {
 
     atomic_write "$updated"
     success "Set current workflow to '$workflow', phase to '$phase'"
-}
+)
 
 # Write a decision
-write_decision() {
+write_decision() (
+    state_writer_lock || return $?
     local phase="$1"
     local decision="$2"
     local rationale="$3"
@@ -245,10 +267,11 @@ write_decision() {
 
     atomic_write "$updated"
     success "Recorded decision for phase '$phase'"
-}
+)
 
 # Record Define's decision, context and metric together, once per synthesis.
-complete_define() {
+complete_define() (
+    state_writer_lock || return $?
     local synthesis="$1" context="$2" decision="$3"
     local completion_key updated commit
     [[ -f "$synthesis" && -r "$synthesis" && -s "$synthesis" ]] || error "Define synthesis is missing, unreadable or empty"
@@ -275,10 +298,11 @@ PY
         end' "$STATE_FILE") || return 1
     atomic_write "$updated" || return 1
     success "Recorded Define completion"
-}
+)
 
 # Write a blocker
-write_blocker() {
+write_blocker() (
+    state_writer_lock || return $?
     local description="$1"
     local phase="$2"
     local status="${3:-active}"
@@ -302,10 +326,11 @@ write_blocker() {
 
     atomic_write "$updated"
     success "Recorded blocker for phase '$phase'"
-}
+)
 
 # Update blocker status
-update_blocker_status() {
+update_blocker_status() (
+    state_writer_lock || return $?
     local description="$1"
     local new_status="$2"
 
@@ -320,10 +345,11 @@ update_blocker_status() {
 
     atomic_write "$updated"
     success "Updated blocker status to '$new_status'"
-}
+)
 
 # Update phase context
-update_context() {
+update_context() (
+    state_writer_lock || return $?
     local phase="$1"
     local context="$2"
 
@@ -338,7 +364,7 @@ update_context() {
 
     atomic_write "$updated"
     success "Updated context for phase '$phase'"
-}
+)
 
 # Get phase context
 get_context() {
@@ -353,7 +379,8 @@ get_context() {
 }
 
 # Update metrics
-update_metrics() {
+update_metrics() (
+    state_writer_lock || return $?
     local metric_type="$1"
     local value="$2"
 
@@ -384,7 +411,7 @@ update_metrics() {
 
     atomic_write "$updated"
     success "Updated metric '$metric_type'"
-}
+)
 
 # Get all decisions for a phase
 get_decisions() {
@@ -418,24 +445,28 @@ show_summary() {
         error "State file not found. Run 'init_state' first."
     fi
 
-    echo "=== Claude Octopus State Summary ==="
-    echo ""
-    echo "Project ID: $(jq -r '.project_id' "$STATE_FILE")"
-    echo "Session Start: $(jq -r '.session_start' "$STATE_FILE")"
-    echo "Current Workflow: $(jq -r '.current_workflow // "none"' "$STATE_FILE")"
-    echo "Current Phase: $(jq -r '.current_phase // "none"' "$STATE_FILE")"
-    echo ""
-    echo "Metrics:"
-    echo "  Phases Completed: $(jq -r '.metrics.phases_completed' "$STATE_FILE")"
-    echo "  Execution Time: $(jq -r '.metrics.total_execution_time_minutes' "$STATE_FILE") minutes"
-    echo "  Provider Usage:"
-    echo "    - Codex: $(jq -r '.metrics.provider_usage.codex' "$STATE_FILE")"
-    echo "    - Antigravity: $(jq -r '.metrics.provider_usage.agy // 0' "$STATE_FILE")"
-    echo "    - Perplexity: $(jq -r '.metrics.provider_usage.perplexity // 0' "$STATE_FILE")"
-    echo "    - Claude: $(jq -r '.metrics.provider_usage.claude' "$STATE_FILE")"
-    echo ""
-    echo "Decisions: $(jq -r '.decisions | length' "$STATE_FILE")"
-    echo "Active Blockers: $(jq -r '[.blockers[] | select(.status == "active")] | length' "$STATE_FILE")"
+    local summary
+    summary=$(jq -ser '
+        if length != 1 then error("Expected one state document") else .[0] end |
+        if (.blockers | type) != "array" then error("Expected a blocker array") else . end |
+        [
+        "=== Claude Octopus State Summary ===", "",
+        "Project ID: \(.project_id)",
+        "Session Start: \(.session_start)",
+        "Current Workflow: \(.current_workflow // "none")",
+        "Current Phase: \(.current_phase // "none")", "",
+        "Metrics:",
+        "  Phases Completed: \(.metrics.phases_completed)",
+        "  Execution Time: \(.metrics.total_execution_time_minutes) minutes",
+        "  Provider Usage:",
+        "    - Codex: \(.metrics.provider_usage.codex)",
+        "    - Antigravity: \(.metrics.provider_usage.agy // 0)",
+        "    - Perplexity: \(.metrics.provider_usage.perplexity // 0)",
+        "    - Claude: \(.metrics.provider_usage.claude)", "",
+        "Decisions: \(.decisions | length)",
+        "Active Blockers: \([.blockers[] | select(.status == "active")] | length)"
+    ] | .[]' "$STATE_FILE") || return 1
+    printf '%s\n' "$summary"
 }
 
 # v8.14.0: Generate human-readable STATE.md from state.json

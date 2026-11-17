@@ -117,6 +117,30 @@ atomic_write() {
     mv "$temp_file" "$target_file"
 }
 
+# Publish a template only while its exact destination remains absent.
+# Linking a completed same-directory file is atomic and never replaces a winner.
+atomic_create() {
+    python3 -I - "$1" "$2" <<'PY_CREATE' || error "Failed to create project template"
+import os
+from pathlib import Path
+import sys
+import tempfile
+
+target = Path(sys.argv[1])
+target.parent.mkdir(parents=True, exist_ok=True)
+fd, temporary = tempfile.mkstemp(prefix=target.name + '.tmp.', dir=target.parent)
+try:
+    with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+        stream.write(sys.argv[2] + '\n')
+    try:
+        os.link(temporary, target)
+    except FileExistsError:
+        pass
+finally:
+    os.unlink(temporary)
+PY_CREATE
+}
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TEMPLATE FILES
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -314,12 +338,12 @@ init_project() {
     mkdir -p "$OCTO_DIR/codebase"
     
     # Fill missing files after partial initialization; preserve existing content.
-    [[ -e "$STATE_FILE" || -L "$STATE_FILE" ]] || atomic_write "$STATE_FILE" "$(generate_state_template)"
-    [[ -e "$PROJECT_FILE" || -L "$PROJECT_FILE" ]] || atomic_write "$PROJECT_FILE" "$(generate_project_template)"
-    [[ -e "$ROADMAP_FILE" || -L "$ROADMAP_FILE" ]] || atomic_write "$ROADMAP_FILE" "$(generate_roadmap_template)"
-    [[ -e "$CONFIG_FILE" || -L "$CONFIG_FILE" ]] || atomic_write "$CONFIG_FILE" "$(generate_config_template)"
-    [[ -e "$ISSUES_FILE" || -L "$ISSUES_FILE" ]] || atomic_write "$ISSUES_FILE" "$(generate_issues_template)"
-    [[ -e "$LESSONS_FILE" || -L "$LESSONS_FILE" ]] || atomic_write "$LESSONS_FILE" "$(generate_lessons_template)"
+    [[ -e "$STATE_FILE" || -L "$STATE_FILE" ]] || atomic_create "$STATE_FILE" "$(generate_state_template)"
+    [[ -e "$PROJECT_FILE" || -L "$PROJECT_FILE" ]] || atomic_create "$PROJECT_FILE" "$(generate_project_template)"
+    [[ -e "$ROADMAP_FILE" || -L "$ROADMAP_FILE" ]] || atomic_create "$ROADMAP_FILE" "$(generate_roadmap_template)"
+    [[ -e "$CONFIG_FILE" || -L "$CONFIG_FILE" ]] || atomic_create "$CONFIG_FILE" "$(generate_config_template)"
+    [[ -e "$ISSUES_FILE" || -L "$ISSUES_FILE" ]] || atomic_create "$ISSUES_FILE" "$(generate_issues_template)"
+    [[ -e "$LESSONS_FILE" || -L "$LESSONS_FILE" ]] || atomic_create "$LESSONS_FILE" "$(generate_lessons_template)"
     
     success "Initialized .octo/ directory with template files"
     echo ""
