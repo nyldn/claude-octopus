@@ -379,24 +379,28 @@ show_summary() {
         error "State file not found. Run 'init_state' first."
     fi
 
-    echo "=== Claude Octopus State Summary ==="
-    echo ""
-    echo "Project ID: $(jq -r '.project_id' "$STATE_FILE")"
-    echo "Session Start: $(jq -r '.session_start' "$STATE_FILE")"
-    echo "Current Workflow: $(jq -r '.current_workflow // "none"' "$STATE_FILE")"
-    echo "Current Phase: $(jq -r '.current_phase // "none"' "$STATE_FILE")"
-    echo ""
-    echo "Metrics:"
-    echo "  Phases Completed: $(jq -r '.metrics.phases_completed' "$STATE_FILE")"
-    echo "  Execution Time: $(jq -r '.metrics.total_execution_time_minutes' "$STATE_FILE") minutes"
-    echo "  Provider Usage:"
-    echo "    - Codex: $(jq -r '.metrics.provider_usage.codex' "$STATE_FILE")"
-    echo "    - Antigravity: $(jq -r '.metrics.provider_usage.agy // 0' "$STATE_FILE")"
-    echo "    - Perplexity: $(jq -r '.metrics.provider_usage.perplexity // 0' "$STATE_FILE")"
-    echo "    - Claude: $(jq -r '.metrics.provider_usage.claude' "$STATE_FILE")"
-    echo ""
-    echo "Decisions: $(jq -r '.decisions | length' "$STATE_FILE")"
-    echo "Active Blockers: $(jq -r '[.blockers[] | select(.status == "active")] | length' "$STATE_FILE")"
+    local summary
+    summary=$(jq -ser '
+        if length != 1 then error("Expected one state document") else .[0] end |
+        if (.blockers | type) != "array" then error("Expected a blocker array") else . end |
+        [
+        "=== Claude Octopus State Summary ===", "",
+        "Project ID: \(.project_id)",
+        "Session Start: \(.session_start)",
+        "Current Workflow: \(.current_workflow // "none")",
+        "Current Phase: \(.current_phase // "none")", "",
+        "Metrics:",
+        "  Phases Completed: \(.metrics.phases_completed)",
+        "  Execution Time: \(.metrics.total_execution_time_minutes) minutes",
+        "  Provider Usage:",
+        "    - Codex: \(.metrics.provider_usage.codex)",
+        "    - Antigravity: \(.metrics.provider_usage.agy // 0)",
+        "    - Perplexity: \(.metrics.provider_usage.perplexity // 0)",
+        "    - Claude: \(.metrics.provider_usage.claude)", "",
+        "Decisions: \(.decisions | length)",
+        "Active Blockers: \([.blockers[] | select(.status == "active")] | length)"
+    ] | .[]' "$STATE_FILE") || return 1
+    printf '%s\n' "$summary"
 }
 
 # v8.14.0: Generate human-readable STATE.md from state.json
