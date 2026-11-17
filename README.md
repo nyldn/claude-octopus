@@ -36,23 +36,15 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Brainstorm, debate and deck advisors keep the question you gave them instead of
-inheriting an implementation persona or an architecture-review format. Advisor
-tool policies default to read-only behavior. Provider permission overrides and
-Codex's configured sandbox still apply.
+Develop stops when an implementation decision, context, metrics update or
+post-development checkpoint fails. Earlier successful state writes and existing
+tags remain available for inspection before retrying. Completion is reported
+only after the required writes and checkpoint succeed.
 
-Shipping checkpoints name the exact clean revision that passed the audit.
-Changed source or a failed tag stops finalization. Rollback history stays in
-the repository confirmed by the preview and refuses hard-linked state files.
-
-Shipment status updates preserve the original access policy and publish a complete
-replacement. Failed preparation or persistence stops delivery, and retrying the
-same archive records shipment history once. Canonical and legacy status files
-use the same current-state boundary.
-
-Parallel workers recheck their repository, package branch and base revision after
-execution. A changed identity stops completion and keeps the worktree for
-inspection instead of counting or removing unrelated work.
+Branch completion checks its repository, branch and PR description before
+pushing. A failed push stops PR creation, and an ambiguous GitHub write reports
+how to check for an existing PR before retrying. Local commits and branches stay
+available for recovery.
 
 See [review and recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery).
 

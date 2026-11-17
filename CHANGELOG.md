@@ -13,6 +13,12 @@
   before pushing, and stops PR creation after a failed push instead of reporting
   successful publication.
 
+Merged changes: [#1359](https://github.com/nyldn/claude-octopus/pull/1359),
+[#1360](https://github.com/nyldn/claude-octopus/pull/1360), and
+[#1361](https://github.com/nyldn/claude-octopus/pull/1361).
+These address focused parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime, provenance and installed-host acceptance work remains open.
+
 ## [11.25.0] - 2026-11-16
 
 ### Added
