@@ -703,7 +703,7 @@ research_numeric_claims() {
         # Units may be code-formatted or use Unicode prefixes. Keep these
         # checks local: code spans elsewhere still carry literal identifiers.
         sub(/^[ \t]*[*_`(]+/, " ", after)
-        return (tolower(after) ~ reference_unit || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274)/)
+        return (tolower(after) ~ reference_unit || after ~ /^[A-Za-z]/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274)/)
     }
     function declared_reference(number, before, after,    range_tail) {
         if (number !~ /^[0-9]+$/) return 0
@@ -711,9 +711,9 @@ research_numeric_claims() {
         if (before ~ /[0-9][ \t]*\/[ \t*_`]*$/ || after ~ /^[ \t]*\/[ \t*_`]*[0-9]/) return 0
         if (after ~ /^([.,][0-9]|[A-Za-z%])/) return 0
         if (quantity_suffix(after)) return 0
-        # A unit on the final endpoint makes the start a quantity too.
+        # A trailing unit makes earlier range endpoints and list members quantities.
         range_tail = after
-        if (sub(/^[ \t]*(-|\342\200\223|\342\200\224|\342\210\222|to)[ \t]*[*_`]*[0-9]+([.,][0-9]+)*[*_`]*/, "", range_tail) && quantity_suffix(range_tail)) return 0
+        if (sub(/^([ \t]*(-|\342\200\223|\342\200\224|\342\210\222|to|and|or|,)[ \t]*[*_`]*[0-9]+([.,][0-9]+)*[*_`]*)+/, "", range_tail) && quantity_suffix(range_tail)) return 0
         if (number in declared) return 1
         return ((number in probe_index) && tolower(before) ~ /(^|[^0-9a-z_])[*_]*probes?[*_]*[ \t]+$/)
     }

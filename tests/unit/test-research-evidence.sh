@@ -1500,7 +1500,12 @@ for quantity_case in \
     '1928/2000 tests pass.|1928 2000' \
     '500/1928 tests pass.|1928 500' \
     'Latency is 1928-1931 ms.|1928 1931' \
-    'Latency is 1928 to 1931 `ms`.|1928 1931'; do
+    'Latency is 1928 to 1931 `ms`.|1928 1931' \
+    'Latency is 1928-1931ms.|1928 1931' \
+    'Latency is 1928–1931µs.|1928 1931' \
+    'Latency is 1928-1931`ms`.|1928 1931' \
+    'Latency is between 1928 and 1931 ms.|1928 1931' \
+    'Latencies are 1928, 1929 and 1931 ms.|1928 1929 1931'; do
     quantity_text=${quantity_case%%|*}
     test_case "declared identifiers retain explicit quantity syntax: $quantity_text"
     quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
@@ -1557,7 +1562,7 @@ fi
 
 for quantity_text in 'The monthly cost is $1928.' 'The cost is €1928.' \
     'Latency is 1928 `ms`.' 'The dose is 1928 µg.' \
-    'Latency is 1928-1932 ms.' '1928/2000 tests pass.'; do
+    'Latency is 1928-1932 ms.' 'Latency is 1928-1932ms.' 'Latency is between 1928 and 1932 ms.' '1928/2000 tests pass.'; do
     test_case "synthesis rejects unsupported declared quantity: $quantity_text"
     # Only the range endpoint is supported, proving the start is still checked.
     printf '%s\n' 'return 1932;' > "$declared_root/src/handler.ts"
