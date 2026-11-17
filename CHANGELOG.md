@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.25.0] - 2026-11-16
+
 ### Added
 
 - Direct spawn callers can select `OCTOPUS_SPAWN_ROLE=advisor` to keep the
