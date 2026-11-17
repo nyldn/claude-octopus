@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Stop development completion after failed checkpoint creation or state updates.
+
 - Branch completion validates its branch, repository and required PR description
   before pushing, and stops PR creation after a failed push instead of reporting
   successful publication.
