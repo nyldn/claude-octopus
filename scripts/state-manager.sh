@@ -110,28 +110,28 @@ state_writer_lock() {
 init_state() (
     state_writer_lock || return $?
     # Create directory if it doesn't exist
-    mkdir -p "$STATE_DIR"
-    mkdir -p "$STATE_DIR/context"
-    mkdir -p "$STATE_DIR/summaries"
-    mkdir -p "$STATE_DIR/quick"
+    mkdir -p "$STATE_DIR" || return 1
+    mkdir -p "$STATE_DIR/context" || return 1
+    mkdir -p "$STATE_DIR/summaries" || return 1
+    mkdir -p "$STATE_DIR/quick" || return 1
 
     # If state file already exists, validate it
     if [ -f "$STATE_FILE" ]; then
-        if jq empty "$STATE_FILE" 2>/dev/null; then
+        if jq -e -s 'length == 1 and (.[0] | type == "object")' "$STATE_FILE" >/dev/null 2>&1; then
             success "State file already exists and is valid"
             return 0
         else
             warning "State file is corrupted, backing up and recreating"
-            mv "$STATE_FILE" "${STATE_FILE}.corrupt.$(date +%s)"
+            mv "$STATE_FILE" "${STATE_FILE}.corrupt.$(date +%s)" || return 1
         fi
     fi
 
     # Generate a stable project ID without assuming GNU md5sum is installed.
-    local project_id
-    project_id="$(state_project_id "${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}")"
+    local project_id initial
+    project_id="$(state_project_id "${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}")" || return 1
 
     # Create initial state
-    cat > "$STATE_FILE" <<EOF
+    initial=$(cat <<EOF
 {
   "version": "1.0.0",
   "project_id": "$project_id",
@@ -158,6 +158,8 @@ init_state() (
   }
 }
 EOF
+    ) || return 1
+    atomic_write "$initial" || return 1
 
     success "Initialized state file at $STATE_FILE"
 )
