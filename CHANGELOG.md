@@ -10,6 +10,9 @@
 
 ### Fixed
 
+- Parallel work packages recheck their repository, branch and frozen-base ancestry
+  after the worker exits. Unexpected changes stop completion and retain the
+  worktree for inspection instead of counting or removing unrelated work.
 - Shipping state updates reject linked or nonregular files and stop delivery when
   required context is missing or a write fails. Readiness uses the shared state
   reader so canonical status takes precedence over legacy and historical fields.
@@ -32,8 +35,9 @@
 Merged changes: [#1349](https://github.com/nyldn/claude-octopus/pull/1349),
 [#1353](https://github.com/nyldn/claude-octopus/pull/1353),
 [#1354](https://github.com/nyldn/claude-octopus/pull/1354),
-[#1355](https://github.com/nyldn/claude-octopus/pull/1355), and
-[#1352](https://github.com/nyldn/claude-octopus/pull/1352).
+[#1355](https://github.com/nyldn/claude-octopus/pull/1355),
+[#1352](https://github.com/nyldn/claude-octopus/pull/1352), and
+[#1357](https://github.com/nyldn/claude-octopus/pull/1357).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
 its broader runtime and installed-host acceptance work remains open.
 

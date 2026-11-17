@@ -110,6 +110,11 @@ context, preparation failures and persistence failures stop delivery. The curren
 status ends before History, with canonical status taking precedence over legacy
 status. Retrying the same completed archive does not duplicate shipment history.
 
+Parallel work packages validate repository identity, the expected package branch
+and frozen-base ancestry before and after the worker runs. A mismatch records
+failure before completion is reported or commits are counted. The worktree stays
+available for inspection; detached HEAD and a different repository are refused.
+
 ## Host-native by default
 
 Routine architecture, TDD, and debugging run on the current host with no extra

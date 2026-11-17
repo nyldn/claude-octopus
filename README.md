@@ -50,6 +50,10 @@ replacement. Failed preparation or persistence stops delivery, and retrying the
 same archive records shipment history once. Canonical and legacy status files
 use the same current-state boundary.
 
+Parallel workers recheck their repository, package branch and base revision after
+execution. A changed identity stops completion and keeps the worktree for
+inspection instead of counting or removing unrelated work.
+
 See [review and recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery).
 
 <!-- BEGIN CURRENT RELEASE -->
