@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Develop stops after a failed implementation decision, context or metrics write,
+  preserving earlier state for inspection instead of presenting completion.
+
 - Stop development completion after failed checkpoint creation or state updates.
 
 - Branch completion validates its branch, repository and required PR description

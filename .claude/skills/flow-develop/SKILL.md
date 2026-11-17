@@ -329,6 +329,9 @@ or rerun the workflow to recover a shell variable.
 
 **After synthesis is verified, record implementation details in state:**
 
+Stop on the first failed write. Preserve prior successful writes for inspection
+before retrying; do not present completion while implementation state is incomplete.
+
 ```bash
 # Extract key implementation decisions from synthesis
 implementation_approach=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Implementation\|## Approach" | tail -3 | tr '\n' ' ')
@@ -340,16 +343,16 @@ if [[ -n "$decision_made" ]]; then
   "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" write_decision \
     "develop" \
     "$decision_made" \
-    "Multi-AI implementation consensus"
+    "Multi-AI implementation consensus" || exit 1
 fi
 
 # Update develop phase context
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
   "develop" \
-  "$implementation_approach"
+  "$implementation_approach" || exit 1
 
 # Update metrics
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1" || exit 1
 ```
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
