@@ -130,6 +130,9 @@ target = Path(sys.argv[1])
 target.parent.mkdir(parents=True, exist_ok=True)
 fd, temporary = tempfile.mkstemp(prefix=target.name + '.tmp.', dir=target.parent)
 try:
+    mask = os.umask(0)
+    os.umask(mask)
+    os.fchmod(fd, 0o666 & ~mask)
     with os.fdopen(fd, 'w', encoding='utf-8') as stream:
         stream.write(sys.argv[2] + '\n')
     try:

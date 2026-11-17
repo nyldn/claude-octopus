@@ -383,10 +383,10 @@ status is marked complete. A failed status write can safely retry this operation
   echo "Definition synthesis is missing, unreadable or empty; completion stopped." >&2
   exit 1
 }
-key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|## Summary" | tail -3 | tr '\n' ' ') || key_definition=""
+key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|## Summary" | tail -3 | sed -E '/^[[:space:]]*#{1,6}([[:space:]]|$)/d' | tr '\n' ' ') || key_definition=""
 # Headingless synthesis keeps its bounded content instead of clearing context.
 if [[ ! "$key_definition" =~ [^[:space:]] ]]; then
-  key_definition=$(head -50 "$SYNTHESIS_FILE" | tr '\n' ' ') || exit 1
+  key_definition=$(head -50 "$SYNTHESIS_FILE" | sed -E '/^[[:space:]]*#{1,6}([[:space:]]|$)/d' | tr '\n' ' ') || exit 1
 fi
 [[ "$key_definition" =~ [^[:space:]] ]] || {
   echo "Definition synthesis contains no usable context; completion stopped." >&2

@@ -7,6 +7,10 @@
 - Interrupted project initialization recovers missing files while preserving saved project content.
 - Initialization preserves a file created concurrently before its template can be published.
 - Concurrent workflow-state writers retain each other's decisions, context, blockers and completion counts.
+  Failed transforms and publications preserve state and stop completion even in
+  sourced conditional callers. Abandoned writer locks recover on Bash 3.2.
+- Define rejects heading-only synthesis before persistence, and initialization
+  preserves the caller's umask for new project templates.
 
 - Define stops after failed decision, context or metrics writes, and records
   completion only after its synthesis is saved to the roadmap. Its decision and

@@ -30,7 +30,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for strict in (False, True):
         for conditional in (False, True):
-            for scenario in ('success', 'init_project', 'update_roadmap', 'update_state', 'complete_define', 'missing', 'empty', 'persistence off', 'headingless', 'whitespace'):
+            for scenario in ('success', 'init_project', 'update_roadmap', 'update_state', 'complete_define', 'missing', 'empty', 'persistence off', 'headingless', 'whitespace', 'headings only'):
                 with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                     temporary = Path(temporary)
                     plugin = temporary / 'plugin'
@@ -38,7 +38,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     calls = temporary / 'calls'
                     synthesis = temporary / 'synthesis.md'
                     if scenario != 'missing':
-                        synthesis.write_text('  \n\t' if scenario == 'whitespace' else 'plain requirements without a heading' if scenario == 'headingless' else
+                        synthesis.write_text('## Summary\n\n### Requirements\n' if scenario == 'headings only' else '  \n\t' if scenario == 'whitespace' else 'plain requirements without a heading' if scenario == 'headingless' else
                                              '## Problem Definition\nselected the approach\n' if scenario != 'empty' else '')
                     env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(plugin), CODEX_PLUGIN_ROOT=str(plugin),
                                SYNTHESIS_FILE=str(synthesis), STATE_CALLS=str(calls), FAIL_OPERATION=scenario,
@@ -66,7 +66,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                         state = json.loads((temporary / 'state/state.json').read_text())
                         operations = (['complete_define'] if scenario == 'persistence off' else
                                       ['init_project', 'update_roadmap', 'complete_define', 'update_state'])
-                        expected = (operations if succeeds else [] if scenario in ('missing', 'empty', 'whitespace')
+                        expected = (operations if succeeds else [] if scenario in ('missing', 'empty', 'whitespace', 'headings only')
                                     else operations[:operations.index(scenario) + 1])
                         observed = calls.read_text().splitlines() if calls.exists() else []
                         completed = succeeds or scenario == 'update_state'
@@ -76,7 +76,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                                  state['metrics']['phases_completed'] == int(completed) and
                                  len(state['decisions']) == int(completed and scenario != 'headingless') and
                                  (not completed or state['context']['define'].strip() ==
-                                  ('plain requirements without a heading' if scenario == 'headingless' else '## Problem Definition selected the approach')))
+                                  ('plain requirements without a heading' if scenario == 'headingless' else 'selected the approach')))
                         if not valid:
                             failures.append(f'{tree}: {scenario}, strict={strict}, conditional={conditional}, '
                                             f'attempt={attempt}, exit={result.returncode}, calls={observed}, state={state}')

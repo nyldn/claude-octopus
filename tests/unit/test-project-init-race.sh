@@ -39,4 +39,20 @@ for template in state project roadmap config issues lessons; do
         else test_fail "status=$status preserved=$preserved"; fi
     done
 done
+for mask in 0022 0077; do
+    test_case "initial templates retain the access policy of umask $mask"
+    workspace="$TEST_TMP_DIR/umask-$mask"
+    mkdir -p "$workspace"
+    if (cd "$workspace" && umask "$mask" && OCTOPUS_PROJECT_PERSISTENCE=true bash "$helper" init_project >/dev/null) &&
+        python3 -I - "$workspace/.octo" "$mask" <<'PY_MODE'
+from pathlib import Path
+import stat
+import sys
+expected = 0o666 & ~int(sys.argv[2], 8)
+files = [p for p in Path(sys.argv[1]).iterdir() if p.is_file()]
+assert len(files) == 6
+assert all(stat.S_IMODE(p.stat().st_mode) == expected for p in files)
+PY_MODE
+    then test_pass; else test_fail "initialization changed the caller's file access policy"; fi
+done
 test_summary

@@ -84,6 +84,13 @@ success() {
 # Each caller is a subshell, so its exit trap cannot replace the host's traps.
 state_writer_lock() {
     local attempts rc
+    # Bash 3.2 has no BASHPID. Explicit exec makes Python's parent the writer,
+    # not another command-substitution shell. Writers run in subshells, so this
+    # fallback stays local to the writer and also reaches its EXIT trap.
+    if [[ -z "${BASHPID:-}" ]]; then
+        BASHPID=$(exec python3 -I -c 'import os; print(os.getppid())') || return 1
+        [[ "$BASHPID" =~ ^[0-9]+$ ]] || return 1
+    fi
     mkdir -p "$STATE_DIR" || return 1
     source "$(dirname "${BASH_SOURCE[0]}")/lib/events.sh" || return 1
     for ((attempts = 0; attempts < 5; attempts++)); do
@@ -200,7 +207,7 @@ atomic_write() {
     fi
 
     # Validate JSON
-    if ! jq empty "$temp_file" 2>/dev/null; then
+    if ! jq -e -s 'length == 1 and (.[0] | type == "object")' "$temp_file" >/dev/null 2>&1; then
         rm -f "$temp_file"
         error "Generated invalid JSON, write aborted"
     fi
@@ -233,9 +240,9 @@ set_current_workflow() (
     local updated
     updated=$(jq --arg workflow "$workflow" --arg phase "$phase" \
         '.current_workflow = $workflow | .current_phase = $phase' \
-        "$STATE_FILE")
+        "$STATE_FILE") || return 1
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Set current workflow to '$workflow', phase to '$phase'"
 )
 
@@ -258,14 +265,14 @@ write_decision() (
         --arg rationale "$rationale" \
         --arg date "$(date -u +%Y-%m-%d)" \
         --arg commit "$commit" \
-        '{phase: $phase, decision: $decision, rationale: $rationale, date: $date, commit: $commit}')
+        '{phase: $phase, decision: $decision, rationale: $rationale, date: $date, commit: $commit}') || return 1
 
     local updated
     updated=$(jq --argjson decision "$decision_obj" \
         '.decisions += [$decision]' \
-        "$STATE_FILE")
+        "$STATE_FILE") || return 1
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Recorded decision for phase '$phase'"
 )
 
@@ -317,14 +324,14 @@ write_blocker() (
         --arg phase "$phase" \
         --arg status "$status" \
         --arg created "$(date -u +%Y-%m-%d)" \
-        '{description: $description, phase: $phase, status: $status, created: $created}')
+        '{description: $description, phase: $phase, status: $status, created: $created}') || return 1
 
     local updated
     updated=$(jq --argjson blocker "$blocker_obj" \
         '.blockers += [$blocker]' \
-        "$STATE_FILE")
+        "$STATE_FILE") || return 1
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Recorded blocker for phase '$phase'"
 )
 
@@ -341,9 +348,9 @@ update_blocker_status() (
     local updated
     updated=$(jq --arg desc "$description" --arg status "$new_status" \
         '(.blockers[] | select(.description == $desc) | .status) = $status' \
-        "$STATE_FILE")
+        "$STATE_FILE") || return 1
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Updated blocker status to '$new_status'"
 )
 
@@ -360,9 +367,9 @@ update_context() (
     local updated
     updated=$(jq --arg phase "$phase" --arg context "$context" \
         '.context[$phase] = $context' \
-        "$STATE_FILE")
+        "$STATE_FILE") || return 1
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Updated context for phase '$phase'"
 )
 
@@ -391,25 +398,25 @@ update_metrics() (
     local updated
     case "$metric_type" in
         "phases_completed")
-            updated=$(jq '.metrics.phases_completed += 1' "$STATE_FILE")
+            updated=$(jq '.metrics.phases_completed += 1' "$STATE_FILE") || return 1
             ;;
         "execution_time")
             updated=$(jq --argjson time "$value" \
                 '.metrics.total_execution_time_minutes += $time' \
-                "$STATE_FILE")
+                "$STATE_FILE") || return 1
             ;;
         "provider")
             local provider="$value"
             updated=$(jq --arg provider "$provider" \
                 '.metrics.provider_usage[$provider] += 1' \
-                "$STATE_FILE")
+                "$STATE_FILE") || return 1
             ;;
         *)
             error "Unknown metric type: $metric_type"
             ;;
     esac
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Updated metric '$metric_type'"
 )
 
