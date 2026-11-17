@@ -16,6 +16,9 @@
   "codex probe 4 said reach" is also skipped when this run has probe result 4.
   A number with an attached or following unit, such as `1928 ms`, `1929%` or
   `1930 requests`, is still checked.
+- Branch completion validates its branch, repository and required PR description
+  before pushing, and stops PR creation after a failed push instead of reporting
+  successful publication.
 
 ## [11.25.0] - 2026-11-16
 
