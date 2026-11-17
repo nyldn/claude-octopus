@@ -670,7 +670,9 @@ research_probe_indices() {
         [[ -f "$result" ]] || continue
         index=${result##*-}
         index=${index%.md}
-        [[ "$index" =~ ^[0-9]+$ ]] && indices="$indices $index"
+        [[ "$index" =~ ^[0-9]+$ ]] || continue
+        [[ "$result" == *"-probe-$task_group-$index.md" ]] || continue
+        indices="$indices $index"
     done
     printf '%s\n' "${indices# }"
 }
@@ -711,7 +713,7 @@ research_numeric_claims() {
         if (before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_`]*$/) return 0
         if (before ~ /[0-9][ \t*_`]*\/[ \t*_`]*$/ || after ~ /^[ \t*_`]*\/[ \t*_`]*[0-9]/) return 0
         if (after ~ /^([.,][0-9]|[A-Za-z%])/) return 0
-        if (quantity_suffix(after)) return 0
+        if (quantity_suffix(after) || after ~ /^[ \t*_`]*\+/) return 0
         # A trailing unit makes earlier range endpoints and list members quantities.
         range_tail = after
         if (sub(/^([ \t*_`]*(-|\342\200\223|\342\200\224|\342\210\222|to|and|or|,)[ \t]*[*_`]*[0-9]+([.,][0-9]+)*[*_`]*)+/, "", range_tail) && quantity_suffix(range_tail)) return 0

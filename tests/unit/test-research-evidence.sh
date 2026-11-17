@@ -1513,7 +1513,9 @@ for quantity_case in \
     'The service has 1928 active users.|1928' \
     'The service has 1928 new concurrently active users.|1928' \
     'The service has 1928 **active users**.|1928' \
-    'Latency is `1928`-`1931`ms.|1928 1931'; do
+    'Latency is `1928`-`1931`ms.|1928 1931' \
+    'The service has 1928+ users.|1928' \
+    'The service has `1928`+ active users.|1928'; do
     quantity_text=${quantity_case%%|*}
     test_case "declared identifiers retain explicit quantity syntax: $quantity_text"
     quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
@@ -1571,7 +1573,8 @@ fi
 for quantity_text in 'The monthly cost is $1928.' 'The cost is €1928.' \
     'Latency is 1928 `ms`.' 'The dose is 1928 µg.' \
     'Latency is 1928-1932 ms.' 'Latency is 1928-1932ms.' 'Latency is between 1928 and 1932 ms.' '1928/2000 tests pass.' \
-    '`1928`/2000 tests pass.' '`2000`/`1928` tests pass.' 'The service has 1928 active users.'; do
+    '`1928`/2000 tests pass.' '`2000`/`1928` tests pass.' 'The service has 1928 active users.' \
+    'The service has 1928+ users.'; do
     test_case "synthesis rejects unsupported declared quantity: $quantity_text"
     # Only the range endpoint is supported, proving the start is still checked.
     printf '%s\n' 'return 1932;' > "$declared_root/src/handler.ts"
@@ -1583,5 +1586,20 @@ for quantity_text in 'The monthly cost is $1928.' 'The cost is €1928.' \
         "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
     else test_fail "unsupported declared quantity passed: $quantity_text"; fi
 done
+
+probe_exact_dir="$tmp_root/probe-index-exact"
+mkdir -p "$probe_exact_dir"
+printf '%s\n' 'other run' > "$probe_exact_dir/codex-probe-audit-extra-7.md"
+for exact_group_case in 'audit|' 'audit-extra|7'; do
+    exact_group=${exact_group_case%%|*}
+    test_case "probe artifact belongs to the exact task group: $exact_group"
+    exact_indices=$(RESEARCH_PROVIDER_RESULTS_DIR="$probe_exact_dir" RESEARCH_TASK_GROUP="$exact_group" research_probe_indices)
+    if [[ "$exact_indices" == "${exact_group_case#*|}" ]]; then test_pass
+    else test_fail "foreign probe indices leaked: $exact_indices"; fi
+done
+printf '%s\n' 'current run' > "$probe_exact_dir/codex-probe-audit-4.md"
+test_case "probe indices retain the current artifact beside a prefixed group"
+exact_indices=$(RESEARCH_PROVIDER_RESULTS_DIR="$probe_exact_dir" RESEARCH_TASK_GROUP=audit research_probe_indices)
+if [[ "$exact_indices" == 4 ]]; then test_pass; else test_fail "incorrect exact indices: $exact_indices"; fi
 
 test_summary
