@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Deliver stops after failed context, metrics or ready-to-ship state writes and
+  failed summary reads, preserving earlier state without reporting completion.
+
 - Brainstorm Team mode, debate, branch-completion review, the deck red-team seat
   recipe and define run their shell blocks under bash when the host shell is zsh,
   as Claude Code's Bash tool is on macOS. The bash-only libraries they load now
