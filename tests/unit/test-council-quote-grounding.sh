@@ -4352,6 +4352,46 @@ else
     test_fail "supplemental near-line work rejected complete quotes: $r"
 fi
 
+# Count work rather than relying only on machine speed. Repeated citations must
+# not multiply linear path comparisons across the full response and each unit.
+test_case "repeated citation bindings stay within a path-comparison budget"
+path_loader="$TEST_TMP_DIR/qv-path-budget.py"
+cat > "$path_loader" <<'PY_PATH_BUDGET'
+import sys
+from pathlib import Path
+
+original_equal = Path.__eq__
+comparisons = 0
+def bounded_equal(self, other):
+    global comparisons
+    comparisons += 1
+    if comparisons > 100_000:
+        raise RuntimeError("citation path-comparison budget exhausted")
+    return original_equal(self, other)
+
+Path.__eq__ = bounded_equal
+sys.argv[0] = "-"
+exec(compile(sys.stdin.read(), "<stdin>", "exec"))
+PY_PATH_BUDGET
+cat > "$shim_dir/python3" <<SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "-I" && "\$2" == "-" ]]; then
+    exec "$real_python" -I "$path_loader" "\${@:3}"
+fi
+exec "$real_python" "\$@"
+SHIM
+chmod 755 "$shim_dir/python3"
+PATH="$shim_dir:$saved_path"
+r="$(council_response_quote_verification_json "$nonfence_response" "$nonfence_root")"
+PATH="$saved_path"
+if jq -e '.verification_failed == false and .citations == 25856
+    and .quotes_verified == 256 and .quotes_near_line == 0
+    and .fabricated == false' <<< "$r" >/dev/null; then
+    test_pass
+else
+    test_fail "repeated citation binding work exceeded its budget: $r"
+fi
+
 # A complete far match must not hide a later bound near-line match either.
 test_case "a complete blockquote retains a later cited file's near-line match"
 r="$(council_response_quote_verification_json "$(_resp "a.ts:1 and b.ts:1

@@ -2,8 +2,18 @@
 
 ## [Unreleased]
 
+## [11.25.0] - 2026-11-16
+
+### Added
+
+- Direct spawn callers can select `OCTOPUS_SPAWN_ROLE=advisor` to keep the
+  advisor brief and read/search tool policy without implementer or architecture
+  persona injection. Other nonempty values are rejected. ([#1353](https://github.com/nyldn/claude-octopus/pull/1353))
+
 ### Fixed
 
+- Repeated citations reuse ordered path and line bindings so large grounded
+  council answers can finish within the existing quote-verification deadline.
 - Parallel work packages recheck their repository, branch and frozen-base ancestry
   after the worker exits. Unexpected changes stop completion and retain the
   worktree for inspection instead of counting or removing unrelated work.
@@ -25,6 +35,15 @@
   advisor briefs. Cursor and Command Code advisors default to read-only modes;
   `OCTOPUS_CURSOR_AGENT_MODE` and `OCTOPUS_COMMANDCODE_PERMISSION_MODE` can
   override those defaults. Codex retains its configured sandbox mode.
+
+Merged changes: [#1349](https://github.com/nyldn/claude-octopus/pull/1349),
+[#1353](https://github.com/nyldn/claude-octopus/pull/1353),
+[#1354](https://github.com/nyldn/claude-octopus/pull/1354),
+[#1355](https://github.com/nyldn/claude-octopus/pull/1355),
+[#1352](https://github.com/nyldn/claude-octopus/pull/1352), and
+[#1357](https://github.com/nyldn/claude-octopus/pull/1357).
+These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime and installed-host acceptance work remains open.
 
 ## [11.24.2] - 2026-11-16
 
