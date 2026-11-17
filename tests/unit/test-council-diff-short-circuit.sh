@@ -59,9 +59,9 @@ def count_sides(frame, event, arg):
         with open(os.environ["OCTO_TEST_TRACE"], "a") as trace:
             trace.write("side\n")
 
-def trace_match_unit(verified, partial, path, bound_paths, *args, **kwargs):
+def trace_match_unit(verified, partial, path, bound_lines, *args, **kwargs):
     trace_path = os.environ.get("OCTO_TEST_REFINEMENT_TRACE")
-    if trace_path and verified and partial and path not in bound_paths:
+    if trace_path and verified and partial and path not in bound_lines:
         with open(trace_path, "a") as trace:
             trace.write(str(len(args[2][0].encode("utf-8"))) + "\n")
     return match_unit(*args, **kwargs)
@@ -81,7 +81,7 @@ class TraceRefinement(ast.NodeTransformer):
             self.replacements += 1
             node.func.id = "trace_match_unit"
             node.args[:0] = [ast.Name(id=name, ctx=ast.Load())
-                            for name in ("verified", "partial", "path", "bound_paths")]
+                            for name in ("verified", "partial", "path", "bound_lines")]
         return node
 
 sys.argv[0] = "-"
