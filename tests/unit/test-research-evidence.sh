@@ -1710,6 +1710,11 @@ research_declared_ids="1928 403"
 for quantity_case in \
     'The threshold is > 1928.|1928' \
     'The threshold is >= 1928.|1928' \
+    'The bound is 1928 < latency.|1928' \
+    'The bound is 1928 >= latency.|1928' \
+    'Latency is (1928) ms.|1928' \
+    'Latency is ((1928)) ms.|1928' \
+    'The sum is (1928) + 2.|1928 2' \
     'It supports at least 1928.|1928' \
     'It supports at most 1928.|1928' \
     'The sum is 2 + (1928).|1928 2' \
@@ -1729,7 +1734,7 @@ for table_text in '| Latency | ms | 1928 |' '| Latency | `ms` | 1928 |'; do
     if [[ $(research_extract_numbers "$table_text") == 1928 ]]; then test_pass
     else test_fail "preceding unit did not preserve quantity"; fi
 done
-for ticket_text in 'It supports 1928.' 'The tickets (1928) share the file.' '| Ticket | 1928 |' '| Ticket | PLAT | 1928 |'; do
+for ticket_text in 'It supports 1928.' 'The tickets (1928) share the file.' '(1928) shares the file.' '| Ticket | 1928 |' '| Ticket | PLAT | 1928 |'; do
     test_case "ordinary ticket references remain exempt: $ticket_text"
     if [[ -z $(research_extract_numbers "$ticket_text") ]]; then test_pass
     else test_fail "ticket reference became a quantity"; fi
@@ -1739,6 +1744,7 @@ printf '%s\n' 'Check PLAT-1928 and PLAT-403' > "$RESEARCH_RUN_DIR/prompt.txt"
 printf '%s\n' 'return [1932, 2, 500];' > "$declared_root/src/handler.ts"
 for quantity_text in 'The threshold is > 1928.' 'It supports at least 1928.' \
     'The sum is 2 + (1928).' 'Latency is 1928..1932 ms.' \
+    'Latency is (1928) ms.' 'The bound is 1928 < latency.' \
     'The response was HTTP/1.1 403 Forbidden.'; do
     test_case "actual synthesis rejects reviewed numeric exemption: $quantity_text"
     printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"

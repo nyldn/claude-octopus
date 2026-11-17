@@ -714,13 +714,18 @@ research_numeric_claims() {
         sub(/^[ \t]*\|[ \t]*/, " ", after)
         return (tolower(after) ~ reference_unit || after ~ /^[A-Za-z]/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
     }
-    function declared_reference(number, before, after,    range_tail, members, member_count, member, probe_join, probe_prefix, preceding_cell) {
+    function declared_reference(number, before, after,    range_tail, members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth) {
         # Normalize only the context used by these exemptions. Other numeric
         # extraction rules still see literal code and Markdown destinations.
         gsub(/`/, "", before)
         gsub(/`/, "", after)
         # Grouping parentheses do not turn an arithmetic operand into a ticket.
-        sub(/([ \t*_]*\()+[ \t*_]*$/, "", before)
+        group_tail = before
+        if (sub(/([ \t*_]*\()+[ \t*_]*$/, "", before)) {
+            group_tail = substr(group_tail, length(before) + 1)
+            group_depth = gsub(/\(/, "", group_tail)
+            while (group_depth-- > 0) if (!sub(/^[ \t*_]*\)/, "", after)) break
+        }
         # Numeric link labels stay claims, including links around endpoints.
         if (after ~ /^\]\(/) return 0
         if (number !~ /^[0-9]+(,[0-9]+)*$/) return 0
@@ -741,7 +746,7 @@ research_numeric_claims() {
         if (before ~ /[0-9][ \t*_]+-[ \t*_]+$/ || after ~ /^[ \t*_]+-[ \t*_]+[0-9]/) return 0
         if (before ~ /[0-9][ \t*_]*[\/:][ \t*_]*$/ || after ~ /^[ \t*_]*[\/:][ \t*_]*[0-9]/) return 0
         if (after ~ /^([.,][0-9]|[A-Za-z%])/) return 0
-        if (quantity_suffix(after) || after ~ /^[ \t*_`]*([+*=]|\302\261|\303\227|\303\267)/) return 0
+        if (quantity_suffix(after) || after ~ /^[ \t*_`]*([+*=<>]|\302\261|\303\227|\303\267)/) return 0
         # A trailing unit makes earlier range endpoints and list members quantities.
         range_tail = after
         if (sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", range_tail) && quantity_suffix(range_tail)) return 0
