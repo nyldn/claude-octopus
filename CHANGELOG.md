@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Deliver stops after failed context, metrics or ready-to-ship state writes and
+  failed summary reads, preserving earlier state without reporting completion.
+
 ## [11.25.1] - 2026-11-17
 
 ### Fixed
