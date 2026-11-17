@@ -64,6 +64,15 @@ before pushing. A failed push stops PR creation and preserves local work. If a
 GitHub write has an unknown outcome, use the reported repository and branch to
 check for an existing PR before retrying.
 
+## Shell context recovery
+
+Brainstorm Team mode, debate, definition, branch-completion review and deck
+red-team blocks run under Bash when the host shell is zsh. Use the literal
+assignments printed by a block when a later tool call starts a fresh shell.
+In debate, restore the printed run directory before collecting advisor results.
+A failed provider-allowlist or advisor-library load stops the block; inspect
+that error before retrying.
+
 ## Review and compaction recovery
 
 Branch completion dispatches the configured `code-reviewer` persona and waits

@@ -46,6 +46,10 @@ pushing. A failed push stops PR creation, and an ambiguous GitHub write reports
 how to check for an existing PR before retrying. Local commits and branches stay
 available for recovery.
 
+Brainstorming, debate, definition, branch review and deck red-team workflows
+run their required Bash blocks correctly from zsh hosts, including Claude Code
+on macOS. Provider allowlists and saved debate context reach the later steps.
+
 See [review and recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery).
 
 <!-- BEGIN CURRENT RELEASE -->
