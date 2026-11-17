@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Parallel work packages recheck their repository, branch and frozen-base ancestry
+  after the worker exits. Unexpected changes stop completion and retain the
+  worktree for inspection instead of counting or removing unrelated work.
 - Shipping state updates reject linked or nonregular files and stop delivery when
   required context is missing or a write fails. Readiness uses the shared state
   reader so canonical status takes precedence over legacy and historical fields.
