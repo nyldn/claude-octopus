@@ -664,14 +664,17 @@ research_declared_identifier_numbers() {
 # "probe" names one of this run's results only when that artifact exists.
 research_probe_indices() {
     local results_dir="${RESEARCH_PROVIDER_RESULTS_DIR:-${RESULTS_DIR:-}}" task_group="${RESEARCH_TASK_GROUP:-}"
-    local result index indices=""
+    local result index artifact_group indices=""
     [[ -n "$results_dir" && -n "$task_group" ]] || return 0
     for result in "$results_dir"/*-probe-"$task_group"-*.md; do
         [[ -f "$result" ]] || continue
         index=${result##*-}
         index=${index%.md}
         [[ "$index" =~ ^[0-9]+$ ]] || continue
-        [[ "$result" == *"-probe-$task_group-$index.md" ]] || continue
+        artifact_group=${result##*/}
+        artifact_group=${artifact_group#*-probe-}
+        artifact_group=${artifact_group%-$index.md}
+        [[ "$artifact_group" == "$task_group" ]] || continue
         indices="$indices $index"
     done
     printf '%s\n' "${indices# }"
@@ -725,7 +728,7 @@ research_numeric_claims() {
         if (before ~ /[0-9][ \t*_]+-[ \t*_]+$/ || after ~ /^[ \t*_]+-[ \t*_]+[0-9]/) return 0
         if (before ~ /[0-9][ \t*_]*[\/:][ \t*_]*$/ || after ~ /^[ \t*_]*[\/:][ \t*_]*[0-9]/) return 0
         if (after ~ /^([.,][0-9]|[A-Za-z%])/) return 0
-        if (quantity_suffix(after) || after ~ /^[ \t*_`]*[+*=]/) return 0
+        if (quantity_suffix(after) || after ~ /^[ \t*_`]*([+*=]|\302\261|\303\227|\303\267)/) return 0
         # A trailing unit makes earlier range endpoints and list members quantities.
         range_tail = after
         if (sub(/^([ \t*_]*(-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", range_tail) && quantity_suffix(range_tail)) return 0

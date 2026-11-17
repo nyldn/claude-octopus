@@ -1544,7 +1544,9 @@ for quantity_case in \
     'The difference is 2000 - 1928.|1928 2000' \
     'The product is 2 * 1928.|1928 2' \
     'The product is 2 × 1928.|1928 2' \
-    'The sum is 1928 + 2.|1928 2'; do
+    'The sum is 1928 + 2.|1928 2' \
+    'The product is 1928 × 2.|1928 2' \
+    'The quotient is 1928 ÷ 2.|1928 2'; do
     quantity_text=${quantity_case%%|*}
     test_case "declared identifiers retain explicit quantity syntax: $quantity_text"
     quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
@@ -1614,7 +1616,8 @@ for quantity_text in 'The monthly cost is $1928.' 'The cost is €1928.' \
     'The cost is USD 1928.' 'The cost is 1928 EUR.' 'The cost is 1928 euros.' \
     'Latencies are 1928 & 1932 ms.' 'Latency is 1928 ± 20 ms.' \
     'The sum is 2 + 1928.' 'The difference is 2000 - 1928.' \
-    'The product is 2 * 1928.' 'The product is 2 × 1928.'; do
+    'The product is 2 * 1928.' 'The product is 2 × 1928.' \
+    'The product is 1928 × 2.' 'The quotient is 1928 ÷ 2.'; do
     test_case "synthesis rejects unsupported declared quantity: $quantity_text"
     # Only the range endpoint is supported, proving the start is still checked.
     printf '%s\n' 'return [1932, 20, 2, 2000];' > "$declared_root/src/handler.ts"
@@ -1630,7 +1633,8 @@ done
 probe_exact_dir="$tmp_root/probe-index-exact"
 mkdir -p "$probe_exact_dir"
 printf '%s\n' 'other run' > "$probe_exact_dir/codex-probe-audit-extra-7.md"
-for exact_group_case in 'audit|' 'audit-extra|7'; do
+printf '%s\n' 'nested foreign group' > "$probe_exact_dir/codex-probe-other-probe-audit-8.md"
+for exact_group_case in 'audit|' 'audit-extra|7' 'other-probe-audit|8'; do
     exact_group=${exact_group_case%%|*}
     test_case "probe artifact belongs to the exact task group: $exact_group"
     exact_indices=$(RESEARCH_PROVIDER_RESULTS_DIR="$probe_exact_dir" RESEARCH_TASK_GROUP="$exact_group" research_probe_indices)
@@ -1649,5 +1653,14 @@ declared_status=0
 (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
 if [[ "$declared_status" -eq 0 ]] && jq -e '.failures == 0' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
 else test_fail "padded ticket reference rejected"; fi
+
+test_case "actual synthesis checks a probe number from a different complete task group"
+RESEARCH_PROVIDER_RESULTS_DIR="$probe_exact_dir"
+RESEARCH_TASK_GROUP=audit
+printf '%s\n' '- Codex probe 8 agreed (`src/handler.ts:1`).' > "$declared_draft"
+declared_status=0
+(cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "8")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+else test_fail "foreign complete group exempted a probe reference"; fi
 
 test_summary
