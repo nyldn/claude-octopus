@@ -252,13 +252,24 @@ Ready to push when you want: git push origin $BASE_BRANCH
 
 ```bash
 # Get branch info
-FEATURE_BRANCH=$(git branch --show-current)
+FEATURE_BRANCH=$(git branch --show-current) || {
+  echo "PR creation stopped: cannot determine the current branch." >&2
+  return 1 2>/dev/null || exit 1
+}
+if [[ -z "$FEATURE_BRANCH" ]]; then
+  echo "PR creation stopped: check out the reviewed feature branch first." >&2
+  return 1 2>/dev/null || exit 1
+fi
 
-# Push branch
-git push -u origin $FEATURE_BRANCH
-
-# Create PR with a validated description file
-REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+# Validate repository and description before publishing the branch
+REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner) || {
+  echo "PR creation stopped: cannot determine the GitHub repository." >&2
+  return 1 2>/dev/null || exit 1
+}
+if [[ -z "$REPO_SLUG" ]]; then
+  echo "PR creation stopped: the GitHub repository is empty." >&2
+  return 1 2>/dev/null || exit 1
+fi
 PR_TITLE=${PR_TITLE:?Complete PR_TITLE before creating the pull request}
 CHANGE_SUMMARY=${CHANGE_SUMMARY:?Complete CHANGE_SUMMARY before creating the pull request}
 CHANGE_REASON=${CHANGE_REASON:?Complete CHANGE_REASON before creating the pull request}
@@ -273,6 +284,11 @@ PR_BODY=$(cat <<EOF
 - [ ] Code review needed
 EOF
 )
+if ! git push -u origin "$FEATURE_BRANCH"; then
+  echo "PR creation stopped: branch push failed. Preserve the branch and repair publication before retrying." >&2
+  return 1 2>/dev/null || exit 1
+fi
+# Create PR with a validated description file
 if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
     --repo "$REPO_SLUG" pr-create "$PR_TITLE" "$FEATURE_BRANCH" - <<< "$PR_BODY"; then
   echo "GitHub write state is unknown; check for an existing pull request before retrying:" >&2
@@ -281,7 +297,11 @@ if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}
 fi
 ```
 
-**Report:**
+Stop after any failed admission or push. Keep the feature branch and report the
+failure. A failed PR write requires checking its recorded recovery state before
+retrying.
+
+**Report only after both the branch push and PR creation succeed:**
 ```
 ✅ Branch pushed to origin/$FEATURE_BRANCH
 ✅ PR created: https://github.com/owner/repo/pull/123

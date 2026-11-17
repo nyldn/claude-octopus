@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Branch completion validates its branch, repository and required PR description
+  before pushing, and stops PR creation after a failed push instead of reporting
+  successful publication.
+
 ## [11.25.0] - 2026-11-16
 
 ### Added
