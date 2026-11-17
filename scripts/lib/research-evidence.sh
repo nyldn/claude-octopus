@@ -699,26 +699,39 @@ research_numeric_claims() {
         for (i = 1; i <= count; i++) if (parts[i] != "") declared[parts[i]] = 1
         count = split(probe_indices, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") probe_index[parts[i]] = 1
-        unit_modifier = "([a-z][a-z-]*[ \\t]+)?"
-        reference_unit = "^[ \\t]+[*_]*" unit_modifier unit_modifier unit_modifier "(ms|s|secs?|seconds?|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?)([^0-9a-z_]|$)"
+        unit_modifier = "((active|new|concurrently|concurrent|total|remaining|failed|successful|additional|unique|daily|monthly|average|maximum|minimum|peak)[ \\t]+)?"
+        reference_unit = "^[ \\t]+[*_]*" unit_modifier unit_modifier unit_modifier "(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?)([^0-9a-z_]|$)"
     }
     function quantity_suffix(after) {
         # Units may be code-formatted or use Unicode prefixes. Keep these
         # checks local: code spans elsewhere still carry literal identifiers.
-        sub(/^[ \t]*[*_`(]+/, " ", after)
-        return (tolower(after) ~ reference_unit || after ~ /^[A-Za-z]/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274)/)
+        gsub(/`/, "", after)
+        sub(/^[ \t]*[*_(]+/, " ", after)
+        return (tolower(after) ~ reference_unit || after ~ /^[A-Za-z]/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
     }
-    function declared_reference(number, before, after,    range_tail) {
-        if (number !~ /^[0-9]+$/) return 0
+    function declared_reference(number, before, after,    range_tail, members, member_count, member, probe_join, probe_prefix) {
+        # Normalize only the context used by these exemptions. Other numeric
+        # extraction rules still see literal code and Markdown destinations.
+        gsub(/`/, "", before)
+        gsub(/`/, "", after)
+        # Numeric link labels stay claims, including links around endpoints.
+        if (after ~ /^\]\(/) return 0
+        if (number !~ /^[0-9]+(,[0-9]+)*$/) return 0
+        if (number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
         if (before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_`]*$/) return 0
-        if (before ~ /[0-9][ \t*_`]*\/[ \t*_`]*$/ || after ~ /^[ \t*_`]*\/[ \t*_`]*[0-9]/) return 0
+        if (before ~ /[0-9][ \t*_]*[\/:][ \t*_]*$/ || after ~ /^[ \t*_]*[\/:][ \t*_]*[0-9]/) return 0
         if (after ~ /^([.,][0-9]|[A-Za-z%])/) return 0
         if (quantity_suffix(after) || after ~ /^[ \t*_`]*\+/) return 0
         # A trailing unit makes earlier range endpoints and list members quantities.
         range_tail = after
-        if (sub(/^([ \t*_`]*(-|\342\200\223|\342\200\224|\342\210\222|to|and|or|,)[ \t]*[*_`]*[0-9]+([.,][0-9]+)*[*_`]*)+/, "", range_tail) && quantity_suffix(range_tail)) return 0
-        if (number in declared) return 1
-        return ((number in probe_index) && tolower(before) ~ /(^|[^0-9a-z_])[*_]*probes?[*_]*[ \t]+$/)
+        if (sub(/^([ \t*_]*(-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", range_tail) && quantity_suffix(range_tail)) return 0
+        member_count = split(number, members, /,/)
+        for (member = 1; member <= member_count; member++) if (!(members[member] in declared)) break
+        if (member > member_count) return 1
+        if (!(number in probe_index)) return 0
+        probe_join = "([ \\t]*,[ \\t]*((and|or)[ \\t]+)?|[ \\t]+(and|or)[ \\t]+|[ \\t]*&[ \\t]*)"
+        probe_prefix = "(^|[^0-9a-z_])[*_]*probes?[*_]*[ \\t]+"
+        return (tolower(before) ~ (probe_prefix "([0-9]+" probe_join ")*$"))
     }
     function unformat(text,    at, marker, width, previous, following, depth, result, piece, scan, paren_depth, marks, starts, drops, ticks, next_tick, parens, close_paren, destination_depth) {
         # Pair equal-length backtick runs once. Literal code and destinations

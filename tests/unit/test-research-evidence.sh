@@ -1474,7 +1474,7 @@ PY_RANGE
 then test_pass; else test_fail "oversized identifier range stalled or expanded"; fi
 
 research_declared_ids="1927 1928 1929 1930 1931"
-for reference_text in 'Build 1928, 1929, 1930 and 1931 in parallel.' 'PLAT-1931 shares the service with 1928.' "It keeps 1927's output unchanged." '1931 exclusively owns the loader.' 'The tickets 1928-1931 stack on it.'; do
+for reference_text in 'Build 1928, 1929, 1930 and 1931 in parallel.' 'Build 1928,1929 in parallel.' 'Build 1928,1929,1931 in parallel.' '1931 shares the file with 1928.' 'PLAT-1931 shares the service with 1928.' "It keeps 1927's output unchanged." '1931 exclusively owns the loader.' 'The tickets 1928-1931 stack on it.'; do
     test_case "a declared ticket number is an identifier: $reference_text"
     reference_claims=$(research_extract_numbers "$reference_text")
     if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "ticket number became a claim: $reference_claims"; fi
@@ -1515,7 +1515,23 @@ for quantity_case in \
     'The service has 1928 **active users**.|1928' \
     'Latency is `1928`-`1931`ms.|1928 1931' \
     'The service has 1928+ users.|1928' \
-    'The service has `1928`+ active users.|1928'; do
+    'The service has `1928`+ active users.|1928' \
+    'Latency is `1928` `ms`.|1928' \
+    'The rate is `1928` `%`.|1928' \
+    'Latency is 1928 milliseconds.|1928' \
+    'Latency is 1928 microseconds.|1928' \
+    'The cost is 1928€.|1928' \
+    'The cost is 1928 £.|1928' \
+    'Latency is 1928 through 1932 ms.|1928 1932' \
+    'Latency is 1928 thru 1932 ms.|1928 1932' \
+    'Latency is [1928](#low)-[1931](#high) ms.|1928 1931' \
+    'The ratio is 1928:1931.|1928 1931' \
+    'The ratio is `1928`:`1931`.|1928 1931' \
+    'Latencies are 1928, 1929, and 1931 ms.|1928 1929 1931' \
+    'Latencies are 1928,1929 ms.|1928,1929' \
+    'The count is 1,928 users.|1,928' \
+    'The latency is 1928.1929 ms.|1928.1929' \
+    'Build 1928,1940 in parallel.|1928,1940'; do
     quantity_text=${quantity_case%%|*}
     test_case "declared identifiers retain explicit quantity syntax: $quantity_text"
     quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
@@ -1525,12 +1541,12 @@ research_declared_ids=""
 
 research_probe_index_list="0 1 2 3 4"
 test_case "a probe number naming one of this run's results is an identifier"
-probe_claims=$(research_extract_numbers 'codex probe 4 said reach; **probe** 2 agreed.')
+probe_claims=$(research_extract_numbers 'codex probe 4 said reach; **probe** 2 agreed; Codex probes 1 and 2 agreed; probes 1, 2, and 4 agreed.')
 if [[ -z "$probe_claims" ]]; then test_pass; else test_fail "probe reference became a claim: $probe_claims"; fi
-for quantity_case in 'the probe 7 said reach|7' 'It ran the probe 4 times.|4' 'probe 3 MiB|3'; do
+for quantity_case in 'the probe 7 said reach|7' 'It ran the probe 4 times.|4' 'probe 3 MiB|3' 'Codex probes 1 and 7 agreed.|7' 'Codex probes 1 and 2 times.|1 2'; do
     quantity_text=${quantity_case%%|*}
     test_case "a probe number that names no result requires evidence: $quantity_text"
-    quantity_claims=$(research_extract_numbers "$quantity_text")
+    quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
     if [[ "$quantity_claims" == "${quantity_case#*|}" ]]; then test_pass; else test_fail "quantity escaped: $quantity_claims"; fi
 done
 research_probe_index_list=""
@@ -1574,7 +1590,13 @@ for quantity_text in 'The monthly cost is $1928.' 'The cost is €1928.' \
     'Latency is 1928 `ms`.' 'The dose is 1928 µg.' \
     'Latency is 1928-1932 ms.' 'Latency is 1928-1932ms.' 'Latency is between 1928 and 1932 ms.' '1928/2000 tests pass.' \
     '`1928`/2000 tests pass.' '`2000`/`1928` tests pass.' 'The service has 1928 active users.' \
-    'The service has 1928+ users.'; do
+    'The service has 1928+ users.' \
+    'Latency is `1928` `ms`.' 'The rate is `1928` `%`.' \
+    'Latency is 1928 milliseconds.' 'The cost is 1928€.' \
+    'Latency is 1928 through 1932 ms.' 'Latency is 1928 thru 1932 ms.' \
+    'Latency is [1928](#low)-[1931](#high) ms.' \
+    'The ratio is 1928:1931.' 'The ratio is `1928`:`1931`.' \
+    'Latencies are 1928, 1929, and 1931 ms.'; do
     test_case "synthesis rejects unsupported declared quantity: $quantity_text"
     # Only the range endpoint is supported, proving the start is still checked.
     printf '%s\n' 'return 1932;' > "$declared_root/src/handler.ts"
