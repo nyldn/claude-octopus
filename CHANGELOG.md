@@ -2,12 +2,14 @@
 
 ## [Unreleased]
 
-## [11.25.1] - 2026-11-17
-
 ### Fixed
 
 - Deliver stops after failed context, metrics or ready-to-ship state writes and
   failed summary reads, preserving earlier state without reporting completion.
+
+## [11.25.1] - 2026-11-17
+
+### Fixed
 
 - Brainstorm Team mode, debate, branch-completion review, the deck red-team seat
   recipe and define run their shell blocks under bash when the host shell is zsh,
