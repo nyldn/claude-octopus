@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Parallel work packages recheck their repository, branch and frozen-base ancestry
+  after the worker exits. Unexpected changes stop completion and retain the
+  worktree for inspection instead of counting or removing unrelated work.
 - Rollback history verifies the confirmed repository before appending, so a
   later shell in another clone cannot record recovery in the wrong project.
 - Rollback history refuses hard-linked state files before appending, protecting

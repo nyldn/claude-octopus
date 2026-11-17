@@ -422,14 +422,18 @@ fi
 # Reject stale directories from another project, branch, or non-worktree path.
 cd "$WORKTREE_DIR" || fail "ERROR: cannot enter $WORKTREE_DIR"
 WORKTREE_DIR="$(pwd -P)"
-WORKTREE_TOP="$(git rev-parse --show-toplevel)" || fail "ERROR: not a Git worktree"
-WORKTREE_TOP="$(cd "$WORKTREE_TOP" && pwd -P)" || fail "ERROR: cannot resolve worktree root"
-WORKTREE_COMMON_DIR="$(git rev-parse --git-common-dir)" || fail "ERROR: cannot identify worktree repository"
-WORKTREE_COMMON_DIR="$(cd "$WORKTREE_COMMON_DIR" && pwd -P)" || fail "ERROR: cannot resolve worktree repository"
-WORKTREE_BRANCH="$(git symbolic-ref --quiet --short HEAD)" || fail "ERROR: worktree has detached HEAD"
-[[ "$WORKTREE_TOP" == "$WORKTREE_DIR" && "$WORKTREE_COMMON_DIR" == "$COMMON_DIR" && \
-   "$WORKTREE_BRANCH" == "$WP_BRANCH" ]] || fail "ERROR: worktree repository or branch does not match this package"
-git merge-base --is-ancestor "$BASE_REF" HEAD || fail "ERROR: worktree does not include the frozen base commit"
+validate_worktree() {
+    local worktree_top worktree_common_dir worktree_branch
+    worktree_top="$(git -C "$WORKTREE_DIR" rev-parse --show-toplevel)" || fail "ERROR: not a Git worktree; retained $WORKTREE_DIR"
+    worktree_top="$(cd "$worktree_top" && pwd -P)" || fail "ERROR: cannot resolve worktree root; retained $WORKTREE_DIR"
+    worktree_common_dir="$(git -C "$WORKTREE_DIR" rev-parse --git-common-dir)" || fail "ERROR: cannot identify worktree repository; retained $WORKTREE_DIR"
+    worktree_common_dir="$(cd "$WORKTREE_DIR" && cd "$worktree_common_dir" && pwd -P)" || fail "ERROR: cannot resolve worktree repository; retained $WORKTREE_DIR"
+    worktree_branch="$(git -C "$WORKTREE_DIR" symbolic-ref --quiet --short HEAD)" || fail "ERROR: worktree has detached HEAD; retained $WORKTREE_DIR"
+    [[ "$worktree_top" == "$WORKTREE_DIR" && "$worktree_common_dir" == "$COMMON_DIR" && \
+       "$worktree_branch" == "$WP_BRANCH" ]] || fail "ERROR: worktree repository or branch does not match this package; retained $WORKTREE_DIR"
+    git -C "$WORKTREE_DIR" merge-base --is-ancestor "$BASE_REF" HEAD || fail "ERROR: worktree does not include the frozen base commit; retained $WORKTREE_DIR"
+}
+validate_worktree
 
 # Register agent in registry
 if [[ -x "$REGISTRY" ]]; then
@@ -444,6 +448,9 @@ unset OPENAI_API_KEY AGY_AUTH_TOKEN ANTIGRAVITY_API_KEY OPENROUTER_API_KEY PERPL
 # code and .done rather than abort the script before either is written.
 claude -p < "$SCRIPT_DIR/instructions.md" > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
 EXIT_CODE=$?
+# The worker can change branches, detach HEAD or replace the repository. Admit
+# the resulting worktree again before reporting completion or removing it.
+validate_worktree
 echo $EXIT_CODE > "$SCRIPT_DIR/exit-code"
 
 # Update agent registry with completion status
