@@ -36,10 +36,10 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Develop stops when an implementation decision, context, metrics update or
-post-development checkpoint fails. Earlier successful state writes and existing
-tags remain available for inspection before retrying. Completion is reported
-only after the required writes and checkpoint succeed.
+Develop checks implementation-state updates, checkpoint creation and both
+checkpoint-state writes for failure. The affected block stops when an operation
+fails. Earlier successful writes and existing tags remain available for
+inspection before retrying.
 
 Branch completion checks its repository, branch and PR description before
 pushing. A failed push stops PR creation, and an ambiguous GitHub write reports
