@@ -1705,4 +1705,56 @@ for scalar in 'The probability is .1928.' 'The offset is -1928.'; do
     else test_fail "uncited scalar passed: $scalar"; fi
 done
 
+
+research_declared_ids="1928 403"
+for quantity_case in \
+    'The threshold is > 1928.|1928' \
+    'The threshold is >= 1928.|1928' \
+    'It supports at least 1928.|1928' \
+    'It supports at most 1928.|1928' \
+    'The sum is 2 + (1928).|1928 2' \
+    'The quotient is 2 / ((1928)).|1928 2' \
+    'Latency is 1928..1932 ms.|1928 1932' \
+    'Latency is 1928...1932 ms.|1928 1932' \
+    'The response was HTTP/1.1 403 Forbidden.|1.1 403' \
+    'The response was HTTP/2 403 Forbidden.|2 403'; do
+    quantity_text=${quantity_case%%|*}
+    test_case "reviewed quantity boundaries require evidence: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
+    if [[ "$quantity_claims" == "${quantity_case#*|}" ]]; then test_pass
+    else test_fail "expected ${quantity_case#*|}, got $quantity_claims"; fi
+done
+for table_text in '| Latency | ms | 1928 |' '| Latency | `ms` | 1928 |'; do
+    test_case "table unit before value retains the declared quantity: $table_text"
+    if [[ $(research_extract_numbers "$table_text") == 1928 ]]; then test_pass
+    else test_fail "preceding unit did not preserve quantity"; fi
+done
+for ticket_text in 'It supports 1928.' 'The tickets (1928) share the file.' '| Ticket | 1928 |' '| Ticket | PLAT | 1928 |'; do
+    test_case "ordinary ticket references remain exempt: $ticket_text"
+    if [[ -z $(research_extract_numbers "$ticket_text") ]]; then test_pass
+    else test_fail "ticket reference became a quantity"; fi
+done
+research_declared_ids=""
+printf '%s\n' 'Check PLAT-1928 and PLAT-403' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return [1932, 2, 500];' > "$declared_root/src/handler.ts"
+for quantity_text in 'The threshold is > 1928.' 'It supports at least 1928.' \
+    'The sum is 2 + (1928).' 'Latency is 1928..1932 ms.' \
+    'The response was HTTP/1.1 403 Forbidden.'; do
+    test_case "actual synthesis rejects reviewed numeric exemption: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and (.detail == "1928" or .detail == "403"))' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "reviewed unsupported quantity passed"; fi
+done
+test_case "actual table synthesis rejects quantity with preceding unit cell"
+printf '%s\n' '# Measurements' '' '| Kind | Unit | Value | Source |' '| --- | --- | --- | --- |' \
+    '| Latency | ms | 1928 | `src/handler.ts:1` |' > "$declared_draft"
+declared_status=0
+(cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1928")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+else test_fail "preceding-cell quantity passed synthesis"; fi
+
 test_summary
