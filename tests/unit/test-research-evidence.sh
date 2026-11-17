@@ -1475,7 +1475,7 @@ PY_RANGE
 then test_pass; else test_fail "oversized identifier range stalled or expanded"; fi
 
 research_declared_ids="1927 1928 1929 1930 1931"
-for reference_text in 'Build 1928, 1929, 1930 and 1931 in parallel.' 'Build 1928,1929 in parallel.' 'Build 1928,1929,1931 in parallel.' '1931 shares the file with 1928.' 'PLAT-1931 shares the service with 1928.' "It keeps 1927's output unchanged." '1931 exclusively owns the loader.' 'The tickets 1928-1931 stack on it.'; do
+for reference_text in 'Build 1928, 1929, 1930 and 1931 in parallel.' 'Build 1928,1929 in parallel.' 'Build 1928,1929,1931 in parallel.' '1931 shares the file with 1928.' 'PLAT-1931 shares the service with 1928.' "It keeps 1927's output unchanged." '1931 exclusively owns the loader.' 'The tickets 1928-1931 stack on it.' 'The tickets 1927..1928 share the loader.'; do
     test_case "a declared ticket number is an identifier: $reference_text"
     reference_claims=$(research_extract_numbers "$reference_text")
     if [[ -z "$reference_claims" ]]; then test_pass; else test_fail "ticket number became a claim: $reference_claims"; fi
@@ -1546,7 +1546,13 @@ for quantity_case in \
     'The product is 2 × 1928.|1928 2' \
     'The sum is 1928 + 2.|1928 2' \
     'The product is 1928 × 2.|1928 2' \
-    'The quotient is 1928 ÷ 2.|1928 2'; do
+    'The quotient is 1928 ÷ 2.|1928 2' \
+    'The probability is .1928.|1928' \
+    'The offset is -1928.|1928' \
+    'The offset is +1928.|1928' \
+    'The offset is −1928.|1928' \
+    'The endpoint uses HTTP 1928.|1928' \
+    'The response status code: 1928.|1928'; do
     quantity_text=${quantity_case%%|*}
     test_case "declared identifiers retain explicit quantity syntax: $quantity_text"
     quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
@@ -1617,7 +1623,8 @@ for quantity_text in 'The monthly cost is $1928.' 'The cost is €1928.' \
     'Latencies are 1928 & 1932 ms.' 'Latency is 1928 ± 20 ms.' \
     'The sum is 2 + 1928.' 'The difference is 2000 - 1928.' \
     'The product is 2 * 1928.' 'The product is 2 × 1928.' \
-    'The product is 1928 × 2.' 'The quotient is 1928 ÷ 2.'; do
+    'The product is 1928 × 2.' 'The quotient is 1928 ÷ 2.' \
+    'The probability is .1928.' 'The offset is -1928.' 'The offset is +1928.' 'The offset is −1928.'; do
     test_case "synthesis rejects unsupported declared quantity: $quantity_text"
     # Only the range endpoint is supported, proving the start is still checked.
     printf '%s\n' 'return [1932, 20, 2, 2000];' > "$declared_root/src/handler.ts"
@@ -1662,5 +1669,40 @@ declared_status=0
 (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
 if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "8")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
 else test_fail "foreign complete group exempted a probe reference"; fi
+
+research_declared_ids="1928 403"
+for quantitative in '| Latency | 1928 | ms |' 'The endpoint uses HTTP 403.' 'The response status code: 403.'; do
+    test_case "table/status quantities remain claims: $quantitative"
+    actual=$(research_extract_numbers "$quantitative")
+    if [[ "$actual" == *1928* || "$actual" == *403* ]]; then test_pass
+    else test_fail "quantity disappeared: $quantitative"; fi
+done
+research_declared_ids=""
+printf '%s\n' 'Check PLAT-403 and PLAT-1928' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return { status: 500 };' > "$declared_root/src/handler.ts"
+for quantitative in 'The endpoint uses HTTP 403.' 'The response status code: 403.'; do
+    test_case "actual synthesis rejects unsupported response status: $quantitative"
+    printf '%s\n' "- $quantitative (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "403")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported HTTP status passed"; fi
+done
+test_case "actual tabular measurement retains adjacent-cell unit evidence"
+printf '%s\n' '# Measurements' '' '| Kind | Value | Unit | Source |' '| --- | --- | --- | --- |' \
+    '| Latency | 1928 | ms | `src/handler.ts:1` |' > "$declared_draft"
+declared_status=0
+(cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1928")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+else test_fail "unsupported adjacent-cell measurement passed"; fi
+
+for scalar in 'The probability is .1928.' 'The offset is -1928.'; do
+    test_case "uncited scalar cannot pass as a declared identifier: $scalar"
+    printf '%s\n' "- $scalar" > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "missing_citation")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "uncited scalar passed: $scalar"; fi
+done
 
 test_summary

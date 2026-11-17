@@ -711,6 +711,7 @@ research_numeric_claims() {
         # checks local: code spans elsewhere still carry literal identifiers.
         gsub(/`/, "", after)
         sub(/^[ \t]*[*_(]+/, " ", after)
+        sub(/^[ \t]*\|[ \t]*/, " ", after)
         return (tolower(after) ~ reference_unit || after ~ /^[A-Za-z]/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
     }
     function declared_reference(number, before, after,    range_tail, members, member_count, member, probe_join, probe_prefix) {
@@ -721,6 +722,9 @@ research_numeric_claims() {
         # Numeric link labels stay claims, including links around endpoints.
         if (after ~ /^\]\(/) return 0
         if (number !~ /^[0-9]+(,[0-9]+)*$/) return 0
+        if (before ~ /(^|[^.0-9])\.$/) return 0
+        if (before ~ /(^|[^0-9A-Za-z_])([+-]|\342\210\222)$/) return 0
+        if (tolower(before) ~ /(^|[^a-z])(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)[ \t:]*$/) return 0
         if (number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
         if (before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_`]*$/) return 0
         if (tolower(before) ~ ("(^|[^a-z])" currency_unit "[ \\t*_]*$")) return 0
