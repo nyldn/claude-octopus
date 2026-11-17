@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Branch completion validates its branch, repository and required PR description
+  before pushing, and stops PR creation after a failed push instead of reporting
+  successful publication.
 - Parallel work packages recheck their repository, branch and frozen-base ancestry
   after the worker exits. Unexpected changes stop completion and retain the
   worktree for inspection instead of counting or removing unrelated work.
