@@ -270,7 +270,8 @@ octo_launch_advisors() {
         event_log="${aux_dir}/${index}-${safe_advisor}.events"
         spawn_out="${aux_dir}/${index}-${safe_advisor}.spawn"
         : > "$event_log"
-        OCTOPUS_AGENT_LIFECYCLE_HOOK="$hook" OCTO_ADVISOR_EVENT_LOG="$event_log" \
+        OCTOPUS_SPAWN_ROLE=advisor \
+            OCTOPUS_AGENT_LIFECYCLE_HOOK="$hook" OCTO_ADVISOR_EVENT_LOG="$event_log" \
             OCTO_ADVISOR_PREV_HOOK="$prev_hook" \
             "$orchestrator" spawn "$advisor" "$prompt" > "$spawn_out" &
         advisor_pids[$index]=$!

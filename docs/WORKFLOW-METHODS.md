@@ -91,6 +91,30 @@ work before clearing those exclusions and reauditing. Finalization requires an
 exclusive worktree with other source writers stopped; concurrent source writes
 are unsupported. HEAD is checked again after the source-state checks.
 
+Rollback history requires the exact repository root retained from the confirmed
+preview, along with the target and safety checkpoint names. A later shell in
+another clone stops before writing, even when its tags match. History writes
+reject hard-linked state files so an external file sharing the inode remains
+unchanged.
+
+Brainstorm, debate and deck launch advisors with an explicit advisor role. Their
+briefs keep their own format instead of inheriting implementer or architecture
+instructions. Direct spawn callers can select this role with
+`OCTOPUS_SPAWN_ROLE=advisor`; other nonempty values are rejected. Provider
+permission overrides and the configured Codex sandbox remain in effect.
+
+Shipment-state replacement installs the original access policy before writing
+content and verifies it again before publication. Owner, group, mode, ACLs and
+extended attributes remain intact. Linked or nonregular state paths, missing
+context, preparation failures and persistence failures stop delivery. The current
+status ends before History, with canonical status taking precedence over legacy
+status. Retrying the same completed archive does not duplicate shipment history.
+
+Parallel work packages validate repository identity, the expected package branch
+and frozen-base ancestry before and after the worker runs. A mismatch records
+failure before completion is reported or commits are counted. The worktree stays
+available for inspection; detached HEAD and a different repository are refused.
+
 ## Host-native by default
 
 Routine architecture, TDD, and debugging run on the current host with no extra

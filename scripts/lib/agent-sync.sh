@@ -1467,7 +1467,7 @@ run_agent_sync() {
     enhanced_prompt=$(apply_persona "$role" "$prompt" "false" "")
 
     # v8.21.0: Check for persona pack override (run_agent_sync)
-    if type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
+    if [[ "$role" != advisor ]] && type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
         local pack_persona
         pack_persona=$(get_persona_override_content "$agent_type" 2>/dev/null)
         if [[ -n "$pack_persona" ]]; then

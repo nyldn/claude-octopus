@@ -48,10 +48,12 @@ Participants:
 
 **You MUST use this exact command pattern. Do NOT improvise provider flags.**
 
-For debate rounds, dispatch every external advisor through Octopus routing:
+For debate rounds, dispatch every external advisor through Octopus routing in
+the advisor role, so the debate prompt does not inherit an implementer persona
+or curated skill context:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$advisor" "$prompt"
+OCTOPUS_SPAWN_ROLE=advisor "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$advisor" "$prompt"
 ```
 
 Do not call provider CLIs directly from the debate workflow. The router applies
