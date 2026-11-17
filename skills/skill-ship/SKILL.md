@@ -444,6 +444,12 @@ import secrets
 import stat
 import sys
 
+def sync_state_file(descriptor):
+    os.fsync(descriptor)
+    if sys.platform == 'darwin':
+        import fcntl
+        fcntl.fcntl(descriptor, fcntl.F_FULLFSYNC)
+
 def copy_access_metadata(source, destination):
     if sys.platform == 'darwin':
         import ctypes
@@ -539,19 +545,24 @@ try:
             try:
                 with os.fdopen(output, 'w', encoding='utf-8', newline='') as prepared:
                     os.fchown(prepared.fileno(), metadata.st_uid, metadata.st_gid)
+                    # Replace inherited ACL grants while the file is still empty.
+                    copy_access_metadata(record.fileno(), prepared.fileno())
                     prepared.write(content)
                     prepared.flush()
+                    # Verify the final policy again before enabling group mode.
                     copy_access_metadata(record.fileno(), prepared.fileno())
                     os.fchmod(prepared.fileno(), stat.S_IMODE(metadata.st_mode))
-                    os.fsync(prepared.fileno())
-                current = os.stat('STATE.md', dir_fd=state, follow_symlinks=False)
-                if (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns,
-                    current.st_ctime_ns, current.st_nlink) != (metadata.st_dev, metadata.st_ino,
-                                         metadata.st_size, metadata.st_mtime_ns,
-                                         metadata.st_ctime_ns, metadata.st_nlink):
-                    raise ValueError('shipping state changed while preparing the update')
-                os.replace(temporary, 'STATE.md', src_dir_fd=state, dst_dir_fd=state)
-                os.fsync(state)
+                    sync_state_file(prepared.fileno())
+                    current = os.stat('STATE.md', dir_fd=state, follow_symlinks=False)
+                    if (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns,
+                        current.st_ctime_ns, current.st_nlink) != (metadata.st_dev, metadata.st_ino,
+                                             metadata.st_size, metadata.st_mtime_ns,
+                                             metadata.st_ctime_ns, metadata.st_nlink):
+                        raise ValueError('shipping state changed while preparing the update')
+                    os.replace(temporary, 'STATE.md', src_dir_fd=state, dst_dir_fd=state)
+                    os.fsync(state)
+                    # Flush publication metadata from the drive cache as well.
+                    sync_state_file(prepared.fileno())
             finally:
                 try:
                     os.unlink(temporary, dir_fd=state)

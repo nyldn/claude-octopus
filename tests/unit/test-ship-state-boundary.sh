@@ -36,6 +36,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     for scenario in ('regular', 'other group', 'ownership failure', 'metadata failure', 'acl', 'inherited acl', 'private preparation', 'permission race', 'partial write', 'legacy status', 'historical status', 'historical legacy status',
                      'historical status only', 'dual status legacy first', 'dual status canonical first',
                      'retry', 'directory sync', 'directory sync failure', 'directory sync retry',
+                     'file sync failure', 'publication sync failure',
                      'missing status', 'missing state', 'missing archive', 'missing validation',
                      'parent link', 'leaf link', 'dangling link', 'hard link', 'directory', 'fifo'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
@@ -105,7 +106,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     access_metadata = {name: os.getxattr(target, name) for name in os.listxattr(target)}
                 elif sys.platform == 'darwin':
                     # Native macOS ACLs must survive both explicit and inherited grants.
-                    subprocess.run(['chmod', '+a', f'user:{os.getuid()} allow read' +
+                    import pwd
+                    subprocess.run(['chmod', '+a', f'user:{pwd.getpwuid(os.getuid()).pw_name} allow read' +
                                     (',file_inherit' if scenario == 'inherited acl' else ''),
                                     str(state if scenario == 'inherited acl' else target)], check=True)
                     access_metadata = subprocess.check_output(['ls', '-le', str(target)], text=True).splitlines()[1:]
@@ -125,7 +127,10 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 instrumentation = '''
 original_copy_access_metadata = copy_access_metadata
 def private_copy_access_metadata(source, destination):
-    assert os.fstat(destination).st_mode & 0o077 == 0, 'prepared content was readable before its ACL was installed'
+    if not getattr(private_copy_access_metadata, 'installed', False):
+        assert os.fstat(destination).st_mode & 0o077 == 0, 'prepared content was readable before its ACL was installed'
+        assert os.fstat(destination).st_size == 0, 'state content was written before the original access policy was installed'
+        private_copy_access_metadata.installed = True
     original_copy_access_metadata(source, destination)
 copy_access_metadata = private_copy_access_metadata
 '''
@@ -158,6 +163,21 @@ os.fchown = denied_fchown
 '''
                 executed_recipe = recipe.replace('archive, validation = sys.argv[1:]',
                                                  instrumentation + '\narchive, validation = sys.argv[1:]')
+            if scenario in ('file sync failure', 'publication sync failure'):
+                instrumentation = '''
+original_sync_state_file = sync_state_file
+sync_calls = 0
+def failing_sync(descriptor):
+    global sync_calls
+    sync_calls += 1
+    original_sync_state_file(descriptor)
+    if sync_calls == int(os.environ['FAIL_FILE_SYNC_AT']):
+        raise OSError('injected file persistence failure')
+sync_state_file = failing_sync
+'''
+                executed_recipe = recipe.replace('archive, validation = sys.argv[1:]',
+                                                 instrumentation + '\narchive, validation = sys.argv[1:]')
+                environment['FAIL_FILE_SYNC_AT'] = '1' if scenario == 'file sync failure' else '2'
             if scenario.startswith('directory sync'):
                 # Instrument only fsync; execute the otherwise unchanged recipe.
                 instrumentation = '''
@@ -253,7 +273,7 @@ os.fsync = checked_fsync
                                            capture_output=True, text=True)
                     valid = valid and phase.returncode == 0 and phase.stdout == 'shipped\n'
             elif scenario in ('missing archive', 'missing validation', 'hard link', 'missing status',
-                              'partial write', 'historical status only', 'ownership failure', 'metadata failure', 'permission race'):
+                              'partial write', 'historical status only', 'ownership failure', 'metadata failure', 'permission race', 'file sync failure'):
                 valid = valid and target.read_text() == before
                 if scenario == 'ownership failure':
                     valid = valid and (target.stat().st_uid, target.stat().st_gid) == owner
@@ -261,8 +281,13 @@ os.fsync = checked_fsync
                     valid = valid and target.stat().st_mode & 0o777 == 0o600
             elif scenario == 'missing state':
                 valid = valid and not target.exists()
+            elif scenario == 'publication sync failure':
+                valid = valid and target.read_text().count('- **Event:** Project shipped') == 1
             if scenario.startswith('directory sync'):
-                expected_syncs = 'file\ndirectory\n' * (2 if scenario.endswith('retry') else 1)
+                expected_syncs = ('file\ndirectory\n' if scenario == 'directory sync failure' else
+                                  'file\ndirectory\nfile\n' * (2 if scenario.endswith('retry') else 1))
+                if scenario == 'directory sync retry':
+                    expected_syncs = 'file\ndirectory\nfile\ndirectory\nfile\n'
                 valid = valid and (project / 'sync-events').read_text() == expected_syncs
             if scenario in ('missing status', 'historical status only'):
                 phase = subprocess.run(['bash', str(root / 'scripts/octo-state.sh'),
@@ -337,6 +362,41 @@ for read_error in (errno.ENOENT, errno.EACCES):
 print('Absent-ACL replacement and permission-error refusal contracts passed')
 PY_MAC_ACL
 then test_pass; else test_fail "macOS absent-ACL contract failed"; fi
+
+test_case "macOS state sync flushes the drive cache and propagates failures"
+if python3 -I - "$PROJECT_ROOT" <<'PY_MAC_SYNC'
+import ast
+import fcntl
+from pathlib import Path
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
+
+source = (Path(sys.argv[1]) / '.claude/skills/skill-ship/SKILL.md').read_text()
+runtime = source.split("<<'PY_STATE' || exit 1\n", 1)[1].split('\nPY_STATE', 1)[0]
+function = next(node for node in ast.parse(runtime).body
+                if isinstance(node, ast.FunctionDef) and node.name == 'sync_state_file')
+for platform in ('linux', 'darwin'):
+    for fail in (False, True):
+        events = []
+        def full_sync(fd, operation):
+            events.append(('full', fd, operation))
+            if fail:
+                raise OSError('injected drive-cache flush failure')
+        scope = {'sys': SimpleNamespace(platform=platform),
+                 'os': SimpleNamespace(fsync=lambda fd: events.append(('fsync', fd)))}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), '<state-sync>', 'exec'), scope)
+        with patch.object(fcntl, 'F_FULLFSYNC', 51, create=True), patch.object(fcntl, 'fcntl', full_sync):
+            try:
+                scope['sync_state_file'](10)
+            except OSError:
+                assert platform == 'darwin' and fail
+            else:
+                assert platform != 'darwin' or not fail
+        assert events == ([('fsync', 10), ('full', 10, 51)] if platform == 'darwin' else [('fsync', 10)])
+print('Native flush selection, ordering and failure contracts passed')
+PY_MAC_SYNC
+then test_pass; else test_fail "macOS drive-cache flush contract failed"; fi
 
 test_case "missing required shipping recipes cannot produce a vacuous pass"
 if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_MISSING'
