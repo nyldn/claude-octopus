@@ -7,6 +7,9 @@
 - Fix research verification failing on bare ticket numbers declared in the prompt.
 - Accept probe references backed by results from the current run.
 - Keep currency, fractions, formatted units and measured range endpoints under evidence verification.
+- Develop stops after a failed implementation decision, context or metrics write,
+  preserving earlier state for inspection instead of presenting completion.
+
 - Stop development completion after failed checkpoint creation or state updates.
 
 - Branch completion validates its branch, repository and required PR description
