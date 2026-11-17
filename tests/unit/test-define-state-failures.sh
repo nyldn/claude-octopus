@@ -21,7 +21,9 @@ checked = 0
 for tree in ('.claude/skills', 'skills', 'codex-skills'):
     entry = root / tree / 'flow-define/SKILL.md'
     if not entry.exists():
-        continue
+        if tree == 'codex-skills':
+            continue
+        raise AssertionError(f'Missing maintained skill entry: {entry}')
     text = entry.read_text()
     section = text.split('### STEP 6:', 1)[1].split('### STEP 7:', 1)[0]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
