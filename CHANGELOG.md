@@ -5,7 +5,9 @@
 ### Fixed
 
 - Define stops after failed decision, context or metrics writes, and records
-  completion only after its synthesis is saved to the roadmap.
+  completion only after its synthesis is saved to the roadmap. Its decision and
+  completed-phase count are recorded together once per synthesis before results
+  or task completion are presented.
 
 - Brainstorm Team mode, debate, branch-completion review, the deck red-team seat
   recipe and define run their shell blocks under bash when the host shell is zsh,

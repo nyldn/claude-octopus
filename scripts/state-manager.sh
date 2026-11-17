@@ -238,6 +238,36 @@ write_decision() {
     success "Recorded decision for phase '$phase'"
 }
 
+# Record Define's decision, context and metric together, once per synthesis.
+complete_define() {
+    local synthesis="$1" context="$2" decision="$3"
+    local completion_key updated commit
+    [[ -f "$synthesis" && -r "$synthesis" && -s "$synthesis" ]] || error "Define synthesis is missing, unreadable or empty"
+    completion_key=$(python3 -I - "$synthesis" <<'PY'
+import hashlib
+import os
+import sys
+from pathlib import Path
+path = Path(sys.argv[1]).resolve(strict=True)
+print(hashlib.sha256(os.fsencode(path) + b'\0' + path.read_bytes()).hexdigest())
+PY
+    )
+    commit=$(git rev-parse HEAD 2>/dev/null || echo 'none')
+    updated=$(jq --arg key "$completion_key" --arg context "$context" \
+        --arg decision "$decision" --arg commit "$commit" --arg date "$(date -u +%Y-%m-%d)" '
+        if .phase_completions.define[$key] == true then . else
+            .context.define = $context |
+            (if $decision == "" then . else
+                .decisions += [{phase: "define", decision: $decision,
+                    rationale: "Consensus from multi-AI definition phase", date: $date, commit: $commit}]
+            end) |
+            .metrics.phases_completed += 1 |
+            .phase_completions.define[$key] = true
+        end' "$STATE_FILE")
+    atomic_write "$updated"
+    success "Recorded Define completion"
+}
+
 # Write a blocker
 write_blocker() {
     local description="$1"
@@ -490,6 +520,9 @@ main() {
         write_decision)
             write_decision "$@"
             ;;
+        complete_define)
+            complete_define "$@"
+            ;;
         write_blocker)
             write_blocker "$@"
             ;;
@@ -533,6 +566,8 @@ Commands:
   set_current_workflow <workflow> [phase]     Set current workflow and phase
   write_decision <phase> <decision> <rationale> [commit]
                                               Record a decision
+  complete_define <synthesis> <context> <decision>
+                                              Record Define completion once per synthesis
   write_blocker <description> <phase> [status]
                                               Record a blocker
   update_blocker_status <description> <status>

@@ -368,38 +368,32 @@ or rerun the workflow to recover a shell variable.
 4. DO NOT substitute with direct analysis — fallback to single-model analysis defeats the purpose of multi-provider consensus and produces narrower requirements
 
 
-### STEP 6: Update State
+### STEP 6: Persist Definition Before Completion
 
-**After synthesis is verified, record findings and decisions in state:**
-
-Stop this block if any write fails. Preserve earlier successful writes for
-inspection before retrying; do not present definition completion.
+Run this blocking step after synthesis validation and before presenting results
+or marking any task complete. A failed write stops completion. Keep successful
+roadmap/state writes for inspection; resume with the same validated synthesis
+path. The final workflow-state operation records the decision, context and
+completed-phase metric together, once for that synthesis path and content.
 
 ```bash
-# Extract key definition from synthesis
+[[ -f "$SYNTHESIS_FILE" && -r "$SYNTHESIS_FILE" && -s "$SYNTHESIS_FILE" ]] || {
+  echo "Definition synthesis is missing, unreadable or empty; completion stopped." >&2
+  exit 1
+}
 key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|## Summary" | tail -3 | tr '\n' ' ')
+decision_made=$(echo "$key_definition" | grep -o "decided to\|chose to\|selected\|using [A-Za-z0-9 ]*" | head -1) || decision_made=""
 
-# Record any architectural decisions made
-# (You should identify these from the synthesis - e.g., tech stack, approach, patterns)
-decision_made=$(echo "$key_definition" | grep -o "decided to\|chose to\|selected\|using [A-Za-z0-9 ]*" | head -1)
-
-if [[ -n "$decision_made" ]]; then
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" write_decision \
-    "define" \
-    "$decision_made" \
-    "Consensus from multi-AI definition phase" || exit 1
-fi
-
-# Update define phase context
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
-  "define" \
-  "$key_definition" || exit 1
-
-# Update metrics
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1" || exit 1
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_roadmap \
+  --from-synthesis "$SYNTHESIS_FILE" || exit 1
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+  --status "complete" --history "Define phase completed" || exit 1
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" complete_define \
+  "$SYNTHESIS_FILE" "$key_definition" "$decision_made" || exit 1
 ```
 
-**DO NOT PROCEED TO STEP 7 until state updated.**
+Do not proceed to Step 7 until every operation succeeds. Retrying the same
+synthesis does not append another decision or increment the metric again.
 
 
 ### STEP 7: Present Problem Definition (Only After Steps 1-6 Complete)
@@ -512,7 +506,7 @@ When this skill is invoked, follow the EXECUTION CONTRACT above exactly. The con
 3. **Blocking Step 3**: Capture and persist the user's vision
 4. **Blocking Step 4**: Execute orchestrate.sh define via native shell command tool
 5. **Blocking Step 5**: Verify the synthesis file exists
-6. **Blocking Step 6**: Update workflow state
+6. **Blocking Step 6**: Persist roadmap, completion state and workflow state before presentation
 7. **Step 7**: Present the formatted problem definition
 
 Each step is **mandatory and blocking** - you cannot proceed to the next step until the current one completes successfully.
@@ -532,7 +526,7 @@ TaskCreate({
 // Mark in_progress when calling orchestrate.sh
 TaskUpdate({taskId: "...", status: "in_progress"})
 
-// Mark completed ONLY after synthesis file verified
+// Mark completed ONLY after synthesis validation and every Step 6 persistence operation succeeds
 TaskUpdate({taskId: "...", status: "completed"})
 ```
 
@@ -767,30 +761,14 @@ Before completing grasp workflow, ensure:
 Grasp workflows typically cost 0.01-0.05 USD per task depending on complexity.
 
 
-## Post-Definition: State Update
+## Definition persistence
 
-After definition completes:
-1. Populate `.octo/ROADMAP.md` with defined phases and success criteria
-2. Update `.octo/STATE.md` with completion only after the roadmap write succeeds
-
-Missing or empty synthesis and failed writes stop finalization. Preserve any
-successful roadmap update for inspection before retrying the completion write.
-
-```bash
-# Populate ROADMAP.md before recording completion.
-[[ -f "$SYNTHESIS_FILE" && -r "$SYNTHESIS_FILE" && -s "$SYNTHESIS_FILE" ]] || {
-  echo "Definition synthesis is missing, unreadable or empty; completion stopped." >&2
-  exit 1
-}
-echo "📝 Updating .octo/ROADMAP.md with defined phases..."
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_roadmap \
-  --from-synthesis "$SYNTHESIS_FILE" || exit 1
-
-# Update state only after the roadmap is persisted.
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
-  --status "complete" \
-  --history "Define phase completed" || exit 1
-```
+Step 6 performs finalization before presentation and task completion. Do not
+run a separate post-presentation completion block. After a failure, inspect
+successful writes and retry Step 6 with the same validated synthesis path.
+Its workflow decision and completed-phase metric are recorded once for that
+path and content. Roadmap and project-state writes remain separate operations;
+they are preserved rather than rolled back when a later operation fails.
 
 
 ## Terminal State
