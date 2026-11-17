@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.25.1] - 2026-11-17
+
 ### Fixed
 
 - Brainstorm Team mode, debate, branch-completion review, the deck red-team seat

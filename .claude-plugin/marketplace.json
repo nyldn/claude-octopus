@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.25.0"
+    "version": "11.25.1"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.25.0 - Advisors keep their briefs and delivery preserves audited work. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.25.0",
+      "description": "v11.25.1 - Safer workflow recovery and Bash execution on zsh. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.25.1",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
