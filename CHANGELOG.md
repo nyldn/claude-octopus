@@ -24,6 +24,13 @@
   `OCTOPUS_CURSOR_AGENT_MODE` and `OCTOPUS_COMMANDCODE_PERMISSION_MODE` can
   override those defaults. Codex retains its configured sandbox mode.
 
+Merged changes: [#1349](https://github.com/nyldn/claude-octopus/pull/1349),
+[#1353](https://github.com/nyldn/claude-octopus/pull/1353),
+[#1354](https://github.com/nyldn/claude-octopus/pull/1354), and
+[#1355](https://github.com/nyldn/claude-octopus/pull/1355).
+These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime and installed-host acceptance work remains open.
+
 ## [11.24.2] - 2026-11-16
 
 ### Fixed
