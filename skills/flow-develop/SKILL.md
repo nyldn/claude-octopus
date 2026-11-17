@@ -792,22 +792,24 @@ After development completes:
    `skill-verification-gate`; stop if they fail.
 2. Create checkpoint: `git tag octo-checkpoint-post-develop-$(date +%Y%m%d-%H%M%S)`
 3. Update `.octo/STATE.md` with completion and add a history entry with files modified.
+Stop this block if checkpoint creation or either state write fails. Preserve any
+created tag and inspect the recorded state before retrying.
 
 ```bash
 # Enter this block only after fresh targeted tests pass.
 checkpoint_tag="octo-checkpoint-post-develop-$(date +%Y%m%d-%H%M%S)"
-git tag "$checkpoint_tag" -m "Post-develop checkpoint from embrace workflow"
+git tag "$checkpoint_tag" -m "Post-develop checkpoint from embrace workflow" || exit 1
 echo "📌 Created checkpoint: $checkpoint_tag"
 
 # Update state only after verification and checkpoint creation succeed.
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
   --status "complete" \
-  --history "Develop phase completed"
+  --history "Develop phase completed" || exit 1
 
 # Record files modified in this phase
 modified_files=$(git diff --name-only HEAD~1 2>/dev/null || echo "See git log")
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
-  --history "Files modified: $modified_files"
+  --history "Files modified: $modified_files" || exit 1
 ```
 
 

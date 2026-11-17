@@ -383,15 +383,26 @@ if ! ADVISORS=$("$ADVISOR_SELECTOR" debate standard "$QUESTION"); then
   echo "No eligible external debate advisors are available." >&2
   exit 1
 fi
-printf 'HOST_CLAUDE_ALLOWED=%s\nREQUIRED_EXTERNAL_ADVISORS=%s\nADVISORS=%s\n' \
-  "$HOST_CLAUDE_ALLOWED" "$REQUIRED_EXTERNAL_ADVISORS" "$ADVISORS"
+printf 'HOST_CLAUDE_ALLOWED=%s\nREQUIRED_EXTERNAL_ADVISORS=%s\nADVISORS=%s\nROUNDS=%s\nSTYLE=%s\n' \
+  "$HOST_CLAUDE_ALLOWED" "$REQUIRED_EXTERNAL_ADVISORS" "$ADVISORS" "$ROUNDS" "$STYLE"
 OCTO_BASH
 ```
 
 **The `build-fleet.sh debate` command** selects up to 3 debaters from different model families (for example, codex/OpenAI, agy/Google Antigravity, and copilot/Microsoft) to maximize training-bias diversity. Do not hardcode provider pairs; use the runtime `ADVISORS` list.
 
 ### Step 4: Setup Debate Folder
+
+Run this block in a fresh shell. Restore the printed fleet settings and the
+original question and clarifying answers using the literal quoting rule above.
+
 ```bash
+QUESTION='[Original question from Step 3]'
+ROUNDS='[ROUNDS printed by Step 3]'
+STYLE='[STYLE printed by Step 3]'
+ADVISORS='[ADVISORS printed by Step 3]'
+USER_GOAL='[Primary goal from Step 2]'
+USER_PRIORITY='[Priority factor from Step 2]'
+USER_CONSTRAINTS='[Constraints from Step 2]'
 # Create debate directory structure
 DEBATE_BASE_DIR="${HOME}/.claude-octopus/debates/${CLAUDE_CODE_SESSION:-./debates}"
 DEBATE_ID="042-redis-vs-memcached"

@@ -60,12 +60,16 @@ Run `/octo:embrace [description]` to start a new project.
 
 #### Step 2: Read STATE.md Status
 
+If neither plugin-root variable is set, replace the `OCTO_ROOT` fallback with
+the installed plugin root before running this block.
+
 ```bash
 # Check if STATE.md exists and read status
 if [[ -f ".octo/STATE.md" ]]; then
-    # Read current status
-    STATUS=$(grep -E "^status:" .octo/STATE.md | cut -d':' -f2 | xargs || echo "unknown")
-    CURRENT_PHASE=$(grep -E "^current_phase:" .octo/STATE.md | cut -d':' -f2 | xargs || echo "unknown")
+    OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+    STATE_SNAPSHOT=$(bash "$OCTO_ROOT/scripts/octo-state.sh" read_state) || exit 1
+    STATUS=$(printf '%s\n' "$STATE_SNAPSHOT" | sed -n 's/^status=//p')
+    CURRENT_PHASE=$(printf '%s\n' "$STATE_SNAPSHOT" | sed -n 's/^current_phase=//p')
 else
     STATUS="unknown"
     CURRENT_PHASE="unknown"
@@ -422,21 +426,151 @@ partial directory for inspection; never use it as a completed archive.
 
 #### Step 1: Update STATE.md
 
+Restore the exact archive timestamp and validation report retained from the
+successful earlier phases. Run this whole block in one shell. A failed update
+stops delivery. Linked state paths and nonregular files are refused before any
+write; preserve them and inspect the project state before retrying. The complete
+replacement is prepared in the opened state directory before atomic publication.
+Preserve the original owner, group, mode, ACL and extended attributes. Stop before
+publication if the access metadata cannot be retained.
+
 ```bash
-# Update status to shipped
-sed -i '' 's/^status:.*/status: shipped/' .octo/STATE.md 2>/dev/null || \
-    sed -i 's/^status:.*/status: shipped/' .octo/STATE.md
+python3 -I - "${ARCHIVE_TIMESTAMP:?Restore the completed archive timestamp}" "${VALIDATION_FILE:?Restore the completed validation report}" <<'PY_STATE' || exit 1
+from contextlib import ExitStack
+from datetime import datetime
+import os
+import re
+import secrets
+import stat
+import sys
 
-# Append history entry
-cat >> .octo/STATE.md << EOF
+def sync_state_file(descriptor):
+    os.fsync(descriptor)
+    if sys.platform == 'darwin':
+        import fcntl
+        fcntl.fcntl(descriptor, fcntl.F_FULLFSYNC)
 
-## History - $(date '+%Y-%m-%d %H:%M')
+def copy_access_metadata(source, destination):
+    if sys.platform == 'darwin':
+        import ctypes
+        import errno
+        native = ctypes.CDLL(None, use_errno=True)
+        native.fcopyfile.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+        native.fcopyfile.restype = ctypes.c_int
+        native.acl_get_fd.argtypes = [ctypes.c_int]
+        native.acl_get_fd.restype = ctypes.c_void_p
+        native.acl_init.argtypes = [ctypes.c_int]
+        native.acl_init.restype = ctypes.c_void_p
+        native.acl_set_fd.argtypes = [ctypes.c_int, ctypes.c_void_p]
+        native.acl_set_fd.restype = ctypes.c_int
+        native.acl_free.argtypes = [ctypes.c_void_p]
+        native.acl_to_text.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ssize_t)]
+        native.acl_to_text.restype = ctypes.c_void_p
+        def read_acl(descriptor):
+            ctypes.set_errno(0)
+            acl = native.acl_get_fd(descriptor)
+            if not acl and ctypes.get_errno() == errno.ENOENT:
+                # An absent ACL is an empty access policy, not a read error.
+                # Setting this empty ACL removes inherited replacement grants.
+                acl = native.acl_init(0)
+            if not acl:
+                raise OSError(ctypes.get_errno(), 'could not read state ACL')
+            return acl
+        def acl_text(acl):
+            length = ctypes.c_ssize_t()
+            text = native.acl_to_text(acl, ctypes.byref(length))
+            if not text:
+                raise OSError(ctypes.get_errno(), 'could not inspect state ACL')
+            try:
+                return ctypes.string_at(text, length.value)
+            finally:
+                native.acl_free(text)
+        original_acl = read_acl(source)
+        try:
+            # COPYFILE_XATTR only. fcopyfile can merge inherited ACL grants;
+            # replace the ACL explicitly and verify it instead.
+            if native.fcopyfile(source, destination, None, 4) != 0 or native.acl_set_fd(destination, original_acl) != 0:
+                raise OSError(ctypes.get_errno(), 'could not preserve state access metadata')
+            copied_acl = read_acl(destination)
+            try:
+                if acl_text(original_acl) != acl_text(copied_acl):
+                    raise ValueError('prepared state ACL differs from the original')
+            finally:
+                native.acl_free(copied_acl)
+        finally:
+            native.acl_free(original_acl)
+    elif sys.platform.startswith('linux'):
+        attributes = {name: os.getxattr(source, name) for name in os.listxattr(source)}
+        # A directory's default ACL can otherwise add grants to the replacement.
+        for name in set(os.listxattr(destination)) - attributes.keys():
+            os.removexattr(destination, name)
+        for name, value in attributes.items():
+            os.setxattr(destination, name, value)
+        if attributes != {name: os.getxattr(destination, name) for name in os.listxattr(destination)}:
+            raise ValueError('state access metadata could not be retained')
+    else:
+        raise ValueError('state access metadata preservation is unsupported on this platform')
 
-- **Event:** Project shipped
-- **Archive:** .octo/archive/${ARCHIVE_TIMESTAMP}/
-- **Validation:** ${VALIDATION_FILE}
-
-EOF
+archive, validation = sys.argv[1:]
+try:
+    with ExitStack() as opened:
+        state = os.open('.octo', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        opened.callback(os.close, state)
+        descriptor = os.open('STATE.md', os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             dir_fd=state)
+        metadata = os.fstat(descriptor)
+        with os.fdopen(descriptor, 'r+', encoding='utf-8', newline='') as record:
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+                raise ValueError('shipping state must be a regular, unlinked file')
+            content = record.read()
+            history = re.search(r'^## History\b', content, flags=re.M)
+            boundary = history.start() if history else len(content)
+            current, past = content[:boundary], content[boundary:]
+            status_field = (r'\*\*Status:\*\*' if re.search(r'^\*\*Status:\*\*', current, flags=re.M)
+                            else 'status:')
+            current, updated = re.subn(r'^(' + status_field + r')[^\r\n]*',
+                                       r'\1 shipped', current, count=1, flags=re.M)
+            if not updated:
+                raise ValueError('shipping state has no recognized status field')
+            content = current + past
+            archive_entry = f"- **Archive:** .octo/archive/{archive}/"
+            if archive_entry not in past.splitlines():
+                content += (f"\n## History - {datetime.now():%Y-%m-%d %H:%M}\n\n"
+                            "- **Event:** Project shipped\n"
+                            f"{archive_entry}\n"
+                            f"- **Validation:** {validation}\n\n")
+            temporary = '.STATE.md.ship-' + secrets.token_hex(8)
+            output = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                             0o600, dir_fd=state)
+            try:
+                with os.fdopen(output, 'w', encoding='utf-8', newline='') as prepared:
+                    os.fchown(prepared.fileno(), metadata.st_uid, metadata.st_gid)
+                    # Replace inherited ACL grants while the file is still empty.
+                    copy_access_metadata(record.fileno(), prepared.fileno())
+                    prepared.write(content)
+                    prepared.flush()
+                    # Verify the final policy again before enabling group mode.
+                    copy_access_metadata(record.fileno(), prepared.fileno())
+                    os.fchmod(prepared.fileno(), stat.S_IMODE(metadata.st_mode))
+                    sync_state_file(prepared.fileno())
+                    current = os.stat('STATE.md', dir_fd=state, follow_symlinks=False)
+                    if (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns,
+                        current.st_ctime_ns, current.st_nlink) != (metadata.st_dev, metadata.st_ino,
+                                             metadata.st_size, metadata.st_mtime_ns,
+                                             metadata.st_ctime_ns, metadata.st_nlink):
+                        raise ValueError('shipping state changed while preparing the update')
+                    os.replace(temporary, 'STATE.md', src_dir_fd=state, dst_dir_fd=state)
+                    os.fsync(state)
+                    # Flush publication metadata from the drive cache as well.
+                    sync_state_file(prepared.fileno())
+            finally:
+                try:
+                    os.unlink(temporary, dir_fd=state)
+                except FileNotFoundError:
+                    pass
+except (OSError, ValueError) as error:
+    sys.exit(f'Shipping state update failed; stop delivery and inspect the state paths: {error}')
+PY_STATE
 ```
 
 #### Step 2: Create Shipped Checkpoint

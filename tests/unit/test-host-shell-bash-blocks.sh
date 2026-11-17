@@ -291,8 +291,9 @@ for source, names in targets.items():
             # precede the heredoc, not become part of its shell source.
             blocks = re.findall(r'```bash\n(.*?)\n```', text, re.S)
             block = next(block for block in blocks if f'{name}={literal}' in block)
-            prefix, body = block.split(wrapper, 1)
-            assert f'export {name}={literal}' in prefix, (source, name, 'input inside heredoc')
+            if wrapper in block:
+                prefix, body = block.split(wrapper, 1)
+                assert f'export {name}={literal}' in prefix, (source, name, 'input inside heredoc')
             program = assignment + '\n' + wrapper + '\nprintf %s "$' + name + '"\nOCTO_BASH\n'
             result = subprocess.run(['bash', '-c', program], capture_output=True, text=True)
             assert result.returncode == 0 and result.stdout == payload, (source, name, result.stderr, result.stdout)
@@ -318,6 +319,57 @@ then
     test_pass
 else
     test_fail "a recipe expanded or altered user input"
+fi
+
+test_case "debate setup receives settings in a fresh shell"
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_HANDOFF'
+import json
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+
+root, scratch = map(Path, sys.argv[1:])
+plugin = scratch / 'handoff-plugin'
+(plugin / 'scripts/lib').mkdir(parents=True)
+(plugin / 'scripts/helpers').mkdir()
+(plugin / 'scripts/lib/consultative-advisors.sh').write_text(
+    'octo_consultative_host_allowed() { return 0; }\n'
+    'octo_consultative_required_external_count() { echo 1; }\n')
+selector = plugin / 'scripts/helpers/select-fleet-advisors.sh'
+selector.write_text('#!/bin/sh\nprintf "%s\\n" "codex,agy"\n')
+selector.chmod(0o755)
+for source in ('.claude/skills/skill-debate/SKILL.md', 'skills/skill-debate/SKILL.md'):
+    text = (root / source).read_text()
+    blocks = re.findall(r'```bash\n(.*?)\n```', text, re.S)
+    fleet = next(block for block in blocks if 'export QUESTION=' in block and 'ROUNDS=3' in block)
+    setup = next(block for block in blocks if 'PY_DEBATE_STATE' in block)
+    environment = {key: os.environ[key] for key in ('PATH', 'HOME')}
+    environment['CLAUDE_PLUGIN_ROOT'] = str(plugin)
+    result = subprocess.run(['bash', '-c', fleet], env=environment, capture_output=True, text=True)
+    assert result.returncode == 0, (source, result.stderr)
+    settings = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+    assert settings.get('ROUNDS') == '3' and settings.get('STYLE') == 'thorough', (source, settings)
+    inputs = dict(settings, QUESTION="What's the cache?\nKeep $HOME literal", USER_GOAL='choose',
+                  USER_PRIORITY='correctness', USER_CONSTRAINTS='offline')
+    for name in ('QUESTION', 'ROUNDS', 'STYLE', 'ADVISORS', 'USER_GOAL', 'USER_PRIORITY', 'USER_CONSTRAINTS'):
+        assert re.search(rf'(?m)^{name}=', setup), (source, 'missing handoff', name)
+        setup = re.sub(rf'(?m)^{name}=.*$', lambda match: name + '=' + shlex.quote(inputs[name]), setup)
+    directory = scratch / ('setup-native' if source.startswith('.claude') else 'setup-generated')
+    setup = re.sub(r'(?m)^DEBATE_BASE_DIR=.*$', lambda match: 'DEBATE_BASE_DIR=' + shlex.quote(str(directory)), setup)
+    result = subprocess.run(['bash', '-c', setup], env=environment, capture_output=True, text=True)
+    assert result.returncode == 0, (source, result.stderr)
+    state = json.loads((directory / '042-redis-vs-memcached/state.json').read_text())
+    assert state['rounds_total'] == 3 and state['question'] == inputs['QUESTION'], (source, state)
+    assert state['advisors'] == ['codex', 'agy'] and state['user_context']['goal'] == 'choose', (source, state)
+    assert '**Style**: thorough' in (directory / '042-redis-vs-memcached/context.md').read_text()
+PY_HANDOFF
+then
+    test_pass
+else
+    test_fail "debate settings were lost between separate shell invocations"
 fi
 
 test_summary
