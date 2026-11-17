@@ -49,8 +49,8 @@ If verification reports an unfetched source, retain the warning in the report; d
 
 ```bash
 # Verify the synthesis file was written (matches probe-synthesis-*.md pattern)
-if [[ ! -f "$SYNTHESIS_FILE" ]]; then
-  echo "❌ VALIDATION FAILED: No synthesis file found"
+if [[ ! -f "$SYNTHESIS_FILE" || ! -r "$SYNTHESIS_FILE" || ! -s "$SYNTHESIS_FILE" ]]; then
+  echo "❌ VALIDATION FAILED: Synthesis must be a readable, non-empty regular file"
   exit 1
 fi
 echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
@@ -61,13 +61,19 @@ echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
 ```bash
 key_findings=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Key Findings\|## Summary" | tail -3 | tr '\n' ' ')
 
-"${OCTO_ROOT:?}/scripts/state-manager.sh" update_context "discover" "$key_findings"
-"${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_context "discover" "$key_findings" || exit 1
 # Track actual providers used (dynamic — from fleet output, not hardcoded)
 for _provider in $(echo "$FLEET_OUTPUT" | cut -d'|' -f1 | sort -u); do
-  "${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "provider" "$_provider"
+  "${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "provider" "$_provider" || exit 1
 done
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "phases_completed" "1" || exit 1
 ```
+
+If any state operation fails, stop before presenting results, publishing the
+handoff or marking the task complete. Preserve earlier successful writes for
+inspection. On recovery, resume at the failed operation with the same synthesis
+and provider list. Do not repeat successful provider counts or the completed-phase
+increment. Do not rerun the entire state block after a partial success.
 
 **Present results** formatted according to context (Dev vs Knowledge):
 

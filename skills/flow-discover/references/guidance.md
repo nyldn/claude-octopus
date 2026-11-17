@@ -197,7 +197,7 @@ TaskCreate({
 // Mark in_progress when calling orchestrate.sh
 TaskUpdate({taskId: "...", status: "in_progress"})
 
-// Mark completed ONLY after synthesis file verified
+// Mark completed ONLY after synthesis validation, required state writes and handoff publication succeed
 TaskUpdate({taskId: "...", status: "completed"})
 ```
 

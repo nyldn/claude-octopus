@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Discover rejects missing or empty synthesis and stops after failed context or
+  metrics writes, preserving earlier state instead of presenting completion.
+
 - Deliver stops after failed context, metrics or ready-to-ship state writes and
   failed summary reads, preserving earlier state without reporting completion.
 
