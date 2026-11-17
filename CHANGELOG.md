@@ -4,6 +4,11 @@
 
 ### Fixed
 
+- Shipping state updates reject linked or nonregular files and stop delivery when
+  required context is missing or a write fails. Readiness uses the shared state
+  reader so canonical status takes precedence over legacy and historical fields.
+  Atomic replacements preserve access ACLs and extended attributes, and stop
+  before publication if that metadata cannot be retained.
 - Rollback history verifies the confirmed repository before appending, so a
   later shell in another clone cannot record recovery in the wrong project.
 - Rollback history refuses hard-linked state files before appending, protecting
