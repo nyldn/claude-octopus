@@ -29,7 +29,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for strict in (False, True):
         for conditional in (False, True):
-            for scenario in ('success', 'update_roadmap', 'update_state', 'complete_define', 'missing', 'empty'):
+            for scenario in ('success', 'init_project', 'update_roadmap', 'update_state', 'complete_define', 'missing', 'empty', 'persistence off'):
                 with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                     temporary = Path(temporary)
                     plugin = temporary / 'plugin'
@@ -41,7 +41,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(plugin), CODEX_PLUGIN_ROOT=str(plugin),
                                SYNTHESIS_FILE=str(synthesis), STATE_CALLS=str(calls), FAIL_OPERATION=scenario,
                                OCTOPUS_WORKFLOW_STATE_DIR=str(temporary / 'state'),
-                               REAL_STATE_MANAGER=str(root / 'scripts/state-manager.sh'))
+                               REAL_STATE_MANAGER=str(root / 'scripts/state-manager.sh'),
+                               OCTOPUS_PROJECT_PERSISTENCE='false' if scenario == 'persistence off' else 'true')
                     subprocess.run([env['REAL_STATE_MANAGER'], 'init_state'], env=env, cwd=temporary,
                                    capture_output=True, check=True)
                     for name in ('octo-state.sh', 'state-manager.sh'):
@@ -54,21 +55,24 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     program = recipe + '\nprintf "completion reached\\n"'
                     if conditional:
                         program = '(\n' + program + '\n) && exit 0; exit $?'
-                    attempts = 2 if scenario == 'success' else 1
+                    succeeds = scenario in ('success', 'persistence off')
+                    attempts = 2 if succeeds else 1
                     for attempt in range(attempts):
                         result = subprocess.run(['bash', '-euc' if strict else '-c', program],
                                                 env=env, cwd=temporary, capture_output=True, text=True, timeout=10)
                         state = json.loads((temporary / 'state/state.json').read_text())
-                        operations = ['update_roadmap', 'update_state', 'complete_define']
-                        expected = (operations if scenario == 'success' else [] if scenario in ('missing', 'empty')
+                        operations = (['complete_define'] if scenario == 'persistence off' else
+                                      ['init_project', 'update_roadmap', 'complete_define', 'update_state'])
+                        expected = (operations if succeeds else [] if scenario in ('missing', 'empty')
                                     else operations[:operations.index(scenario) + 1])
                         observed = calls.read_text().splitlines() if calls.exists() else []
-                        valid = ((result.returncode == 0) == (scenario == 'success') and
+                        completed = succeeds or scenario == 'update_state'
+                        valid = ((result.returncode == 0) == succeeds and
                                  observed == expected * (attempt + 1) and
-                                 ('completion reached' in result.stdout) == (scenario == 'success') and
-                                 state['metrics']['phases_completed'] == (1 if scenario == 'success' else 0) and
-                                 len(state['decisions']) == (1 if scenario == 'success' else 0) and
-                                 (scenario != 'success' or state['context']['define'].strip() == '## Problem Definition selected the approach'))
+                                 ('completion reached' in result.stdout) == succeeds and
+                                 state['metrics']['phases_completed'] == int(completed) and
+                                 len(state['decisions']) == int(completed) and
+                                 (not completed or state['context']['define'].strip() == '## Problem Definition selected the approach'))
                         if not valid:
                             failures.append(f'{tree}: {scenario}, strict={strict}, conditional={conditional}, '
                                             f'attempt={attempt}, exit={result.returncode}, calls={observed}, state={state}')
@@ -102,12 +106,38 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     state_file = directory / 'state/state.json'
     before = state_file.read_bytes()
     synthesis.write_text('unpublished requirements')
-    result = subprocess.run(['bash', '-c', 'source "$1"; atomic_write() { return 23; }; '
-                             'complete_define "$2" "unpublished context" "new decision"',
-                             'test', str(helper), str(synthesis)], env=env, capture_output=True, text=True)
-    if result.returncode == 0 or state_file.read_bytes() != before:
-        failures.append('failed publication changed decision, context or metric')
-    checked += 1
+    for operation in ('python3', 'jq', 'atomic_write'):
+        for conditional in (False, True):
+            call = 'complete_define "$2" "unpublished context" "new decision"'
+            if conditional:
+                call = 'if ' + call + '; then exit 0; else exit $?; fi'
+            result = subprocess.run(['bash', '-c', 'source "$1"; ' + operation + '() { return 23; }; ' + call,
+                                     'test', str(helper), str(synthesis)], env=env, capture_output=True, text=True)
+            if result.returncode == 0 or state_file.read_bytes() != before or 'Recorded Define completion' in result.stdout:
+                failures.append(f'{operation} failure accepted, conditional={conditional}')
+            checked += 1
+# Execute both production helpers from a fresh project, with persistence unset,
+# disabled and enabled, including replay after a failed project status write.
+for persistence in (None, 'false', 'true'):
+    with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+        directory = Path(temporary)
+        synthesis = directory / 'synthesis.md'
+        synthesis.write_text('## Problem Definition\nselected the approach\n')
+        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(root), CODEX_PLUGIN_ROOT=str(root),
+                   SYNTHESIS_FILE=str(synthesis), OCTOPUS_WORKFLOW_STATE_DIR=str(directory / 'state'))
+        env.pop('OCTOPUS_PROJECT_PERSISTENCE', None)
+        if persistence is not None:
+            env['OCTOPUS_PROJECT_PERSISTENCE'] = persistence
+        subprocess.run([str(helper), 'init_state'], env=env, cwd=directory, capture_output=True, check=True)
+        for attempt in range(2):
+            result = subprocess.run(['bash', '-euc', recipe], env=env, cwd=directory, capture_output=True, text=True)
+            state = json.loads((directory / 'state/state.json').read_text())
+            project_state = directory / '.octo/STATE.md'
+            valid_project = (project_state.exists() and '**Status:** complete' in project_state.read_text()
+                             if persistence == 'true' else not (directory / '.octo').exists())
+            if result.returncode or not valid_project or state['metrics']['phases_completed'] != 1 or len(state['decisions']) != 1:
+                failures.append(f'actual helpers: persistence={persistence}, attempt={attempt}, exit={result.returncode}')
+            checked += 1
 print(f'{checked - len(failures)}/{checked} actual Define persistence/retry controls passed')
 for failure in failures:
     print(failure, file=sys.stderr)

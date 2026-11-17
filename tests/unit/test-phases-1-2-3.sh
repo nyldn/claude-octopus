@@ -385,7 +385,7 @@ fi
 test_start "Flow skills update state"
 flow_with_updates=0
 for skill in "${flow_skills[@]}"; do
-    if grep -q "update_context\|write_decision\|update_metrics" <<< "$(read_claude_skill_contract "$skill")"; then
+    if grep -q "update_context\|write_decision\|update_metrics\|complete_define" <<< "$(read_claude_skill_contract "$skill")"; then
         flow_with_updates=$((flow_with_updates + 1))
     fi
 done

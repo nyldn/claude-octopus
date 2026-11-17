@@ -251,7 +251,7 @@ from pathlib import Path
 path = Path(sys.argv[1]).resolve(strict=True)
 print(hashlib.sha256(os.fsencode(path) + b'\0' + path.read_bytes()).hexdigest())
 PY
-    )
+    ) || return 1
     commit=$(git rev-parse HEAD 2>/dev/null || echo 'none')
     updated=$(jq --arg key "$completion_key" --arg context "$context" \
         --arg decision "$decision" --arg commit "$commit" --arg date "$(date -u +%Y-%m-%d)" '
@@ -263,8 +263,8 @@ PY
             end) |
             .metrics.phases_completed += 1 |
             .phase_completions.define[$key] = true
-        end' "$STATE_FILE")
-    atomic_write "$updated"
+        end' "$STATE_FILE") || return 1
+    atomic_write "$updated" || return 1
     success "Recorded Define completion"
 }
 

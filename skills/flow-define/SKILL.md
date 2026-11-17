@@ -373,8 +373,10 @@ or rerun the workflow to recover a shell variable.
 Run this blocking step after synthesis validation and before presenting results
 or marking any task complete. A failed write stops completion. Keep successful
 roadmap/state writes for inspection; resume with the same validated synthesis
-path. The final workflow-state operation records the decision, context and
-completed-phase metric together, once for that synthesis path and content.
+path. Project roadmap and status writes require `OCTOPUS_PROJECT_PERSISTENCE=true`.
+The workflow-state operation records the decision, context and completed-phase
+metric together, once for that synthesis path and content, before project
+status is marked complete. A failed status write can safely retry this operation.
 
 ```bash
 [[ -f "$SYNTHESIS_FILE" && -r "$SYNTHESIS_FILE" && -s "$SYNTHESIS_FILE" ]] || {
@@ -384,12 +386,17 @@ completed-phase metric together, once for that synthesis path and content.
 key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|## Summary" | tail -3 | tr '\n' ' ')
 decision_made=$(echo "$key_definition" | grep -o "decided to\|chose to\|selected\|using [A-Za-z0-9 ]*" | head -1) || decision_made=""
 
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_roadmap \
-  --from-synthesis "$SYNTHESIS_FILE" || exit 1
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
-  --status "complete" --history "Define phase completed" || exit 1
+if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" init_project || exit 1
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_roadmap \
+    --from-synthesis "$SYNTHESIS_FILE" || exit 1
+fi
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" complete_define \
   "$SYNTHESIS_FILE" "$key_definition" "$decision_made" || exit 1
+if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
+  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+    --status "complete" --history "Define phase completed" || exit 1
+fi
 ```
 
 Do not proceed to Step 7 until every operation succeeds. Retrying the same
