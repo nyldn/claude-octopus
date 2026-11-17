@@ -88,7 +88,7 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 
 ```bash
 # Runs under bash even when the host shell is zsh.
-if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 provider_check_output=$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh")
 provider_status_lines=$(printf '%s\n' "$provider_check_output" | awk '
   /^PROVIDER_CHECK_START$/ { capture=1; next }
@@ -270,7 +270,7 @@ export USER_REQUEST='[Original user feature request]'
 export user_flow='[Answer from question 1]'
 export approach='[Answer from question 2]'
 export out_of_scope='[Answer from question 3]'
-if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Source context manager
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/context-manager.sh"
 

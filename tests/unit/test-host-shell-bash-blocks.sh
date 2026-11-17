@@ -74,7 +74,7 @@ import textwrap
 
 root = pathlib.Path(sys.argv[1])
 libs = [root / lib for lib in sys.argv[2:]]
-wrapper = 'if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<\'OCTO_BASH\''
+wrapper = 'if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<\'OCTO_BASH\''
 
 lib_names = {lib.name for lib in libs}
 functions = {}
@@ -196,7 +196,7 @@ fi
 # joins backslash-continued lines and misreads quotes, so the wrapper reads its
 # block with a plain $(cat). The block below carries both.
 IFS= read -r -d '' WRAPPED_BLOCK <<'BLOCK' || true
-if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 BLOCK_VALUE="${OUTER_VALUE:-unset}"
 joined=$(printf '%s|' one \
     two)
@@ -265,7 +265,7 @@ payload = f'''a 'single' and "double" quote; $HOME $(touch {marker}) `touch {mar
 OCTO_BASH
 touch {marker}
 second line \\ final'''
-wrapper = 'if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<\'OCTO_BASH\''
+wrapper = 'if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<\'OCTO_BASH\''
 targets = {
     '.claude/skills/flow-define/SKILL.md': ['USER_REQUEST', 'user_flow', 'approach', 'out_of_scope'],
     '.claude/skills/skill-debate/SKILL.md': ['QUESTION', 'CONTEXT', 'MAX_WORDS', 'DEBATE_DIR', 'ADVISORS', 'REQUIRED_EXTERNAL_ADVISORS', 'SUCCESSFUL_EXTERNAL_ADVISORS', 'HOST_ADVISOR_SUCCESS'],
@@ -371,5 +371,65 @@ then
 else
     test_fail "debate settings were lost between separate shell invocations"
 fi
+
+test_case "non-Bash wrappers preserve an unexported provider allowlist"
+if python3 -I - "$PROJECT_ROOT" <<'PY_ALLOWLIST'
+import os
+from pathlib import Path
+import subprocess
+import sys
+root = Path(sys.argv[1])
+for tree in ('.claude/skills', 'skills'):
+    source = (root / tree / 'flow-define/SKILL.md').read_text()
+    wrapper = next(line for line in source.splitlines() if line.startswith('if [ -n "${BASH_VERSION:-}" ]; then eval'))
+    program = "OCTO_ALLOWED_PROVIDERS='codex agy'\n" + wrapper + '\nprintf %s "${OCTO_ALLOWED_PROVIDERS-unset}"\nOCTO_BASH\n'
+    environment = dict(os.environ)
+    environment.pop('OCTO_ALLOWED_PROVIDERS', None)
+    environment.pop('BASH_VERSION', None)
+    result = subprocess.run(['sh', '-c', program], env=environment, capture_output=True, text=True)
+    assert result.returncode == 0 and result.stdout == 'codex agy', (tree, result.stdout, result.stderr)
+    result = subprocess.run(['sh', '-c', 'readonly ' + program], env=environment, capture_output=True, text=True)
+    assert result.returncode == 0 and result.stdout == 'codex agy', (tree, 'readonly', result.stdout, result.stderr)
+PY_ALLOWLIST
+then test_pass; else test_fail "the Bash child lost the explicit provider allowlist"; fi
+
+test_case "debate analysis quality and synthesis restore their directory in fresh shells"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_ROUNDS'
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+root = Path(sys.argv[1])
+for tree in ('.claude/skills', 'skills'):
+    source = (root / tree / 'skill-debate/SKILL.md').read_text()
+    for heading, kind in (('#### 5.3:', 'analysis'), ('#### 5.4:', 'quality'), ('### Step 6:', 'synthesis')):
+        section = source.split(heading, 1)[1]
+        block = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+        with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+            directory = Path(temporary) / "quoted ' debate"
+            (directory / 'rounds').mkdir(parents=True)
+            (directory / 'rounds/r001_codex.md').write_text('codex [source]\n```code\nanswer\n```\n')
+            question = "What's the cache? Keep $HOME literal"
+            for name, value in [('DEBATE_DIR', str(directory)), ('QUESTION', question)]:
+                block = re.sub(rf'(?m)^{name}=.*$', lambda match: name + '=' + shlex.quote(value), block)
+            environment = dict(os.environ)
+            environment.pop('DEBATE_DIR', None)
+            environment.pop('QUESTION', None)
+            if kind == 'quality':
+                block += '\nprintf "quality=%s\\n" "$quality_score"'
+            result = subprocess.run(['bash', '-uc', block], cwd=temporary, env=environment,
+                                    capture_output=True, text=True, timeout=5)
+            assert result.returncode == 0, (tree, kind, result.stderr)
+            if kind == 'analysis':
+                assert 'codex [source]' in result.stdout and (directory / 'rounds/r001_claude.md').is_file(), (tree, kind)
+            elif kind == 'quality':
+                assert 'quality=75' in result.stdout, (tree, kind, result.stdout, result.stderr)
+            else:
+                assert '# Final Synthesis: ' + question in (directory / 'synthesis.md').read_text(), (tree, kind)
+PY_ROUNDS
+then test_pass; else test_fail "a later debate step lost its run directory"; fi
 
 test_summary

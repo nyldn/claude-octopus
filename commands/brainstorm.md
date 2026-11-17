@@ -150,7 +150,7 @@ the fixed heredoc so their lines cannot terminate it.
 ```bash
 # Runs under bash even when the host shell is zsh.
 export TOPIC='[TOPIC]'
-if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
 [[ -x "$ORCH" ]] || { echo "Octopus orchestrator not found: $ORCH"; exit 1; }
 ORCH_HELP="$("$ORCH" help --full 2>&1 || true)"
@@ -221,7 +221,7 @@ starts with no variables from earlier blocks, so fill in its two export lines:
 # Runs under bash even when the host shell is zsh.
 export SUCCESSFUL_EXTERNAL_ADVISORS='[SUCCESSFUL_EXTERNAL_ADVISORS printed by the launch block]'
 export HOST_ADVISOR_SUCCESS='[1 if the host advisor completed with usable output, else 0]'
-if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
     "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then

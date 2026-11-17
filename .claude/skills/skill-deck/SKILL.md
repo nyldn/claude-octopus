@@ -318,7 +318,7 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    <!-- deck-seat-collection:start -->
    ```bash
    # Runs under bash even when the host shell is zsh.
-   if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+   if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
    case "${ADVISOR_ID%%:*}" in
        openai-compatible*|openai-tools*|atlascloud*|cheaperinference*|uberllm*|api-route*|litellm*)
            printf 'Seat incomplete: transport cannot bound request count\n' >&2

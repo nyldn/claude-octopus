@@ -10,7 +10,8 @@
   stop with that fix instead of reporting the advisor allowlist as unavailable.
   Those blocks export literal inputs before the heredoc and print what later
   steps need, including whether host Claude may join. Request text cannot expand
-  as shell code or terminate the fixed heredoc.
+  as shell code or terminate the fixed heredoc. Bash children receive the provider
+  allowlist, and later debate steps restore their run directory.
 - Develop stops after a failed implementation decision, context or metrics write,
   preserving earlier state for inspection instead of presenting completion.
 

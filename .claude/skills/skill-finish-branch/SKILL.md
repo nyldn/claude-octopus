@@ -74,7 +74,7 @@ DIFF_FILES=$(git diff --name-only $(git merge-base HEAD main)..HEAD)
 
 ```bash
 # Runs under bash even when the host shell is zsh.
-if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Review the complete committed range. A text diff cannot review binary content
 # or nested submodule source, and a partial prompt cannot establish coverage.
 REVIEW_HEAD=$(git rev-parse --verify 'HEAD^{commit}') || exit 1

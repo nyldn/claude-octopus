@@ -388,7 +388,7 @@ Keep user values outside the fixed heredoc, so a request line equal to
 ```bash
 # Runs under bash even when the host shell is zsh.
 export QUESTION='Should we use Redis or in-memory cache?'
-if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Extract question and flags
 ROUNDS=3
 STYLE="thorough"
@@ -502,7 +502,7 @@ export MAX_WORDS='[--max-words value, default 300]'
 export DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
 export ADVISORS='[ADVISORS printed by Step 3]'
 export REQUIRED_EXTERNAL_ADVISORS='[REQUIRED_EXTERNAL_ADVISORS printed by Step 3]'
-if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 DEBATE_PROMPT="You are {{advisor}} participating in debate round 1.
@@ -554,7 +554,7 @@ block's export lines:
 # Runs under bash even when the host shell is zsh.
 export SUCCESSFUL_EXTERNAL_ADVISORS='[SUCCESSFUL_EXTERNAL_ADVISORS printed by the round'"'"'s launch block]'
 export HOST_ADVISOR_SUCCESS='[1 if the allowed Sonnet task completed with usable output, else 0]'
-if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else bash -c "$(cat)"; fi <<'OCTO_BASH'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
     "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then
@@ -571,6 +571,7 @@ OCTO_BASH
 #### 5.3: Write Your Analysis (Opus)
 Use the Read tool to read all advisor responses, then write your independent analysis:
 ```bash
+DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
 # Read what all advisors said
 for response_file in "${DEBATE_DIR}"/rounds/r001_*.md; do
   printf '\n## %s\n' "$(basename "$response_file" .md)"
@@ -588,6 +589,7 @@ EOF
 #### 5.4: Quality Gates (Claude-Octopus Enhancement)
 After each advisor responds, evaluate response quality:
 ```bash
+DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
 evaluate_response_quality() {
     local response_file="${1}"
     local advisor="${2}"
@@ -621,6 +623,8 @@ done
 After all rounds complete, write a comprehensive synthesis:
 
 ```bash
+DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
+QUESTION='[Original question from Step 3]'
 cat > "${DEBATE_DIR}/synthesis.md" <<EOF
 # Final Synthesis: ${QUESTION}
 
