@@ -66,7 +66,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                                  ('completion reached' in result.stdout) == (scenario == 'success') and
                                  state['metrics']['phases_completed'] == (1 if scenario == 'success' else 0) and
                                  len(state['decisions']) == (1 if scenario == 'success' else 0) and
-                                 (scenario != 'success' or state['context']['define'].strip() == 'selected the approach'))
+                                 (scenario != 'success' or state['context']['define'].strip() == '## Problem Definition selected the approach'))
                         if not valid:
                             failures.append(f'{tree}: {scenario}, strict={strict}, conditional={conditional}, '
                                             f'attempt={attempt}, exit={result.returncode}, calls={observed}, state={state}')
