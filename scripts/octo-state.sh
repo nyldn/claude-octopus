@@ -120,7 +120,10 @@ atomic_write() {
 # Publish a template only while its exact destination remains absent.
 # Linking a completed same-directory file is atomic and never replaces a winner.
 atomic_create() {
-    python3 -I - "$1" "$2" <<'PY_CREATE' || error "Failed to create project template"
+    # The second argument is an internal generator, checked before publication.
+    local template_content
+    template_content=$("$2") || return 1
+    python3 -I - "$1" "$template_content" <<'PY_CREATE' || error "Failed to create project template"
 import os
 from pathlib import Path
 import sys
@@ -341,12 +344,12 @@ init_project() {
     mkdir -p "$OCTO_DIR/codebase"
     
     # Fill missing files after partial initialization; preserve existing content.
-    [[ -e "$STATE_FILE" || -L "$STATE_FILE" ]] || atomic_create "$STATE_FILE" "$(generate_state_template)"
-    [[ -e "$PROJECT_FILE" || -L "$PROJECT_FILE" ]] || atomic_create "$PROJECT_FILE" "$(generate_project_template)"
-    [[ -e "$ROADMAP_FILE" || -L "$ROADMAP_FILE" ]] || atomic_create "$ROADMAP_FILE" "$(generate_roadmap_template)"
-    [[ -e "$CONFIG_FILE" || -L "$CONFIG_FILE" ]] || atomic_create "$CONFIG_FILE" "$(generate_config_template)"
-    [[ -e "$ISSUES_FILE" || -L "$ISSUES_FILE" ]] || atomic_create "$ISSUES_FILE" "$(generate_issues_template)"
-    [[ -e "$LESSONS_FILE" || -L "$LESSONS_FILE" ]] || atomic_create "$LESSONS_FILE" "$(generate_lessons_template)"
+    [[ -e "$STATE_FILE" || -L "$STATE_FILE" ]] || atomic_create "$STATE_FILE" generate_state_template || return 1
+    [[ -e "$PROJECT_FILE" || -L "$PROJECT_FILE" ]] || atomic_create "$PROJECT_FILE" generate_project_template || return 1
+    [[ -e "$ROADMAP_FILE" || -L "$ROADMAP_FILE" ]] || atomic_create "$ROADMAP_FILE" generate_roadmap_template || return 1
+    [[ -e "$CONFIG_FILE" || -L "$CONFIG_FILE" ]] || atomic_create "$CONFIG_FILE" generate_config_template || return 1
+    [[ -e "$ISSUES_FILE" || -L "$ISSUES_FILE" ]] || atomic_create "$ISSUES_FILE" generate_issues_template || return 1
+    [[ -e "$LESSONS_FILE" || -L "$LESSONS_FILE" ]] || atomic_create "$LESSONS_FILE" generate_lessons_template || return 1
     
     success "Initialized .octo/ directory with template files"
     echo ""

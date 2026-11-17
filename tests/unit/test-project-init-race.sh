@@ -39,6 +39,40 @@ for template in state project roadmap config issues lessons; do
         else test_fail "status=$status preserved=$preserved"; fi
     done
 done
+for template in state project roadmap config issues lessons; do
+    for conditional in false true; do
+        test_case "failed $template generation remains recoverable, conditional=$conditional"
+        case "$template" in config) filename=config.json ;; *) filename=$(printf '%s' "$template" | tr '[:lower:]' '[:upper:]').md ;; esac
+        workspace="$TEST_TMP_DIR/generator-$template-$conditional"
+        mkdir -p "$workspace"
+        # Begin with real saved templates, then remove just the failed target.
+        (cd "$workspace" && OCTOPUS_PROJECT_PERSISTENCE=true bash "$helper" init_project >/dev/null)
+        rm "$workspace/.octo/$filename"
+        cp -R "$workspace/.octo" "$workspace/before"
+        status=0
+        (cd "$workspace" && OCTOPUS_PROJECT_PERSISTENCE=true bash -c '
+            source "$1"
+            generate_failed_template() { printf "%s" "incomplete output"; return 23; }
+            eval "$2() { generate_failed_template; }"
+            if [[ "$3" == true ]]; then
+                if init_project; then exit 0; else exit $?; fi
+            else
+                set +e
+                init_project
+                exit $?
+            fi
+        ' test "$helper" "generate_${template}_template" "$conditional") >"$workspace/result" 2>&1 || status=$?
+        if [[ "$status" -ne 0 && ! -e "$workspace/.octo/$filename" ]] &&
+            diff -r "$workspace/before" "$workspace/.octo" >/dev/null &&
+            ! grep -q 'Initialized .octo/' "$workspace/result" &&
+            (cd "$workspace" && OCTOPUS_PROJECT_PERSISTENCE=true bash "$helper" init_project >/dev/null) &&
+            [[ -s "$workspace/.octo/$filename" ]]; then
+            test_pass
+        else
+            test_fail "generation failure published partial state or prevented retry"
+        fi
+    done
+done
 for mask in 0022 0077; do
     test_case "initial templates retain the access policy of umask $mask"
     workspace="$TEST_TMP_DIR/umask-$mask"

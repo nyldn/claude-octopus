@@ -388,6 +388,9 @@ key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|
 if [[ ! "$key_definition" =~ [^[:space:]] ]]; then
   key_definition=$(head -50 "$SYNTHESIS_FILE" | sed -E '/^[[:space:]]*#{1,6}([[:space:]]|$)/d' | tr '\n' ' ') || exit 1
 fi
+# Keep each subprocess argument below Linux's per-argument limit. Decode only
+# complete UTF-8 characters so a byte boundary cannot damage stored context.
+key_definition=$(printf '%s' "$key_definition" | python3 -I -c 'import sys; sys.stdout.write(sys.stdin.buffer.read()[:32768].decode("utf-8", "ignore"))') || exit 1
 [[ "$key_definition" =~ [^[:space:]] ]] || {
   echo "Definition synthesis contains no usable context; completion stopped." >&2
   exit 1

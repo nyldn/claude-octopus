@@ -11,8 +11,9 @@
   sourced conditional callers. Initialization also stops after failed directory,
   backup or initial-state writes and preserves invalid state for recovery.
   Abandoned writer locks recover on Bash 3.2.
-- Define rejects heading-only synthesis before persistence, and initialization
-  preserves the caller's umask for new project templates.
+- Define rejects heading-only synthesis and bounds saved context to 32 KiB of
+  complete UTF-8 characters before persistence. Initialization preserves the
+  caller's umask and stops before publishing a failed template generator's output.
 
 - Define stops after failed decision, context or metrics writes, and records
   completion only after its synthesis is saved to the roadmap. Its decision and

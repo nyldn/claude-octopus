@@ -16,7 +16,7 @@ import subprocess
 import sys
 import tempfile
 
-root = Path(sys.argv[1])
+root = Path(os.environ.get('OCTO_DEFINE_TEST_ROOT', sys.argv[1]))
 failures = []
 checked = 0
 for tree in ('.claude/skills', 'skills', 'codex-skills'):
@@ -30,7 +30,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for strict in (False, True):
         for conditional in (False, True):
-            for scenario in ('success', 'init_project', 'update_roadmap', 'update_state', 'complete_define', 'missing', 'empty', 'persistence off', 'headingless', 'whitespace', 'headings only'):
+            for scenario in ('success', 'init_project', 'update_roadmap', 'update_state', 'complete_define', 'missing', 'empty', 'persistence off', 'headingless', 'whitespace', 'headings only', 'large ascii', 'large utf8'):
                 with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                     temporary = Path(temporary)
                     plugin = temporary / 'plugin'
@@ -38,7 +38,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     calls = temporary / 'calls'
                     synthesis = temporary / 'synthesis.md'
                     if scenario != 'missing':
-                        synthesis.write_text('## Summary\n\n### Requirements\n' if scenario == 'headings only' else '  \n\t' if scenario == 'whitespace' else 'plain requirements without a heading' if scenario == 'headingless' else
+                        synthesis.write_text('x' * (140 * 1024) if scenario == 'large ascii' else '定' * 50000 if scenario == 'large utf8' else '## Summary\n\n### Requirements\n' if scenario == 'headings only' else '  \n\t' if scenario == 'whitespace' else 'plain requirements without a heading' if scenario == 'headingless' else
                                              '## Problem Definition\nselected the approach\n' if scenario != 'empty' else '')
                     env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(plugin), CODEX_PLUGIN_ROOT=str(plugin),
                                SYNTHESIS_FILE=str(synthesis), STATE_CALLS=str(calls), FAIL_OPERATION=scenario,
@@ -57,7 +57,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     program = recipe + '\nprintf "completion reached\\n"'
                     if conditional:
                         program = '(\n' + program + '\n) && exit 0; exit $?'
-                    succeeds = scenario in ('success', 'persistence off', 'headingless')
+                    succeeds = scenario in ('success', 'persistence off', 'headingless', 'large ascii', 'large utf8')
                     attempts = 2 if succeeds else 1
                     for attempt in range(attempts):
                         command = ['bash', '-euo', 'pipefail', '-c', program] if strict else ['bash', '-c', program]
@@ -74,9 +74,9 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                                  observed == expected * (attempt + 1) and
                                  ('completion reached' in result.stdout) == succeeds and
                                  state['metrics']['phases_completed'] == int(completed) and
-                                 len(state['decisions']) == int(completed and scenario != 'headingless') and
+                                 len(state['decisions']) == int(completed and scenario not in ('headingless', 'large ascii', 'large utf8')) and
                                  (not completed or state['context']['define'].strip() ==
-                                  ('plain requirements without a heading' if scenario == 'headingless' else 'selected the approach')))
+                                  ('x' * 32768 if scenario == 'large ascii' else '定' * (32768 // 3) if scenario == 'large utf8' else 'plain requirements without a heading' if scenario == 'headingless' else 'selected the approach')))
                         if not valid:
                             failures.append(f'{tree}: {scenario}, strict={strict}, conditional={conditional}, '
                                             f'attempt={attempt}, exit={result.returncode}, calls={observed}, state={state}')
