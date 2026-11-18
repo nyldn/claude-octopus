@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Rollback preserves lessons in a private temporary backup, carries its exact
+  path across shell calls, and retains recovery data when restoration fails.
 - Define stops after failed decision, context or completion writes, preserving
   earlier state and requiring repair before presenting the result as saved.
 
