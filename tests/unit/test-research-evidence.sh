@@ -1907,4 +1907,57 @@ for declared_prompt in 'PLAT-1928 and 1931€ in fees' 'PLAT-1928 and 1931 µs' 
     else test_fail "prompt quantity escaped actual verification"; fi
 done
 
+printf '%s\n' 'Compare RSA-2048 and SHA-256; investigate PLAT-1928 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+for quantity_case in 'The key uses 2048 bits.|2048' 'It uses 256-bit digests.|256' \
+    'The throughput is 1928 per second.|1928' \
+    'The measured interval is [1928, 1931] ms.|1928 1931' \
+    'The quotient is 1928 / -2000.|1928 2000'; do
+    quantity_text=${quantity_case%%|*}
+    test_case "new review quantity remains verifiable: $quantity_text"
+    research_declared_ids='2048 256 1928 1931'
+    actual=$(research_extract_numbers "$quantity_text" | paste -sd ' ' -)
+    if [[ "$actual" == "${quantity_case#*|}" ]]; then test_pass
+    else test_fail "expected ${quantity_case#*|}, got $actual"; fi
+    research_declared_ids=''
+    test_case "actual verifier rejects new reviewed quantity: $quantity_text"
+    printf '%s\n' 'return [500, -2000];' > "$declared_root/src/handler.ts"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and (.detail == "1928" or .detail == "2048" or .detail == "256"))' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported reviewed quantity passed"; fi
+done
+for prompt_text in 'PLAT-1928 and 1931.5 ms latency' 'PLAT-1928 and 1931 / 2000 tests'; do
+    test_case "prompt does not declare a measurement prefix: $prompt_text"
+    actual=$(printf '%s\n' "$prompt_text" | research_declared_identifier_numbers)
+    if [[ "$actual" == 1928 ]]; then test_pass
+    else test_fail "quantity prefix was declared: $actual"; fi
+    test_case "actual verifier rejects a bare prompt measurement prefix: $prompt_text"
+    printf '%s\n' "$prompt_text" > "$RESEARCH_RUN_DIR/prompt.txt"
+    printf '%s\n' '- The timeout is 1931 (`src/handler.ts:1`).' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1931")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "prompt measurement prefix escaped evidence checks"; fi
+done
+printf '%s\n' 'Check PLAT-1928' > "$RESEARCH_RUN_DIR/prompt.txt"
+for leading_pipe in header row; do
+    test_case "table unit alignment permits an optional leading pipe on $leading_pipe"
+    if [[ "$leading_pipe" == header ]]; then
+        printf '%s\n' '| Latency [ms] | Source' '--- | ---' '1928 | `src/handler.ts:1`' > "$declared_draft"
+    else
+        printf '%s\n' 'Latency [ms] | Source' '| --- | --- |' '| 1928 | `src/handler.ts:1` |' > "$declared_draft"
+    fi
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "optional table pipe hid its measurement"; fi
+done
+
 test_summary

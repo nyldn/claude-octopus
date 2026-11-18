@@ -618,7 +618,7 @@ research_currency_units() {
 
 research_quantity_units() {
     local modifier='((active|new|concurrently|concurrent|total|remaining|failed|successful|additional|unique|daily|monthly|average|maximum|minimum|peak)[ \t]+)?'
-    printf '%s\n' "${modifier}${modifier}${modifier}(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|retries|attempts?|$(research_currency_units))"
+    printf '%s\n' "${modifier}${modifier}${modifier}(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bits?|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|retries|attempts?|$(research_currency_units))"
 }
 
 # Use the same quantity boundaries for prompt admission and synthesis checking.
@@ -631,10 +631,13 @@ research_quantity_awk() {
         sub(/^[ \t]*\|[ \t]*/, " ", after)
         if (after ~ /^-[A-Za-z]/) after = " " substr(after, 2)
         if (after ~ /^[ \t]*\/[ \t]*[A-Za-z]/) sub(/^[ \t]*\/[ \t]*/, " ", after)
-        return (tolower(after) ~ ("^[ \\t]+[*_]*" units "([^0-9a-z_]|$)") || after ~ /^[A-Za-z]/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
+        sub(/^[ \t]+[Pp][Ee][Rr][ \t]+/, " ", after)
+        return (tolower(after) ~ ("^[ \\t]+[*_]*" units "([^0-9a-z_]|$)") || after ~ /^(\.[0-9]|[A-Za-z])/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
     }
     function quantity_tail(after) {
-        gsub(/`|[()]/, "", after)
+        gsub(/`|[()]|\[|\]/, "", after)
+        if (after ~ /^[ \t*_]*([+*=\/:<>]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/ ||
+            tolower(after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 1
         sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", after)
         return quantity_suffix(after) || tolower(after) ~ /^[ \t]*,?[ \t]+in[ \t]+total([^0-9a-z_]|$)/
     }
@@ -754,15 +757,18 @@ research_numeric_claims() {
         gsub(/[()]/, "", neighbor_before)
         gsub(/[()]/, "", neighbor_after)
         if (neighbor_before ~ /[0-9][ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*$/ ||
-            neighbor_after ~ /^[ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*[0-9]/) return 0
+            neighbor_after ~ /^[ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 0
         if (tolower(neighbor_after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 0
         if (tolower(neighbor_before) ~ /[0-9][ \t*_]+out[ \t]+of[ \t*_]*$/) return 0
         if (before ~ /(&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
             after ~ /^[ \t*_]*(&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
         # In a Markdown table, retain measurements with units in the heading.
         column = before
+        sub(/^[ \t]*\|/, "", column)
         column = gsub(/\|/, "|", column) + 1
-        split(table_header, headings, /\|/)
+        heading = table_header
+        sub(/^[ \t]*\|/, "", heading)
+        split(heading, headings, /\|/)
         heading = headings[column]
         sub(/^.*[(\[]/, "", heading)
         if (quantity_suffix(" " heading)) return 0
