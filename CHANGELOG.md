@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.25.2] - 2026-11-17
+
 ### Fixed
 
 - Discover rejects missing or empty synthesis and stops after failed context or
@@ -9,6 +11,11 @@
 
 - Deliver stops after failed context, metrics or ready-to-ship state writes and
   failed summary reads, preserving earlier state without reporting completion.
+
+Merged changes: [#1366](https://github.com/nyldn/claude-octopus/pull/1366) and
+[#1363](https://github.com/nyldn/claude-octopus/pull/1363).
+These address focused parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime, provenance and installed-host acceptance work remains open.
 
 ## [11.25.1] - 2026-11-17
 
