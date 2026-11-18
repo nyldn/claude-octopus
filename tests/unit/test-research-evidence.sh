@@ -1763,4 +1763,60 @@ declared_status=0
 if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1928")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
 else test_fail "preceding-cell quantity passed synthesis"; fi
 
+
+# Review regressions use evidence containing only the other operand.
+printf '%s\n' 'Check PLAT-1928 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return [2, 500, 1931, 2000];' > "$declared_root/src/handler.ts"
+research_declared_ids="1928 1931"
+for quantity_text in 'The sum is (2) + 1928.' 'The quotient is 1928 / (2000).' \
+    'The quotient is (1928) / (1931).' 'The quotient is ((1928)) / ((1931)).' \
+    'The bound is 1928 ≤ latency.' 'The bound is 1928 ≥ latency.' \
+    'The bound is 1928 &lt; latency.' 'The bound is latency &gt; 1928.' \
+    '1928 out of 2000 tests pass.' 'The batch contains 1928 retries.'; do
+    test_case "review quantity extraction retains unsupported operand: $quantity_text"
+    actual=$(research_extract_numbers "$quantity_text")
+    if [[ "$actual" == *1928* ]]; then test_pass
+    else test_fail "operand disappeared: $quantity_text"; fi
+    test_case "review quantity synthesis rejects unsupported operand: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported operand passed: $quantity_text"; fi
+done
+research_declared_ids=""
+for prompt_text in 'Investigate PLAT-1928 and 2000 ms timeouts' \
+    'Investigate PLAT-1928 to 1931 ms timeouts' \
+    'Investigate PLAT-1928 and 1931 retries'; do
+    test_case "prompt quantity continuation does not declare identifiers: $prompt_text"
+    actual=$(printf '%s\n' "$prompt_text" | research_declared_identifier_numbers)
+    if [[ "$actual" == 1928 ]]; then test_pass
+    else test_fail "quantity admitted as identifier: $actual"; fi
+    test_case "actual synthesis checks prompt quantity continuation: $prompt_text"
+    printf '%s\n' "$prompt_text" > "$RESEARCH_RUN_DIR/prompt.txt"
+    printf '%s\n' 'return [500];' > "$declared_root/src/handler.ts"
+    printf '%s\n' '- The timeout is 1930; the count is 1931 and timeout 2000 (`src/handler.ts:1`).' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '[.checks[] | select(.kind == "number_mismatch") | .detail] | index("1930") != null and index("1931") != null and index("2000") != null' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "prompt quantity bypassed verification"; fi
+done
+printf '%s\n' 'Check PLAT-1928 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+for heading in 'Latency (ms)' 'Latency (`ms`)' 'ms' 'Ticket'; do
+    test_case "table heading determines quantity context: $heading"
+    printf '%s\n' "| $heading | Source |" '| --- | --- |' \
+        '| 1928 | `src/handler.ts:1` |' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$heading" == Ticket && "$declared_status" -eq 0 ]]; then test_pass
+    elif [[ "$heading" != Ticket && "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "incorrect heading classification: $heading status=$declared_status"; fi
+done
+
 test_summary

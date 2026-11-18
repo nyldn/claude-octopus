@@ -612,6 +612,10 @@ research_source_field() {
     fi
 }
 
+research_quantity_units() {
+    printf '%s\n' '(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|retries|attempts?)'
+}
+
 # A research prompt that names tickets declares their numbers: "PLAT-1927",
 # "PLAT-1928, 1929 and 1930", "PLAT-1927..PLAT-1931" or "plat-1927 to 1931".
 # The synthesis may then refer to a declared ticket by its bare number, as in
@@ -621,7 +625,7 @@ research_source_field() {
 # bugs" and "PLAT-1927 to 1500 orgs" declare 1928 and 1927 only. A range
 # expands only when it ascends by at most 50.
 research_declared_identifier_numbers() {
-    LC_ALL=C awk '
+    LC_ALL=C awk -v units="$(research_quantity_units)" '
     function declare(number) {
         if (length(number) < 3 || (number in seen)) return
         seen[number] = 1
@@ -647,6 +651,11 @@ research_declared_identifier_numbers() {
                 }
                 if (member_prefix != "" && member_prefix != prefix) break
                 if (member_prefix == "" && (length(member) != length(last) || member - last > 100 || last - member > 100)) break
+                # A bare continuation with a unit is a measurement, including
+                # a measured range whose interior would otherwise be declared.
+                tail = substr(rest, length(segment) + 1)
+                gsub(/`/, "", tail)
+                if (member_prefix == "" && (tolower(tail) ~ ("^[ \\t]+[*_]*" units "([^0-9a-z_]|$)") || tail ~ /^[A-Za-z%]/)) break
                 rest = substr(rest, length(segment) + 1)
                 if (length(member) <= 15 && joiner !~ /,|(^|[^a-z])(and|or)([^a-z]|$)|&/ && member - last > 0 && member - last <= 50) {
                     for (step = last + 1; step < member + 0; step++) declare(sprintf("%0*d", length(last), step))
@@ -696,7 +705,8 @@ research_extract_numbers() {
 # a ticket, or "probe N" naming one of this run's probe results, is an
 # identifier unless a unit is attached to it or follows it.
 research_numeric_claims() {
-    LC_ALL=C awk -v declared_ids="${research_declared_ids:-}" -v probe_indices="${research_probe_index_list:-}" '
+    LC_ALL=C awk -v declared_ids="${research_declared_ids:-}" -v probe_indices="${research_probe_index_list:-}" \
+        -v units="$(research_quantity_units)" -v table_header="${research_table_header:-}" '
     BEGIN {
         count = split(declared_ids, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") declared[parts[i]] = 1
@@ -704,7 +714,7 @@ research_numeric_claims() {
         for (i = 1; i <= count; i++) if (parts[i] != "") probe_index[parts[i]] = 1
         unit_modifier = "((active|new|concurrently|concurrent|total|remaining|failed|successful|additional|unique|daily|monthly|average|maximum|minimum|peak)[ \\t]+)?"
         currency_unit = "(usd|eur|gbp|jpy|cny|rmb|inr|aud|cad|chf|krw|rub|brl|zar|nzd|hkd|sgd|aed|dollars?|euros?|pounds?|yen|yuan|renminbi|rupees?|francs?|rubles?|reals?|rands?|won|dirhams?|krona|kroner)"
-        reference_unit = "^[ \\t]+[*_]*" unit_modifier unit_modifier unit_modifier "(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|" currency_unit ")([^0-9a-z_]|$)"
+        reference_unit = "^[ \\t]+[*_]*" unit_modifier unit_modifier unit_modifier "(" units "|" currency_unit ")([^0-9a-z_]|$)"
     }
     function quantity_suffix(after) {
         # Units may be code-formatted or use Unicode prefixes. Keep these
@@ -714,7 +724,7 @@ research_numeric_claims() {
         sub(/^[ \t]*\|[ \t]*/, " ", after)
         return (tolower(after) ~ reference_unit || after ~ /^[A-Za-z]/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
     }
-    function declared_reference(number, before, after,    range_tail, members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth) {
+    function declared_reference(number, before, after,    range_tail, members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth, column, headings, heading, neighbor_before, neighbor_after) {
         # Normalize only the context used by these exemptions. Other numeric
         # extraction rules still see literal code and Markdown destinations.
         gsub(/`/, "", before)
@@ -726,6 +736,22 @@ research_numeric_claims() {
             group_depth = gsub(/\(/, "", group_tail)
             while (group_depth-- > 0) if (!sub(/^[ \t*_]*\)/, "", after)) break
         }
+        # Parentheses around adjacent operands do not change their quantity.
+        neighbor_before = before; neighbor_after = after
+        gsub(/[()]/, "", neighbor_before)
+        gsub(/[()]/, "", neighbor_after)
+        if (neighbor_before ~ /[0-9][ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*$/ ||
+            neighbor_after ~ /^[ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*[0-9]/) return 0
+        if (tolower(neighbor_after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 0
+        if (before ~ /(&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
+            after ~ /^[ \t*_]*(&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
+        # In a Markdown table, retain measurements with units in the heading.
+        column = before
+        column = gsub(/\|/, "|", column) + 1
+        split(table_header, headings, /\|/)
+        heading = headings[column]
+        sub(/^.*\(/, "", heading)
+        if (quantity_suffix(" " heading)) return 0
         # Numeric link labels stay claims, including links around endpoints.
         if (after ~ /^\]\(/) return 0
         if (number !~ /^[0-9]+(,[0-9]+)*$/) return 0
@@ -1103,7 +1129,7 @@ research_verify_synthesis() {
     if [[ -n "$project_root" ]]; then
         project_root=$(cd "$project_root" 2>/dev/null && pwd -P) || project_root=""
     fi
-    local research_declared_ids="" research_probe_index_list
+    local research_declared_ids="" research_probe_index_list research_table_header="" previous_table_line=""
     if [[ -r "$run_dir/prompt.txt" ]]; then
         research_declared_ids=$(research_declared_identifier_numbers < "$run_dir/prompt.txt")
     fi
@@ -1125,6 +1151,14 @@ research_verify_synthesis() {
             continue
         fi
         [[ "$in_fence" == "true" ]] && continue
+        if [[ "$line" == *"|"* ]]; then
+            if [[ "$line" == *"---"* && "$line" =~ ^[[:space:]\|:-]+$ ]]; then
+                research_table_header="$previous_table_line"
+            fi
+            previous_table_line="$line"
+        else
+            research_table_header=""; previous_table_line=""
+        fi
         [[ -n "${line//[[:space:]]/}" ]] || continue
         [[ "$line" == \#* || "$line" == '---'* ]] && continue
         ids=$(printf '%s\n' "$line" | grep -Eo '\[source:S[0-9]{3}\]' | sed 's/\[source:\(.*\)\]/\1/' | sort -u || true)
