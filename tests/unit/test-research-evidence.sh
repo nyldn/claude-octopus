@@ -2146,4 +2146,27 @@ for heading in 'Latency (ms)' Ticket; do
     else test_fail "dash-only row replaced the header"; fi
 done
 
+
+# Linked reference headings remain references; only visible unit labels measure.
+printf '%s\n' 'Check PLAT-1928, PLAT-1929 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return [500, 1928, 1929];' > "$declared_root/src/handler.ts"
+for heading in '[Ticket](tickets.md)' '[Ticket][ticket-help]' 'Latency [ms](units.md)' '[ms](units.md)'; do
+    test_case "linked heading classification uses its visible label: $heading"
+    printf '%s\n' "| $heading | Source |" '| --- | --- |' '| 1931 | `src/handler.ts:1` |' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$heading" == '[Ticket]'* && "$declared_status" == 0 ]]; then test_pass
+    elif [[ "$heading" != '[Ticket]'* && "$declared_status" != 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1931")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "incorrect linked heading classification"; fi
+done
+for quantity_text in 'The cost is $1928, 1929, and 1931.' 'The cost is USD 1928, 1929, or 1931.' 'Build 1928, 1929, and 1931 in parallel.'; do
+    test_case "Oxford-comma currency lists retain every unsupported amount: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$quantity_text" == Build* && "$declared_status" == 0 ]]; then test_pass
+    elif [[ "$quantity_text" != Build* && "$declared_status" != 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1931")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "currency list lost its final amount or ticket list changed"; fi
+done
+
 test_summary

@@ -791,6 +791,8 @@ research_numeric_claims() {
         heading = unformat(headings[column], 1)
         gsub(/`/, "", heading)
         if (tolower(heading) ~ /^[ \t]*\[?(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)\]?[ \t]*$/) return 0
+        # Brackets around visible link labels are not quantity evidence.
+        gsub(/\[/, "(", heading); gsub(/\]/, ")", heading)
         if (tolower(heading) ~ /(^|[^a-z])counts?([^a-z]|$)/) return 0
         if (quantity_suffix(" " heading)) return 0
         while (match(heading, /[(\[]/)) {
@@ -815,7 +817,7 @@ research_numeric_claims() {
         if (number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
         # A leading currency applies to each connected range/list member.
         currency_before = tolower(before)
-        sub(/([0-9]+([.,][0-9]+)*[ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru|and|or|&|,)[ \t*_]*)+$/, "", currency_before)
+        sub(/([0-9]+([.,][0-9]+)*[ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru|and|or|&|,[ \t]*((and|or)[ \t]+)?)[ \t*_]*)+$/, "", currency_before)
         if (currency_before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_]*$/ ||
             currency_before ~ ("(^|[^a-z])" currency_unit "[ \\t*_]*$")) return 0
         if (before ~ /[0-9][ \t*_]*[+*=][ \t*_]*$|[0-9][ \t*_]*(\302\261|\303\227|\303\267)[ \t*_]*$/) return 0
