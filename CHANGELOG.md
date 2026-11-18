@@ -2,8 +2,6 @@
 
 ## [Unreleased]
 
-## [11.25.2] - 2026-11-17
-
 ### Fixed
 
 - Interrupted lock admission recovers a killed writer before its PID contents are published.
@@ -25,6 +23,11 @@
   persistence is enabled, it saves the roadmap before recording completion.
   Its decision and completed-phase count are recorded together once per
   synthesis before presenting results or task completion.
+
+## [11.25.2] - 2026-11-17
+
+### Fixed
+
 - Discover rejects missing or empty synthesis and stops after failed context or
   metrics writes, preserving earlier state instead of presenting completion.
 
