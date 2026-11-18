@@ -15,10 +15,10 @@
   complete UTF-8 characters before persistence. Initialization preserves the
   caller's umask and stops before publishing a failed template generator's output.
 
-- Define stops after failed decision, context or metrics writes, and records
-  completion only after its synthesis is saved to the roadmap. Its decision and
-  completed-phase count are recorded together once per synthesis before results
-  or task completion are presented.
+- Define stops after failed decision, context or metrics writes. When project
+  persistence is enabled, it saves the roadmap before recording completion.
+  Its decision and completed-phase count are recorded together once per
+  synthesis before presenting results or task completion.
 - Discover rejects missing or empty synthesis and stops after failed context or
   metrics writes, preserving earlier state instead of presenting completion.
 

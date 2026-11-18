@@ -339,9 +339,9 @@ init_project() {
     fi
 
     # Create directory structure
-    mkdir -p "$OCTO_DIR"
-    mkdir -p "$OCTO_DIR/phases"
-    mkdir -p "$OCTO_DIR/codebase"
+    mkdir -p "$OCTO_DIR" || return 1
+    mkdir -p "$OCTO_DIR/phases" || return 1
+    mkdir -p "$OCTO_DIR/codebase" || return 1
     
     # Fill missing files after partial initialization; preserve existing content.
     [[ -e "$STATE_FILE" || -L "$STATE_FILE" ]] || atomic_create "$STATE_FILE" generate_state_template || return 1

@@ -73,6 +73,44 @@ for template in state project roadmap config issues lessons; do
         fi
     done
 done
+for directory in .octo .octo/phases .octo/codebase; do
+    for conditional in false true; do
+        test_case "failed creation of $directory stops initialization, conditional=$conditional"
+        workspace="$TEST_TMP_DIR/mkdir-${directory//\//-}-$conditional"
+        mkdir -p "$workspace"
+        (cd "$workspace" && OCTOPUS_PROJECT_PERSISTENCE=true bash "$helper" init_project >/dev/null)
+        [[ "$directory" == .octo ]] || rmdir "$workspace/$directory"
+        cp -R "$workspace/.octo" "$workspace/before"
+        status=0
+        (cd "$workspace" && OCTOPUS_PROJECT_PERSISTENCE=true bash -c '
+            source "$1"
+            failed_directory=$3
+            mkdir() {
+                if [[ "${!#}" == "$failed_directory" ]]; then
+                    command touch reached
+                    return 23
+                fi
+                command mkdir "$@"
+            }
+            if [[ "$2" == true ]]; then
+                if init_project; then exit 0; else exit $?; fi
+            else
+                set +e
+                init_project
+                exit $?
+            fi
+        ' test "$helper" "$conditional" "$directory") >"$workspace/result" 2>&1 || status=$?
+        if [[ "$status" -ne 0 && -f "$workspace/reached" ]] &&
+            diff -r "$workspace/before" "$workspace/.octo" >/dev/null &&
+            ! grep -q 'Initialized .octo/' "$workspace/result" &&
+            (cd "$workspace" && OCTOPUS_PROJECT_PERSISTENCE=true bash "$helper" init_project >/dev/null) &&
+            [[ -d "$workspace/$directory" ]]; then
+            test_pass
+        else
+            test_fail "directory failure was accepted or existing templates changed"
+        fi
+    done
+done
 for mask in 0022 0077; do
     test_case "initial templates retain the access policy of umask $mask"
     workspace="$TEST_TMP_DIR/umask-$mask"
