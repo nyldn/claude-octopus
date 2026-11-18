@@ -19,7 +19,7 @@ shell = os.environ.get('OCTO_INIT_STATE_TEST_SHELL', 'bash')
 failures = []
 checked = 0
 for conditional in (False, True):
-    for scenario in ('mkdir', 'project identity', 'render', 'corrupt backup'):
+    for scenario in ('mkdir', 'project identity', 'digest failure', 'empty digest', 'render', 'corrupt backup'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             directory = Path(temporary)
             state_dir = directory / 'state'
@@ -31,6 +31,8 @@ for conditional in (False, True):
             original = state.read_bytes() if state.exists() else None
             injection = {
                 'mkdir': 'mkdir() { if [[ "${!#}" == "$STATE_DIR/context" ]]; then command touch "$FAILURE_MARKER"; return 23; fi; command mkdir "$@"; }; ',
+                'digest failure': 'sha256sum() { command touch "$FAILURE_MARKER"; return 23; }; ',
+                'empty digest': 'sha256sum() { command touch "$FAILURE_MARKER"; return 0; }; ',
                 'project identity': 'state_project_id() { command touch "$FAILURE_MARKER"; return 23; }; ',
                 'render': 'cat() { command touch "$FAILURE_MARKER"; return 23; }; ',
                 'corrupt backup': 'mv() { command touch "$FAILURE_MARKER"; return 23; }; ',

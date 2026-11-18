@@ -17,7 +17,7 @@ import tempfile
 import time
 
 root = Path(sys.argv[1])
-helper = root / 'scripts/state-manager.sh'
+helper = Path(os.environ.get('OCTO_WRITER_LOCK_TEST_HELPER', str(root / 'scripts/state-manager.sh')))
 failures = []
 operations = [
     ('complete_define', ['{synthesis}', 'second context', 'second decision']),
@@ -58,6 +58,14 @@ for mode in ('cli', 'sourced'):
                 '  elif [[ "${BARRIER_FIRST:-}" != 1 ]]; then touch "$BARRIER_DIR/second-read"; fi\n'
                 'fi\nexec "' + shutil.which('jq') + '" "$@"\n')
             wrapper.chmod(0o755)
+            # Publish contention only after the real exclusive mkdir returns
+            # EEXIST while the first writer still holds the production lock.
+            python_wrapper = shim / 'python3'
+            python_wrapper.write_text('#!/usr/bin/env bash\n'
+                'rc=0\n"' + shutil.which('python3') + '" "$@" || rc=$?\n'
+                'if [[ "${1:-}" == - && "${2:-}" == "$BARRIER_STATE.lock" && "$rc" == 75 && "${BARRIER_FIRST:-}" != 1 ]]; then\n'
+                '  touch "$BARRIER_DIR/second-lock-attempt"\nfi\nexit "$rc"\n')
+            python_wrapper.chmod(0o755)
             env.update(PATH=str(shim) + os.pathsep + env['PATH'], BARRIER_DIR=str(directory), BARRIER_STATE=str(state_file))
             first = subprocess.Popen([str(helper), 'complete_define', str(first_synthesis), 'first context', 'first decision'],
                                      env=dict(env, BARRIER_FIRST='1'), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -71,15 +79,16 @@ for mode in ('cli', 'sourced'):
                 command = ([str(helper), operation, *args] if mode == 'cli' else
                            ['bash', '-c', 'source "$1"; shift; "$@"', 'test', str(helper), operation, *args])
                 second = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                deadline = time.monotonic() + 1
-                while not (directory / 'second-read').exists() and second.poll() is None and time.monotonic() < deadline:
+                deadline = time.monotonic() + 3
+                while not (directory / 'second-lock-attempt').exists() and second.poll() is None and time.monotonic() < deadline:
                     time.sleep(0.01)
+                attempted_lock = (directory / 'second-lock-attempt').exists()
                 entered_early = (directory / 'second-read').exists()
                 (directory / 'release').touch()
                 first.communicate(timeout=10)
                 second.communicate(timeout=10)
                 state = json.loads(state_file.read_text())
-                valid = first.returncode == second.returncode == 0 and not entered_early
+                valid = first.returncode == second.returncode == 0 and attempted_lock and not entered_early
                 valid &= state['context']['define'] in ('first context', 'second context')
                 valid &= state['metrics']['phases_completed'] == (2 if operation == 'complete_define' else 1)
                 valid &= len(state['decisions']) == (2 if operation in ('complete_define', 'write_decision') else 1)
@@ -90,7 +99,7 @@ for mode in ('cli', 'sourced'):
                 if operation == 'update_context': valid &= state['context']['develop'] == 'second context'
                 if operation == 'update_metrics': valid &= state['metrics']['total_execution_time_minutes'] == 42
                 if not valid:
-                    failures.append(f'{mode} {operation}: first={first.returncode} second={second.returncode} entered_early={entered_early}, state={state}')
+                    failures.append(f'{mode} {operation}: first={first.returncode} second={second.returncode} attempted_lock={attempted_lock}, entered_early={entered_early}, state={state}')
             finally:
                 (directory / 'release').touch()
                 for child in (first, second):

@@ -38,16 +38,17 @@ state_project_id() {
     identity="${remote}|${resolved_root}"
 
     if command -v sha256sum >/dev/null 2>&1; then
-        digest="$(printf '%s' "$identity" | sha256sum | awk '{print $1}')"
+        digest="$(printf '%s' "$identity" | sha256sum | awk '{print $1}')" || return 1
     elif command -v shasum >/dev/null 2>&1; then
-        digest="$(printf '%s' "$identity" | shasum -a 256 | awk '{print $1}')"
+        digest="$(printf '%s' "$identity" | shasum -a 256 | awk '{print $1}')" || return 1
     elif command -v md5sum >/dev/null 2>&1; then
-        digest="$(printf '%s' "$identity" | md5sum | awk '{print $1}')"
+        digest="$(printf '%s' "$identity" | md5sum | awk '{print $1}')" || return 1
     elif command -v md5 >/dev/null 2>&1; then
-        digest="$(printf '%s' "$identity" | md5 -q)"
+        digest="$(printf '%s' "$identity" | md5 -q)" || return 1
     else
-        digest="$(printf '%s' "$identity" | cksum | awk '{print $1 "-" $2}')"
+        digest="$(printf '%s' "$identity" | cksum | awk '{print $1 "-" $2}')" || return 1
     fi
+    [[ -n "$digest" ]] || return 1
     printf '%s\n' "$digest"
 }
 
