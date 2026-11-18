@@ -2014,4 +2014,38 @@ if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_misma
     "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
 else test_fail "prompt comparison quantity escaped actual verification"; fi
 
+for prompt_tail in '≤ max_timeout' '≥ max_timeout' '&lt; max_timeout' '&gt; max_timeout' '- 2' '− 2'; do
+    test_case "prompt arithmetic/comparisons stay quantities: $prompt_tail"
+    prompt_text="Investigate PLAT-1928 and 1931 $prompt_tail"
+    actual=$(printf '%s\n' "$prompt_text" | research_declared_identifier_numbers)
+    if [[ "$actual" == 1928 ]]; then test_pass; else test_fail "quantity declared: $actual"; fi
+    printf '%s\n' "$prompt_text" > "$RESEARCH_RUN_DIR/prompt.txt"
+    printf '%s\n' '- The timeout is 1931 (`src/handler.ts:1`).' > "$declared_draft"
+    test_case "actual verifier rejects prompt operand: $prompt_tail"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1931")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass; else test_fail "prompt operand escaped"; fi
+done
+printf '%s\n' 'Check PLAT-1928 and PLAT-403' > "$RESEARCH_RUN_DIR/prompt.txt"
+for quantity_text in 'The difference is 1928 − 2.' 'The offset is - 1928.' 'The offset is − 1928.' 'The offset is + 1928.'; do
+    test_case "actual verifier retains spaced/Unicode signs: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass; else test_fail "signed operand escaped"; fi
+done
+for heading in 'Latency [ms](units.md)' 'Latency [ms](units(nested).md)' '**HTTP status**' '`HTTP status`'; do
+    test_case "actual verifier retains visible heading context: $heading"
+    table_value=1928
+    [[ "$heading" != *HTTP* ]] || table_value=403
+    printf '%s\n' "| $heading | Source |" '| --- | --- |' "| $table_value | \`src/handler.ts:1\` |" > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e --arg value "$table_value" \
+        '.checks | any(.kind == "number_mismatch" and .detail == $value)' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "visible heading context lost"; fi
+done
+
 test_summary

@@ -636,7 +636,9 @@ research_quantity_awk() {
     }
     function quantity_tail(after) {
         gsub(/`|[()]|\[|\]/, " ", after)
-        if (after ~ /^[ \t*_]*[+*=<>]/) return 1
+        if (after ~ /^[ \t*_]*([+*=<>]|&lt;|&gt;|\342\211\244|\342\211\245)/) return 1
+        # Spaced minus is arithmetic; compact ticket ranges remain references.
+        if (after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+[0-9]/) return 1
         if (after ~ /^[ \t*_]*([+*=\/:<>]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/ ||
             tolower(after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 1
         sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", after)
@@ -777,21 +779,23 @@ research_numeric_claims() {
             neighbor_after ~ /^[ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 0
         if (tolower(neighbor_after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 0
         if (tolower(neighbor_before) ~ /[0-9][ \t*_]+out[ \t]+of[ \t*_]*$/) return 0
-        if (neighbor_before ~ /[0-9][ \t*_]+-[ \t*_]+$/ || neighbor_after ~ /^[ \t*_]+-[ \t*_]+[0-9]/) return 0
+        if (neighbor_before ~ /[0-9][ \t*_]+(-|\342\210\222)[ \t*_]+$/ || neighbor_after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+[0-9]/) return 0
         if (before ~ /(&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
             after ~ /^[ \t*_]*(&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
         # In a Markdown table, retain measurements with units in the heading.
         column = table_cells(before, headings)
         table_cells(table_header, headings)
-        heading = headings[column]
+        heading = unformat(headings[column])
+        gsub(/`/, "", heading)
         if (tolower(heading) ~ /^[ \t]*(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)[ \t]*$/) return 0
-        sub(/^.*[(\[]/, "", heading)
+        # Stop at the visible annotation, before any link destination.
+        sub(/^[^[(]*[(\[]/, "", heading)
         if (quantity_suffix(" " heading)) return 0
         # Numeric link labels stay claims, including links around endpoints.
         if (after ~ /^\]\(/) return 0
         if (number !~ /^[0-9]+(,[0-9]+)*$/) return 0
         if (before ~ /(^|[^.0-9])\.$/) return 0
-        if (before ~ /(^|[^0-9A-Za-z_])([+-]|\342\210\222)$/) return 0
+        if (before ~ /(^|[^0-9A-Za-z_])([+-]|\342\210\222)[ \t*_]*$/) return 0
         if (tolower(before) ~ /(^|[^a-z])(http(\/[0-9]+(\.[0-9]+)?)?([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)([ \t]+(is|was|equals?))?[ \t:]*$/) return 0
         if (before ~ /[<>=][ \t*_]*$/ || tolower(before) ~ /(^|[^a-z])(at (least|most)|more than|less than|no (more|less|fewer) than|approximately|roughly|nearly|almost)[ \t*_]*$/) return 0
         if (before ~ /(~|\342\211\210)[ \t*_]*$/) return 0
