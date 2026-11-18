@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Define persists through the installation that produced its validated synthesis.
 - Interrupted lock admission recovers a killed writer before its PID contents are published.
 - Same-second Define runs retain separate synthesis files through completion persistence.
 - Stale workflow-lock cleanup preserves a claimant that resumes publishing its owner metadata.

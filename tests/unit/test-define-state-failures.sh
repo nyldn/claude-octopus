@@ -30,7 +30,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for strict in (False, True):
         for conditional in (False, True):
-            for scenario in ('success', 'init_project', 'update_roadmap', 'update_state', 'complete_define', 'missing', 'empty', 'persistence off', 'headingless', 'whitespace', 'headings only', 'large ascii', 'large utf8'):
+            for scenario in ('success', 'init_project', 'update_roadmap', 'update_state', 'complete_define', 'missing', 'empty', 'persistence off', 'headingless', 'whitespace', 'headings only', 'large ascii', 'large utf8', 'bound root', 'unbound root'):
                 with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                     temporary = Path(temporary)
                     plugin = temporary / 'plugin'
@@ -45,6 +45,20 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                                OCTOPUS_WORKFLOW_STATE_DIR=str(temporary / 'state'),
                                REAL_STATE_MANAGER=str(root / 'scripts/state-manager.sh'),
                                OCTOPUS_PROJECT_PERSISTENCE='false' if scenario == 'persistence off' else 'true')
+                    env.pop('OCTO_ROOT', None)
+                    wrong_root = temporary / 'wrong-root'
+                    if scenario in ('bound root', 'unbound root'):
+                        env.pop('CLAUDE_PLUGIN_ROOT', None)
+                        env.pop('CODEX_PLUGIN_ROOT', None)
+                        env.update(HOME=str(temporary / 'home'), WRONG_ROOT_MARKER=str(wrong_root))
+                        stable_scripts = Path(env['HOME']) / '.claude-octopus/plugin/scripts'
+                        stable_scripts.mkdir(parents=True)
+                        for stable_name in ('octo-state.sh', 'state-manager.sh'):
+                            stable = stable_scripts / stable_name
+                            stable.write_text('#!/bin/sh\nprintf wrong > "$WRONG_ROOT_MARKER"\nexit 23\n')
+                            stable.chmod(0o755)
+                        if scenario == 'bound root':
+                            env['OCTO_ROOT'] = str(plugin)
                     subprocess.run([env['REAL_STATE_MANAGER'], 'init_state'], env=env, cwd=temporary,
                                    capture_output=True, check=True)
                     for name in ('octo-state.sh', 'state-manager.sh'):
@@ -57,7 +71,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     program = recipe + '\nprintf "completion reached\\n"'
                     if conditional:
                         program = '(\n' + program + '\n) && exit 0; exit $?'
-                    succeeds = scenario in ('success', 'persistence off', 'headingless', 'large ascii', 'large utf8')
+                    succeeds = scenario in ('success', 'persistence off', 'headingless', 'large ascii', 'large utf8', 'bound root')
                     attempts = 2 if succeeds or scenario == 'update_state' else 1
                     for attempt in range(attempts):
                         attempt_succeeds = succeeds or (scenario == 'update_state' and attempt > 0)
@@ -69,11 +83,11 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                         state = json.loads((temporary / 'state/state.json').read_text())
                         operations = (['complete_define'] if scenario == 'persistence off' else
                                       ['init_project', 'update_roadmap', 'complete_define', 'update_state'])
-                        expected = (operations if succeeds else [] if scenario in ('missing', 'empty', 'whitespace', 'headings only')
+                        expected = (operations if succeeds else [] if scenario in ('missing', 'empty', 'whitespace', 'headings only', 'unbound root')
                                     else operations[:operations.index(scenario) + 1])
                         observed = calls.read_text().splitlines() if calls.exists() else []
                         completed = succeeds or scenario == 'update_state'
-                        valid = ((result.returncode == 0) == attempt_succeeds and
+                        valid = (not wrong_root.exists() and (result.returncode == 0) == attempt_succeeds and
                                  observed == expected * (attempt + 1) and
                                  ('completion reached' in result.stdout) == attempt_succeeds and
                                  state['metrics']['phases_completed'] == int(completed) and
