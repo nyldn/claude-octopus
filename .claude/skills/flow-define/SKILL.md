@@ -421,6 +421,9 @@ OCTO_ROOT="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}"
   echo "Definition synthesis is missing, unreadable or empty; completion stopped." >&2
   exit 1
 }
+# Project writes run from the selected project; bind artifacts before changing directory.
+OCTO_ROOT=$(CDPATH='' cd -- "$OCTO_ROOT" && pwd -P) || exit 1
+SYNTHESIS_FILE=$(python3 -I -c 'import os, sys; print(os.path.abspath(sys.argv[1]))' "$SYNTHESIS_FILE") || exit 1
 key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|## Summary" | tail -3 | sed -E '/^[[:space:]]*#{1,6}([[:space:]]|$)/d' | tr '\n' ' ') || key_definition=""
 # Headingless synthesis keeps its bounded content instead of clearing context.
 if [[ ! "$key_definition" =~ [^[:space:]] ]]; then
@@ -436,15 +439,16 @@ key_definition=$(printf '%s' "$key_definition" | python3 -I -c 'import sys; sys.
 decision_made=$(echo "$key_definition" | grep -o "decided to\|chose to\|selected\|using [A-Za-z0-9 ]*" | head -1) || decision_made=""
 
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
-  "$OCTO_ROOT/scripts/octo-state.sh" init_project || exit 1
-  "$OCTO_ROOT/scripts/octo-state.sh" update_roadmap \
-    --from-synthesis "$SYNTHESIS_FILE" || exit 1
+  OCTO_PROJECT_ROOT=$(CDPATH='' cd -- "${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}" && pwd -P) || exit 1
+  (cd -- "$OCTO_PROJECT_ROOT" && "$OCTO_ROOT/scripts/octo-state.sh" init_project) || exit 1
+  (cd -- "$OCTO_PROJECT_ROOT" && "$OCTO_ROOT/scripts/octo-state.sh" update_roadmap \
+    --from-synthesis "$SYNTHESIS_FILE") || exit 1
 fi
 "$OCTO_ROOT/scripts/state-manager.sh" complete_define \
   "$SYNTHESIS_FILE" "$key_definition" "$decision_made" || exit 1
 if [[ "${OCTOPUS_PROJECT_PERSISTENCE:-false}" == "true" ]]; then
-  "$OCTO_ROOT/scripts/octo-state.sh" update_state \
-    --phase 2 --position "Definition" --status "complete" --history "Define phase completed" || exit 1
+  (cd -- "$OCTO_PROJECT_ROOT" && "$OCTO_ROOT/scripts/octo-state.sh" update_state \
+    --phase 2 --position "Definition" --status "complete" --history "Define phase completed") || exit 1
 fi
 ```
 

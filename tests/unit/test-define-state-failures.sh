@@ -297,4 +297,55 @@ for failure in failures:
 sys.exit(bool(failures))
 PY_CONTROLS
 then test_pass; else test_fail "Define continued after failed definition-state writes"; fi
+
+test_case "nested Define persistence uses the selected project and absolute artifacts"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_NESTED'
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+root = Path(sys.argv[1])
+failures = []
+checked = 0
+for tree in ('.claude/skills', 'skills'):
+    section = (root / tree / 'flow-define/SKILL.md').read_text().split('### STEP 6:', 1)[1].split('### STEP 7:', 1)[0]
+    recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    for relative_project in (False, True):
+        for relative_artifacts in (False, True):
+            with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+                directory = Path(temporary)
+                project = directory / 'project'
+                nested = project / 'src'
+                nested.mkdir(parents=True)
+                synthesis = nested / 'synthesis.md'
+                synthesis.write_text('## Problem Definition\nselected the nested project approach\n')
+                env = dict(os.environ, HOME=str(directory / 'home'), CLAUDE_PLUGIN_DATA=str(directory / 'workspace'),
+                           OCTOPUS_STATE_PROJECT_ROOT='..' if relative_project else str(project),
+                           OCTO_ROOT=os.path.relpath(root, nested) if relative_artifacts else str(root),
+                           SYNTHESIS_FILE='synthesis.md' if relative_artifacts else str(synthesis),
+                           OCTOPUS_PROJECT_PERSISTENCE='true')
+                env.pop('OCTOPUS_WORKFLOW_STATE_DIR', None)
+                helper = str(root / 'scripts/state-manager.sh')
+                subprocess.run([helper, 'init_state'], cwd=nested, env=env, check=True, capture_output=True, timeout=10)
+                state_path = subprocess.check_output([helper, 'state_path'], cwd=nested, env=env, text=True).strip()
+                result = subprocess.run(['bash', '-euo', 'pipefail', '-c', recipe], cwd=nested, env=env,
+                                        capture_output=True, text=True, timeout=10)
+                state = json.loads(Path(state_path).read_text())
+                saved = project / '.octo/STATE.md'
+                valid = (result.returncode == 0 and saved.is_file() and
+                         '**Status:** complete' in saved.read_text() and
+                         'nested project approach' in (project / '.octo/ROADMAP.md').read_text() and
+                         not (nested / '.octo').exists() and state['metrics']['phases_completed'] == 1)
+                if not valid:
+                    failures.append(f'{tree}: relative_project={relative_project}, relative_artifacts={relative_artifacts}, rc={result.returncode}, nested_state={(nested / ".octo").exists()}')
+                checked += 1
+print(f'{checked - len(failures)}/{checked} nested-directory production persistence controls passed')
+for failure in failures: print(failure, file=sys.stderr)
+sys.exit(bool(failures))
+PY_NESTED
+then test_pass; else test_fail "Define persisted another project's roadmap or lost relative artifacts"; fi
+
 test_summary

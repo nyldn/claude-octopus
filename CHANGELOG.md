@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Define saves project roadmap and status in the selected project when invoked from a subdirectory.
+
 - Reject workflow-state directory destinations without modifying their contents.
 - Define persists through the installation that produced its validated synthesis.
 - Interrupted lock admission recovers a killed writer before its PID contents are published.
