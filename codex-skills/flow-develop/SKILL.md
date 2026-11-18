@@ -6,8 +6,13 @@ disable-model-invocation: true
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$flow-develop` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
 
 
 {{PREAMBLE}}
@@ -29,7 +34,7 @@ installed copies while preserving another session's working root when called
 from an inferred development checkout.
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${OCTO_ROOT:?}"
 bash "$OCTO_ROOT/scripts/helpers/feature-workflow.sh" boundary develop "${OCTOPUS_FEATURE:-}"
 ```
 
@@ -51,14 +56,14 @@ Before starting development:
 ```bash
 # Verify Define phase is complete
 if [[ -f ".octo/STATE.md" ]]; then
-  define_status=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" get_phase_status 2)
+  define_status=$("${OCTO_ROOT:?}/scripts/octo-state.sh" get_phase_status 2)
   if [[ "$define_status" != "complete" ]]; then
     echo "⚠️ Warning: Define phase not marked complete. Consider running definition first."
   fi
 fi
 
 # Update state for Development phase
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+"${OCTO_ROOT:?}/scripts/octo-state.sh" update_state \
   --phase 3 \
   --position "Development" \
   --status "in_progress"
@@ -110,7 +115,7 @@ Self-contained files preferred. Accessibility: ARIA labels, keyboard nav, 44px t
 Before calling orchestrate.sh, check if the design intelligence engine exists and query it for relevant design context:
 
 ```bash
-SEARCH_PY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
+SEARCH_PY="${OCTO_ROOT:?}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
 if [[ -f "$SEARCH_PY" ]]; then
     # Detect relevant domains from the prompt
     design_context=""
@@ -143,7 +148,7 @@ orchestrate.sh develop "<user prompt>\n\nQuality requirements for this deliverab
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
+bash "${OCTO_ROOT:?}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -192,17 +197,17 @@ Provider Availability:
 
 ```bash
 # Initialize state if needed
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" init_state
+"${OCTO_ROOT:?}/scripts/state-manager.sh" init_state
 
 # Set current workflow
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" set_current_workflow "flow-develop" "develop"
+"${OCTO_ROOT:?}/scripts/state-manager.sh" set_current_workflow "flow-develop" "develop"
 
 # Get prior decisions (critical for implementation)
-prior_decisions=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_decisions "all")
+prior_decisions=$("${OCTO_ROOT:?}/scripts/state-manager.sh" get_decisions "all")
 
 # Get context from discover and define phases
-discover_context=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_context "discover")
-define_context=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_context "define")
+discover_context=$("${OCTO_ROOT:?}/scripts/state-manager.sh" get_context "discover")
+define_context=$("${OCTO_ROOT:?}/scripts/state-manager.sh" get_context "define")
 
 # Display what you found (if any)
 if [[ "$discover_context" != "null" ]]; then
@@ -236,7 +241,7 @@ fi
 
 ```bash
 # Keep execution and report validation in the same shell invocation.
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${OCTO_ROOT:?}"
 bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
 RUN_MARKER=$(mktemp) || exit 1
 RUN_STATUS=0
@@ -308,19 +313,19 @@ implementation_approach=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Implementat
 decision_made=$(echo "$implementation_approach" | grep -o "implemented\|using [A-Za-z0-9 ]*\|chose to\|pattern:" | head -1)
 
 if [[ -n "$decision_made" ]]; then
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" write_decision \
+  "${OCTO_ROOT:?}/scripts/state-manager.sh" write_decision \
     "develop" \
     "$decision_made" \
     "Multi-AI implementation consensus" || exit 1
 fi
 
 # Update develop phase context
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_context \
   "develop" \
   "$implementation_approach" || exit 1
 
 # Update metrics
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1" || exit 1
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "phases_completed" "1" || exit 1
 ```
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
@@ -468,7 +473,7 @@ Providers:
 ### Step 1: Invoke Tangle Phase
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" develop "<user's implementation request>"
+"${OCTO_ROOT:?}/scripts/orchestrate.sh" develop "<user's implementation request>"
 ```
 
 ### Step 2: Multi-Provider Implementation
@@ -603,7 +608,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider implementation mode
 🛠️ Develop Phase: Building authentication system
 
-[Executes: "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" develop "Build a user authentication system with JWT"]
+[Executes: "${OCTO_ROOT:?}/scripts/orchestrate.sh" develop "Build a user authentication system with JWT"]
 
 [After completion, reads synthesis and presents:]
 
@@ -805,13 +810,13 @@ git tag "$checkpoint_tag" -m "Post-develop checkpoint from embrace workflow" || 
 echo "📌 Created checkpoint: $checkpoint_tag"
 
 # Update state only after verification and checkpoint creation succeed.
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+"${OCTO_ROOT:?}/scripts/octo-state.sh" update_state \
   --status "complete" \
   --history "Develop phase completed" || exit 1
 
 # Record files modified in this phase
 modified_files=$(git diff --name-only HEAD~1 2>/dev/null || echo "See git log")
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+"${OCTO_ROOT:?}/scripts/octo-state.sh" update_state \
   --history "Files modified: $modified_files" || exit 1
 ```
 

@@ -28,6 +28,50 @@ def adapt(text):
 
 class CodexReferences(unittest.TestCase):
 
+    def test_preserved_entries_run_helpers_from_the_verified_loaded_root(self):
+        with tempfile.TemporaryDirectory(prefix='octopus root ') as temporary:
+            root = Path(temporary)
+            source = root / 'source/demo/SKILL.md'
+            source.parent.mkdir(parents=True)
+            source.write_text('---\nname: demo\ndescription: fixture\n'
+                              'disable-model-invocation: true\n---\nBody.\n')
+            native = root / 'native'
+            entries = ('skill-council', 'octopus-starter-pack/provider-health')
+            for name in entries:
+                entry = native / name / 'SKILL.md'
+                entry.parent.mkdir(parents=True)
+                entry.write_text('---\nname: ' + name.rsplit('/', 1)[-1] +
+                                 '\ndescription: fixture\ndisable-model-invocation: true\n---\n'
+                                 '```bash\n"${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-providers.sh"\n```\n')
+            command = ('source "$1"; SKILLS_DIR="$2/source"; OUTPUT_DIR="$2/codex"; '
+                       'NATIVE_OUTPUT_DIR="$2/native"; main')
+            result = subprocess.run(['/bin/bash', '-eu', '-c', command,
+                                     'fixture', str(GENERATOR), str(root)],
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            helper = root / 'scripts/helpers/check-providers.sh'
+            helper.parent.mkdir(parents=True)
+            helper.write_text('#!/bin/sh\nprintf "loaded-root-helper\\n"\n')
+            helper.chmod(0o755)
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ('CLAUDE_PLUGIN_ROOT', 'CODEX_PLUGIN_ROOT', 'OCTO_ROOT')}
+            env['OCTO_ROOT'] = str(root)
+            for name in entries:
+                text = (root / 'codex' / name / 'SKILL.md').read_text()
+                self.assertIn('Host: Codex CLI', text)
+                self.assertIn('Before the first helper call', text)
+                recipe = re.search(r'```bash\n(.*?)\n```', text, re.S)[1]
+                executed = subprocess.run(['/bin/bash', '-eu', '-c', recipe], env=env,
+                                          capture_output=True, text=True, timeout=5)
+                self.assertEqual(executed.returncode, 0, executed.stderr)
+                self.assertEqual(executed.stdout, 'loaded-root-helper\n')
+
+    def test_setup_redirect_does_not_invoke_itself(self):
+        text = (ROOT / 'codex-skills/sys-configure/SKILL.md').read_text()
+        action = re.search(r'^\*\*Action:\*\*.*$', text, re.M)[0]
+        self.assertNotIn('$sys-configure', action)
+        self.assertIn('/commands/setup.md', action)
+
 
     def test_check_reports_only_the_missing_generated_tree_without_writing(self):
         for missing in (('codex',), ('native',), ('codex', 'native')):

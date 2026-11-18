@@ -6,8 +6,13 @@ disable-model-invocation: true
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$skill-finish-branch` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
 
 
 ## Execution Contract (MANDATORY - CANNOT SKIP)
@@ -106,7 +111,7 @@ sys.stdout.buffer.write(diff)
 PY_REVIEW_DIFF
 ) || exit 1
 # Collect the completed answer, rather than accepting a launch PID as a review.
-REVIEW_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+REVIEW_ROOT="${OCTO_ROOT:?}"
 source "$REVIEW_ROOT/scripts/lib/consultative-advisors.sh" || exit 1
 REVIEW_OUTPUT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-review-results.XXXXXX") || exit 1
 printf 'REVIEW_OUTPUT_DIR=%s\n' "$REVIEW_OUTPUT_DIR"
@@ -292,7 +297,7 @@ if ! git push -u origin "$FEATURE_BRANCH"; then
   return 1 2>/dev/null || exit 1
 fi
 # Create PR with a validated description file
-if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
+if ! "${OCTO_ROOT:?}/scripts/safe-gh-comment.sh" \
     --repo "$REPO_SLUG" pr-create "$PR_TITLE" "$FEATURE_BRANCH" - <<< "$PR_BODY"; then
   echo "GitHub write state is unknown; check for an existing pull request before retrying:" >&2
   gh pr list --repo "$REPO_SLUG" --head "$FEATURE_BRANCH" --state all --json number,state,url || true
@@ -422,7 +427,7 @@ After completing octopus workflows, use this skill:
 
 ```bash
 # Run octopus validation before finishing
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" ink "Validate before merge"
+"${OCTO_ROOT:?}/scripts/orchestrate.sh" ink "Validate before merge"
 
 # If validation passes, proceed with finishing-branch
 ```

@@ -301,7 +301,7 @@ Provider Availability:
 🟡 Antigravity CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🤖 Grok CLI (xAI): [Available ✓ / Not installed ✗]
-🟠 Sonnet 5: Available ✓ (via Agent tool — no extra cost)
+🟠 Sonnet 5: Available only when host subagents are exposed, delegation is authorized, and the provider allowlist permits Claude; otherwise unavailable
 🐙 Claude (Opus): Available ✓ (Moderator and participant)
 ```
 

@@ -6,8 +6,13 @@ disable-model-invocation: true
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$octopus-ui-ux-design` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
 
 
 ## EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
@@ -102,7 +107,7 @@ missing, non-numeric, or outside 1-10, stop and obtain a valid value rather than
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
+bash "${OCTO_ROOT:?}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -122,7 +127,7 @@ Providers:
 🔴 Codex CLI: [Available ✓ / Not installed ✗] — Implementation critique
 🟡 Antigravity CLI: [Available ✓ / Not installed ✗] — Ecosystem critique
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗] — Additional external-model challenge
-🔵 Claude (Sonnet): Available ✓ — Design + independent critique
+🔵 current host model: Available ✓ — Design + independent critique
 
 Tools:
 🔍 BM25 Design Intelligence: [checking...]
@@ -133,7 +138,7 @@ Tools:
 ### STEP 3: Check Design Intelligence
 
 ```bash
-SEARCH_PY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
+SEARCH_PY="${OCTO_ROOT:?}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
 if [ -f "$SEARCH_PY" ]; then
     python3 -c "import csv, re, math" 2>/dev/null && echo "READY" || echo "MISSING_PYTHON"
 else
@@ -152,7 +157,7 @@ continue to Step 4 when preflight returns `READY`.
 **You MUST execute at least 3 of these searches. This is NOT optional.**
 
 ```bash
-SEARCH_PY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
+SEARCH_PY="${OCTO_ROOT:?}/vendors/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py"
 
 # 1. Product type search — what design patterns fit this product?
 python3 "$SEARCH_PY" "<user's product description>" --domain product
@@ -185,11 +190,16 @@ python3 "$SEARCH_PY" "<user's product description>" --design-system \
 
 ### STEP 4b: Design Shotgun Mode (Auto-Activated When 3+ Providers Available)
 
-**This step runs automatically when the provider check in Step 2 detected 3 or more available providers (counting Claude as always available).** When fewer than 3 providers are available, skip to Step 5 and use standard single-direction mode.
+**This step runs automatically when the provider check in Step 2 detected 3 or more available and authorized providers.** When fewer than 3 providers are available, skip to Step 5 and use standard single-direction mode.
 
 Dispatch the same design brief to multiple providers in parallel. Each provider generates an independent design direction without seeing the others' work.
 
-**Launch 3+ variant agents in parallel using the host subagent tool with `run_in_background: true`:**
+**Launch a variant through each detected provider's actual entrypoint.** Use the
+host subagent tool for an authorized Claude variant. Start Codex and Antigravity variants
+with `orchestrate.sh spawn codex` and `orchestrate.sh spawn agy`, respectively,
+using the shared prompt below. Record each result under the provider whose
+process produced it. If a provider cannot be launched, report that missing
+variant and continue only with the variants actually returned.
 
 Each agent receives:
 ```
@@ -303,14 +313,14 @@ command -v agy >/dev/null 2>&1 && providers+=(agy)
 
 for provider in "${providers[@]}"; do
     safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
-    "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
+    "${OCTO_ROOT:?}/scripts/orchestrate.sh" spawn "$provider" \
       "<critique prompt>" > "/tmp/design-critique-${safe_provider}.md" &
 done
 
 wait
 ```
 
-**🔵 Claude (Sonnet) — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what external providers said. Approach the design direction as if you didn't create it — actively look for problems across all five dimensions. This is your independent synthesis perspective, same as in `$skill-debate`.
+**🔵 current host model — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what external providers said. Approach the design direction as if you didn't create it — actively look for problems across all five dimensions. This is your independent synthesis perspective, same as in `$skill-debate`.
 
 **Display all critiques with provider indicators:**
 ```
@@ -376,7 +386,7 @@ mcp__shadcn__search_items_in_registries({ query: "<component name>" })
 1. **Accessibility audit — run the checker, do not eyeball.** Every text/background pair in the token set goes through the contrast validator:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/contrast-check.py" \
+python3 "${OCTO_ROOT:?}/scripts/helpers/contrast-check.py" \
   '<text-hex>:<bg-hex>' '<heading-hex>:<bg-hex>:large' '<muted-hex>:<bg-hex>' ...
 ```
 

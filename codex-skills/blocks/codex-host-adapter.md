@@ -10,6 +10,9 @@ When a generated skill references a host tool, use the active Codex equivalent:
 | host subagent tool | use `spawn_agent`, `wait_agent`, and `close_agent` only when those tools are available and the user has authorized delegation |
 | task plan tool | use Codex task planning/status tools when present |
 | `AskUserQuestion` | use the active host question tool, or ask in the conversation and wait for the answer |
+| `TaskCreate`, `TaskUpdate`, `background_task`, `SendMessage` | use only session-exposed planning/delegation tools with their own arguments; Claude examples are prompt templates, not Codex calls |
+| `WebFetch`, `Read`, `read_file` | use an exposed fetch/document tool or an available local reader; do not invent a tool or its arguments, and report inputs that could not be read |
+| `EnterPlanMode` and `/security-review` | Claude-only examples; use a session-exposed equivalent only if its availability is verified, otherwise report that this host action is unavailable |
 | Claude-native call examples such as `Agent(run_in_background: true)` | translate the call to the available host tool and its documented arguments; never invent a Codex argument with the same spelling |
 | `/octo:*` command examples | use the installed skill name or run `scripts/orchestrate.sh` directly |
 

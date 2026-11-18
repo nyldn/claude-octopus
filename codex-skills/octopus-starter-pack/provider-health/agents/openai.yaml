@@ -1,5 +1,5 @@
 interface:
   display_name: "Provider Health"
-  short_description: "Check configured provider availability and readiness"
+  short_description: "Starter: one-screen provider health summary — availability,..."
 policy:
   allow_implicit_invocation: false

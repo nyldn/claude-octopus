@@ -6,8 +6,13 @@ disable-model-invocation: true
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$flow-parallel` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
 
 
 # STOP - SKILL ALREADY LOADED
@@ -19,7 +24,7 @@ disable-model-invocation: true
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact 7-step sequence.
 
-**Architectural Principle:** host subagent tool subagents do NOT load plugins. Independent `claude -p` processes DO. This skill spawns independent `claude -p` processes so each work package gets the full Octopus plugin, its own Double Diamond, agents, and quality gates.
+**Architectural Principle:** host subagents do NOT load plugins. Independent `claude -p` processes DO. This skill spawns independent `claude -p` processes so each work package gets the full Octopus plugin, its own Double Diamond, agents, and quality gates.
 
 
 ### STEP 1: Clarifying Questions (MANDATORY)
@@ -57,7 +62,7 @@ If user says "skip" for any question, use defaults: 3 work packages, fully indep
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
+bash "${OCTO_ROOT:?}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -180,7 +185,7 @@ command -v codex >/dev/null 2>&1 && review_provider="codex"
 [[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
 
 if [[ -n "$review_provider" ]]; then
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$review_provider" \
+  "${OCTO_ROOT:?}/scripts/orchestrate.sh" spawn "$review_provider" \
     "Review this Work Breakdown Structure for a parallel execution pipeline. Your job is to find problems BEFORE agents start working.
 
 1. What DEPENDENCIES between work packages were missed? (e.g., WP-2 needs a type definition from WP-1 but doesn't declare it)
@@ -376,7 +381,7 @@ PROJECT_ROOT="<absolute-project-root-path>"
 WP_ID="WP-N"
 WP_BRANCH="<wp-branch-name>"
 BASE_REF="<base-ref>"
-REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
+REGISTRY="${OCTO_ROOT:?}/scripts/agent-registry.sh"
 
 # Every exit path must leave exit-code and .done behind, or the orchestrator's
 # monitor loop waits for a marker that never arrives and only the wave timeout
@@ -664,7 +669,7 @@ print(' '.join(wp.get('dependencies',[])))
 
     if [[ "$COMPLETED" -lt "$WAVE_TOTAL" ]]; then
       # v8.45.0: Fire reaction engine between poll cycles
-      REACTIONS="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/reactions.sh"
+      REACTIONS="${OCTO_ROOT:?}/scripts/reactions.sh"
       if [[ -x "$REACTIONS" ]]; then
         "$REACTIONS" check-all 2>/dev/null || true
       fi
@@ -793,7 +798,7 @@ Coordination Files: .octo/parallel/
 
 ```bash
 # Show agent registry status for this parallel run
-REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
+REGISTRY="${OCTO_ROOT:?}/scripts/agent-registry.sh"
 if [[ -x "$REGISTRY" ]]; then
   echo ""
   echo "=== AGENT REGISTRY ==="
@@ -826,7 +831,7 @@ Created and managed by this skill:
 
 ## Prohibitions (MANDATORY - CANNOT VIOLATE)
 
-- CANNOT use host subagent tool subagents as substitute — Task subagents run in isolated sandboxes without plugin access, so they get no Octopus quality gates, personas, or provider orchestration
+- CANNOT use host subagents as substitute — Task subagents run in isolated sandboxes without plugin access, so they get no Octopus quality gates, personas, or provider orchestration
 - CANNOT skip WBS decomposition (Step 4) — without decomposition, agents receive the full compound task and produce overlapping, uncoordinated output
 - CANNOT launch without instruction files (Step 5 must precede Step 6)
 - CANNOT skip 12-second stagger between launches — simultaneous process spawning causes CPU/memory contention that degrades all agents' performance

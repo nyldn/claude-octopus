@@ -6,8 +6,13 @@ disable-model-invocation: true
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$skill-code-review` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
 
 
 # Code Review Skill
@@ -32,8 +37,8 @@ For fast sanity checks (staged changes, small PRs), skip the full review pipelin
 
 ```bash
 # Quick: grasp (consensus on scope) → tangle (parallel review)
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" grasp "[review request]"
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" tangle "[synthesized scope]"
+"${OCTO_ROOT:?}/scripts/orchestrate.sh" grasp "[review request]"
+"${OCTO_ROOT:?}/scripts/orchestrate.sh" tangle "[synthesized scope]"
 ```
 
 Use quick mode when user says "check this PR", "quick review", "sanity check my changes", or for pre-commit checks. Use the full review for PRs with security/architecture impact.
@@ -42,10 +47,10 @@ Use quick mode when user says "check this PR", "quick review", "sanity check my 
 
 ```bash
 # Via orchestrate.sh
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn code-reviewer "Review this pull request for security issues"
+"${OCTO_ROOT:?}/scripts/orchestrate.sh" spawn code-reviewer "Review this pull request for security issues"
 
 # Via auto-routing (detects review intent)
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" auto "review the authentication implementation"
+"${OCTO_ROOT:?}/scripts/orchestrate.sh" auto "review the authentication implementation"
 ```
 
 ## Capabilities
@@ -274,7 +279,7 @@ ${REVIEW_SYNTHESIS}
     # Post through the outbound credential gate. Never interpolate generated
     # Markdown directly into a gh shell argument.
     REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
-    if ! "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/safe-gh-comment.sh" \
+    if ! "${OCTO_ROOT:?}/scripts/safe-gh-comment.sh" \
             --repo "$REPO_SLUG" pr-comment "$PR_NUM" - <<< "$REVIEW_BODY"; then
         echo "GitHub write state is unknown; check for the review comment before retrying:" >&2
         gh pr view "$PR_NUM" --repo "$REPO_SLUG" --comments || true
@@ -283,7 +288,7 @@ ${REVIEW_SYNTHESIS}
     echo "Review posted to PR #${PR_NUM}"
 
     # Update agent registry if this agent is tracked
-    REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
+    REGISTRY="${OCTO_ROOT:?}/scripts/agent-registry.sh"
     if [[ -x "$REGISTRY" ]]; then
         AGENT_ID=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
         "$REGISTRY" update "$AGENT_ID" --pr "$PR_NUM" 2>/dev/null || true

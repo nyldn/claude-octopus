@@ -1,5 +1,5 @@
 interface:
   display_name: "Model Cost Compare"
-  short_description: "Compare workflow model choices and estimated API costs"
+  short_description: "Starter: compare model costs for a described task — maps..."
 policy:
   allow_implicit_invocation: false

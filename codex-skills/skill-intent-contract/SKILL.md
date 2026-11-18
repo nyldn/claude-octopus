@@ -6,8 +6,13 @@ disable-model-invocation: true
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$skill-intent-contract` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
 
 
 # Intent Contract System
@@ -240,7 +245,7 @@ If user selects "Let me describe it", follow up with a text prompt for their cus
 Resolve a unique run directory, then use the Write tool to create its `session-intent.md`:
 
 ```bash
-PLAN_STORAGE="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/plan-storage.sh"
+PLAN_STORAGE="${OCTO_ROOT:?}/scripts/plan-storage.sh"
 OCTO_PLAN_DIR="$("$PLAN_STORAGE" current "$PWD" 2>/dev/null || "$PLAN_STORAGE" create "$PWD")"
 cat > "${OCTO_PLAN_DIR}/session-intent.md" <<EOF
 # Intent Contract

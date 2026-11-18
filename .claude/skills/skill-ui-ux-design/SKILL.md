@@ -206,11 +206,16 @@ python3 "$SEARCH_PY" "<user's product description>" --design-system \
 
 ### STEP 4b: Design Shotgun Mode (Auto-Activated When 3+ Providers Available)
 
-**This step runs automatically when the provider check in Step 2 detected 3 or more available providers (counting Claude as always available).** When fewer than 3 providers are available, skip to Step 5 and use standard single-direction mode.
+**This step runs automatically when the provider check in Step 2 detected 3 or more available and authorized providers.** When fewer than 3 providers are available, skip to Step 5 and use standard single-direction mode.
 
 Dispatch the same design brief to multiple providers in parallel. Each provider generates an independent design direction without seeing the others' work.
 
-**Launch 3+ variant agents in parallel using the Agent tool with `run_in_background: true`:**
+**Launch a variant through each detected provider's actual entrypoint.** Use the
+Agent tool for an authorized Claude variant. Start Codex and Antigravity variants
+with `orchestrate.sh spawn codex` and `orchestrate.sh spawn agy`, respectively,
+using the shared prompt below. Record each result under the provider whose
+process produced it. If a provider cannot be launched, report that missing
+variant and continue only with the variants actually returned.
 
 Each agent receives:
 ```

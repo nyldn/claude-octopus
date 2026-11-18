@@ -6,8 +6,13 @@ disable-model-invocation: true
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$flow-spec` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
 
 
 # STOP - SKILL ALREADY LOADED
@@ -59,7 +64,7 @@ If user says "skip" for any question, note assumptions and proceed.
 Treat project names, selectors and requests as data in every Bash snippet. Shell-quote substituted values. Never paste raw user or research text into executed shell source.
 
 ```bash
-provider_status=$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh")
+provider_status=$(bash "${OCTO_ROOT:?}/scripts/helpers/check-providers.sh")
 codex_status=$(echo "$provider_status" | grep -q '^codex:available' && echo "Available" || echo "Not installed")
 agy_status=$(echo "$provider_status" | grep -q '^agy:available' && echo "Available" || echo "Not installed")
 ```
@@ -92,16 +97,16 @@ Estimated Time: 3-7 minutes
 
 ```bash
 # Initialize state if needed
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" init_state
+"${OCTO_ROOT:?}/scripts/state-manager.sh" init_state
 
 # Set current workflow
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" set_current_workflow "flow-spec" "spec"
+"${OCTO_ROOT:?}/scripts/state-manager.sh" set_current_workflow "flow-spec" "spec"
 
 # Get prior decisions (if any)
-prior_decisions=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_decisions "all")
+prior_decisions=$("${OCTO_ROOT:?}/scripts/state-manager.sh" get_decisions "all")
 
 # Get context from previous phases (e.g., discover)
-prior_context=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" read_state | jq -r '.context')
+prior_context=$("${OCTO_ROOT:?}/scripts/state-manager.sh" read_state | jq -r '.context')
 
 # Display what you found (if any)
 if [[ "$prior_decisions" != "[]" && "$prior_decisions" != "null" ]]; then
@@ -118,7 +123,7 @@ fi
 Before research, allocate or select the portable feature and bind project policy:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${OCTO_ROOT:?}"
 unset FEATURE_CONTEXT FEATURE_DIR SPEC_PATH FEATURE_RUNTIME_DIR FEATURE_SELECTOR POLICY_SNAPSHOT SPEC_RESEARCH_RUN
 if ! command -v jq >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
   echo "Spec workflow stopped: jq and Python 3 are required to record accepted research and publish safely" >&2
@@ -415,15 +420,15 @@ The writer redacts and scans before every repository write. If it cannot certify
 spec_summary="NLSpec generated for [project name] with [N] behaviors, complexity: [class]"
 
 # Update spec phase context
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_context \
   "spec" \
   "$spec_summary"
 
 # Update metrics
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
 # Track actual providers used (dynamic — not hardcoded)
-for _provider in $(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh" | grep ":available" | cut -d: -f1) claude; do
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "provider" "$_provider"
+for _provider in $(bash "${OCTO_ROOT:?}/scripts/helpers/check-providers.sh" | grep ":available" | cut -d: -f1) claude; do
+  "${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "provider" "$_provider"
 done
 ```
 

@@ -6,8 +6,13 @@ disable-model-invocation: true
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$skill-factory` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
 
 
 # STOP - SKILL ALREADY LOADED
@@ -65,8 +70,8 @@ DO NOT proceed past this gate if file does not exist.
 
 ### STEP 4: Read Prior State (OPTIONAL)
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" init_state 2>/dev/null || true
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" set_current_workflow "factory" "factory" 2>/dev/null || true
+"${OCTO_ROOT:?}/scripts/state-manager.sh" init_state 2>/dev/null || true
+"${OCTO_ROOT:?}/scripts/state-manager.sh" set_current_workflow "factory" "factory" 2>/dev/null || true
 ```
 Failure → continue without state, warn user.
 
@@ -86,7 +91,7 @@ command -v codex >/dev/null 2>&1 && review_provider="codex"
 [[ -z "$review_provider" ]] && command -v agy >/dev/null 2>&1 && review_provider="agy"
 
 if [[ -n "$review_provider" ]]; then
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$review_provider" \
+  "${OCTO_ROOT:?}/scripts/orchestrate.sh" spawn "$review_provider" \
     "You are a QA adversary. Given this specification and generated scenarios, identify coverage gaps.
 
 SPECIFICATION:
@@ -114,7 +119,7 @@ fi
 
 ### STEP 5: Execute orchestrate.sh factory (MANDATORY — Bash Tool)
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" factory --spec "<spec_path>"
+"${OCTO_ROOT:?}/scripts/orchestrate.sh" factory --spec "<spec_path>"
 ```
 
 If the command exits nonzero, report the error, show logs from
@@ -170,7 +175,7 @@ Present to user:
 
 ### STEP 8: Update State & Next Steps (MANDATORY)
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" record_decision "factory" "Factory run completed: <verdict> (<score>/<target>)" 2>/dev/null || true
+"${OCTO_ROOT:?}/scripts/state-manager.sh" record_decision "factory" "Factory run completed: <verdict> (<score>/<target>)" 2>/dev/null || true
 ```
 
 Present next-step suggestions based on verdict:

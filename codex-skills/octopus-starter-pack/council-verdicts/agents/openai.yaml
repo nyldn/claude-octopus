@@ -1,5 +1,5 @@
 interface:
   display_name: "Council Verdicts"
-  short_description: "Interpret council verdicts and their evidence limits"
+  short_description: "Starter: interpret a council run's verdict artifacts —..."
 policy:
   allow_implicit_invocation: false

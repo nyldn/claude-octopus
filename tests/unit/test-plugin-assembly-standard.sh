@@ -241,6 +241,7 @@ with tempfile.TemporaryDirectory() as directory:
     valid = '---\nname: demo\ndescription: fixture\ndisable-model-invocation: true\n---\nBody.\n'
     cases = [
         ('valid', valid, None),
+        ('invalid UTF-8 host marker', valid + '\xffHost: Codex CLI\n', 'Claude Code registers a Codex-adapted skill'),
         ('missing frontmatter', '# Body only\n', 'missing frontmatter'),
         ('missing name', valid.replace('name: demo\n', ''), 'missing required frontmatter field: name'),
         ('bad name', valid.replace('name: demo', 'name: Bad Name'), 'name must be kebab-case'),
@@ -255,11 +256,17 @@ with tempfile.TemporaryDirectory() as directory:
         manifest.write_text(json.dumps({'name': 'fixture', 'version': '0.0.0',
                                        'description': 'fixture', 'skills': registration}))
         for name, text, diagnostic in cases:
-            skill.write_text(text)
+            if name == 'invalid UTF-8 host marker':
+                skill.write_bytes(text.encode('latin-1'))
+            else:
+                skill.write_text(text)
             result = validate()
             assert (result.returncode == 0) == (diagnostic is None), (registration, name, result.stderr)
             if diagnostic:
                 assert diagnostic in result.stderr, (registration, name, result.stderr)
+                assert 'Traceback' not in result.stderr, result.stderr
+                if name == 'invalid UTF-8 host marker':
+                    assert 'native/demo/SKILL.md' in result.stderr, result.stderr
     skill.write_text(valid)
     codex_manifest = root / '.codex-plugin/plugin.json'
     codex_manifest.parent.mkdir()
@@ -309,7 +316,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert result.returncode != 0 and 'codex-skills/: missing or unsafe required' in result.stderr, result.stderr
     finally:
         outside.rmdir()
-print('21 custom-registration cases and required Codex-tree controls passed')
+print('24 custom-registration cases and required Codex-tree controls passed')
 PY_REGISTRATIONS
 then test_pass; else test_fail "registered frontmatter or required Codex-tree check failed"; fi
 

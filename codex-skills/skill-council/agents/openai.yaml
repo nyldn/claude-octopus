@@ -1,5 +1,5 @@
 interface:
   display_name: "Council"
-  short_description: "Review an artifact with a configurable multi-model council"
+  short_description: "Run a configurable multi-LLM council with personas, budget..."
 policy:
   allow_implicit_invocation: false

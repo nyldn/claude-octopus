@@ -6,8 +6,13 @@ disable-model-invocation: true
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$flow-define` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
 
 
 {{PREAMBLE}}
@@ -37,14 +42,14 @@ Before starting definition:
 ```bash
 # Verify Discover phase is complete
 if [[ -f ".octo/STATE.md" ]]; then
-  discover_status=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" get_phase_status 1)
+  discover_status=$("${OCTO_ROOT:?}/scripts/octo-state.sh" get_phase_status 1)
   if [[ "$discover_status" != "complete" ]]; then
     echo "⚠️ Warning: Discover phase not marked complete. Consider running discovery first."
   fi
 fi
 
 # Update state for Definition phase
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+"${OCTO_ROOT:?}/scripts/octo-state.sh" update_state \
   --phase 2 \
   --position "Definition" \
   --status "in_progress"
@@ -62,7 +67,7 @@ This skill uses **ENFORCED execution mode**. You MUST follow this exact sequence
 ```bash
 # Runs under bash even when the host shell is zsh.
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
-provider_check_output=$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh")
+provider_check_output=$(bash "${OCTO_ROOT:?}/scripts/helpers/check-providers.sh")
 provider_status_lines=$(printf '%s\n' "$provider_check_output" | awk '
   /^PROVIDER_CHECK_START$/ { capture=1; next }
   /^PROVIDER_CHECK_END$/ { capture=0 }
@@ -76,7 +81,7 @@ fi
 
 # Exclude providers intentionally disabled by environment, session, or global
 # allowlist policy; show every allowed provider, including missing/degraded.
-source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/provider-allowlist.sh"
+source "${OCTO_ROOT:?}/scripts/lib/provider-allowlist.sh"
 provider_availability=""
 available_provider_count=0
 while IFS=: read -r provider status; do
@@ -102,7 +107,7 @@ if [[ "$available_provider_count" -eq 0 ]]; then
 fi
 
 # Task status for the banner's Tasks line, if the session has one.
-task_status=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
+task_status=$("${OCTO_ROOT:?}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
 printf 'Provider Availability:\n%s' "$provider_availability"
 printf 'Tasks: %s\n' "$task_status"
 OCTO_BASH
@@ -138,16 +143,16 @@ ${provider_availability}
 
 ```bash
 # Initialize state if needed
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" init_state
+"${OCTO_ROOT:?}/scripts/state-manager.sh" init_state
 
 # Set current workflow
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" set_current_workflow "flow-define" "define"
+"${OCTO_ROOT:?}/scripts/state-manager.sh" set_current_workflow "flow-define" "define"
 
 # Get prior decisions (if any)
-prior_decisions=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_decisions "all")
+prior_decisions=$("${OCTO_ROOT:?}/scripts/state-manager.sh" get_decisions "all")
 
 # Get context from discover phase
-discover_context=$("${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" get_context "discover")
+discover_context=$("${OCTO_ROOT:?}/scripts/state-manager.sh" get_context "discover")
 
 # Display what you found (if any)
 if [[ "$discover_context" != "null" ]]; then
@@ -243,7 +248,7 @@ export approach='[Answer from question 2]'
 export out_of_scope='[Answer from question 3]'
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Source context manager
-source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/context-manager.sh"
+source "${OCTO_ROOT:?}/scripts/context-manager.sh"
 
 # Create context file with user vision
 create_templated_context \
@@ -280,7 +285,7 @@ from an inferred development checkout.
 
 ```bash
 # Keep execution and report validation in the same shell invocation.
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${OCTO_ROOT:?}"
 bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
 # Keep verified research in a private snapshot through dispatch and cost review.
 DEFINE_RUN_DIR=$(mktemp -d) || exit 1
@@ -315,7 +320,7 @@ it or discard its binding. Only after the user explicitly chooses to discard
 it, run this command and retry Define, including standalone requests:
 
 ```bash
-OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+OCTO_ROOT="${OCTO_ROOT:?}"
 WORKFLOW_STATE_FILE=$("$OCTO_ROOT/scripts/state-manager.sh" handoff_path) || exit 1
 python3 "$OCTO_ROOT/scripts/helpers/discovery-handoff.py" discard "$WORKFLOW_STATE_FILE"
 ```
@@ -381,19 +386,19 @@ key_definition=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Problem Definition\|
 decision_made=$(echo "$key_definition" | grep -o "decided to\|chose to\|selected\|using [A-Za-z0-9 ]*" | head -1)
 
 if [[ -n "$decision_made" ]]; then
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" write_decision \
+  "${OCTO_ROOT:?}/scripts/state-manager.sh" write_decision \
     "define" \
     "$decision_made" \
     "Consensus from multi-AI definition phase"
 fi
 
 # Update define phase context
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_context \
   "define" \
   "$key_definition"
 
 # Update metrics
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${OCTO_ROOT:?}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
 ```
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
@@ -475,7 +480,7 @@ Provider Availability:
 ### Stage A: Invoke Grasp Phase
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" define "<user's clarification request>"
+"${OCTO_ROOT:?}/scripts/orchestrate.sh" define "<user's clarification request>"
 ```
 
 ### Stage B: Multi-Provider Problem Definition
@@ -600,7 +605,7 @@ Claude:
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider problem definition
 🎯 Define Phase: Clarifying authentication requirements
 
-[Executes: "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" define "Define exact requirements for user authentication system"]
+[Executes: "${OCTO_ROOT:?}/scripts/orchestrate.sh" define "Define exact requirements for user authentication system"]
 
 [After completion, reads synthesis and presents:]
 
@@ -772,14 +777,14 @@ After definition completes:
 
 ```bash
 # Update state after Definition completion
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
+"${OCTO_ROOT:?}/scripts/octo-state.sh" update_state \
   --status "complete" \
   --history "Define phase completed"
 
 # Populate ROADMAP.md with defined requirements
 if [[ -f "$SYNTHESIS_FILE" ]]; then
   echo "📝 Updating .octo/ROADMAP.md with defined phases..."
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_roadmap \
+  "${OCTO_ROOT:?}/scripts/octo-state.sh" update_roadmap \
     --from-synthesis "$SYNTHESIS_FILE"
 fi
 ```

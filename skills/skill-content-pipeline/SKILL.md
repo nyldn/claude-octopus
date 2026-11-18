@@ -120,7 +120,7 @@ Please provide an alternative URL or paste the content directly.
 Use WebFetch tool for each validated URL.
 
 **For Local PDFs:**
-Use `read_file` with the `pages` parameter for specific sections.
+Use Claude Code's `Read` tool with the `pages` parameter for specific sections.
 - **Large PDFs:** Ask user for relevant page ranges (e.g., "pages 10-25") to avoid token limits.
 - **Full PDFs:** Only read full content if < 50 pages.
 

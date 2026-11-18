@@ -133,8 +133,10 @@ def registered_skill_files(
             root, skill, ("name", "description"), errors, validate_name=True,
             expected={"disable-model-invocation": "true"},
         )
-        if "Host: Codex CLI" in skill.read_text(encoding="utf-8"):
-            errors.append(f"{prefix}: Claude Code registers a Codex-adapted skill: {path}")
+        if "Host: Codex CLI" in skill.read_text(encoding="utf-8", errors="replace"):
+            errors.append(
+                f"{prefix}: Claude Code registers a Codex-adapted skill: {path} ({rel(root, skill)})"
+            )
         safe.append(skill)
     return safe
 

@@ -423,12 +423,20 @@ adapt_freeze_for_codex() {
 # Preserve native tool-call examples while translating prose and resource paths.
 adapt_host_context_for_codex() {
     adapt_shared_paths_for_codex | adapt_skill_references_for_codex | adapt_freeze_for_codex | sed -E \
+        -e 's@\$\{CLAUDE_PLUGIN_ROOT:-\$\{CODEX_PLUGIN_ROOT:-\$\{HOME\}/\.claude-octopus/plugin\}\}@${OCTO_ROOT:?}@g' \
+        -e 's@\$\{CLAUDE_PLUGIN_ROOT:-\$HOME/\.claude-octopus/plugin\}@${OCTO_ROOT:?}@g' \
+        -e 's@\$\{(CLAUDE_PLUGIN_ROOT|CODEX_PLUGIN_ROOT)\}/scripts/@${OCTO_ROOT:?}/scripts/@g' \
         -e 's/Bash tool/native shell command tool/g' \
         -e 's/Agent tool/host subagent tool/g' \
         -e 's/Task tool/host subagent tool/g' \
+        -e 's/host subagent tool subagents/host subagents/g' \
         -e 's/TodoWrite/task plan tool/g' \
         -e 's/You \(Claude\)/You (the host model)/g' \
         -e 's/Claude Synthesizes/Host Synthesizes/g' \
+        -e 's/Claude \(Sonnet\)/current host model/g' \
+        -e 's/counting Claude as always available/using only providers returned by readiness checks/g' \
+        -e 's@^This skill is an alias for `\$sys-configure`\. When triggered, invoke the setup command directly\.@This skill delegates configuration to `commands/setup.md`. Read and follow that workflow; do not invoke this skill recursively.@' \
+        -e 's@^\*\*Action:\*\* Run `\$sys-configure`.*@**Action:** Read `${OCTO_ROOT:?}/commands/setup.md` and follow the interactive setup wizard for the requested configuration:@' \
         -e 's/if \[\[ -n "\$\{PLAN_MODE_ACTIVE\}" \]\] \|\| claude-code plan status 2>\/dev\/null \| grep -q "active"; then/if [[ -n "${PLAN_MODE_ACTIVE:-}" ]]; then/g'
 }
 
@@ -461,10 +469,16 @@ host_preamble() {
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
 
 PREAMBLE
+    if [[ -n "${1:-}" ]]; then
+        printf '> Invoke this entry as `$%s` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.\n\n' "$1"
+    fi
 }
 
 write_codex_adapter_block() {
@@ -483,6 +497,9 @@ When a generated skill references a host tool, use the active Codex equivalent:
 | host subagent tool | use `spawn_agent`, `wait_agent`, and `close_agent` only when those tools are available and the user has authorized delegation |
 | task plan tool | use Codex task planning/status tools when present |
 | `AskUserQuestion` | use the active host question tool, or ask in the conversation and wait for the answer |
+| `TaskCreate`, `TaskUpdate`, `background_task`, `SendMessage` | use only session-exposed planning/delegation tools with their own arguments; Claude examples are prompt templates, not Codex calls |
+| `WebFetch`, `Read`, `read_file` | use an exposed fetch/document tool or an available local reader; do not invent a tool or its arguments, and report inputs that could not be read |
+| `EnterPlanMode` and `/security-review` | Claude-only examples; use a session-exposed equivalent only if its availability is verified, otherwise report that this host action is unavailable |
 | Claude-native call examples such as `Agent(run_in_background: true)` | translate the call to the available host tool and its documented arguments; never invent a Codex argument with the same spelling |
 | `/octo:*` command examples | use the installed skill name or run `scripts/orchestrate.sh` directly |
 
@@ -515,7 +532,7 @@ write_skill() {
         echo "description: \"$codex_desc\""
         [[ -n "$disable_model" ]] && echo "disable-model-invocation: $disable_model"
         echo "---"
-        host_preamble
+        host_preamble "$codex_name"
         adapt_body_for_codex "$file"
     } > "$skill_dir/SKILL.md"
 
@@ -570,8 +587,14 @@ prepare_target_dir() {
         if [[ "$host" == codex ]]; then
             local file
             while IFS= read -r file; do
-                adapt_host_context_for_codex < "$file" > "$file.tmp"
-                mv "$file.tmp" "$file"
+                if [[ "$(basename "$file")" == SKILL.md ]]; then
+                    local source="$NATIVE_OUTPUT_DIR/${file#"$target_dir/"}"
+                    write_skill "$source" "$(dirname "$file")" \
+                        "$(extract_field "$source" name)" "$(extract_field "$source" description)"
+                else
+                    adapt_host_context_for_codex < "$file" > "$file.tmp"
+                    mv "$file.tmp" "$file"
+                fi
             done < <(find "$target_dir" -type f -name '*.md')
         fi
     fi

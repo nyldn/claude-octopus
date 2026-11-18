@@ -6,8 +6,13 @@ disable-model-invocation: true
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, then bind `OCTO_ROOT` to it in each fresh shell or use the verified absolute helper path. Do not infer it from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
 > Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
 > For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$skill-debate` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
 
 
 # AI Debate Hub Skill v4.8
@@ -53,7 +58,7 @@ the advisor role, so the debate prompt does not inherit an implementer persona
 or curated skill context:
 
 ```bash
-OCTOPUS_SPAWN_ROLE=advisor "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$advisor" "$prompt"
+OCTOPUS_SPAWN_ROLE=advisor "${OCTO_ROOT:?}/scripts/orchestrate.sh" spawn "$advisor" "$prompt"
 ```
 
 Do not call provider CLIs directly from the debate workflow. The router applies
@@ -263,7 +268,7 @@ When the user invokes `$skill-debate`:
 For provider checks, never use `grep -P`; use portable `grep -E`/`case` checks and capture the exit code so missing optional CLIs do not fail open or abort the command.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
+bash "${OCTO_ROOT:?}/scripts/helpers/check-providers.sh"
 ```
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
@@ -278,7 +283,7 @@ Provider Availability:
 🟡 Antigravity CLI: [Available ✓ / Not installed ✗]
 🧭 Antigravity CLI: [Available ✓ / Not installed ✗]
 🤖 Grok CLI (xAI): [Available ✓ / Not installed ✗]
-🟠 Sonnet 5: available only when this Codex session exposes a compatible host subagent tool
+🟠 Sonnet 5: Available only when host subagents are exposed, delegation is authorized, and the provider allowlist permits Claude; otherwise unavailable
 🐙 current host model: Available ✓ (Moderator and participant)
 ```
 
@@ -370,8 +375,8 @@ ROUNDS=3
 STYLE="thorough"
 
 # Dynamic advisor selection — the fleet builder remains the admission authority.
-CONSULTATIVE_LIB="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh"
-ADVISOR_SELECTOR="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/select-fleet-advisors.sh"
+CONSULTATIVE_LIB="${OCTO_ROOT:?}/scripts/lib/consultative-advisors.sh"
+ADVISOR_SELECTOR="${OCTO_ROOT:?}/scripts/helpers/select-fleet-advisors.sh"
 source "$CONSULTATIVE_LIB" || exit 1
 HOST_CLAUDE_ALLOWED=false
 HOST_ADVISOR_SUCCESS=0
@@ -479,8 +484,8 @@ export DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
 export ADVISORS='[ADVISORS printed by Step 3]'
 export REQUIRED_EXTERNAL_ADVISORS='[REQUIRED_EXTERNAL_ADVISORS printed by Step 3]'
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
-ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
-source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
+ORCH="${OCTO_ROOT:?}/scripts/orchestrate.sh"
+source "${OCTO_ROOT:?}/scripts/lib/consultative-advisors.sh" || exit 1
 DEBATE_PROMPT="You are {{advisor}} participating in debate round 1.
 
 DEBATE QUESTION: ${QUESTION}
@@ -531,7 +536,7 @@ block's export lines:
 export SUCCESSFUL_EXTERNAL_ADVISORS='[SUCCESSFUL_EXTERNAL_ADVISORS printed by the round'"'"'s launch block]'
 export HOST_ADVISOR_SUCCESS='[1 if the allowed Sonnet task completed with usable output, else 0]'
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
-source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
+source "${OCTO_ROOT:?}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
     "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then
   echo "A debate requires two successful, allowlisted providers." >&2

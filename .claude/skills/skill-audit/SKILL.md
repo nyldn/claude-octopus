@@ -155,7 +155,8 @@ Total instances: [N]
 Total items to audit: [N]
 ```
 
-Use TodoWrite to track audit progress.
+Track audit progress with the task tools exposed by the current session. If no
+task tools are available, maintain the checklist in the conversation.
 
 ---
 

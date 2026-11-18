@@ -89,7 +89,7 @@ This will:
 
 ```bash
 # Read current state from STATE.md
-./scripts/octo-state.sh read_state
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" read_state
 ```
 
 **Expected output format:**
@@ -443,7 +443,7 @@ cat .octo/STATE.md
 
 **Good:**
 ```bash
-./scripts/octo-state.sh read_state
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" read_state
 ```
 
 **Poor:**

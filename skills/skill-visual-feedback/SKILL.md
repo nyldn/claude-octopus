@@ -387,11 +387,11 @@ User says "fix these everywhere"?
 → Use skill-visual-feedback to fix each systematically
 ```
 
-### With flow-tangle
+### With flow-develop
 
 ```
 Visual feedback requires new component?
-→ Use flow-tangle to implement the component
+→ Use flow-develop to implement the component
 → Use skill-visual-feedback to verify it matches design
 ```
 

@@ -201,7 +201,21 @@ test_flow_skill_frontmatter() {
             log_fail "Discovery must retain its main-conversation tools and context"
             return 1
         fi
-        if grep -qE '^agent: (Explore|Plan)$' "$skill_path"; then
+        local agent
+        agent=$(python3 - "$PROJECT_ROOT" "$skill_path" <<'PY_AGENT'
+import importlib.util
+from pathlib import Path
+import sys
+spec = importlib.util.spec_from_file_location('assembly', Path(sys.argv[1]) / 'scripts/validate-plugin-assembly.py')
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+metadata, error = module.extract_frontmatter(Path(sys.argv[2]).read_text())
+if error:
+    sys.exit(error)
+print(metadata.get('agent', ''))
+PY_AGENT
+        ) || return 1
+        if [[ "$agent" == Explore || "$agent" == Plan ]]; then
             log_fail "Skill $skill defaults to a read-only agent"
             return 1
         else
