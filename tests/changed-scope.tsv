@@ -143,3 +143,5 @@ scripts/lib/feature-*.sh	@full
 scripts/lib/engineering-methods.sh	@full
 scripts/safe-gh-comment.sh	tests/unit/test-safe-github-comments.sh tests/unit/test-feature-artifacts.sh
 tests/unit/test-feature-*.py	tests/unit/test-feature-*.sh
+
+codex-skills/*	tests/unit/test-native-skill-registration.sh tests/unit/test-codex-skill-references.sh tests/unit/test-human-only-skill-list.sh tests/unit/test-public-reference-integrity.sh tests/unit/test-argument-placeholder-safety.sh tests/unit/test-host-shell-bash-blocks.sh

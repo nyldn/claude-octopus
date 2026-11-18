@@ -195,19 +195,17 @@ test_flow_skill_frontmatter() {
             return 1
         fi
 
-        # Discovery orchestrates other agents and writes its synthesis from the
-        # main conversation. An Explore fork cannot provide that tool contract.
-        if [[ "$skill" == flow-discover ]]; then
-            if grep -cE '^(agent|context):' "$skill_path" >/dev/null; then
-                log_fail "Discovery must retain its main-conversation tools and context"
-                return 1
-            fi
-            log_pass "Discovery retains main-conversation tools and context"
-        elif grep -q "^agent:" "$skill_path"; then
-            log_pass "Skill $skill has agent field"
-        else
-            log_fail "Skill $skill missing agent field"
+        # Discovery must retain its main-conversation tools; other writable
+        # workflows also cannot default to read-only Explore/Plan agents.
+        if [[ "$skill" == flow-discover ]] && grep -qE '^(agent|context):' "$skill_path"; then
+            log_fail "Discovery must retain its main-conversation tools and context"
             return 1
+        fi
+        if grep -qE '^agent: (Explore|Plan)$' "$skill_path"; then
+            log_fail "Skill $skill defaults to a read-only agent"
+            return 1
+        else
+            log_pass "Skill $skill preserves a writable execution context"
         fi
 
         # Check for context field

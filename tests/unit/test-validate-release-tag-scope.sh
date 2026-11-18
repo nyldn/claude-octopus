@@ -85,13 +85,15 @@ with tempfile.TemporaryDirectory(prefix='release-readonly-', dir=sys.argv[2]) as
     root.mkdir()
     (root / 'scripts/helpers').mkdir(parents=True)
     shutil.copyfile(source, root / 'scripts/validate-release.sh')
+    shutil.copyfile(source.with_name('validate-plugin-assembly.py'),
+                    root / 'scripts/validate-plugin-assembly.py')
     audit = root / 'scripts/helpers/audit-provider-contracts.sh'
     audit.write_text('#!/usr/bin/env bash\nprintf "SUMMARY fixture audit passed\\n"\n')
     audit.chmod(0o755)
-    for directory in ['.claude-plugin', '.codex-plugin', '.cursor-plugin', '.factory-plugin', 'commands', 'skills/flow-fixture']:
+    for directory in ['.claude-plugin', '.codex-plugin', '.cursor-plugin', '.factory-plugin', 'commands', 'skills/flow-fixture', '.claude/skills/flow-fixture', 'codex-skills/flow-fixture']:
         (root / directory).mkdir(parents=True)
     version = '99.1.0'
-    plugin = {'name': 'octo', 'version': version, 'commands': ['./commands/fixture.md'],
+    plugin = {'name': 'octo', 'description': 'Native fixture plugin', 'version': version, 'commands': ['./commands/fixture.md'],
               'skills': ['./skills/flow-fixture']}
     (root / '.claude-plugin/plugin.json').write_text(json.dumps(plugin, indent=2))
     (root / '.claude-plugin/marketplace.json').write_text(json.dumps({'plugins': [
@@ -106,7 +108,15 @@ with tempfile.TemporaryDirectory(prefix='release-readonly-', dir=sys.argv[2]) as
     (root / 'README.md').write_text('Version-' + version + '\n')
     (root / 'CHANGELOG.md').write_text('## [' + version + '] - 2026-01-01\n\nFixture release.\n')
     (root / 'commands/fixture.md').write_text('---\ncommand: fixture\n---\n')
-    (root / 'skills/flow-fixture/SKILL.md').write_text('---\nname: flow-fixture\n---\n')
+    (root / 'skills/flow-fixture/SKILL.md').write_text(
+        '---\nname: flow-fixture\ndescription: Native release fixture\ndisable-model-invocation: true\n---\n')
+    fixture_skill = (root / 'skills/flow-fixture/SKILL.md').read_text()
+    (root / '.claude/skills/flow-fixture/SKILL.md').write_text(fixture_skill)
+    (root / 'codex-skills/flow-fixture/SKILL.md').write_text(fixture_skill)
+    codex_manifest = root / '.codex-plugin/plugin.json'
+    codex_data = json.loads(codex_manifest.read_text())
+    codex_data['skills'] = './codex-skills/'
+    codex_manifest.write_text(json.dumps(codex_data, indent=2))
     binaries = Path(temporary) / 'bin'
     binaries.mkdir()
     cli = r'''

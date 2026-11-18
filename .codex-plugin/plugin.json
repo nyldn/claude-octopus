@@ -33,7 +33,7 @@
     "code-review",
     "research"
   ],
-  "skills": "./skills/",
+  "skills": "./codex-skills/",
   "interface": {
     "displayName": "Claude Octopus",
     "shortDescription": "Multi-LLM orchestration \u2014 dispatch to 12 providers from one plugin.",

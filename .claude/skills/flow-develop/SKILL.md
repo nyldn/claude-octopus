@@ -9,8 +9,6 @@ aliases:
 description: "Multi-AI implementation using available external providers (Double Diamond Develop phase). DO NOT use for simple code edits, reading/reviewing code, built-in commands, or trivial single-file changes."
 
 # Claude Code v2.1.12+ Integration
-agent: general-purpose
-context: fork
 task_management: true
 task_dependencies:
   - flow-define
