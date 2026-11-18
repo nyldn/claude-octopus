@@ -22,7 +22,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     def recipe(step):
         section = source.split('### Step ' + str(step) + ':', 1)[1]
         return re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for mode in ('present', 'absent', 'dirty', 'missing-backup', 'linked-backup', 'linked-source'):
+    for mode in ('present', 'absent', 'dirty', 'missing-backup', 'linked-backup', 'linked-source', 'restore-failed'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2], prefix='lessons space ') as temporary:
             base = Path(temporary)
             repo = base / 'repo'
@@ -40,6 +40,10 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 # Relocate only the vulnerable legacy destination into this owned
                 # fixture. Never touch a real shared backup or user lessons file.
                 code = recipe(step).replace('/tmp/LESSONS_PRESERVED.md', shlex.quote(str(legacy)))
+                if mode == 'restore-failed' and step == 6:
+                    # Let the real checkout finish, then fail only its restore
+                    # copy. This is deterministic even when tests run as root.
+                    code = 'cp() { return 73; }\n' + code
                 return subprocess.run(['bash', '-c', code], cwd=repo, env=env,
                                       capture_output=True, text=True, timeout=10)
             def capture(result):
@@ -101,6 +105,11 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 assert (repo / 'work.txt').read_text() == 'checkpoint\n'
                 assert lessons.read_text() == 'current lessons\n' if mode == 'present' else not lessons.exists()
                 assert backup_dir is None or not backup_dir.exists()
+            elif mode == 'restore-failed':
+                assert result.returncode == 1, (tree, mode, result.stderr)
+                assert git('write-tree') != before, 'checkout never ran before the failed copy'
+                assert (repo / 'work.txt').read_text() == 'checkpoint\n'
+                assert backup_dir.is_dir() and backup.read_text() == 'current lessons\n', 'failed copy discarded recovery state'
             else:
                 assert result.returncode != 0, (tree, mode, result.stderr)
                 assert git('write-tree') == before
