@@ -2036,7 +2036,7 @@ for quantity_text in 'The difference is 1928 − 2.' 'The offset is - 1928.' 'Th
     if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
         "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass; else test_fail "signed operand escaped"; fi
 done
-for heading in 'Latency [ms](units.md)' 'Latency [ms](units(nested).md)' '**HTTP status**' '`HTTP status`'; do
+for heading in 'Latency [ms](units.md)' 'Latency [ms](units(nested).md)' 'Latency (average) [ms]' '**HTTP status**' '`HTTP status`' '[HTTP status](status.md)'; do
     test_case "actual verifier retains visible heading context: $heading"
     table_value=1928
     [[ "$heading" != *HTTP* ]] || table_value=403

@@ -785,11 +785,10 @@ research_numeric_claims() {
         # In a Markdown table, retain measurements with units in the heading.
         column = table_cells(before, headings)
         table_cells(table_header, headings)
-        heading = unformat(headings[column])
+        heading = unformat(headings[column], 1)
         gsub(/`/, "", heading)
-        if (tolower(heading) ~ /^[ \t]*(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)[ \t]*$/) return 0
-        # Stop at the visible annotation, before any link destination.
-        sub(/^[^[(]*[(\[]/, "", heading)
+        if (tolower(heading) ~ /^[ \t]*\[?(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)\]?[ \t]*$/) return 0
+        sub(/^.*[(\[]/, "", heading)
         if (quantity_suffix(" " heading)) return 0
         # Numeric link labels stay claims, including links around endpoints.
         if (after ~ /^\]\(/) return 0
@@ -824,7 +823,7 @@ research_numeric_claims() {
         probe_prefix = "(^|[^0-9a-z_])[*_]*probes?[*_]*[ \\t]+"
         return (tolower(before) ~ (probe_prefix "([0-9]+" probe_join ")*$"))
     }
-    function unformat(text,    at, marker, width, previous, following, depth, result, piece, scan, paren_depth, marks, starts, drops, ticks, next_tick, parens, close_paren, destination_depth) {
+    function unformat(text, hide_destinations,    at, marker, width, previous, following, depth, result, piece, scan, paren_depth, marks, starts, drops, ticks, next_tick, parens, close_paren, destination_depth) {
         # Pair equal-length backtick runs once. Literal code and destinations
         # must not open or close emphasis in the surrounding prose.
         scan = 1
@@ -864,9 +863,11 @@ research_numeric_claims() {
                 at = next_tick[at] + RLENGTH; continue
             }
             if (substr(text, at, 2) == "](" && (at + 1) in close_paren) {
+                if (hide_destinations) drops[at + 1] = close_paren[at + 1] - at
                 at = close_paren[at + 1] + 1; continue
             }
             if (substr(text, at, 2) == "][" && match(substr(text, at + 2), /^[^]]*\]/)) {
+                if (hide_destinations) drops[at + 1] = 1 + RLENGTH
                 at += 2 + RLENGTH; continue
             }
             if (marker != "*" && marker != "_") { at++; continue }
