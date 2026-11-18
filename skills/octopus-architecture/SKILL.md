@@ -1,14 +1,8 @@
 ---
 name: octopus-architecture
-description: "Review system architecture, simplify boundaries, or compare interface designs from repository evidence"
 disable-model-invocation: true
+description: "Review system architecture, simplify boundaries, or compare interface designs from repository evidence"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Architecture review
 

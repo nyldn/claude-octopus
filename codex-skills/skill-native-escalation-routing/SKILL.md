@@ -1,0 +1,80 @@
+---
+name: skill-native-escalation-routing
+description: "Use when choosing native or multi-LLM handling for init, review, or security requests"
+disable-model-invocation: true
+---
+
+> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
+> Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
+> Before the first helper call, derive the absolute plugin root from this loaded skill's path by finding its ancestor containing `.codex-plugin/plugin.json`. Verify that root, bind `OCTO_ROOT`, `CODEX_PLUGIN_ROOT`, and `CLAUDE_PLUGIN_ROOT` to the same root, and export all three in each fresh shell before launching child processes. Use the verified absolute helper path when needed. Do not infer the root from the user's project or assume exports survive tool calls. Stop and report a missing installation if the root cannot be verified.
+> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
+> Claude-native tool calls in examples are prompt templates to adapt, not Codex call signatures. If a mandatory verification agent or tool is unavailable or unauthorized, report that verification did not run and stop the affected completion step. Never claim a skipped check passed.
+> Attribute commits only to actual contributors; do not copy fixed model attribution trailers from examples.
+> For host tool equivalents, see `codex-skills/blocks/codex-host-adapter.md`.
+
+> Invoke this entry as `$skill-native-escalation-routing` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.
+
+
+# Native-First Escalation Routing
+
+Use this skill when the user asks for repository initialization, code review, or security review and it is not yet clear whether Claude-native behavior is sufficient or whether Octopus escalation is warranted.
+
+## Core Policy
+
+Claude-native first:
+
+- `/init`
+- `/review`
+- `/security-review`
+
+Octopus for escalation:
+
+- `$skill-code-review`
+- `$octopus-security-audit`
+- `$skill-debate`
+- `$skill-parallel-agents`
+
+## Route to Claude-Native First
+
+Prefer Claude-native behavior when all of the following are true:
+
+- the request maps directly to init, review, or security review
+- the user did not ask for multiple model opinions
+- the user did not ask for Codex, Antigravity, or another provider explicitly
+- the task does not require adversarial debate, consensus scoring, or external-provider specialization
+
+Examples:
+
+- "initialize this repo"
+- "review my staged changes"
+- "security review this auth module"
+
+## Escalate to Octopus
+
+Escalate when the user asks for or clearly benefits from:
+
+- multiple model opinions
+- adversarial review
+- debate between providers
+- provider-specific analysis
+- autonomous codegen verification
+- elevated rigor for complex or high-risk work
+
+Examples:
+
+- "get multiple model opinions on this PR"
+- "have Codex and Antigravity review this architecture"
+- "do an adversarial security review"
+- "verify this AI-generated implementation before merge"
+
+## Execution Guidance
+
+- If Claude-native is sufficient, do not wrap the task in Octopus unnecessarily.
+- If the user explicitly invokes `$skill-code-review` or `$octopus-security-audit`, treat that as an escalation request.
+- If the request is ambiguous, prefer Claude-native first and mention Octopus as the escalation path.
+
+## Suggested User Framing
+
+Use wording like:
+
+> Claude-native first, Octopus for escalation. Use Claude-native `/review` or `/security-review` for ordinary requests. Use Octopus when you want multiple model opinions, adversarial review, or stricter multi-LLM workflows.

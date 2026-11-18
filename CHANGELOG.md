@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Claude Code discovers native workflow skills while Codex loads its separate
+  adapted skill tree. All existing skill names, explicit invocation controls,
+  aliases and starter-pack entries remain available.
+
 - Define stops after failed decision, context or completion writes, preserving
   earlier state and requiring repair before presenting the result as saved.
 
