@@ -1,14 +1,17 @@
 ---
 name: skill-status
-description: "Show where you are in the workflow and what to do next — use for progress checks and orientation"
 disable-model-invocation: true
+effort: low
+user-invocable: true
+description: "Show where you are in the workflow and what to do next — use for progress checks and orientation"
+trigger: |
+  EXPLICITLY USE when user asks about:
+  - "status" or "progress" or "where am I"
+  - "what's next" or "next step"
+  - "show status" or "project status"
+  - "what have I been working on" or "summarize recent work"
+  - "update project memory" or "update CLAUDE.md"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Project Status Dashboard
 
@@ -18,6 +21,7 @@ Display current project status, roadmap progress, blockers, and intelligent next
 
 **Core principle:** Read state → Display dashboard → Route intelligently.
 
+---
 
 ## When to Use
 
@@ -35,6 +39,7 @@ Display current project status, roadmap progress, blockers, and intelligent next
 - Modifying state (use octo-state.sh write_state)
 - Detailed phase planning (use flow-* skills)
 
+---
 
 ## The Process
 
@@ -76,6 +81,7 @@ This will:
 
 **Stop here** - do not proceed to Phase 2.
 
+---
 
 ### Phase 2: Read Current State
 
@@ -103,6 +109,7 @@ Extract key-value pairs:
 - `status` - Current workflow status
 - `last_updated` - Last state modification timestamp
 
+---
 
 ### Phase 3: Read Roadmap
 
@@ -121,6 +128,7 @@ Parse ROADMAP.md to identify:
 - Success criteria for each phase
 - Dependencies between phases
 
+---
 
 ### Phase 4: Display Dashboard
 
@@ -168,6 +176,7 @@ Map `current_phase` and `status` to completion markers:
 | 3 | not_started | `[ ] Phase 3: Develop - not_started` |
 | 4 | not_started | `[ ] Phase 4: Deliver - not_started` |
 
+---
 
 ### Phase 5: Intelligent Routing
 
@@ -221,6 +230,7 @@ Continue validation and delivery.
 - Use `/octo:ship` to finalize delivery
 ```
 
+---
 
 ## Example Outputs
 
@@ -243,6 +253,7 @@ Run `/octo:embrace [your project description]` to initialize a new project and s
 ```
 ```
 
+---
 
 ### Example 2: Active Project in Define Phase
 
@@ -280,6 +291,7 @@ Continue requirements clarification.
 - Check `.octo/phases/phase2/` for detailed plans
 ```
 
+---
 
 ### Example 3: Blocked Project
 
@@ -321,6 +333,7 @@ Review blockers above. Use `/octo:issues` to track and resolve issues.
 3. Set up rate limiting configuration
 ```
 
+---
 
 ### Phase 6: Recent Activity Summary (Cross-Session)
 
@@ -378,6 +391,7 @@ Based on recent activity, consider adding:
 
 **Only suggest updates that reflect durable project knowledge** (conventions, architecture decisions, provider configs) — NOT transient status like "currently working on X".
 
+---
 
 ## Integration with Other Skills
 
@@ -405,6 +419,7 @@ User asks "status" but no .octo/ exists
 → User initializes new project
 ```
 
+---
 
 ## Best Practices
 
@@ -450,6 +465,7 @@ Check `.octo/phases/phase3/` for implementation plan.
 You're in phase 3.
 ```
 
+---
 
 ## Red Flags - Don't Do This
 
@@ -461,6 +477,7 @@ You're in phase 3.
 | Hardcode phase names | Read from ROADMAP.md for accuracy |
 | Ignore blockers | User needs to know what's blocking progress |
 
+---
 
 ## Quick Reference
 
@@ -474,6 +491,7 @@ You're in phase 3.
 | "what have I been working on" | Git log + results → Cross-session activity summary |
 | "update project memory" | Activity summary → Suggest CLAUDE.md additions |
 
+---
 
 ## The Bottom Line
 

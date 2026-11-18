@@ -1,14 +1,19 @@
 ---
 name: skill-debug
-description: "Debug a reproducible symptom with a bounded feedback loop and original-scenario verification"
 disable-model-invocation: true
+aliases:
+  - debug
+  - systematic-debugging
+description: "Debug a reproducible symptom with a bounded feedback loop and original-scenario verification"
+trigger: |
+  Use for reproducible bugs, failing tests, unexpected behavior, and performance regressions.
+  Do not use for general explanations or already-understood changes.
+pre_execution_contract:
+  - observable_symptom_recorded
+validation_gates:
+  - root_cause_supported_by_evidence
+  - original_scenario_verified
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Debugging
 

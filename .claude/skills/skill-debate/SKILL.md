@@ -6,7 +6,6 @@ user-invocable: true
 aliases:
   - debate
 description: Structured multi-provider AI debates between Claude and available advisors — use for critical decisions
-context: fork
 trigger: |
   EXPLICITLY USE when user says:
   - "/debate <question>"

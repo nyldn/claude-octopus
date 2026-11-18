@@ -6,7 +6,6 @@ aliases:
   - content-analysis
   - pattern-extraction
 description: "Extract patterns and anatomy from URLs — use to reverse-engineer content strategies from live pages"
-context: fork
 trigger: |
   Invoke explicitly when the user wants to:
   - "analyze this article", "analyze this content"

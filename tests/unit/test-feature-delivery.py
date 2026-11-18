@@ -246,7 +246,7 @@ Given saved data, when export starts, then an export and index exist.
     def candidate_package(self):
         package = self.base / 'package'
         package.mkdir()
-        owners = {'.claude-plugin', '.codex-plugin', '.cursor-plugin', '.claude', 'commands', 'skills', 'scripts', 'config', 'agents', 'hooks'}
+        owners = {'.claude-plugin', '.codex-plugin', '.cursor-plugin', '.claude', 'commands', 'skills', 'codex-skills', 'scripts', 'config', 'agents', 'hooks'}
         tracked = subprocess.check_output(['git', '-C', str(REPO), 'ls-files', '-z'], env=self.env).decode().split('\0')
         for relative in tracked:
             if relative and relative.split('/')[0] in owners:
@@ -269,7 +269,7 @@ Given saved data, when export starts, then an export and index exist.
         factory = json.loads((package / '.cursor-plugin/plugin.json').read_text())
         self.assertTrue((package / factory['skills'] / 'flow-spec/SKILL.md').is_file())
         self.assertTrue((package / factory['commands'] / 'octo-spec.md').is_file())
-        for owner in (package / '.claude/skills', package / 'skills'):
+        for owner in (package / '.claude/skills', package / 'skills', package / 'codex-skills'):
             for skill in ('flow-spec', 'flow-develop', 'skill-resume'):
                 self.assertTrue((owner / skill / 'SKILL.md').is_file())
             self.assertIn('scripts/helpers/feature-workflow.sh', (owner / 'flow-spec/SKILL.md').read_text())
@@ -753,7 +753,7 @@ probe-single)
         self.assertEqual((self.runtime / 'challenge-answer.md').read_text(), 'SELECTED CHALLENGE\n## Status: FAILED\n')
 
     def test_generated_codex_and_agy_authors_exclude_their_provider(self):
-        self.text = (REPO / 'skills/flow-spec/SKILL.md').read_text()
+        self.text = (REPO / 'codex-skills/flow-spec/SKILL.md').read_text()
         plugin = self.root / 'plugin'
         (plugin / 'scripts/lib').mkdir(parents=True)
         (plugin / 'scripts/orchestrate.sh').write_text('printf "%s\\n" "$2" > "$FEATURE_RUNTIME_DIR/dispatched-provider"\nexit 1\n')

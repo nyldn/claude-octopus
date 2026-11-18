@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Claude Code discovers native workflow skills while Codex loads its separate
+  adapted skill tree. All existing skill names, explicit invocation controls,
+  aliases and starter-pack entries remain available.
+
 - Research prompts request full IDs (`PLAT-1931`, `probe-4`) to avoid false numeric-claim failures.
 
 ## [11.25.2] - 2026-11-17

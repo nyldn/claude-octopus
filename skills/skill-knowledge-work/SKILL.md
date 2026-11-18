@@ -1,14 +1,15 @@
 ---
 name: skill-knowledge-work
-description: "Switch to Knowledge Work mode for research and writing — use when task is non-code focused"
 disable-model-invocation: true
+description: "Switch to Knowledge Work mode for research and writing — use when task is non-code focused"
+triggerPatterns:
+  - "switch.*mode"
+  - "knowledge.*mode"
+  - "research.*mode"
+  - "toggle.*knowledge"
+  - "force.*knowledge"
+  - "force.*dev"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Knowledge Work Mode - Context Override Skill
 

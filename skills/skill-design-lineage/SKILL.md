@@ -1,14 +1,23 @@
 ---
 name: skill-design-lineage
-description: "Persist design documents with branch tracking, revision chains, and cross-session discovery"
 disable-model-invocation: true
+aliases:
+  - design-lineage
+  - design-docs
+  - design-history
+description: "Persist design documents with branch tracking, revision chains, and cross-session discovery"
+trigger: |
+  EXPLICITLY USE when user says:
+  - "save design" or "save this design"
+  - "design document" or "create a design doc"
+  - "design history" or "show design history"
+  - "find prior designs" or "search designs"
+  DO NOT activate for generic documentation or README creation.
+paths:
+  - "**/todo/**"
+  - "**/specs/**"
+  - "**/PRD*"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Design Document Lineage
 
@@ -22,6 +31,7 @@ leaving stale implementation guidance marked current.
 
 Persist design documents from brainstorming and planning sessions with branch tracking, revision chains, and cross-session discoverability. Design docs are immutable after creation -- new revisions supersede prior versions rather than editing in place.
 
+---
 
 ## Storage Location
 
@@ -39,6 +49,7 @@ DESIGNS_DIR="${HOME}/.claude-octopus/designs/${SLUG}"
 mkdir -p "$DESIGNS_DIR"
 ```
 
+---
 
 ## Filename Format
 
@@ -65,6 +76,7 @@ DATETIME=$(date -u +"%Y%m%d-%H%M%S")
 FILENAME="${USER}-${BRANCH}-design-${DATETIME}.md"
 ```
 
+---
 
 ## Design Document Template
 
@@ -73,10 +85,12 @@ Each design document contains YAML frontmatter followed by structured sections.
 ### Frontmatter Metadata
 
 ```yaml
+---
 branch: feature/auth-refactor
 user: chris
 created: 2026-03-21T14:30:22Z
 supersedes: chris-feature-auth-refactor-design-20260320-091500.md
+---
 ```
 
 Fields:
@@ -114,6 +128,7 @@ Fields:
 [Unresolved questions that may affect implementation or require follow-up.]
 ```
 
+---
 
 ## Step 1: Save Design
 
@@ -130,10 +145,12 @@ FILENAME="${USER}-${BRANCH}-design-${DATETIME}.md"
 FILEPATH="${DESIGNS_DIR}/${FILENAME}"
 
 cat > "$FILEPATH" <<EOF
+---
 branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "no-branch")
 user: ${USER}
 created: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 ${SUPERSEDES:+supersedes: ${SUPERSEDES}}
+---
 
 # Design: [Title]
 
@@ -156,6 +173,7 @@ EOF
 
 Design docs are **read-only after creation**. To revise a design, create a new document with a `supersedes` reference to the prior version.
 
+---
 
 ## Step 2: Discover Prior Designs
 
@@ -185,6 +203,7 @@ Found 2 prior designs related to "auth refactor":
 Would you like to review any of these before creating a new design?
 ```
 
+---
 
 ## Step 3: Link Revision Chain
 
@@ -215,6 +234,7 @@ while [[ -n "$current" ]]; do
 done
 ```
 
+---
 
 ## Step 4: Cross-Session Discovery
 
@@ -245,6 +265,7 @@ Downstream skills should check for designs before starting work:
 - **flow-develop**: Read the recommended approach from the latest design
 - **skill-brainstorm**: Surface prior designs as starting context
 
+---
 
 ## Caps and Limits
 
@@ -260,6 +281,7 @@ if [[ "$DOC_COUNT" -ge 50 ]]; then
 fi
 ```
 
+---
 
 ## Integration Notes
 
