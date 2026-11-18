@@ -635,6 +635,7 @@ research_quantity_awk() {
         return (tolower(after) ~ ("^[ \\t]+[*_]*" units "([^0-9a-z_]|$)") || after ~ /^(\.[0-9]|[A-Za-z])/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
     }
     function quantity_tail(after) {
+        after = tolower(after)
         gsub(/`|[()]|\[|\]/, " ", after)
         if (after ~ /^[ \t*_]*([+*=<>]|&lt;|&gt;|\342\211\244|\342\211\245)/) return 1
         # Spaced minus is arithmetic; compact ticket ranges remain references.
@@ -1171,6 +1172,8 @@ research_verify_synthesis() {
         project_root=$(cd "$project_root" 2>/dev/null && pwd -P) || project_root=""
     fi
     local research_declared_ids="" research_probe_index_list research_table_header="" previous_table_line=""
+    local table_delimiter_pattern='^[[:space:]]*\|?[[:space:]]*:?-+:?[[:space:]]*(\|[[:space:]]*:?-+:?[[:space:]]*)*\|?[[:space:]]*$'
+    local table_end_pattern='^[[:space:]]*(#{1,6}([[:space:]]|$)|>|[-+*][[:space:]]|[0-9]+[.)][[:space:]]|([-*_][[:space:]]*){3,}$)'
     if [[ -r "$run_dir/prompt.txt" ]]; then
         research_declared_ids=$(research_declared_identifier_numbers < "$run_dir/prompt.txt")
     fi
@@ -1184,6 +1187,7 @@ research_verify_synthesis() {
             continue
         fi
         if [[ "$line" == '```'* ]]; then
+            research_table_header=""; previous_table_line=""
             if [[ "$in_fence" == "true" ]]; then
                 in_fence=false
             else
@@ -1192,13 +1196,15 @@ research_verify_synthesis() {
             continue
         fi
         [[ "$in_fence" == "true" ]] && continue
-        if [[ "$line" == *"|"* ]]; then
-            if [[ "$line" == *"---"* && "$line" =~ ^[[:space:]\|:-]+$ ]]; then
-                research_table_header="$previous_table_line"
-            fi
+        if [[ "$line" == *"|"* && "$line" =~ $table_delimiter_pattern ]]; then
+            research_table_header="$previous_table_line"
             previous_table_line="$line"
-        else
+        elif [[ -z "${line//[[:space:]]/}" || "$line" =~ $table_end_pattern ]]; then
             research_table_header=""; previous_table_line=""
+        elif [[ "$line" == *"|"* ]]; then
+            previous_table_line="$line"
+        elif [[ -z "$research_table_header" ]]; then
+            previous_table_line=""
         fi
         [[ -n "${line//[[:space:]]/}" ]] || continue
         [[ "$line" == \#* || "$line" == '---'* ]] && continue

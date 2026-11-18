@@ -2048,4 +2048,40 @@ for heading in 'Latency [ms](units.md)' 'Latency [ms](units(nested).md)' 'Latenc
     else test_fail "visible heading context lost"; fi
 done
 
+printf '%s\n' 'Check PLAT-1928 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return 1931;' > "$declared_root/src/handler.ts"
+for separator in TO Through AND; do
+    test_case "uppercase measured range keeps its first endpoint: $separator"
+    printf '%s\n' "- Latency is 1928 $separator 1931 ms. (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" != 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1928")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "uppercase range hid its first endpoint"; fi
+done
+for delimiter in '| :-: | :-: |' '| - | - |' '| --: | :-- |'; do
+    for heading in 'Latency (ms)' Ticket; do
+        test_case "short delimiter preserves table context: $delimiter $heading"
+        printf '%s\n' "| $heading | Source |" "$delimiter" '| 1928 | `src/handler.ts:1` |' > "$declared_draft"
+        declared_status=0
+        (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+        if [[ "$heading" == Ticket && "$declared_status" == 0 ]]; then test_pass
+        elif [[ "$heading" != Ticket && "$declared_status" != 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1928")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+        else test_fail "incorrect short-delimiter context"; fi
+    done
+done
+for heading in 'Latency (ms)' Ticket; do
+    test_case "pipe-free body retains single-column context: $heading"
+    printf '%s\n' "| $heading |" '| --- |' '1928' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$heading" == Ticket && "$declared_status" == 0 ]]; then test_pass
+    elif [[ "$heading" != Ticket && "$declared_status" != 0 ]] && jq -e '.checks | any(.kind == "missing_citation")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "incorrect pipe-free row context"; fi
+done
+for boundary in '' '## Next topic' $'```text\nignored\n```'; do
+    test_case "table context ends before the next block"
+    printf '%s\n' '| Latency (ms) |' '| --- |' "$boundary" '1928 shares the file.' > "$declared_draft"
+    if (cd "$declared_root" && research_verify_synthesis "$declared_draft"); then test_pass; else test_fail "table context leaked to a later block"; fi
+done
+
 test_summary
