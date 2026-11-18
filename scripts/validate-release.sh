@@ -359,8 +359,10 @@ echo "🎯 Checking skill registration..."
 find_skill_md_files() {
     find "$1" -mindepth 2 -name "SKILL.md" -type f 2>/dev/null
 }
-SKILL_FILES=$(find_skill_md_files "$ROOT_DIR/skills" \
-    | sed "s|^$ROOT_DIR/|./|;s|/SKILL.md$||" | LC_ALL=C sort)
+SKILL_FILES=$(
+    cd "$ROOT_DIR" || exit 1
+    find_skill_md_files "./skills" | sed 's|/SKILL.md$||' | LC_ALL=C sort
+)
 registered_skill_directories() {
     python3 -I - "$1" <<'PY_REGISTERED_SKILLS'
 import importlib.util

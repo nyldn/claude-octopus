@@ -73,7 +73,7 @@ root = Path(sys.argv[1])
 temp_root = sys.argv[2]
 source = (root / 'scripts/validate-release.sh').read_text()
 section = source[source.index('find_skill_md_files()'):source.index('# 7. SKILL FRONTMATTER FORMAT CHECK')]
-with tempfile.TemporaryDirectory(dir=temp_root) as temporary:
+with tempfile.TemporaryDirectory(prefix='octopus[1] with spaces ', dir=temp_root) as temporary:
     fixture = Path(temporary)
     (fixture / '.claude-plugin').mkdir()
     (fixture / 'scripts').mkdir()

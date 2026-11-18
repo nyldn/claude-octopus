@@ -24,7 +24,7 @@ workflows or spawn additional reviewers from a provider seat.
 When file access exists, load only the applicable reference from the installed
 plugin: codex-skills/blocks/debug-feedback-loop.md,
 codex-skills/blocks/architecture-simplification.md, codex-skills/blocks/domain-modeling.md,
-or the corresponding .claude/skills/skill-tdd, skill-coverage-audit,
+or the corresponding codex-skills/skill-tdd, skill-coverage-audit,
 skill-writing-plans, skill-work-slicing, skill-pressure-test, skill-prototype
 or skill-authoring SKILL.md. Use the actual plugin root supplied by the host,
 not a path in the target repository. If a reference or source artifact is

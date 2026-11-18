@@ -142,6 +142,16 @@ class CodexReferences(unittest.TestCase):
                 self.assertIn("codex-skills/" + name + "/SKILL.md", codex)
                 self.assertTrue((ROOT / "codex-skills" / name / "SKILL.md").is_file())
 
+    def test_engineering_methods_load_codex_tdd_guidance(self):
+        block = (ROOT / 'codex-skills/blocks/engineering-method-selection.md').read_text()
+        path = re.search(r'corresponding ([^,\s]+)', block)[1]
+        entry = ROOT / path / 'SKILL.md'
+        self.assertIn('Host: Codex CLI', entry.read_text())
+        for name in ('skill-tdd', 'skill-coverage-audit', 'skill-writing-plans',
+                     'skill-work-slicing', 'skill-pressure-test', 'skill-prototype',
+                     'skill-authoring'):
+            self.assertTrue((entry.parent.parent / name / 'SKILL.md').is_file(), name)
+
     def test_user_routes_reach_installed_skills(self):
         routes = {
             "parallel": "flow-parallel", "quick": "octopus-quick",

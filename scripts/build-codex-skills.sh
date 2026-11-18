@@ -302,12 +302,13 @@ EOF
 # Read skill prose from stdin and write host-local resource paths to stdout.
 # Bare source-directory mentions remain literal; no files are changed.
 adapt_shared_paths_for_codex() {
-    # Route delivery continuations to their registered Codex entries. Keep other
+    # Route delivery continuations and the shared TDD reference to Codex. Keep other
     # .claude/skills source paths intact while routing loaded entries and
     # phase resources to this host's generated tree. Bare inline directory
     # names describe source roots rather than a file to load.
     sed -E \
         -e 's@\.claude/skills/(skill-doc-sync|skill-ship|skill-finish-branch)/SKILL\.md@codex-skills/\1/SKILL.md@g' \
+        -e 's@\.claude/skills/skill-tdd([,/])@codex-skills/skill-tdd\1@g' \
         -e 's@(^|[^[:alnum:]_.:/-])skills/([^`]|$)@\1codex-skills/\2@g' \
         -e 's@(\$\{?OCTO_ROOT\}?)/skills/([^`]|$)@\1/codex-skills/\2@g'
 }
