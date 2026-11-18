@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Workflow-state recovery preserves earlier corrupt-state archives and valid large JSON integers.
 - Failed state validation preserves healthy workflow state and its recovery copy.
 - Project initialization preserves inherited directory access permissions.
 - Failed workflow-state backup copies preserve the previous recovery file.

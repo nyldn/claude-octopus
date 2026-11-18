@@ -233,4 +233,103 @@ sys.exit(bool(failures))
 PY_VALIDATOR
 then test_pass; else test_fail "validator failure discarded healthy state or its recovery copy"; fi
 
+test_case "large valid integers survive a transient validator failure"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_LARGE_INTEGER'
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+helper = os.environ.get('OCTO_INIT_STATE_TEST_HELPER', str(Path(sys.argv[1]) / 'scripts/state-manager.sh'))
+for conditional in (False, True):
+    with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+        directory = Path(temporary)
+        state = directory / 'state.json'
+        before = b'{"saved_integer":' + b'9' * 5000 + b',"decisions":[{"decision":"retain"}]}\n'
+        state.write_bytes(before)
+        injection = '''
+jq() {
+    if [[ "${!#}" == "$STATE_FILE" ]]; then
+        command touch "$FAILURE_MARKER"
+        return 23
+    fi
+    command jq "$@"
+}
+'''
+        call = 'if init_state; then exit 0; else exit $?; fi' if conditional else 'init_state'
+        marker = directory / 'validator-called'
+        env = dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(directory), FAILURE_MARKER=str(marker))
+        result = subprocess.run(['bash', '-c', 'source "$1"; ' + injection + call, 'test', helper],
+                                env=env, capture_output=True, text=True, timeout=10)
+        assert marker.exists() and result.returncode != 0, (conditional, result.stdout, result.stderr)
+        assert state.read_bytes() == before and not list(directory.glob('state.json.corrupt.*')), 'valid state archived or replaced'
+        retry = subprocess.run([helper, 'init_state'], env=env, capture_output=True, timeout=10)
+        assert retry.returncode == 0 and state.read_bytes() == before, 'retry changed saved state'
+print('4/4 large-integer validator failure/retry controls passed')
+PY_LARGE_INTEGER
+then test_pass; else test_fail "integer conversion limit discarded valid state"; fi
+
+test_case "corrupt-state recovery preserves earlier archives and allocation failures"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_ARCHIVES'
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+helper = os.environ.get('OCTO_INIT_STATE_TEST_HELPER', str(Path(sys.argv[1]) / 'scripts/state-manager.sh'))
+for conditional in (False, True):
+    for failure in ('none', 'allocate', 'move'):
+        with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+            directory = Path(temporary)
+            state = directory / 'state.json'
+            earlier = directory / 'state.json.corrupt.1234567890'
+            earlier.write_bytes(b'{earlier invalid state retained\n')
+            before = b'{current invalid state retained\n'
+            state.write_bytes(before)
+            marker = directory / 'injected'
+            injection = '''
+date() { if [[ "${1:-}" == +%s ]]; then printf '1234567890\\n'; else command date "$@"; fi; }
+mktemp() {
+    if [[ "$FAIL_AT" == allocate && "${!#}" == "$STATE_FILE".corrupt.* ]]; then
+        command touch "$FAILURE_MARKER"; return 23
+    fi
+    command mktemp "$@"
+}
+mv() {
+    if [[ "$FAIL_AT" == move && "$1" == "$STATE_FILE" ]]; then
+        command touch "$FAILURE_MARKER"; return 23
+    fi
+    command mv "$@"
+}
+'''
+            call = 'if init_state; then exit 0; else exit $?; fi' if conditional else 'init_state'
+            env = dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(directory),
+                       FAIL_AT=failure, FAILURE_MARKER=str(marker))
+            result = subprocess.run(['bash', '-c', 'source "$1"; ' + injection + call, 'test', helper],
+                                    env=env, capture_output=True, text=True, timeout=10)
+            assert earlier.read_bytes() == b'{earlier invalid state retained\n', 'earlier archive overwritten'
+            archives = sorted(directory.glob('state.json.corrupt.*'))
+            if failure == 'none':
+                assert result.returncode == 0, result.stderr
+                assert len(archives) == 2 and any(p.read_bytes() == before for p in archives), 'current invalid state not archived'
+                assert json.loads(state.read_text())['metrics']['phases_completed'] == 0
+                # A second recovery in the same second must retain both earlier documents.
+                state.write_bytes(b'{next invalid state\n')
+                retry = subprocess.run(['bash', '-c', 'source "$1"; ' + injection + call, 'test', helper],
+                                       env=env, capture_output=True, text=True, timeout=10)
+                contents = {p.read_bytes() for p in directory.glob('state.json.corrupt.*')}
+                assert retry.returncode == 0 and contents == {earlier.read_bytes(), before, b'{next invalid state\n'}, 'repeat recovery lost an archive'
+            else:
+                assert marker.exists() and result.returncode != 0 and 'SUCCESS:' not in result.stdout, (failure, result.stdout, result.stderr)
+                assert state.read_bytes() == before and archives == [earlier], 'failed archival changed active state or left an empty archive'
+                retry = subprocess.run([helper, 'init_state'], env=env, capture_output=True, timeout=10)
+                assert retry.returncode == 0 and any(p.read_bytes() == before for p in directory.glob('state.json.corrupt.*')), 'recovery retry lost invalid state'
+            assert not list(directory.glob('state.json.tmp.*')) and not (directory / 'state.json.lock').exists(), 'recovery leaked staging or lock'
+print('12/12 corrupt-state archive failure/retry controls passed')
+PY_ARCHIVES
+then test_pass; else test_fail "corrupt-state recovery lost an archive or accepted a failed archival"; fi
+
 test_summary

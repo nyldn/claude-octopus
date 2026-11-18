@@ -131,7 +131,7 @@ import sys
 # Read errors and interpreter failures propagate without moving saved state.
 content = Path(sys.argv[1]).read_bytes()
 try:
-    document = json.loads(content)
+    document = json.loads(content, parse_int=str)
 except (ValueError, UnicodeError):
     print("invalid")
 else:
@@ -163,7 +163,12 @@ init_state() (
                 return 1
             fi
             warning "State file is corrupted, backing up and recreating"
-            mv "$STATE_FILE" "${STATE_FILE}.corrupt.$(date +%s)" || return 1
+            local recovery_file
+            recovery_file=$(mktemp "${STATE_FILE}.corrupt.XXXXXX") || return 1
+            if ! mv "$STATE_FILE" "$recovery_file"; then
+                rm -f "$recovery_file"
+                return 1
+            fi
         fi
     fi
 
