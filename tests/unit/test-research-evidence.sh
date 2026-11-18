@@ -1819,4 +1819,30 @@ for heading in 'Latency (ms)' 'Latency (`ms`)' 'ms' 'Ticket'; do
     else test_fail "incorrect heading classification: $heading status=$declared_status"; fi
 done
 
+
+research_declared_ids="1928 1931"
+printf '%s\n' 'Check PLAT-1928 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+for quantity_text in 'The count is approximately 1928.' 'The count is roughly 1928.' \
+    'The count is nearly 1928.' 'The count is almost 1928.' 'The count is ~1928.' \
+    'The count is ≈1928.' 'The loader is a 1928-line file.' 'It has a 1928-byte buffer.' \
+    'It has a 1928-token limit.' 'It is a 1928-user service.' 'It has a 1928-core machine.'; do
+    test_case "approximate and hyphenated quantities retain evidence checks: $quantity_text"
+    if [[ $(research_extract_numbers "$quantity_text") == 1928 ]]; then test_pass
+    else test_fail "explicit quantity disappeared"; fi
+    test_case "actual verifier rejects unsupported approximate/hyphenated quantity: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported approximation or measurement passed"; fi
+done
+for reference_text in 'Notes about 1928.' 'Notes around 1928.' '1931-related work.' '1928-related work.'; do
+    test_case "ordinary prose and hyphenated ticket references stay exempt: $reference_text"
+    if [[ -z $(research_extract_numbers "$reference_text") ]]; then test_pass
+    else test_fail "ticket reference became a quantity"; fi
+done
+research_declared_ids=""
+
 test_summary

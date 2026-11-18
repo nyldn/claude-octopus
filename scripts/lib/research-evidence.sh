@@ -758,7 +758,8 @@ research_numeric_claims() {
         if (before ~ /(^|[^.0-9])\.$/) return 0
         if (before ~ /(^|[^0-9A-Za-z_])([+-]|\342\210\222)$/) return 0
         if (tolower(before) ~ /(^|[^a-z])(http(\/[0-9]+(\.[0-9]+)?)?([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)[ \t:]*$/) return 0
-        if (before ~ /[<>=][ \t*_]*$/ || tolower(before) ~ /(^|[^a-z])(at (least|most)|more than|less than|no (more|less|fewer) than)[ \t*_]*$/) return 0
+        if (before ~ /[<>=][ \t*_]*$/ || tolower(before) ~ /(^|[^a-z])(at (least|most)|more than|less than|no (more|less|fewer) than|approximately|roughly|nearly|almost)[ \t*_]*$/) return 0
+        if (before ~ /(~|\342\211\210)[ \t*_]*$/) return 0
         # A table may place its unit immediately before the value.
         preceding_cell = before
         if (sub(/\|[ \t*_]*$/, "", preceding_cell)) {
@@ -773,6 +774,7 @@ research_numeric_claims() {
         if (before ~ /[0-9][ \t*_]*[\/:][ \t*_]*$/ || after ~ /^[ \t*_]*[\/:][ \t*_]*[0-9]/) return 0
         if (after ~ /^([.,][0-9]|[A-Za-z%])/) return 0
         if (quantity_suffix(after) || after ~ /^[ \t*_`]*([+*=<>]|\302\261|\303\227|\303\267)/) return 0
+        if (after ~ /^-[A-Za-z]/ && quantity_suffix(" " substr(after, 2))) return 0
         # A trailing unit makes earlier range endpoints and list members quantities.
         range_tail = after
         if (sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", range_tail) && quantity_suffix(range_tail)) return 0
