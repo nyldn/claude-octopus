@@ -5,61 +5,6 @@ The generic slot's `OPENAI_COMPAT_BASE_URL` and `OPENAI_COMPAT_API_KEY_ENV`
 do not override them, including when the helper is invoked directly. Explicit
 `--base-url` and `--api-key-env` arguments still override a preset.
 
-## Explicit custom presets in the tool-loop helper
-
-The helper accepts `--custom-provider NAME` for an entry in
-`~/.claude-octopus/config/providers.json`, or the file selected by
-`OCTOPUS_PROVIDERS_CONFIG`. This is an explicit helper interface. Entries do
-not yet register `<name>-agent` executors, automatic routing, readiness,
-council seats, MCP credential forwarding or cost-report rows. The remaining
-seat integration is tracked in [#1299](https://github.com/nyldn/claude-octopus/issues/1299).
-
-For example, a local OpenAI-compatible proxy can have its own configuration:
-
-```json
-{
-  "custom_providers": {
-    "local-proxy": {
-      "type": "openai-compatible",
-      "base_url": "http://localhost:4000/v1",
-      "api_key_env": "LOCAL_PROXY_API_KEY",
-      "default_model": "my-model",
-      "allowed_models": ["my-model"],
-      "council": false
-    }
-  }
-}
-```
-
-With that key already exported, invoke the helper from the plugin checkout:
-
-```bash
-printf '%s\n' 'Review the supplied change summary' |
-  python3 scripts/helpers/openai-compatible-agent.py \
-    --custom-provider local-proxy --cwd "$PWD" --tool-policy none
-```
-
-Names use lowercase letters, digits and hyphens, starting with a letter, with
-at most 63 characters. URLs require HTTPS, except literal localhost and loopback
-IP addresses may use HTTP. Userinfo, query strings and fragments are rejected.
-Key names must be uppercase environment identifiers ending in `_KEY`;
-the search-only `KEENABLE_API_KEY` is rejected. Store the key in the environment,
-never in this JSON. Missing or blank keys fail before a request.
-
-The default and any explicit `--model` must belong to the nonempty
-`allowed_models` list. Model IDs must be single tokens. The generic slot's
-endpoint, key selector and model are ignored. `--base-url` and `--api-key-env`
-cannot override a custom preset. Only its selected credential, basic process
-environment and the helper's runtime controls remain in the tool subprocess
-environment. The existing tool loop is a command guardrail, not an OS sandbox;
-use `--tool-policy none` when the task only needs supplied text.
-
-Optional `pricing` accepts finite nonnegative `input` and `output` numbers in
-USD per million tokens. These are user-supplied estimates, validated for future
-seat integration. They currently do not affect accounting or routing, and do
-not establish a vendor tariff, a free quota or account entitlement. Omit pricing
-when costs are unknown. `council` must be absent or `false` in this interface.
-
 Provider Registry 2.0 owns shared identity and runtime policy. Adding or
 modifying a provider starts with two parity-enforced rows in
 `scripts/lib/provider-registry.sh`; provider-specific command, model, auth, and
@@ -117,6 +62,62 @@ to the credential selected for that seat. A custom OpenAI-compatible key named
 by `OPENAI_COMPAT_API_KEY_ENV` is forwarded automatically. Other custom
 provider keys require a comma-separated `OCTOPUS_CREDENTIAL_ENV_NAMES` list;
 names must end in `API_KEY`, `TOKEN`, `CREDENTIAL`, or `CREDENTIALS`.
+
+## Explicit custom presets in the tool-loop helper
+
+The helper accepts `--custom-provider NAME` for an entry in
+`~/.claude-octopus/config/providers.json`, or the file selected by
+`OCTOPUS_PROVIDERS_CONFIG`. This is an explicit helper interface. Entries do
+not yet register `<name>-agent` executors, automatic routing, readiness,
+council seats, MCP credential forwarding or cost-report rows. The remaining
+seat integration is tracked in [#1299](https://github.com/nyldn/claude-octopus/issues/1299).
+
+For example, a local OpenAI-compatible proxy can have its own configuration:
+
+```json
+{
+  "custom_providers": {
+    "local-proxy": {
+      "type": "openai-compatible",
+      "base_url": "http://localhost:4000/v1",
+      "api_key_env": "LOCAL_PROXY_API_KEY",
+      "default_model": "my-model",
+      "allowed_models": ["my-model"],
+      "council": false
+    }
+  }
+}
+```
+
+With that key already exported, invoke the helper from the plugin checkout:
+
+```bash
+printf '%s\n' 'Review the supplied change summary' |
+  python3 scripts/helpers/openai-compatible-agent.py \
+    --custom-provider local-proxy --cwd "$PWD" --tool-policy none
+```
+
+Names use lowercase letters, digits and hyphens, starting with a letter, with
+at most 63 characters. URLs require HTTPS, except literal `localhost` and
+`127.0.0.1` may use HTTP, matching the existing request transport. Userinfo,
+query strings and fragments are rejected.
+Key names must be uppercase environment identifiers ending in `_KEY`;
+the search-only `KEENABLE_API_KEY` is rejected. Store the key in the environment,
+never in this JSON. Missing or blank keys fail before a request.
+
+The default and any explicit `--model` must belong to the nonempty
+`allowed_models` list. Model IDs must be single tokens. The generic slot's
+endpoint, key selector and model are ignored. `--base-url` and `--api-key-env`
+cannot override a custom preset. Only its selected credential, basic process
+environment and the helper's runtime controls remain in the tool subprocess
+environment. The existing tool loop is a command guardrail, not an OS sandbox;
+use `--tool-policy none` when the task only needs supplied text.
+
+Optional `pricing` accepts finite nonnegative `input` and `output` numbers in
+USD per million tokens. These are user-supplied estimates, validated for future
+seat integration. They currently do not affect accounting or routing, and do
+not establish a vendor tariff, a free quota or account entitlement. Omit pricing
+when costs are unknown. `council` must be absent or `false` in this interface.
 
 ## Availability and host detection
 

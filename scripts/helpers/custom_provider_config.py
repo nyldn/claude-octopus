@@ -48,7 +48,7 @@ def _validate_endpoint(url):
     if (not parsed.hostname or parsed.username is not None or parsed.password is not None
             or parsed.query or parsed.fragment
             or parsed.scheme not in ("http", "https")
-            or (parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1", "::1"))):
+            or (parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1"))):
         raise ValueError("custom provider URL requires HTTPS or loopback HTTP without userinfo, query or fragment")
     # Accessing port also rejects malformed/out-of-range port specifications.
     parsed.port

@@ -125,12 +125,36 @@ class CustomProviderTests(unittest.TestCase):
                     self.assertNotIn("secret", output + errors)
 
     def test_loopback_http_and_absent_pricing_are_admitted(self):
-        for url in ("http://localhost:4000/v1", "http://127.0.0.1:4000/v1", "http://[::1]:4000/v1"):
+        for url in ("http://localhost:4000/v1", "http://127.0.0.1:4000/v1"):
             with self.subTest(url=url):
                 preset = dict(self.preset, base_url=url)
                 preset.pop("pricing")
                 self.write_config(preset)
                 self.assertEqual(self.invoke()[0], 0)
+
+    def test_admission_matches_real_transport_endpoint_policy(self):
+        for url, expected in (("https://vendor.invalid/v1", 0),
+                              ("http://localhost:4000/v1", 0),
+                              ("http://127.0.0.1:4000/v1", 0),
+                              ("http://[::1]:4000/v1", 2)):
+            with self.subTest(url=url):
+                self.write_config(dict(self.preset, base_url=url))
+                if expected != 0:
+                    with patch.dict(os.environ, self.env, clear=True), self.assertRaises(ValueError):
+                        config_module.load_custom_provider("vendor")
+                argv = ["helper", "--custom-provider", "vendor", "--cwd", self.tmp.name,
+                        "--prompt", "fixture", "--tool-policy", "none"]
+                response = {"choices": [{"message": {"content": "done"}, "finish_reason": "stop"}]}
+                with patch.dict(os.environ, self.env, clear=True), patch.object(sys, "argv", argv), \
+                        patch.object(agent, "open_credentialed_request", return_value=io.BytesIO(json.dumps(response).encode())) as opener, \
+                        contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(agent.main(), expected)
+                self.assertEqual(opener.call_count, 1 if expected == 0 else 0)
+                if expected == 0:
+                    request = opener.call_args.args[0]
+                    self.assertEqual(request.full_url, url + "/chat/completions")
+                    self.assertEqual(request.get_header("Authorization"), "Bearer selected-fixture")
+                    self.assertEqual(json.loads(request.data)["model"], "vendor/model")
 
     def test_missing_malformed_or_unconfigured_files_fail_closed(self):
         for contents in ("{", "[]", "{}", '{"custom_providers": []}', '{"custom_providers": {}}'):
