@@ -163,6 +163,7 @@ for persistence in (None, 'false', 'true'):
         env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(root), CODEX_PLUGIN_ROOT=str(root),
                    SYNTHESIS_FILE=str(synthesis), OCTOPUS_WORKFLOW_STATE_DIR=str(directory / 'state'))
         env.pop('OCTOPUS_PROJECT_PERSISTENCE', None)
+        env.pop('OCTO_ROOT', None)
         if persistence is not None:
             env['OCTOPUS_PROJECT_PERSISTENCE'] = persistence
         subprocess.run([str(helper), 'init_state'], env=env, cwd=directory, capture_output=True, check=True)
@@ -206,6 +207,7 @@ for tree in ('.claude/skills', 'skills'):
                    OCTOPUS_WORKFLOW_STATE_DIR=str(directory / 'state'),
                    REAL_PROJECT_HELPER=str(root / 'scripts/octo-state.sh'),
                    FAIL_OPERATION='update_state', FAILURE_MARKER=str(marker))
+        env.pop('OCTO_ROOT', None)
         subprocess.run([str(helper), 'init_state'], env=env, cwd=directory, capture_output=True, check=True)
         program = recipe + '\nprintf "completion reached\\n"'
         for attempt in range(3):
@@ -235,6 +237,7 @@ for tree in ('.claude/skills', 'skills'):
         env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(root), CODEX_PLUGIN_ROOT=str(root),
                    SYNTHESIS_FILE=str(synthesis), OCTOPUS_PROJECT_PERSISTENCE='true',
                    OCTOPUS_WORKFLOW_STATE_DIR=str(directory / 'state'))
+        env.pop('OCTO_ROOT', None)
         subprocess.run([str(helper), 'init_state'], env=env, cwd=directory, capture_output=True, check=True)
         shim = directory / 'bin'
         shim.mkdir()
