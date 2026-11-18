@@ -674,6 +674,8 @@ research_declared_identifier_numbers() {
             rest = substr(rest, RSTART + RLENGTH)
             prefix = tolower(token); sub(/-[0-9]+$/, "", prefix)
             number = token; sub(/^.*-/, "", number)
+            # Never admit only the integer prefix of a measured decimal.
+            if (rest ~ /^\.[0-9]/) continue
             declare(number)
             last = number
             while (match(rest, /^([ \t]*,[ \t]*|[ \t]*,?[ \t]*(and|or|&)[ \t]+|[ \t]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru)[ \t]*)([A-Za-z][A-Za-z0-9_]*-)?[0-9]+/)) {
@@ -755,6 +757,7 @@ research_numeric_claims() {
     BEGIN {
         # Unlike -v assignments, ENVIRON retains Markdown backslashes verbatim.
         table_header = ENVIRON["OCTOPUS_RESEARCH_TABLE_HEADER"]
+        table_cells(table_header, header_cells)
         count = split(declared_ids, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") declared[parts[i]] = 1
         count = split(probe_indices, parts, /[ \t]+/)
@@ -773,7 +776,7 @@ research_numeric_claims() {
         }
         return cell
     }
-    function declared_reference(number, before, after,    members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth, column, headings, heading, neighbor_before, neighbor_after, currency_before) {
+    function declared_reference(number, before, after,    members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth, column, row_cells, heading, neighbor_before, neighbor_after, currency_before) {
         # Normalize only the context used by these exemptions. Other numeric
         # extraction rules still see literal code and Markdown destinations.
         gsub(/`/, "", before)
@@ -797,21 +800,20 @@ research_numeric_claims() {
         if (before ~ /(!=|\342\211\240|&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
             after ~ /^[ \t*_]*(!=|\342\211\240|&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
         # In a Markdown table, retain measurements with units in the heading.
-        column = table_cells(before, headings)
-        table_cells(table_header, headings)
-        heading = unformat(headings[column], 1)
+        column = table_cells(before, row_cells)
+        heading = unformat(header_cells[column], 1)
         gsub(/`/, "", heading)
         if (tolower(heading) ~ /^[ \t]*\[?(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)\]?[ \t]*(\([^)]*\)[ \t]*)*$/) return 0
         # Brackets around visible link labels are not quantity evidence.
         gsub(/\[/, "(", heading); gsub(/\]/, ")", heading)
         if (tolower(heading) ~ /(^|[^a-z])counts?([^a-z]|$)/) return 0
         if (quantity_suffix(" " heading)) return 0
-        while (match(heading, /[(\[]/)) {
-            heading = substr(heading, RSTART + 1)
+        while (match(heading, /[(\[,\/]|(^|[ \t])[Ii][Nn][ \t]+/)) {
+            heading = substr(heading, RSTART + RLENGTH)
             if (quantity_suffix(" " heading)) return 0
         }
         # Numeric link labels stay claims, including links around endpoints.
-        if (after ~ /^\]\(/) return 0
+        if (after ~ /^\](\(|\[)/) return 0
         if (number !~ /^[0-9]+(,[0-9]+)*$/) return 0
         if (before ~ /(^|[^.0-9])\.$/) return 0
         if (before ~ /(^|[^0-9A-Za-z_])([+-]|\342\210\222)[ \t*_]*$/) return 0
@@ -828,6 +830,7 @@ research_numeric_claims() {
         if (number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
         # A leading currency applies to each connected range/list member.
         currency_before = tolower(before)
+        gsub(/\302\240|\342\200\257|&nbsp;|&#0*160;|&#[xX]0*[aA]0;/, " ", currency_before)
         gsub(/[()]/, " ", currency_before)
         sub(/(([+-]|\342\210\222)?[ \t*_]*[0-9]+([.,][0-9]+)*[ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru|and|or|&|,[ \t]*((and|or)[ \t]+)?)[ \t*_]*)+$/, "", currency_before)
         if (currency_before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_]*$/ ||
@@ -1220,6 +1223,14 @@ research_verify_synthesis() {
             continue
         fi
         [[ "$in_fence" == "true" ]] && continue
+        # Reject oversized input before citation/Markdown scans. In particular,
+        # a candidate table header must not reach a quadratic platform parser.
+        if ! (LC_ALL=C; [[ ${#line} -le 32768 ]]); then
+            failures=$((failures + 1))
+            printf 'numeric_extraction_failed|%s|Research line exceeds the 32768-byte verification limit\n' "$line_no" >> "$findings"
+            research_table_header=""; previous_table_line=""
+            continue
+        fi
         if [[ "$line" == *"|"* && "$line" =~ $table_delimiter_pattern ]]; then
             [[ -n "$research_table_header" ]] || research_table_header="$previous_table_line"
             previous_table_line="$line"

@@ -81,7 +81,7 @@ When a host-native workflow writes its synthesis in conversation, verify that fi
     "$HOME/.claude-octopus/plugin/scripts/orchestrate.sh" research-verify \
       <run-id> /absolute/path/to/synthesis.md
 
-The verifier fails closed for unknown source IDs, unsupported consensus claims, and quoted or numeric claims that disagree with a fetched snapshot. Claims whose source was not fetched are retained with an explicit warning instead of being silently presented as verified.
+The verifier fails closed for unknown source IDs, unsupported consensus claims, and quoted or numeric claims that disagree with a fetched snapshot. A prose or table line above 32 KiB fails verification before citation parsing; split long lines before retrying. Claims whose source was not fetched are retained with an explicit warning instead of being silently presented as verified.
 
 Digits that belong to an identifier are not numeric claims: a ticket or requirement ID such as `PLAT-1181`, `T-1` or `R2`, a reference such as `#1728` or `§4.2`, a name such as `p95` or `k8s`, and a git SHA such as `89a941fda`. Standalone numbers, percentages, decimals, numbers with a unit suffix such as `15m` or `5xx`, and ranges such as `10-13` are still checked.
 

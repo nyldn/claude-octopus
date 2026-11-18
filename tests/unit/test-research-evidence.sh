@@ -2271,4 +2271,64 @@ if [[ "$declared_status" != 0 ]] && jq -e \
     '.checks | any(.kind == "numeric_extraction_failed")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
 else test_fail "oversized header silently disabled numeric verification"; fi
 
+
+# Declared IDs must not hide units in visible table headings or link labels.
+printf '%s\n' 'Check PLAT-1928 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return 500;' > "$declared_root/src/handler.ts"
+for heading in 'Latency in ms' 'Latency / ms' 'Latency, ms' 'Latency in `ms`' 'Ticket' 'Ticket (upstream)'; do
+    test_case "actual verifier honors visible heading units: $heading"
+    printf '%s\n' "| $heading | Source |" '| --- | --- |' \
+        '| 1928 | `src/handler.ts:1` |' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$heading" == Ticket* && "$declared_status" == 0 ]]; then test_pass
+    elif [[ "$heading" != Ticket* && "$declared_status" != 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "visible heading unit or ticket misclassified"; fi
+done
+for quantity_text in 'Latency is [1928][sample] ms.' 'Latency is [1928][] ms.' \
+    'Latency is [1928] ms.'; do
+    test_case "actual verifier retains reference-linked measurements: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." '' \
+        '[sample]: src/handler.ts' '[1928]: src/handler.ts' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" != 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported linked measurement passed"; fi
+done
+printf '%s\n' 'return 1928;' > "$declared_root/src/handler.ts"
+for currency_text in 'The cost is $1928&nbsp;to&nbsp;1931.' \
+    'The cost is USD 1928&#160;to&#160;1931.' \
+    'The cost is EUR 1928&#xA0;and&#xA0;1931.' \
+    'Build 1928&nbsp;to&nbsp;1931 in parallel.'; do
+    test_case "actual verifier propagates entity-spaced currency only: $currency_text"
+    printf '%s\n' "- $currency_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$currency_text" == Build* && "$declared_status" == 0 ]]; then test_pass
+    elif [[ "$currency_text" != Build* && "$declared_status" != 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1931")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "currency endpoint disappeared or ticket range changed"; fi
+done
+for prompt_text in 'Compare timeout-1928.5ms with the default.' 'Check PLAT-1928.'; do
+    test_case "prompt admission requires a complete initial numeric token: $prompt_text"
+    actual=$(printf '%s\n' "$prompt_text" | research_declared_identifier_numbers)
+    if [[ "$prompt_text" == Compare* && -z "$actual" ]] || \
+       [[ "$prompt_text" == Check* && "$actual" == 1928 ]]; then test_pass
+    else test_fail "partial measurement declared or sentence-ending ticket lost: $actual"; fi
+    test_case "actual verifier uses complete prompt IDs: $prompt_text"
+    printf '%s\n' "$prompt_text" > "$RESEARCH_RUN_DIR/prompt.txt"
+    printf '%s\n' '- The observed value was 1928.' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$prompt_text" == Check* && "$declared_status" == 0 ]]; then test_pass
+    elif [[ "$prompt_text" == Compare* && "$declared_status" != 0 ]] && jq -e \
+        '.checks | any(.kind == "missing_citation")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "partial prompt numeric token bypassed verification"; fi
+done
+
 test_summary

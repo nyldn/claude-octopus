@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Research retains units in table headings and numeric links, and entity-spaced currency ranges.
+- Oversized research lines stop verification before citation parsing.
 - Fix research verification failing on bare ticket numbers declared in the prompt.
 - Accept probe references backed by results from the current run.
 - Keep currency, fractions, formatted units and measured range endpoints under evidence verification.
