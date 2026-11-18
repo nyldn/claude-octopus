@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- The OpenAI-compatible tool-loop helper can explicitly load a custom preset
+  from `providers.json` with its own endpoint, credential and model allowlist.
+  Custom presets do not yet register orchestration seats or cost-report rows.
+
 ### Fixed
 
 - Claude Code discovers native workflow skills while Codex loads its separate
