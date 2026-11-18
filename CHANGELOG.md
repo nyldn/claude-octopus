@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Research prompts request full IDs (`PLAT-1931`, `probe-4`) to avoid false numeric-claim failures.
 - Project initialization refuses existing symlinked `.octo` directories without changing their targets.
 - Workflow-state recovery preserves earlier corrupt-state archives and valid large JSON integers.
 - Failed state validation preserves healthy workflow state and its recovery copy.

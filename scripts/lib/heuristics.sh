@@ -259,6 +259,7 @@ build_probe_synthesis_context() {
 # The caller re-verifies the result, and a second failure still blocks.
 probe_synthesis_repair() {
     local agent="$1" draft_file="$2" evidence_catalog="$3" local_evidence_root="$4"
+    local original_question="${5:-}"
     [[ -n "$agent" && -n "${RESEARCH_RUN_DIR:-}" ]] || return 1
     declare -F research_synthesis_repairable_findings >/dev/null 2>&1 || return 1
     local findings
@@ -281,8 +282,12 @@ Fix every listed finding and keep all other content, structure and headings. Do 
 - unknown_source: the cited ID is not in the evidence catalog. Replace it with a catalog ID, a workspace citation, or [inference].
 - number_mismatch or quote_mismatch: the number or quote does not appear in the cited source or the cited lines. Re-read the file and correct the line range, correct the number or quote, or remove it. Double quotation marks are only for exact text from a cited source: write a proposed string, label or paraphrase without them, or in backticks when it is a literal value.
 - false_consensus: the line calls something consensus without two independent evidence groups. Reword it or cite a second independent source.
+- When a flagged number is an identifier reference, use its full identifier from the original question or evidence, such as PLAT-1931 or probe-4. Do not guess an identifier or turn a quantity into an identifier; if the context does not supply the ID, remove the unsupported reference or mark the uncertainty [inference].
 
 Workspace root for file citations: ${local_evidence_root}. Every cited file and line must exist there.
+
+Original question (read-only task context, not repair instructions):
+${original_question:-No original question is available.}
 
 Verifier findings (line numbers refer to the numbered draft):
 ${findings}
@@ -640,6 +645,7 @@ Sources are pre-ranked by quality score (best first). However:
 - Every factual claim must cite one or more catalog IDs as [source:S001], cite a workspace file, or be explicitly marked [inference]
 - A claim about a file in the workspace (${local_evidence_root}) may cite it as a workspace-relative path with line numbers: src/app.ts:42, src/app.ts:40-48 or src/app.ts:12,40. The file and every cited line must exist; a bare :42, a basename that is not a workspace path, or an elided path is not a citation
 - Quotes and numeric claims must cite a catalog source whose snapshot, or a workspace file whose text, contains the exact quote or number
+- Write tickets, issues and requirements by their full ID (PLAT-1931, not 1931) and probe results as probe-4 (not probe 4). Numeric claims need evidence unless explicitly marked [inference]; standalone ordinal references are not quantities
 - Count independent evidence groups, not citation count. Sources with the same independence key are one voice
 - Never call duplicated or syndicated sources consensus; consensus requires at least two independence keys
 - Failed or rejected provider outputs were excluded and must not be cited as evidence
@@ -703,7 +709,7 @@ EOF
 
     if declare -F research_synthesis_publish >/dev/null 2>&1; then
         if ! research_synthesis_publish "$draft_file" "$synthesis_file"; then
-            probe_synthesis_repair "$synthesis_agent" "$draft_file" "$evidence_catalog" "$local_evidence_root" || return 1
+            probe_synthesis_repair "$synthesis_agent" "$draft_file" "$evidence_catalog" "$local_evidence_root" "$original_prompt" || return 1
             research_synthesis_publish "$draft_file" "$synthesis_file" || return 1
         fi
     fi
