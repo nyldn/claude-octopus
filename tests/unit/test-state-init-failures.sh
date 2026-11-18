@@ -15,6 +15,7 @@ import sys
 import tempfile
 
 helper = os.environ.get('OCTO_INIT_STATE_TEST_HELPER', str(Path(sys.argv[1]) / 'scripts/state-manager.sh'))
+shell = os.environ.get('OCTO_INIT_STATE_TEST_SHELL', 'bash')
 failures = []
 checked = 0
 for conditional in (False, True):
@@ -36,11 +37,11 @@ for conditional in (False, True):
             }[scenario]
             call = 'if init_state; then exit 0; else exit $?; fi' if conditional else 'set +e; init_state; exit $?'
             env = dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(state_dir), FAILURE_MARKER=str(marker))
-            result = subprocess.run(['bash', '-c', 'source "$1"; ' + injection + call, 'test', helper],
+            result = subprocess.run([shell, '-c', 'source "$1"; ' + injection + call, 'test', helper],
                                     env=env, capture_output=True, text=True, timeout=10)
             retained = state.read_bytes() if state.exists() else None
             if not (marker.exists() and result.returncode != 0 and retained == original and 'SUCCESS:' not in result.stdout):
-                failures.append(f'{scenario}: conditional={conditional}, exit={result.returncode}, reached={marker.exists()}, preserved={retained == original}')
+                failures.append(f'{scenario}: conditional={conditional}, exit={result.returncode}, reached={marker.exists()}, preserved={retained == original}, stderr={result.stderr}')
             checked += 1
 for invalid in ('', ' \n\t', 'null', '[]', '42', '{}\n{}', '{broken'):
     with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
