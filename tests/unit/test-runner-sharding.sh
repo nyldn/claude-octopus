@@ -29,11 +29,14 @@ list_suites --unit --shard-index=0 --shard-count=2 > "$shard_zero"
 list_suites --unit --shard-index=1 --shard-count=2 > "$shard_one"
 list_suites --unit --shard-index=0 --shard-count=2 > "$shard_zero_repeat"
 LC_ALL=C sort -u "$shard_zero" "$shard_one" > "$union_list"
+LC_ALL=C sort "$shard_zero" > "$shard_zero.sorted"
+LC_ALL=C sort "$shard_one" > "$shard_one.sorted"
 
 test_case "two deterministic shards are a complete disjoint unit partition"
 if cmp -s "$shard_zero" "$shard_zero_repeat" &&
    cmp -s "$full_list" "$union_list" &&
-   [[ -z "$(comm -12 "$shard_zero" "$shard_one")" ]]; then
+   overlap=$(LC_ALL=C comm -12 "$shard_zero.sorted" "$shard_one.sorted") &&
+   [[ -z "$overlap" ]]; then
     test_pass
 else
     test_fail "unit shard membership is unstable, overlapping, or incomplete"
