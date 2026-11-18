@@ -118,4 +118,80 @@ for failure in failures:
 sys.exit(bool(failures))
 PY_CONTROLS
 then test_pass; else test_fail "state writer lost data or accepted a failed update"; fi
+test_case "backup publication preserves both saved files after operational failures"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_BACKUP'
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+helper = os.environ.get('OCTO_BACKUP_TEST_HELPER', str(Path(sys.argv[1]) / 'scripts/state-manager.sh'))
+failures = []
+checked = 0
+with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+    directory = Path(temporary)
+    env = dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(directory / 'state'),
+               OCTOPUS_STATE_PROJECT_ROOT=str(directory))
+    subprocess.run([helper, 'init_state'], env=env, check=True, capture_output=True)
+    state = directory / 'state/state.json'
+    backup = directory / 'state/state.json.backup'
+    before = state.read_bytes()
+    saved_backup = b'{"recovery":"previous saved state"}\n'
+    marker = directory / 'injected'
+    injection = r'''
+cp() {
+    if [[ "$FAIL_AT" == copy && "$1" == "$STATE_FILE" ]]; then
+        command touch "$FAILURE_MARKER"
+        printf 'partial copy' > "${!#}"
+        return 23
+    fi
+    command cp "$@"
+}
+mktemp() {
+    if [[ "$FAIL_AT" == allocate && "${!#}" == "$BACKUP_FILE".tmp.* ]]; then
+        command touch "$FAILURE_MARKER"
+        return 23
+    fi
+    command mktemp "$@"
+}
+python3() {
+    if [[ "$FAIL_AT" == replace && "${3:-}" == *os.replace* && "${!#}" == "$BACKUP_FILE" ]]; then
+        command touch "$FAILURE_MARKER"
+        return 23
+    fi
+    command python3 "$@"
+}
+'''
+    for failure in ('copy', 'allocate', 'replace', 'none'):
+        for conditional in (False, True):
+            for stale in state.parent.glob('state.json*.tmp.*'):
+                stale.unlink()
+            state.write_bytes(before)
+            backup.write_bytes(saved_backup)
+            marker.unlink(missing_ok=True)
+            call = 'update_context develop pending'
+            if conditional:
+                call = 'if ' + call + '; then exit 0; else exit $?; fi'
+            result = subprocess.run(['bash', '-c', 'source "$1"; ' + injection + call, 'test', helper],
+                env=dict(env, FAIL_AT=failure, FAILURE_MARKER=str(marker)),
+                capture_output=True, text=True, timeout=15)
+            clean = (not list(state.parent.glob('state.json*.tmp.*')) and
+                     not (state.parent / 'state.json.lock').exists())
+            if failure == 'none':
+                valid = (result.returncode == 0 and backup.read_bytes() == before and
+                         json.loads(state.read_text())['context']['develop'] == 'pending' and clean)
+            else:
+                valid = (marker.exists() and result.returncode != 0 and state.read_bytes() == before and
+                         backup.read_bytes() == saved_backup and 'SUCCESS:' not in result.stdout and clean)
+            if not valid:
+                failures.append(f'{failure}, conditional={conditional}, rc={result.returncode}, reached={marker.exists()}')
+            checked += 1
+print(f'{checked - len(failures)}/{checked} backup publication controls passed')
+for failure in failures:
+    print(failure, file=sys.stderr)
+sys.exit(bool(failures))
+PY_BACKUP
+then test_pass; else test_fail "backup failure damaged saved state or falsely reported success"; fi
 test_summary

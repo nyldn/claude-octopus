@@ -229,10 +229,17 @@ atomic_write() {
         error "Generated invalid JSON, write aborted"
     fi
 
-    # Backup current state
+    # Publish a complete recovery copy before replacing active state. A failed
+    # copy must not truncate the previous backup.
     if [ -f "$STATE_FILE" ]; then
-        if ! cp "$STATE_FILE" "$BACKUP_FILE"; then
+        local backup_temp
+        backup_temp=$(mktemp "${BACKUP_FILE}.tmp.XXXXXX") || {
             rm -f "$temp_file"
+            return 1
+        }
+        if ! cp "$STATE_FILE" "$backup_temp" ||
+            ! python3 -I -c 'import os, sys; os.replace(sys.argv[1], sys.argv[2])' "$backup_temp" "$BACKUP_FILE"; then
+            rm -f "$temp_file" "$backup_temp"
             return 1
         fi
     fi
