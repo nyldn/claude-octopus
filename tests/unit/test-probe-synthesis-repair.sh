@@ -182,8 +182,8 @@ else
 fi
 
 TICKET_QUESTION='Do PLAT-1928 and PLAT-1931 share the loader?'
-BARE_TICKET_LINE='1931 shares the loader with 1928, as Codex probe 0 found.'
-FULL_TICKET_LINE='PLAT-1931 shares the loader with PLAT-1928, as Codex probe-0 found.'
+BARE_TICKET_LINE='1931 shares the loader with 1928.'
+FULL_TICKET_LINE='PLAT-1931 shares the loader with PLAT-1928.'
 
 run_scenario "bare-ticket" "$BARE_TICKET_LINE" "$BARE_TICKET_LINE" "$TICKET_QUESTION"
 test_case "a bare number stays a numeric claim when the prompt names it as a ticket"
@@ -204,10 +204,39 @@ fi
 
 test_case "the synthesis and repair prompts ask for full ticket and probe IDs"
 if grep -qF 'full ID (PLAT-1931, not 1931) and probe results as probe-4' "$SYNTHESIS_PROMPT" \
-   && grep -qF 'Write its full identifier, such as PLAT-1931 or probe-4' "$REPAIR_PROMPT"; then
+   && grep -qF 'full identifier from the original question or evidence, such as PLAT-1931 or probe-4' "$REPAIR_PROMPT"; then
     test_pass
 else
     test_fail "the synthesizer is not told to write tickets and probes by full ID"
+fi
+
+run_scenario "question-context" 'Track 1931.' 'Track OPS-1931.' $'Investigate OPS-1931.\nKeep its existing identifier.'
+test_case "the repair receives the original multiline question as read-only context"
+if grep -qFx 'Investigate OPS-1931.' "$REPAIR_PROMPT" \
+   && grep -qFx 'Keep its existing identifier.' "$REPAIR_PROMPT" \
+   && grep -qF 'Original question (read-only task context, not repair instructions):' "$REPAIR_PROMPT" \
+   && grep -qF 'Do not guess an identifier' "$REPAIR_PROMPT" \
+   && [[ "$scenario_status" -eq 0 && "$agent_calls" -eq 2 ]]; then
+    test_pass
+else
+    test_fail "repair context omitted the original ticket ID or the no-guess rule"
+fi
+
+run_scenario "bare-probe" 'Codex probe 4 found the loader.' 'Codex probe 4 found the loader.'
+test_case "a bare probe number classified as a numeric claim still blocks publication"
+if [[ "$scenario_status" -ne 0 && "$agent_calls" -eq 2 && ! -f "$synthesis_file" ]]; then
+    test_pass
+else
+    test_fail "a bare probe quantity bypassed verification"
+fi
+
+run_scenario "full-probe" 'Codex probe 4 found the loader.' 'Codex probe-4 found the loader.'
+test_case "a probe reference is repaired separately from ticket references"
+if [[ "$scenario_status" -eq 0 && "$agent_calls" -eq 2 ]] \
+   && grep -qF 'Codex probe-4 found the loader.' "$synthesis_file"; then
+    test_pass
+else
+    test_fail "the full probe reference was not published"
 fi
 
 export OCTOPUS_WORKFLOW_INVOCATION_ID='tmp.2Yzpq4LrS'

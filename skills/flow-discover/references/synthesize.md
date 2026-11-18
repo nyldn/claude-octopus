@@ -16,7 +16,7 @@
 
 **Quality rules:**
 - Every claim MUST cite its source provider or be explicitly marked as `[inference]`
-- Write tickets, issues and requirements by their full ID (`PLAT-1931`, not `1931`) and probe results as `probe-4` (not `probe 4`). The evidence gate checks every bare number as a numeric claim
+- Write tickets, issues and requirements by their full ID (`PLAT-1931`, not `1931`) and probe results as `probe-4` (not `probe 4`). The evidence gate checks numbers classified as numeric claims unless explicitly marked `[inference]`; standalone ordinal references are not quantities
 - Short but specific findings may be MORE valuable than lengthy general analysis
 - Minority opinions and dissenting views MUST be preserved — they often contain critical insights
 - Concrete examples (code, file paths, commands) outweigh abstract discussion

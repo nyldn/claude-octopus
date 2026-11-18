@@ -4,9 +4,7 @@
 
 ### Fixed
 
-- Research synthesis and its repair pass now write tickets and probe results by
-  full ID (`PLAT-1931`, `probe-4`), which evidence verification accepts, instead
-  of bare numbers that failed as uncited claims. Every bare number stays checked.
+- Research prompts request full IDs (`PLAT-1931`, `probe-4`) to avoid false numeric-claim failures.
 
 ## [11.25.2] - 2026-11-17
 
