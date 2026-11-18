@@ -332,6 +332,12 @@ init_project() {
         return 0
     fi
     
+    # A workspace-provided link must not redirect initialization outside the project.
+    if [[ -L "$OCTO_DIR" ]]; then
+        printf '%s\n' "Cannot initialize $OCTO_DIR: refusing a symlinked project state directory." >&2
+        return 1
+    fi
+
     if [[ -d "$OCTO_DIR" && -f "$STATE_FILE" ]]; then
         warning ".octo/ directory already exists. Preserving existing files and creating missing files."
     fi
