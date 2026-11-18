@@ -621,6 +621,26 @@ research_quantity_units() {
     printf '%s\n' "${modifier}${modifier}${modifier}(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|retries|attempts?|$(research_currency_units))"
 }
 
+# Use the same quantity boundaries for prompt admission and synthesis checking.
+research_quantity_awk() {
+    cat <<'AWK_QUANTITY'
+    function quantity_suffix(after) {
+        gsub(/`/, "", after)
+        gsub(/\302\240|\342\200\257/, " ", after)
+        sub(/^[ \t]*[*_(]+/, " ", after)
+        sub(/^[ \t]*\|[ \t]*/, " ", after)
+        if (after ~ /^-[A-Za-z]/) after = " " substr(after, 2)
+        if (after ~ /^[ \t]*\/[ \t]*[A-Za-z]/) sub(/^[ \t]*\/[ \t]*/, " ", after)
+        return (tolower(after) ~ ("^[ \\t]+[*_]*" units "([^0-9a-z_]|$)") || after ~ /^[A-Za-z]/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
+    }
+    function quantity_tail(after) {
+        gsub(/`|[()]/, "", after)
+        sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", after)
+        return quantity_suffix(after) || tolower(after) ~ /^[ \t]*,?[ \t]+in[ \t]+total([^0-9a-z_]|$)/
+    }
+AWK_QUANTITY
+}
+
 # A research prompt that names tickets declares their numbers: "PLAT-1927",
 # "PLAT-1928, 1929 and 1930", "PLAT-1927..PLAT-1931" or "plat-1927 to 1931".
 # The synthesis may then refer to a declared ticket by its bare number, as in
@@ -630,7 +650,7 @@ research_quantity_units() {
 # bugs" and "PLAT-1927 to 1500 orgs" declare 1928 and 1927 only. A range
 # expands only when it ascends by at most 50.
 research_declared_identifier_numbers() {
-    LC_ALL=C awk -v units="$(research_quantity_units)" '
+    LC_ALL=C awk -v units="$(research_quantity_units)" "$(research_quantity_awk)"'
     function declare(number) {
         if (length(number) < 3 || (number in seen)) return
         seen[number] = 1
@@ -659,8 +679,7 @@ research_declared_identifier_numbers() {
                 # A bare continuation with a unit is a measurement, including
                 # a measured range whose interior would otherwise be declared.
                 tail = substr(rest, length(segment) + 1)
-                gsub(/`/, "", tail)
-                if (member_prefix == "" && (tolower(tail) ~ ("^[ \\t]+[*_]*" units "([^0-9a-z_]|$)") || tail ~ /^[A-Za-z%]/)) break
+                if (member_prefix == "" && quantity_tail(tail)) break
                 rest = substr(rest, length(segment) + 1)
                 if (length(member) <= 15 && joiner !~ /,|(^|[^a-z])(and|or)([^a-z]|$)|&/ && member - last > 0 && member - last <= 50) {
                     for (step = last + 1; step < member + 0; step++) declare(sprintf("%0*d", length(last), step))
@@ -711,23 +730,14 @@ research_extract_numbers() {
 # identifier unless a unit is attached to it or follows it.
 research_numeric_claims() {
     LC_ALL=C awk -v declared_ids="${research_declared_ids:-}" -v probe_indices="${research_probe_index_list:-}" \
-        -v units="$(research_quantity_units)" -v currency_unit="$(research_currency_units)" -v table_header="${research_table_header:-}" '
+        -v units="$(research_quantity_units)" -v currency_unit="$(research_currency_units)" -v table_header="${research_table_header:-}" "$(research_quantity_awk)"'
     BEGIN {
         count = split(declared_ids, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") declared[parts[i]] = 1
         count = split(probe_indices, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") probe_index[parts[i]] = 1
-        reference_unit = "^[ \\t]+[*_]*" units "([^0-9a-z_]|$)"
     }
-    function quantity_suffix(after) {
-        # Units may be code-formatted or use Unicode prefixes. Keep these
-        # checks local: code spans elsewhere still carry literal identifiers.
-        gsub(/`/, "", after)
-        sub(/^[ \t]*[*_(]+/, " ", after)
-        sub(/^[ \t]*\|[ \t]*/, " ", after)
-        return (tolower(after) ~ reference_unit || after ~ /^[A-Za-z]/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
-    }
-    function declared_reference(number, before, after,    range_tail, members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth, column, headings, heading, neighbor_before, neighbor_after) {
+    function declared_reference(number, before, after,    members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth, column, headings, heading, neighbor_before, neighbor_after) {
         # Normalize only the context used by these exemptions. Other numeric
         # extraction rules still see literal code and Markdown destinations.
         gsub(/`/, "", before)
@@ -746,6 +756,7 @@ research_numeric_claims() {
         if (neighbor_before ~ /[0-9][ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*$/ ||
             neighbor_after ~ /^[ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*[0-9]/) return 0
         if (tolower(neighbor_after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 0
+        if (tolower(neighbor_before) ~ /[0-9][ \t*_]+out[ \t]+of[ \t*_]*$/) return 0
         if (before ~ /(&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
             after ~ /^[ \t*_]*(&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
         # In a Markdown table, retain measurements with units in the heading.
@@ -753,7 +764,7 @@ research_numeric_claims() {
         column = gsub(/\|/, "|", column) + 1
         split(table_header, headings, /\|/)
         heading = headings[column]
-        sub(/^.*\(/, "", heading)
+        sub(/^.*[(\[]/, "", heading)
         if (quantity_suffix(" " heading)) return 0
         # Numeric link labels stay claims, including links around endpoints.
         if (after ~ /^\]\(/) return 0
@@ -779,8 +790,7 @@ research_numeric_claims() {
         if (quantity_suffix(after) || after ~ /^[ \t*_`]*([+*=<>]|\302\261|\303\227|\303\267)/) return 0
         if (after ~ /^-[A-Za-z]/ && quantity_suffix(" " substr(after, 2))) return 0
         # A trailing unit makes earlier range endpoints and list members quantities.
-        range_tail = after
-        if (sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", range_tail) && quantity_suffix(range_tail)) return 0
+        if (quantity_tail(after)) return 0
         member_count = split(number, members, /,/)
         for (member = 1; member <= member_count; member++) if (!(members[member] in declared)) break
         if (member > member_count) return 1

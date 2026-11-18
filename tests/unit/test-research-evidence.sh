@@ -1848,4 +1848,63 @@ for reference_text in 'Notes about 1928.' 'Notes around 1928.' '1931-related wor
 done
 research_declared_ids=""
 
+research_declared_ids="1928 1930 1931"
+for quantity_case in \
+    'The throughput is 1928/s.|1928' \
+    'The throughput is 1928 / second.|1928' \
+    'The batch contains 1928 in total.|1928' \
+    'The batches contain 1928, 1930, and 1931 in total.|1928 1930 1931' \
+    'The pass rate is 500 out of 1928.|1928 500' \
+    'Latency is (1928 to 1931) ms.|1928 1931' \
+    'Latency is ((1928 to 1931)) `ms`.|1928 1931'; do
+    quantity_text=${quantity_case%%|*}
+    test_case "reviewed declared quantities remain claims: $quantity_text"
+    quantity_claims=$(research_extract_numbers "$quantity_text" | paste -sd " " -)
+    if [[ "$quantity_claims" == "${quantity_case#*|}" ]]; then test_pass
+    else test_fail "expected ${quantity_case#*|}, got $quantity_claims"; fi
+done
+research_declared_ids=""
+printf '%s\n' 'Check PLAT-1928, PLAT-1930 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return 500;' > "$declared_root/src/handler.ts"
+for quantity_text in 'The throughput is 1928/s.' 'The batch contains 1928 in total.' \
+    'The batches contain 1928, 1930, and 1931 in total.' \
+    'The pass rate is 500 out of 1928.' 'Latency is (1928 to 1931) ms.'; do
+    test_case "actual verifier rejects reviewed quantity: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported quantity passed: $quantity_text"; fi
+done
+test_case "actual verifier rejects a declared quantity with a bracketed heading unit"
+printf '%s\n' '| Latency [ms] | Source |' '| --- | --- |' \
+    '| 1928 | `src/handler.ts:1` |' > "$declared_draft"
+declared_status=0
+(cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+if [[ "$declared_status" -ne 0 ]] && jq -e \
+    '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+    "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+else test_fail "bracketed heading unit hid the measurement"; fi
+
+for declared_prompt in 'PLAT-1928 and 1931€ in fees' 'PLAT-1928 and 1931 µs' \
+    'PLAT-1928 and 1931-byte buffers' 'PLAT-1928 and 1930 to 1931 ms timeouts' \
+    'PLAT-1928 and 1930, 1931 active users' 'PLAT-1928 and 1930, 1931 in total'; do
+    test_case "prompt quantities do not declare extra tickets: $declared_prompt"
+    declared_actual=$(printf '%s\n' "$declared_prompt" | research_declared_identifier_numbers)
+    if [[ "$declared_actual" == 1928 ]]; then test_pass
+    else test_fail "quantity admitted as a ticket: $declared_actual"; fi
+    test_case "actual verifier checks numbers mentioned as prompt quantities: $declared_prompt"
+    printf '%s\n' "$declared_prompt" > "$RESEARCH_RUN_DIR/prompt.txt"
+    printf '%s\n' '- The cost is 1931 (`src/handler.ts:1`).' \
+        '- The cost is 1930 (`src/handler.ts:1`).' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '[.checks[] | select(.kind == "number_mismatch") | .detail] | sort == ["1930", "1931"]' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "prompt quantity escaped actual verification"; fi
+done
+
 test_summary
