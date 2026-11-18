@@ -10,6 +10,9 @@
 
 ### Fixed
 
+- Define stops after failed decision, context or completion writes, preserving
+  earlier state and requiring repair before presenting the result as saved.
+
 - Research prompts request full IDs (`PLAT-1931`, `probe-4`) to avoid false numeric-claim failures.
 
 ## [11.25.2] - 2026-11-17
