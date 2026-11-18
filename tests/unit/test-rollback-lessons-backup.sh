@@ -22,7 +22,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     def recipe(step):
         section = source.split('### Step ' + str(step) + ':', 1)[1]
         return re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for mode in ('present', 'absent', 'dirty', 'missing-backup', 'linked-backup', 'linked-source', 'restore-failed'):
+    for mode in ('present', 'absent', 'dirty', 'missing-backup', 'linked-backup', 'linked-source', 'restore-failed', 'relative-tmp'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2], prefix='lessons space ') as temporary:
             base = Path(temporary)
             repo = base / 'repo'
@@ -31,6 +31,9 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                        GIT_CONFIG_NOSYSTEM='1', GIT_AUTHOR_NAME='Fixture',
                        GIT_AUTHOR_EMAIL='fixture@example.invalid', GIT_COMMITTER_NAME='Fixture',
                        GIT_COMMITTER_EMAIL='fixture@example.invalid', CHECKPOINT_TAG='octo-checkpoint-fixture')
+            if mode == 'relative-tmp':
+                env['TMPDIR'] = '..'
+                (repo / 'nested').mkdir()
             for key in subprocess.check_output(['git', 'rev-parse', '--local-env-vars'], text=True).splitlines():
                 env.pop(key, None)
             def git(*args):
@@ -44,7 +47,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     # Let the real checkout finish, then fail only its restore
                     # copy. This is deterministic even when tests run as root.
                     code = 'cp() { return 73; }\n' + code
-                return subprocess.run(['bash', '-c', code], cwd=repo, env=env,
+                working_dir = repo / 'nested' if mode == 'relative-tmp' and step == 6 else repo
+                return subprocess.run(['bash', '-c', code], cwd=working_dir, env=env,
                                       capture_output=True, text=True, timeout=10)
             def capture(result):
                 assert result.returncode == 0, (tree, mode, result.stderr)
@@ -87,6 +91,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             assert env['LESSONS_PRESERVED'] == ('false' if mode == 'absent' else 'true')
             backup_dir = Path(env['LESSONS_BACKUP_DIR']) if env['LESSONS_BACKUP_DIR'] else None
             if backup_dir:
+                assert backup_dir.is_absolute(), (tree, mode, 'backup path depends on the previous shell working directory')
                 backup = backup_dir / 'LESSONS.md'
                 assert backup_dir.stat().st_mode & 0o777 == 0o700
                 assert backup.stat().st_mode & 0o777 == 0o600
@@ -100,10 +105,10 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 backup.symlink_to(sentinel)
             before = git('write-tree')
             result = run(6)
-            if mode in ('present', 'absent'):
+            if mode in ('present', 'absent', 'relative-tmp'):
                 assert result.returncode == 0, (tree, mode, result.stderr)
                 assert (repo / 'work.txt').read_text() == 'checkpoint\n'
-                assert lessons.read_text() == 'current lessons\n' if mode == 'present' else not lessons.exists()
+                assert lessons.read_text() == 'current lessons\n' if mode != 'absent' else not lessons.exists()
                 assert backup_dir is None or not backup_dir.exists()
             elif mode == 'restore-failed':
                 assert result.returncode == 1, (tree, mode, result.stderr)

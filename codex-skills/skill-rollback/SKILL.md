@@ -209,6 +209,7 @@ LESSONS_PRESERVED=false
 LESSONS_BACKUP_DIR=''
 if [ -f "$ROLLBACK_ROOT/.octo/LESSONS.md" ]; then
   LESSONS_BACKUP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octo-rollback-lessons.XXXXXX") || exit 1
+  LESSONS_BACKUP_DIR=$(cd "$LESSONS_BACKUP_DIR" && pwd -P) || exit 1
   if ! (umask 077; cp -- "$ROLLBACK_ROOT/.octo/LESSONS.md" "$LESSONS_BACKUP_DIR/LESSONS.md"); then
     echo "Lessons backup failed; retain the private directory for recovery: $LESSONS_BACKUP_DIR" >&2
     exit 1
