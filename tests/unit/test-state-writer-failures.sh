@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     before = state_file.read_bytes()
     marker = directory / 'injected'
     for operation in operations:
-        for failure in ('jq', 'object jq', 'atomic_write', 'cp', 'mv'):
+        for failure in ('jq', 'object jq', 'atomic_write', 'cp', 'replace'):
             if failure == 'object jq' and operation[0] not in ('write_decision', 'write_blocker'):
                 continue
             state_file.write_bytes(before)
@@ -47,6 +47,8 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                 injection = 'jq() { if [[ "${!#}" == "$STATE_FILE" ]]; then command touch "$FAILURE_MARKER"; return 23; fi; command jq "$@"; }; '
             if failure == 'object jq':
                 injection = 'jq() { if [[ "${1:-}" == -n ]]; then command touch "$FAILURE_MARKER"; return 23; fi; command jq "$@"; }; '
+            if failure == 'replace':
+                injection = 'python3() { if [[ "${3:-}" == *os.replace* ]]; then command touch "$FAILURE_MARKER"; return 23; fi; command python3 "$@"; }; '
             result = subprocess.run(['bash', '-c', 'source "$1"; shift; ' + injection +
                 'if "$@"; then exit 0; else exit $?; fi', 'test', helper, *operation],
                 env=dict(env, FAILURE_MARKER=str(marker)), capture_output=True, text=True, timeout=10)

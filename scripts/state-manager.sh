@@ -233,7 +233,8 @@ atomic_write() {
     fi
 
     # Atomic move
-    if ! mv "$temp_file" "$STATE_FILE"; then
+    # os.replace rejects directory destinations, including a concurrent mkdir.
+    if ! python3 -I -c 'import os, sys; os.replace(sys.argv[1], sys.argv[2])' "$temp_file" "$STATE_FILE"; then
         rm -f "$temp_file"
         return 1
     fi

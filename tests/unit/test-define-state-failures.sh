@@ -128,7 +128,7 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
     state_file = directory / 'state/state.json'
     before = state_file.read_bytes()
     synthesis.write_text('unpublished requirements')
-    for operation in ('python3', 'jq', 'atomic_write', 'cp', 'mv', 'printf'):
+    for operation in ('python3', 'jq', 'atomic_write', 'cp', 'replace', 'printf'):
         for conditional in (False, True):
             state_file.write_bytes(before)
             call = 'complete_define "$2" "unpublished context" "new decision"'
@@ -140,6 +140,8 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             injected_env = dict(env, FAILURE_MARKER=str(marker))
             if operation == 'python3':
                 injection = 'python3() { if [[ "${1:-}" == -I ]]; then command touch "$FAILURE_MARKER"; return 23; fi; command python3 "$@"; }; '
+            elif operation == 'replace':
+                injection = 'python3() { if [[ "${3:-}" == *os.replace* ]]; then command touch "$FAILURE_MARKER"; return 23; fi; command python3 "$@"; }; '
             elif operation == 'printf':
                 injection = r'printf() { if [[ "${2:-}" == \{* ]]; then command touch "$FAILURE_MARKER"; return 23; fi; builtin printf "$@"; }; '
             else:
@@ -150,7 +152,7 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                 failures.append(f'{operation} injection never reached its intended operation, conditional={conditional}')
             if result.returncode == 0 or state_file.read_bytes() != before or 'Recorded Define completion' in result.stdout:
                 failures.append(f'{operation} failure accepted, conditional={conditional}')
-            if operation in ('cp', 'mv', 'printf') and list(state_file.parent.glob('state.json.tmp.*')):
+            if operation in ('cp', 'replace', 'printf') and list(state_file.parent.glob('state.json.tmp.*')):
                 failures.append(f'{operation} failure left unpublished temporary state')
             checked += 1
 # Execute both production helpers from a fresh project, with persistence unset,

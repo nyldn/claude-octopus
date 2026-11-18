@@ -312,7 +312,8 @@ with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
 source "$1"
 printf() {
     claim_pid=$(exec python3 -I -c 'import os; print(os.getppid())') || return 1
-    builtin printf '%s' "$claim_pid" > "$PARTIAL_DIR/partial-child"
+    builtin printf '%s' "$claim_pid" > "$PARTIAL_DIR/partial-child.tmp" &&
+        mv "$PARTIAL_DIR/partial-child.tmp" "$PARTIAL_DIR/partial-child" || return 1
     kill -STOP "$claim_pid"
 }
 _octo_event_lock "$2"

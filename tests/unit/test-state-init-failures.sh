@@ -127,4 +127,38 @@ print(f'{checked}/{checked} actual default-namespace identity controls passed')
 PY_IDENTITY
 then test_pass; else test_fail "identity failure admitted an unrelated state namespace"; fi
 
+test_case "directory destinations cannot report successful initialization"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_DIRECTORY'
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+helper = os.environ.get('OCTO_INIT_STATE_TEST_HELPER', str(Path(sys.argv[1]) / 'scripts/state-manager.sh'))
+checked = 0
+for conditional in (False, True):
+    for late in (False, True):
+        with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+            directory = Path(temporary)
+            state = directory / 'state.json'
+            if not late:
+                state.mkdir()
+                (state / 'retained').write_text('retain this directory')
+            inject = '''
+obstruct() { command mkdir "$STATE_FILE" && command touch "$STATE_FILE/retained"; }
+mv() { if [[ "${2:-}" == "$STATE_FILE" ]]; then obstruct || return 1; fi; command mv "$@"; }
+python3() { if [[ "${3:-}" == *os.replace* ]]; then obstruct || return 1; fi; command python3 "$@"; }
+''' if late else ''
+            call = 'if init_state; then exit 0; else exit $?; fi' if conditional else 'init_state; exit $?'
+            result = subprocess.run(['bash', '-c', 'source "$1"; ' + inject + call, 'test', helper],
+                env=dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(directory)), capture_output=True, text=True, timeout=10)
+            assert result.returncode != 0 and 'SUCCESS:' not in result.stdout, (conditional, late, result.stdout, result.stderr)
+            assert state.is_dir() and sorted(p.name for p in state.iterdir()) == ['retained'], 'directory modified'
+            assert not list(directory.glob('state.json.tmp.*')), 'unpublished temporary state retained'
+            checked += 1
+print(f'{checked}/{checked} directory destination controls passed')
+PY_DIRECTORY
+then test_pass; else test_fail "directory destination accepted or modified"; fi
+
 test_summary
