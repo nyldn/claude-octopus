@@ -105,6 +105,42 @@ def validate_json(root: Path, file: Path, errors: list[str]) -> dict | None:
         return None
 
 
+def registered_skill_files(
+    root: Path, path: str, errors: list[str], *, required: bool = True,
+) -> list[Path]:
+    """Resolve one Claude registration and validate files within the plugin root.
+
+    Append diagnostics and return safe files. The automatic root scan may be empty.
+    """
+    prefix = ".claude-plugin/plugin.json"
+    if path != "." and not path.startswith("./"):
+        errors.append(f"{prefix}: skill path must be . or start with ./: {path}")
+        return []
+    directory = (root / path).resolve()
+    if not directory.is_relative_to(root) or not directory.is_dir():
+        errors.append(f"{prefix}: missing or unsafe skill path: {path}")
+        return []
+    direct = directory / "SKILL.md"
+    files = [direct] if required and direct.is_file() else sorted(directory.rglob("SKILL.md"))
+    if required and not files:
+        errors.append(f"{prefix}: no skills found at: {path}")
+    safe = []
+    for skill in files:
+        if not skill.resolve().is_relative_to(root) or not skill.is_file():
+            errors.append(f"{prefix}: missing or unsafe skill file: {rel(root, skill)}")
+            continue
+        require_frontmatter(
+            root, skill, ("name", "description"), errors, validate_name=True,
+            expected={"disable-model-invocation": "true"},
+        )
+        if "Host: Codex CLI" in skill.read_text(encoding="utf-8", errors="replace"):
+            errors.append(
+                f"{prefix}: Claude Code registers a Codex-adapted skill: {path} ({rel(root, skill)})"
+            )
+        safe.append(skill)
+    return safe
+
+
 def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
     manifest = root / ".claude-plugin" / "plugin.json"
     if not manifest.is_file():
@@ -119,9 +155,29 @@ def validate_plugin_manifest(root: Path, errors: list[str]) -> None:
         if not data.get(field):
             errors.append(f"{rel(root, manifest)}: missing required field: {field}")
 
+    if data.get("name") in {"octo", "claude-octopus"}:
+        authored = root / ".claude" / "skills"
+        if (not authored.is_dir() or not authored.resolve().is_relative_to(root)
+                or not any(authored.rglob("SKILL.md"))):
+            errors.append(".claude/skills/: missing or unsafe required Octopus command catalog")
+
+    skills = data.get("skills", [])
+    if isinstance(skills, str):
+        skills = [skills]
+    if not isinstance(skills, list) or any(not isinstance(path, str) for path in skills):
+        errors.append(f"{rel(root, manifest)}: skills must be a path or list of relative paths")
+        return
+    registrations = [(path, True) for path in skills]
+    # Claude also scans root skills; an empty default directory is harmless.
+    if (root / "skills").exists():
+        registrations.insert(0, ("./skills", False))
+    for path, required in registrations:
+        registered_skill_files(root, path, errors, required=required)
+
 
 def validate_json_files(root: Path, errors: list[str]) -> None:
     candidates = [
+        root / ".codex-plugin" / "plugin.json",
         root / ".claude-plugin" / "marketplace.json",
         root / ".claude-plugin" / "hooks.json",
         root / ".mcp.json",
@@ -133,24 +189,52 @@ def validate_json_files(root: Path, errors: list[str]) -> None:
             validate_json(root, file, errors)
 
 
+def validate_codex_policy(root: Path, skill: Path, errors: list[str]) -> None:
+    if not skill.is_relative_to(root / "codex-skills"):
+        return
+    metadata = skill.parent / "agents" / "openai.yaml"
+    if not metadata.is_file() or not metadata.resolve().is_relative_to(root):
+        errors.append(f"{rel(root, metadata)}: missing or unsafe Codex invocation metadata")
+        return
+    # Accept only the generator's block-style subset, so alternate YAML spellings
+    # cannot introduce duplicate keys that override the explicit-only policy.
+    text = metadata.read_text(encoding="utf-8")
+    scalar = r'"(?:[^"\\\x00-\x1f]|\\["\\])*"'
+    generated_form = (
+        rf"(?:interface:\n  display_name: {scalar}\n(?:  short_description: {scalar}\n)?)?"
+        r"policy:\n  allow_implicit_invocation: false\n?"
+    )
+    if not re.fullmatch(generated_form, text):
+        errors.append(f"{rel(root, metadata)}: policy.allow_implicit_invocation must be false")
+
+
 def validate_skills(root: Path, errors: list[str]) -> int:
     checked = 0
-    for file in sorted((root / "skills").rglob("SKILL.md")):
-        require_frontmatter(
-            root, file, ("name", "description"), errors,
-            validate_name=True,
-            expected={"disable-model-invocation": "true"},
-        )
-        checked += 1
-
-    legacy = root / ".claude" / "skills"
-    if legacy.is_dir():
-        for file in sorted(legacy.rglob("SKILL.md")):
+    if (root / ".codex-plugin" / "plugin.json").is_file():
+        manifest = root / ".codex-plugin" / "plugin.json"
+        data = validate_json(root, manifest, errors)
+        if not isinstance(data, dict):
+            errors.append(".codex-plugin/plugin.json: manifest must be a JSON object")
+        elif data.get("skills") != "./codex-skills/":
+            errors.append(".codex-plugin/plugin.json: skills must target ./codex-skills/")
+        codex = root / "codex-skills"
+        if not codex.is_dir() or not codex.resolve().is_relative_to(root):
+            errors.append("codex-skills/: missing or unsafe required generated skill directory")
+            return checked
+        if not any(codex.rglob("SKILL.md")):
+            errors.append("codex-skills/: required generated skill directory is empty")
+            return checked
+    for directory in (root / "skills", root / ".claude" / "skills", root / "codex-skills"):
+        if not directory.resolve().is_relative_to(root):
+            errors.append(f"{rel(root, directory)}: unsafe skill directory")
+            continue
+        for file in sorted(directory.rglob("SKILL.md")):
             require_frontmatter(
                 root, file, ("name", "description"), errors,
                 validate_name=True,
                 expected={"disable-model-invocation": "true"},
             )
+            validate_codex_policy(root, file, errors)
             checked += 1
 
     return checked

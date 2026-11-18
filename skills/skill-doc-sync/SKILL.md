@@ -1,19 +1,19 @@
 ---
 name: skill-doc-sync
-description: "Post-ship doc sync across project markdown. Use when: sync docs, update docs, document changes, release notes."
 disable-model-invocation: true
+paths:
+  - "**/*.md"
+  - "**/docs/**"
+version: 1.0.0
+aliases: [doc-sync, sync-docs, document-release]
+description: "Post-ship doc sync across project markdown. Use when: sync docs, update docs, document changes, release notes."
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Post-Ship Documentation Synchronization
 
 Automated documentation synchronization for the Deliver phase. After code is committed and a PR is created, this skill reads all `.md` files in the project, cross-references the diff, auto-updates factual content, checks cross-doc consistency, and updates the PR body.
 
+---
 
 ## Caps
 
@@ -21,6 +21,7 @@ Automated documentation synchronization for the Deliver phase. After code is com
 - **Never clobber CHANGELOG** — append only, never delete existing entries
 - **Ask user before changing narrative/philosophy sections** — risky changes require confirmation
 
+---
 
 ## Step 1: Discover Docs
 
@@ -45,6 +46,7 @@ fi
 
 Read each discovered doc file so you have their current content in context.
 
+---
 
 ## Step 2: Cross-Reference Diff
 
@@ -67,6 +69,7 @@ echo "$DIFF_STAT"
 
 For each doc file, check whether any paths, function names, counts, or version numbers mentioned in the doc were affected by the diff.
 
+---
 
 ## Step 3: Auto-Update Factual Corrections
 
@@ -81,6 +84,7 @@ Fix paths, counts, table entries, and version numbers automatically. These are m
 
 **WHY:** Stale factual references erode trust in documentation. A user who sees a wrong path or count will doubt everything else in the doc.
 
+---
 
 ## Step 4: Risky Change Detection
 
@@ -105,6 +109,7 @@ I will NOT auto-edit these. Please review and confirm each change:
 Approve changes? (list numbers to approve, or "skip all")
 ```
 
+---
 
 ## Step 5: CHANGELOG Voice Polish
 
@@ -128,6 +133,7 @@ GOOD: "Support MCP elicitation for richer interactive prompts (CC v2.1.76+)"
 
 **WHY:** The CHANGELOG is marketing copy for developers. Every bullet should make someone want to upgrade.
 
+---
 
 ## Step 6: Cross-Doc Consistency
 
@@ -156,6 +162,7 @@ if ! grep -q "$PKG_VERSION" CHANGELOG.md 2>/dev/null; then
 fi
 ```
 
+---
 
 ## Step 7: Discoverability Check
 
@@ -168,6 +175,7 @@ Ensure every documentation file is reachable from `README.md` or `CLAUDE.md`. Or
 
 **WHY:** Documentation that cannot be found does not exist from the user's perspective. Every doc must be one or two clicks from the entry points.
 
+---
 
 ## Step 8: TODOS.md Update
 
@@ -194,6 +202,7 @@ if [[ -n "$REMOVED_TODOS" ]]; then
 fi
 ```
 
+---
 
 ## Step 9: Commit Doc Changes
 
@@ -228,6 +237,7 @@ if [[ -n "$PR_NUMBER" ]]; then
 fi
 ```
 
+---
 
 ## Integration
 

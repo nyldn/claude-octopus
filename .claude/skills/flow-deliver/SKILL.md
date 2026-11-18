@@ -9,8 +9,6 @@ aliases:
 description: Multi-AI validation, scoring, and review using available external providers (Double Diamond Deliver phase)
 
 # Claude Code v2.1.12+ Integration
-agent: general-purpose
-context: fork
 task_management: true
 task_dependencies:
   - flow-develop

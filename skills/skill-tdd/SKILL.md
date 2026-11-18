@@ -1,14 +1,24 @@
 ---
 name: skill-tdd
-description: "Build a behavior change with observed red, minimal green, and measured test consolidation"
 disable-model-invocation: true
+paths:
+  - "**/*.test.*"
+  - "**/*.spec.*"
+  - "**/tests/**"
+  - "**/__tests__/**"
+aliases:
+  - tdd
+  - test-driven-development
+description: "Build a behavior change with observed red, minimal green, and measured test consolidation"
+trigger: |
+  Use when a feature, bug fix, or behavior change requires test-first evidence.
+  Do not use for documentation-only changes or disposable exploration.
+pre_execution_contract:
+  - observable_behavior_named
+validation_gates:
+  - focused_red_observed
+  - focused_and_affected_suites_green
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Test-driven development
 

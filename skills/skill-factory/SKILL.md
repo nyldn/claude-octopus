@@ -1,14 +1,18 @@
 ---
 name: skill-factory
-description: "Run a full build-and-ship pipeline from a spec — use for hands-off project generation"
 disable-model-invocation: true
+aliases:
+  - factory
+  - dark-factory
+  - build-from-spec
+  - autonomous-build
+description: "Run a full build-and-ship pipeline from a spec — use for hands-off project generation"
+execution_mode: enforced
+validation_gates:
+  - spec_file_validated
+  - orchestrate_sh_executed
+  - factory_report_exists
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # STOP - SKILL ALREADY LOADED
 DO NOT call Skill() again. Execute directly.
@@ -111,6 +115,7 @@ fi
 
 **Skip with `--fast` or when user explicitly requests speed over thoroughness.**
 
+---
 
 ### STEP 5: Execute orchestrate.sh factory (MANDATORY — Bash Tool)
 ```bash
