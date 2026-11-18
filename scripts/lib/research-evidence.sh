@@ -612,246 +612,22 @@ research_source_field() {
     fi
 }
 
-research_currency_units() {
-    printf '%s\n' '(usd|eur|gbp|jpy|cny|rmb|inr|aud|cad|chf|krw|rub|brl|zar|nzd|hkd|sgd|aed|dollars?|euros?|pounds?|yen|yuan|renminbi|rupees?|francs?|rubles?|reals?|rands?|won|dirhams?|krona|kroner)'
-}
-
-research_quantity_units() {
-    local modifier='((active|new|concurrently|concurrent|total|remaining|failed|successful|additional|unique|daily|monthly|average|maximum|minimum|peak)[ \t]+)?'
-    printf '%s\n' "${modifier}${modifier}${modifier}(hz|khz|mhz|ghz|thz|ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bits?|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|retries|attempts?|$(research_currency_units))"
-}
-
-# Use the same quantity boundaries for prompt admission and synthesis checking.
-research_quantity_awk() {
-    cat <<'AWK_QUANTITY'
-    function quantity_suffix(after) {
-        gsub(/`/, "", after)
-        gsub(/\\[()]/, "", after)
-        gsub(/\302\240|\342\200\257|&nbsp;|&#0*160;|&#[xX]0*[aA]0;/, " ", after)
-        sub(/^[ \t]*[*_(]+/, " ", after)
-        sub(/^[ \t]*\|[ \t]*/, " ", after)
-        if (after ~ /^-[A-Za-z]/) after = " " substr(after, 2)
-        if (after ~ /^[ \t]*\/[ \t]*[A-Za-z]/) sub(/^[ \t]*\/[ \t]*/, " ", after)
-        sub(/^[ \t]+[Pp][Ee][Rr][ \t]+/, " ", after)
-        return (tolower(after) ~ ("^[ \\t]+[*_]*" units "([^0-9a-z_]|$)") || after ~ /^(\.[0-9]|[A-Za-z])/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
-    }
-    function quantity_tail(after) {
-        after = tolower(after)
-        gsub(/\302\240|\342\200\257|&nbsp;|&#0*160;|&#[xX]0*[aA]0;/, " ", after)
-        gsub(/\\[()]/, " ", after)
-        gsub(/`|[()]|\[|\]/, " ", after)
-        if (after ~ /^[ \t*_]*([+*=<>^\/:]|!=|\342\211\240|\303\227|\303\267|&lt;|&gt;|\342\211\244|\342\211\245)/) return 1
-        # Spaced minus is arithmetic; compact ticket ranges remain references.
-        if (after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+([+-]|\342\210\222)?[ \t*_]*[0-9A-Za-z_]/) return 1
-        if (after ~ /^[ \t*_]*([+*=\/:<>]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/ ||
-            tolower(after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 1
-        sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*([+-]|\342\210\222)?[ \t]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", after)
-        return quantity_suffix(after) || tolower(after) ~ /^[ \t]*,?[ \t]+in[ \t]+total([^0-9a-z_]|$)/
-    }
-AWK_QUANTITY
-}
-
-# A research prompt that names tickets declares their numbers: "PLAT-1927",
-# "PLAT-1928, 1929 and 1930", "PLAT-1927..PLAT-1931" or "plat-1927 to 1931".
-# The synthesis may then refer to a declared ticket by its bare number, as in
-# "1931 shares the file with 1928". Only numbers of three or more digits are
-# declared. A bare list or range member must keep the digit count of the
-# identifier before it and stay within 100 of it, so "PLAT-1928 and 300 other
-# bugs" and "PLAT-1927 to 1500 orgs" declare 1928 and 1927 only. A range
-# expands only when it ascends by at most 50.
-research_declared_identifier_numbers() {
-    LC_ALL=C awk -v units="$(research_quantity_units)" "$(research_quantity_awk)"'
-    function declare(number) {
-        if (length(number) < 3 || (number in seen)) return
-        seen[number] = 1
-        out = out (out == "" ? "" : " ") number
-    }
-    { text = text " " $0 }
-    END {
-        rest = text
-        while (match(rest, /[A-Za-z][A-Za-z0-9_]*-[0-9]+/)) {
-            token = substr(rest, RSTART, RLENGTH)
-            rest = substr(rest, RSTART + RLENGTH)
-            prefix = tolower(token); sub(/-[0-9]+$/, "", prefix)
-            number = token; sub(/^.*-/, "", number)
-            # Never admit only the integer prefix of a measured decimal.
-            if (rest ~ /^\.[0-9]/) continue
-            declare(number)
-            last = number
-            while (match(rest, /^([ \t]*,[ \t]*|[ \t]*,?[ \t]*(and|or|&)[ \t]+|[ \t]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru)[ \t]*)([A-Za-z][A-Za-z0-9_]*-)?[0-9]+/)) {
-                segment = substr(rest, 1, RLENGTH)
-                member = segment; sub(/^.*[^0-9]/, "", member)
-                joiner = segment; sub(/([A-Za-z][A-Za-z0-9_]*-)?[0-9]+$/, "", joiner)
-                member_prefix = ""
-                if (match(segment, /[A-Za-z][A-Za-z0-9_]*-[0-9]+$/)) {
-                    member_prefix = tolower(substr(segment, RSTART, RLENGTH)); sub(/-[0-9]+$/, "", member_prefix)
-                }
-                if (member_prefix != "" && member_prefix != prefix) break
-                if (member_prefix == "" && (length(member) != length(last) || member - last > 100 || last - member > 100)) break
-                # A bare continuation with a unit is a measurement, including
-                # a measured range whose interior would otherwise be declared.
-                tail = substr(rest, length(segment) + 1)
-                if (member_prefix == "" && quantity_tail(tail)) break
-                rest = substr(rest, length(segment) + 1)
-                if (length(member) <= 15 && joiner !~ /,|(^|[^a-z])(and|or)([^a-z]|$)|&/ && member - last > 0 && member - last <= 50) {
-                    for (step = last + 1; step < member + 0; step++) declare(sprintf("%0*d", length(last), step))
-                }
-                declare(member)
-                last = member
-            }
-        }
-        print out
-    }'
-}
-
-# Probe results are numbered artifacts (`codex-probe-<group>-4.md`), and a
-# synthesis comparing them writes "codex probe 4 said reach". A number after
-# "probe" names one of this run's results only when that artifact exists.
-research_probe_indices() {
-    local results_dir="${RESEARCH_PROVIDER_RESULTS_DIR:-${RESULTS_DIR:-}}" task_group="${RESEARCH_TASK_GROUP:-}"
-    local result index artifact_group indices=""
-    [[ -n "$results_dir" && -n "$task_group" ]] || return 0
-    for result in "$results_dir"/*-probe-"$task_group"-*.md; do
-        [[ -f "$result" ]] || continue
-        index=${result##*-}
-        index=${index%.md}
-        [[ "$index" =~ ^[0-9]+$ ]] || continue
-        artifact_group=${result##*/}
-        artifact_group=${artifact_group#*-probe-}
-        artifact_group=${artifact_group%-$index.md}
-        [[ "$artifact_group" == "$task_group" ]] || continue
-        indices="$indices $index"
-    done
-    printf '%s\n' "${indices# }"
-}
-
 research_extract_numbers() {
-    local line="$1" claims
+    local line="$1"
     # Do not mistake ordered-list markers ("1." / "2)" / "**3.**") for
     # factual values.
-    line=$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*([-*+][[:space:]]*)?(\*\*|__|\*|_)?[0-9]+[.)](\*\*|__|\*|_)?[[:space:]]+//') || return 1
-    claims=$(printf '%s\n' "$line" | research_numeric_claims) || return 1
-    [[ -n "$claims" ]] || return 0
-    printf '%s\n' "$claims" | sort -u
+    line=$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*([-*+][[:space:]]*)?(\*\*|__|\*|_)?[0-9]+[.)](\*\*|__|\*|_)?[[:space:]]+//')
+    printf '%s\n' "$line" | research_numeric_claims | sort -u || true
 }
 
 # A synthesis that numbers its findings refers back to them: "See point 2.",
 # "points 2 and 3", "item 4:". A whole number after point(s) or item(s), or
 # continuing such a list with a comma, "and", "or" or "&", is not a numeric claim
 # when no other word follows it. "2 retries", "point 40 requests" and
-# "section 2" are still checked. A bare number the research prompt declared as
-# a ticket, or "probe N" naming one of this run's probe results, is an
-# identifier unless a unit is attached to it or follows it.
+# "section 2" are still checked.
 research_numeric_claims() {
-    local LC_ALL=C
-    # Headers enter awk through the environment to preserve Markdown escapes.
-    # Bound that argument in bytes before reaching platform exec limits.
-    local header="${research_table_header:-}"
-    if [[ ${#header} -gt 32768 ]]; then
-        printf 'Research table header exceeds the 32768-byte verification limit\n' >&2
-        return 1
-    fi
-    OCTOPUS_RESEARCH_TABLE_HEADER="${research_table_header:-}" LC_ALL=C awk \
-        -v declared_ids="${research_declared_ids:-}" -v probe_indices="${research_probe_index_list:-}" \
-        -v units="$(research_quantity_units)" -v currency_unit="$(research_currency_units)" "$(research_quantity_awk)"'
-    BEGIN {
-        # Unlike -v assignments, ENVIRON retains Markdown backslashes verbatim.
-        table_header = ENVIRON["OCTOPUS_RESEARCH_TABLE_HEADER"]
-        table_cells(table_header, header_cells)
-        count = split(declared_ids, parts, /[ \t]+/)
-        for (i = 1; i <= count; i++) if (parts[i] != "") declared[parts[i]] = 1
-        count = split(probe_indices, parts, /[ \t]+/)
-        for (i = 1; i <= count; i++) if (parts[i] != "") probe_index[parts[i]] = 1
-    }
-    function table_cells(text, cells,    at, cell, character) {
-        for (cell in cells) delete cells[cell]
-        sub(/^[ \t]*\|/, "", text)
-        cell = 1
-        for (at = 1; at <= length(text); at++) {
-            character = substr(text, at, 1)
-            if (character == "\\" && at < length(text)) {
-                cells[cell] = cells[cell] substr(text, ++at, 1)
-            } else if (character == "|") cell++
-            else cells[cell] = cells[cell] character
-        }
-        return cell
-    }
-    function declared_reference(number, before, after,    members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth, column, row_cells, heading, neighbor_before, neighbor_after, currency_before) {
-        # Normalize only the context used by these exemptions. Other numeric
-        # extraction rules still see literal code and Markdown destinations.
-        gsub(/`/, "", before)
-        gsub(/`/, "", after)
-        # Grouping parentheses do not turn an arithmetic operand into a ticket.
-        group_tail = before
-        if (sub(/([ \t*_]*\()+[ \t*_]*$/, "", before)) {
-            group_tail = substr(group_tail, length(before) + 1)
-            group_depth = gsub(/\(/, "", group_tail)
-            while (group_depth-- > 0) if (!sub(/^[ \t*_]*\)/, "", after)) break
-        }
-        # Parentheses around adjacent operands do not change their quantity.
-        neighbor_before = before; neighbor_after = after
-        gsub(/[()]/, "", neighbor_before)
-        gsub(/[()]/, "", neighbor_after)
-        if (neighbor_before ~ /([+*=%\/:^]|\302\261|\303\227|\303\267)[ \t*_]*$/ ||
-            neighbor_after ~ /^[ \t*_]*([+*=\/:^]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 0
-        if (tolower(neighbor_after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 0
-        if (tolower(neighbor_before) ~ /[0-9][ \t*_]+out[ \t]+of[ \t*_]*$/) return 0
-        if (neighbor_before ~ /[0-9][ \t*_]+(-|\342\210\222)[ \t*_]+$/ || neighbor_after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+([+-]|\342\210\222)?[ \t*_]*[0-9A-Za-z_]/) return 0
-        if (before ~ /(!=|\342\211\240|&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
-            after ~ /^[ \t*_]*(!=|\342\211\240|&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
-        # In a Markdown table, retain measurements with units in the heading.
-        column = table_cells(before, row_cells)
-        heading = unformat(header_cells[column], 1)
-        gsub(/`/, "", heading)
-        if (tolower(heading) ~ /^[ \t]*\[?(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)\]?[ \t]*(\([^)]*\)[ \t]*)*$/) return 0
-        # Brackets around visible link labels are not quantity evidence.
-        gsub(/\[/, "(", heading); gsub(/\]/, ")", heading)
-        if (tolower(heading) ~ /(^|[^a-z])counts?([^a-z]|$)/) return 0
-        if (quantity_suffix(" " heading)) return 0
-        while (match(heading, /[(\[,\/]|(^|[ \t])[Ii][Nn][ \t]+/)) {
-            heading = substr(heading, RSTART + RLENGTH)
-            if (quantity_suffix(" " heading)) return 0
-        }
-        # Numeric link labels stay claims, including links around endpoints.
-        if (after ~ /^\](\(|\[)/) return 0
-        if (number !~ /^[0-9]+(,[0-9]+)*$/) return 0
-        if (before ~ /(^|[^.0-9])\.$/) return 0
-        if (before ~ /(^|[^0-9A-Za-z_])([+-]|\342\210\222)[ \t*_]*$/) return 0
-        if (tolower(before) ~ /(^|[^a-z])(http(\/[0-9]+(\.[0-9]+)?)?([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)([ \t]+(is|was|equals?))?[ \t:]*$/) return 0
-        if (before ~ /[<>=][ \t*_]*$/ || tolower(before) ~ /(^|[^a-z])(at (least|most)|more than|less than|no (more|less|fewer) than|approximately|roughly|nearly|almost)[ \t*_]*$/) return 0
-        if (tolower(before) ~ /(^|[^a-z])counts?([ \t]+(is|was|are|were|equals?))?[ \t:]*$/) return 0
-        if (before ~ /(~|\342\211\210)[ \t*_]*$/) return 0
-        # A table may place its unit immediately before the value.
-        preceding_cell = before
-        if (sub(/\|[ \t*_]*$/, "", preceding_cell)) {
-            sub(/^.*\|/, "", preceding_cell)
-            if (quantity_suffix(" " preceding_cell)) return 0
-        }
-        if (number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
-        # A leading currency applies to each connected range/list member.
-        currency_before = tolower(before)
-        gsub(/\302\240|\342\200\257|&nbsp;|&#0*160;|&#[xX]0*[aA]0;/, " ", currency_before)
-        gsub(/[()]/, " ", currency_before)
-        sub(/(([+-]|\342\210\222)?[ \t*_]*[0-9]+([.,][0-9]+)*[ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru|and|or|&|,[ \t]*((and|or)[ \t]+)?)[ \t*_]*)+$/, "", currency_before)
-        if (currency_before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_]*$/ ||
-            currency_before ~ ("(^|[^a-z])" currency_unit "[ \\t*_]*$")) return 0
-        if (before ~ /[0-9][ \t*_]*[+*=][ \t*_]*$|[0-9][ \t*_]*(\302\261|\303\227|\303\267)[ \t*_]*$/) return 0
-        if (before ~ /[0-9][ \t*_]+-[ \t*_]+$/ || after ~ /^[ \t*_]+-[ \t*_]+[0-9]/) return 0
-        if (before ~ /[0-9][ \t*_]*[\/:][ \t*_]*$/ || after ~ /^[ \t*_]*[\/:][ \t*_]*[0-9]/) return 0
-        if (after ~ /^([.,][0-9]|[A-Za-z%])/) return 0
-        if (quantity_suffix(after) || after ~ /^[ \t*_`]*([+*=<>^\/:]|\302\261|\303\227|\303\267)/) return 0
-        if (after ~ /^-[A-Za-z]/ && quantity_suffix(" " substr(after, 2))) return 0
-        # A trailing unit makes earlier range endpoints and list members quantities.
-        if (quantity_tail(after)) return 0
-        member_count = split(number, members, /,/)
-        for (member = 1; member <= member_count; member++) if (!(members[member] in declared)) break
-        if (member > member_count) return 1
-        if (!(number in probe_index)) return 0
-        probe_join = "([ \\t]*,[ \\t]*((and|or)[ \\t]+)?|[ \\t]+(and|or)[ \\t]+|[ \\t]*&[ \\t]*)"
-        probe_prefix = "(^|[^0-9a-z_])[*_]*probes?[*_]*[ \\t]+"
-        return (tolower(before) ~ (probe_prefix "([0-9]+" probe_join ")*$"))
-    }
-    function unformat(text, hide_destinations,    at, marker, width, previous, following, depth, result, piece, scan, paren_depth, marks, starts, drops, ticks, next_tick, parens, close_paren, destination_depth) {
+    LC_ALL=C awk '
+    function unformat(text,    at, marker, width, previous, following, depth, result, piece, scan, paren_depth, marks, starts, drops, ticks, next_tick, parens, close_paren, destination_depth) {
         # Pair equal-length backtick runs once. Literal code and destinations
         # must not open or close emphasis in the surrounding prose.
         scan = 1
@@ -891,11 +667,9 @@ research_numeric_claims() {
                 at = next_tick[at] + RLENGTH; continue
             }
             if (substr(text, at, 2) == "](" && (at + 1) in close_paren) {
-                if (hide_destinations) drops[at + 1] = close_paren[at + 1] - at
                 at = close_paren[at + 1] + 1; continue
             }
             if (substr(text, at, 2) == "][" && match(substr(text, at + 2), /^[^]]*\]/)) {
-                if (hide_destinations) drops[at + 1] = 1 + RLENGTH
                 at += 2 + RLENGTH; continue
             }
             if (marker != "*" && marker != "_") { at++; continue }
@@ -996,10 +770,6 @@ research_numeric_claims() {
                 || (start == id_end + 1 && before ~ /-$/) \
                 || (length(word) >= 7 && length(word) <= 40 && word ~ /^[0-9a-f]*[a-f][0-9a-f]*$/)) {
                 id_end = pos
-                continue
-            }
-            if (declared_reference(substr(line, start, len), before, after)) {
-                if (after !~ /^[ \t]*(-|\342\200\223|\342\200\224|\342\210\222)[ \t]*[*_]*[0-9]/) id_end = pos
                 continue
             }
             if (ordinal_reference(before, after, start - emphasis_width, substr(line, start, len))) {
@@ -1198,13 +968,6 @@ research_verify_synthesis() {
     if [[ -n "$project_root" ]]; then
         project_root=$(cd "$project_root" 2>/dev/null && pwd -P) || project_root=""
     fi
-    local research_declared_ids="" research_probe_index_list research_table_header="" previous_table_line=""
-    local table_delimiter_pattern='^[[:space:]]*\|?[[:space:]]*:?-+:?[[:space:]]*(\|[[:space:]]*:?-+:?[[:space:]]*)*\|?[[:space:]]*$'
-    local table_end_pattern='^[[:space:]]*(#{1,6}([[:space:]]|$)|>|[-+*][[:space:]]|[0-9]+[.)][[:space:]]|([-*_][[:space:]]*){3,}$)'
-    if [[ -r "$run_dir/prompt.txt" ]]; then
-        research_declared_ids=$(research_declared_identifier_numbers < "$run_dir/prompt.txt")
-    fi
-    research_probe_index_list=$(research_probe_indices)
     while IFS= read -r line || [[ -n "$line" ]]; do
         line_no=$((line_no + 1))
         [[ "$line_no" != 1 || "$line" != '# PROBE Phase Synthesis' ]] || probe_header=true
@@ -1214,7 +977,6 @@ research_verify_synthesis() {
             continue
         fi
         if [[ "$line" == '```'* ]]; then
-            research_table_header=""; previous_table_line=""
             if [[ "$in_fence" == "true" ]]; then
                 in_fence=false
             else
@@ -1223,24 +985,6 @@ research_verify_synthesis() {
             continue
         fi
         [[ "$in_fence" == "true" ]] && continue
-        # Reject oversized input before citation/Markdown scans. In particular,
-        # a candidate table header must not reach a quadratic platform parser.
-        if ! (LC_ALL=C; [[ ${#line} -le 32768 ]]); then
-            failures=$((failures + 1))
-            printf 'numeric_extraction_failed|%s|Research line exceeds the 32768-byte verification limit\n' "$line_no" >> "$findings"
-            research_table_header=""; previous_table_line=""
-            continue
-        fi
-        if [[ "$line" == *"|"* && "$line" =~ $table_delimiter_pattern ]]; then
-            [[ -n "$research_table_header" ]] || research_table_header="$previous_table_line"
-            previous_table_line="$line"
-        elif [[ -z "${line//[[:space:]]/}" || "$line" =~ $table_end_pattern ]]; then
-            research_table_header=""; previous_table_line=""
-        elif [[ "$line" == *"|"* ]]; then
-            previous_table_line="$line"
-        elif [[ -z "$research_table_header" ]]; then
-            previous_table_line=""
-        fi
         [[ -n "${line//[[:space:]]/}" ]] || continue
         [[ "$line" == \#* || "$line" == '---'* ]] && continue
         ids=$(printf '%s\n' "$line" | grep -Eo '\[source:S[0-9]{3}\]' | sed 's/\[source:\(.*\)\]/\1/' | sort -u || true)
@@ -1262,11 +1006,7 @@ research_verify_synthesis() {
         done < <(research_local_citation_tokens "$line")
         local_refs=$(printf '%s' "$local_refs" | awk '!seen[$0]++')
         local_files=$(printf '%s' "$local_files" | awk '!seen[$0]++')
-        if ! numbers=$(research_extract_numbers "$plain_line"); then
-            failures=$((failures + 1))
-            printf 'numeric_extraction_failed|%s|Unable to verify numeric claims\n' "$line_no" >> "$findings"
-            continue
-        fi
+        numbers=$(research_extract_numbers "$plain_line")
         quotes=$(printf '%s\n' "$plain_line" | awk '{ s=$0; while (match(s, /"[^"][^"][^"][^"]+"/)) { print substr(s,RSTART+1,RLENGTH-2); s=substr(s,RSTART+RLENGTH) } }')
         if [[ -z "$ids" && -z "$local_refs" && "$unresolved_refs" == "false" && ( -n "$numbers" || -n "$quotes" ) \
               && "$line" != *"[inference]"* && "$line" != *"[opinion"* ]] \

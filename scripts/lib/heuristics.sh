@@ -281,6 +281,7 @@ Fix every listed finding and keep all other content, structure and headings. Do 
 - unknown_source: the cited ID is not in the evidence catalog. Replace it with a catalog ID, a workspace citation, or [inference].
 - number_mismatch or quote_mismatch: the number or quote does not appear in the cited source or the cited lines. Re-read the file and correct the line range, correct the number or quote, or remove it. Double quotation marks are only for exact text from a cited source: write a proposed string, label or paraphrase without them, or in backticks when it is a literal value.
 - false_consensus: the line calls something consensus without two independent evidence groups. Reword it or cite a second independent source.
+- A flagged number that names a ticket, issue, requirement or probe result is not a quantity. Write its full identifier, such as PLAT-1931 or probe-4, instead of the bare number.
 
 Workspace root for file citations: ${local_evidence_root}. Every cited file and line must exist there.
 
@@ -640,6 +641,7 @@ Sources are pre-ranked by quality score (best first). However:
 - Every factual claim must cite one or more catalog IDs as [source:S001], cite a workspace file, or be explicitly marked [inference]
 - A claim about a file in the workspace (${local_evidence_root}) may cite it as a workspace-relative path with line numbers: src/app.ts:42, src/app.ts:40-48 or src/app.ts:12,40. The file and every cited line must exist; a bare :42, a basename that is not a workspace path, or an elided path is not a citation
 - Quotes and numeric claims must cite a catalog source whose snapshot, or a workspace file whose text, contains the exact quote or number
+- Write tickets, issues and requirements by their full ID (PLAT-1931, not 1931) and probe results as probe-4 (not probe 4). Every bare number is a numeric claim that needs evidence
 - Count independent evidence groups, not citation count. Sources with the same independence key are one voice
 - Never call duplicated or syndicated sources consensus; consensus requires at least two independence keys
 - Failed or rejected provider outputs were excluded and must not be cited as evidence
