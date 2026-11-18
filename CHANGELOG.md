@@ -7,6 +7,7 @@
 - Fix research verification failing on bare ticket numbers declared in the prompt.
 - Accept probe references backed by results from the current run.
 - Keep currency, fractions, formatted units and measured range endpoints under evidence verification.
+- Stop research publication when numeric extraction fails.
 
 ## [11.25.2] - 2026-11-17
 

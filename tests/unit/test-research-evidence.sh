@@ -2219,4 +2219,56 @@ for prompt_tail in 'Hz sampling' 'MHz sampling' '- capacity' '− capacity' \
     else test_fail "prompt quantity escaped verification"; fi
 done
 
+# Extraction failures must not be interpreted as an absence of numeric claims.
+printf '%s\n' 'Check PLAT-1928 and PLAT-1931 and PLAT-403' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return [500, 1931];' > "$declared_root/src/handler.ts"
+for quantity_text in 'Latency is 1928&nbsp;to&nbsp;1931&nbsp;ms.' \
+    'The bound is 1928 != max_timeout.' 'max_timeout ≠ 1928.' \
+    'The cost is USD -1931 to 1928.' 'The cost is $-1931 to 1928.'; do
+    test_case "actual verifier retains reviewed comparison/range claims: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" != 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1928")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported numeric predicate or range passed"; fi
+done
+for prompt_tail in '!= max_timeout' '≠ max_timeout' '&nbsp;to&nbsp;1932&nbsp;ms'; do
+    test_case "reviewed quantity prompt continuation stays quantitative: $prompt_tail"
+    actual=$(printf '%s\n' "Check PLAT-1928 and 1931 $prompt_tail" | research_declared_identifier_numbers)
+    if [[ "$actual" == 1928 ]]; then test_pass; else test_fail "quantity admitted: $actual"; fi
+done
+printf '%s\n' 'return 500;' > "$declared_root/src/handler.ts"
+for heading in 'HTTP status (upstream)' 'HTTP status code (observed)' 'Ticket (upstream)'; do
+    test_case "annotated status heading retains its meaning: $heading"
+    printf '%s\n' "| $heading | Source |" '| --- | --- |' '| 403 | `src/handler.ts:1` |' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$heading" == Ticket* && "$declared_status" == 0 ]]; then test_pass
+    elif [[ "$heading" != Ticket* && "$declared_status" != 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "403")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "annotated status or ticket heading misclassified"; fi
+done
+test_case "numeric parser failure blocks actual verification"
+printf '%s\n' 'An ordinary prose reference.' > "$declared_draft"
+declared_status=0
+(research_numeric_claims() { return 73; }; cd "$declared_root"; research_verify_synthesis "$declared_draft") || declared_status=$?
+if [[ "$declared_status" != 0 ]] && jq -e \
+    '.checks | any(.kind == "numeric_extraction_failed")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+else test_fail "numeric extraction failure was accepted"; fi
+
+test_case "oversized table heading blocks actual verification"
+{
+    printf '| '
+    python3 -c 'print("x" * 140000, end="")'
+    printf '%s\n' ' | Latency (ms) |' '| --- | --- |' '| item | 42 ms |'
+} > "$declared_draft"
+declared_status=0
+(cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+if [[ "$declared_status" != 0 ]] && jq -e \
+    '.checks | any(.kind == "numeric_extraction_failed")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+else test_fail "oversized header silently disabled numeric verification"; fi
+
 test_summary

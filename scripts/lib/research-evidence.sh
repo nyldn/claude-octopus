@@ -637,9 +637,10 @@ research_quantity_awk() {
     }
     function quantity_tail(after) {
         after = tolower(after)
+        gsub(/\302\240|\342\200\257|&nbsp;|&#0*160;|&#[xX]0*[aA]0;/, " ", after)
         gsub(/\\[()]/, " ", after)
         gsub(/`|[()]|\[|\]/, " ", after)
-        if (after ~ /^[ \t*_]*([+*=<>^\/:]|\303\227|\303\267|&lt;|&gt;|\342\211\244|\342\211\245)/) return 1
+        if (after ~ /^[ \t*_]*([+*=<>^\/:]|!=|\342\211\240|\303\227|\303\267|&lt;|&gt;|\342\211\244|\342\211\245)/) return 1
         # Spaced minus is arithmetic; compact ticket ranges remain references.
         if (after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+([+-]|\342\210\222)?[ \t*_]*[0-9A-Za-z_]/) return 1
         if (after ~ /^[ \t*_]*([+*=\/:<>]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/ ||
@@ -723,11 +724,13 @@ research_probe_indices() {
 }
 
 research_extract_numbers() {
-    local line="$1"
+    local line="$1" claims
     # Do not mistake ordered-list markers ("1." / "2)" / "**3.**") for
     # factual values.
-    line=$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*([-*+][[:space:]]*)?(\*\*|__|\*|_)?[0-9]+[.)](\*\*|__|\*|_)?[[:space:]]+//')
-    printf '%s\n' "$line" | research_numeric_claims | sort -u || true
+    line=$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*([-*+][[:space:]]*)?(\*\*|__|\*|_)?[0-9]+[.)](\*\*|__|\*|_)?[[:space:]]+//') || return 1
+    claims=$(printf '%s\n' "$line" | research_numeric_claims) || return 1
+    [[ -n "$claims" ]] || return 0
+    printf '%s\n' "$claims" | sort -u
 }
 
 # A synthesis that numbers its findings refers back to them: "See point 2.",
@@ -738,6 +741,14 @@ research_extract_numbers() {
 # a ticket, or "probe N" naming one of this run's probe results, is an
 # identifier unless a unit is attached to it or follows it.
 research_numeric_claims() {
+    local LC_ALL=C
+    # Headers enter awk through the environment to preserve Markdown escapes.
+    # Bound that argument in bytes before reaching platform exec limits.
+    local header="${research_table_header:-}"
+    if [[ ${#header} -gt 32768 ]]; then
+        printf 'Research table header exceeds the 32768-byte verification limit\n' >&2
+        return 1
+    fi
     OCTOPUS_RESEARCH_TABLE_HEADER="${research_table_header:-}" LC_ALL=C awk \
         -v declared_ids="${research_declared_ids:-}" -v probe_indices="${research_probe_index_list:-}" \
         -v units="$(research_quantity_units)" -v currency_unit="$(research_currency_units)" "$(research_quantity_awk)"'
@@ -783,14 +794,14 @@ research_numeric_claims() {
         if (tolower(neighbor_after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 0
         if (tolower(neighbor_before) ~ /[0-9][ \t*_]+out[ \t]+of[ \t*_]*$/) return 0
         if (neighbor_before ~ /[0-9][ \t*_]+(-|\342\210\222)[ \t*_]+$/ || neighbor_after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+([+-]|\342\210\222)?[ \t*_]*[0-9A-Za-z_]/) return 0
-        if (before ~ /(&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
-            after ~ /^[ \t*_]*(&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
+        if (before ~ /(!=|\342\211\240|&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
+            after ~ /^[ \t*_]*(!=|\342\211\240|&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
         # In a Markdown table, retain measurements with units in the heading.
         column = table_cells(before, headings)
         table_cells(table_header, headings)
         heading = unformat(headings[column], 1)
         gsub(/`/, "", heading)
-        if (tolower(heading) ~ /^[ \t]*\[?(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)\]?[ \t]*$/) return 0
+        if (tolower(heading) ~ /^[ \t]*\[?(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)\]?[ \t]*(\([^)]*\)[ \t]*)*$/) return 0
         # Brackets around visible link labels are not quantity evidence.
         gsub(/\[/, "(", heading); gsub(/\]/, ")", heading)
         if (tolower(heading) ~ /(^|[^a-z])counts?([^a-z]|$)/) return 0
@@ -818,7 +829,7 @@ research_numeric_claims() {
         # A leading currency applies to each connected range/list member.
         currency_before = tolower(before)
         gsub(/[()]/, " ", currency_before)
-        sub(/([0-9]+([.,][0-9]+)*[ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru|and|or|&|,[ \t]*((and|or)[ \t]+)?)[ \t*_]*)+$/, "", currency_before)
+        sub(/(([+-]|\342\210\222)?[ \t*_]*[0-9]+([.,][0-9]+)*[ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru|and|or|&|,[ \t]*((and|or)[ \t]+)?)[ \t*_]*)+$/, "", currency_before)
         if (currency_before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_]*$/ ||
             currency_before ~ ("(^|[^a-z])" currency_unit "[ \\t*_]*$")) return 0
         if (before ~ /[0-9][ \t*_]*[+*=][ \t*_]*$|[0-9][ \t*_]*(\302\261|\303\227|\303\267)[ \t*_]*$/) return 0
@@ -1240,7 +1251,11 @@ research_verify_synthesis() {
         done < <(research_local_citation_tokens "$line")
         local_refs=$(printf '%s' "$local_refs" | awk '!seen[$0]++')
         local_files=$(printf '%s' "$local_files" | awk '!seen[$0]++')
-        numbers=$(research_extract_numbers "$plain_line")
+        if ! numbers=$(research_extract_numbers "$plain_line"); then
+            failures=$((failures + 1))
+            printf 'numeric_extraction_failed|%s|Unable to verify numeric claims\n' "$line_no" >> "$findings"
+            continue
+        fi
         quotes=$(printf '%s\n' "$plain_line" | awk '{ s=$0; while (match(s, /"[^"][^"][^"][^"]+"/)) { print substr(s,RSTART+1,RLENGTH-2); s=substr(s,RSTART+RLENGTH) } }')
         if [[ -z "$ids" && -z "$local_refs" && "$unresolved_refs" == "false" && ( -n "$numbers" || -n "$quotes" ) \
               && "$line" != *"[inference]"* && "$line" != *"[opinion"* ]] \
