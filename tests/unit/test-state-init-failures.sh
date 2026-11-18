@@ -185,4 +185,52 @@ print('4/4 relative-source directory-change controls passed')
 PY_SOURCE
 then test_pass; else test_fail "directory change broke the sourced writer"; fi
 
+
+test_case "operational validator failures preserve healthy state and recovery files"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_VALIDATOR'
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+helper = os.environ.get('OCTO_INIT_STATE_TEST_HELPER', str(Path(sys.argv[1]) / 'scripts/state-manager.sh'))
+checked = 0
+failures = []
+for conditional in (False, True):
+    for status in (1, 2, 23, 137):
+        with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+            directory = Path(temporary)
+            state = directory / 'state.json'
+            backup = directory / 'state.json.backup'
+            state.write_text('{"decisions":[{"decision":"retain"}],"context":{"define":"saved"},"metrics":{"phases_completed":7}}\n')
+            backup.write_text('{"recovery":"retain earlier backup"}\n')
+            before = (state.read_bytes(), backup.read_bytes())
+            marker = directory / 'validator-called'
+            injection = 'jq() { command touch "$FAILURE_MARKER"; return "$VALIDATOR_STATUS"; }; '
+            call = 'if init_state; then exit 0; else exit $?; fi' if conditional else 'set +e; init_state; exit $?'
+            result = subprocess.run(['bash', '-c', 'source "$1"; ' + injection + call, 'test', helper],
+                env=dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(directory),
+                         FAILURE_MARKER=str(marker), VALIDATOR_STATUS=str(status)),
+                capture_output=True, text=True, timeout=10)
+            if not (marker.exists() and result.returncode != 0 and state.exists()
+                    and state.read_bytes() == before[0] and backup.read_bytes() == before[1]
+                    and not list(directory.glob('state.json.corrupt.*'))
+                    and not list(directory.glob('state.json.tmp.*'))
+                    and 'SUCCESS:' not in result.stdout):
+                failures.append(f'conditional={conditional}, validator={status}: {result.returncode}, {result.stdout}, {result.stderr}')
+            # Removing the injected failure must accept the original state unchanged.
+            retry = subprocess.run([helper, 'init_state'],
+                env=dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(directory)),
+                capture_output=True, text=True, timeout=10)
+            if retry.returncode != 0 or state.read_bytes() != before[0] or backup.read_bytes() != before[1]:
+                failures.append(f'retry changed saved state: conditional={conditional}, validator={status}')
+            checked += 2
+print(f'{checked - len(failures)}/{checked} operational-validator failure/retry controls passed')
+for failure in failures:
+    print(failure, file=sys.stderr)
+sys.exit(bool(failures))
+PY_VALIDATOR
+then test_pass; else test_fail "validator failure discarded healthy state or its recovery copy"; fi
+
 test_summary

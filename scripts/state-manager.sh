@@ -121,6 +121,24 @@ state_writer_lock() {
     return 75
 }
 
+# Confirm JSON content independently when jq could not validate it.
+state_document_validity() {
+    python3 -I - "$1" <<'PY_VALIDATE'
+import json
+from pathlib import Path
+import sys
+
+# Read errors and interpreter failures propagate without moving saved state.
+content = Path(sys.argv[1]).read_bytes()
+try:
+    document = json.loads(content)
+except (ValueError, UnicodeError):
+    print("invalid")
+else:
+    print("valid" if isinstance(document, dict) else "invalid")
+PY_VALIDATE
+}
+
 # Initialize state file with default structure
 init_state() (
     state_writer_lock || return $?
@@ -136,6 +154,14 @@ init_state() (
             success "State file already exists and is valid"
             return 0
         else
+            # A failed jq process does not prove the saved document is invalid.
+            # Confirm content independently before taking the recovery path.
+            local validation
+            validation=$(state_document_validity "$STATE_FILE") || return 1
+            if [[ "$validation" != invalid ]]; then
+                printf '%s\n' "Workflow state validation failed; saved state was preserved." >&2
+                return 1
+            fi
             warning "State file is corrupted, backing up and recreating"
             mv "$STATE_FILE" "${STATE_FILE}.corrupt.$(date +%s)" || return 1
         fi
