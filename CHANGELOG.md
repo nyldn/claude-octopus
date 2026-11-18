@@ -2,13 +2,16 @@
 
 ## [Unreleased]
 
-## [11.25.2] - 2026-11-17
-
 ### Fixed
 
 - Fix research verification failing on bare ticket numbers declared in the prompt.
 - Accept probe references backed by results from the current run.
 - Keep currency, fractions, formatted units and measured range endpoints under evidence verification.
+
+## [11.25.2] - 2026-11-17
+
+### Fixed
+
 - Discover rejects missing or empty synthesis and stops after failed context or
   metrics writes, preserving earlier state instead of presenting completion.
 

@@ -1960,4 +1960,58 @@ for leading_pipe in header row; do
     else test_fail "optional table pipe hid its measurement"; fi
 done
 
+printf '%s\n' 'Check PLAT-1928, PLAT-1931 and PLAT-403' > "$RESEARCH_RUN_DIR/prompt.txt"
+research_declared_ids='1928 1931 403'
+for quantity_case in 'The HTTP status code is 403.|403' \
+    'The difference is (1928) - (1931).|1928 1931' \
+    'Latency is 1928 to 1931 [ms](units.md).|1928 1931'; do
+    quantity_text=${quantity_case%%|*}
+    test_case "final review syntax retains numeric claims: $quantity_text"
+    actual=$(research_extract_numbers "$quantity_text" | paste -sd ' ' -)
+    if [[ "$actual" == "${quantity_case#*|}" ]]; then test_pass
+    else test_fail "expected ${quantity_case#*|}, got $actual"; fi
+done
+research_declared_ids=''
+printf '%s\n' 'return [500, 1931];' > "$declared_root/src/handler.ts"
+for quantity_text in 'The HTTP status code is 403.' 'The difference is (1928) - (1931).' \
+    'Latency is 1928 to 1931 [ms](units.md).'; do
+    test_case "actual verifier rejects final reviewed syntax: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and (.detail == "1928" or .detail == "403"))' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported final-review quantity passed"; fi
+done
+for table_case in escaped-row escaped-heading http-heading; do
+    test_case "actual verifier aligns escaped table cells and status headings: $table_case"
+    case "$table_case" in
+        escaped-row) printf '%s\n' '| Label | Latency (ms) | Source |' '| --- | --- | --- |' \
+            '| alpha \| omega | 1928 | `src/handler.ts:1` |' > "$declared_draft" ;;
+        escaped-heading) printf '%s\n' '| Operation \| Path | Latency [ms] | Source |' '| --- | --- | --- |' \
+            '| handler | 1928 | `src/handler.ts:1` |' > "$declared_draft" ;;
+        http-heading) printf '%s\n' '| HTTP status | Source |' '| --- | --- |' \
+            '| 403 | `src/handler.ts:1` |' > "$declared_draft" ;;
+    esac
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" -ne 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and (.detail == "1928" or .detail == "403"))' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "table context hid its numeric claim"; fi
+done
+test_case "named comparisons in a prompt do not admit ticket continuations"
+actual=$(printf '%s\n' 'Investigate PLAT-1928 and 1931 < max_timeout' | research_declared_identifier_numbers)
+if [[ "$actual" == 1928 ]]; then test_pass; else test_fail "comparison admitted $actual"; fi
+test_case "actual verifier checks a prompt comparison operand"
+printf '%s\n' 'Investigate PLAT-1928 and 1931 < max_timeout' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return 500;' > "$declared_root/src/handler.ts"
+printf '%s\n' '- The timeout is 1931 (`src/handler.ts:1`).' > "$declared_draft"
+declared_status=0
+(cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+if [[ "$declared_status" -ne 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1931")' \
+    "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+else test_fail "prompt comparison quantity escaped actual verification"; fi
+
 test_summary

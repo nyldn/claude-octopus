@@ -635,7 +635,8 @@ research_quantity_awk() {
         return (tolower(after) ~ ("^[ \\t]+[*_]*" units "([^0-9a-z_]|$)") || after ~ /^(\.[0-9]|[A-Za-z])/ || after ~ /^[ \t]*(\[|%|\302\260|\302\265|\316\274|\$|\302\243|\342\202\254|\302\245|\342\202\271)/)
     }
     function quantity_tail(after) {
-        gsub(/`|[()]|\[|\]/, "", after)
+        gsub(/`|[()]|\[|\]/, " ", after)
+        if (after ~ /^[ \t*_]*[+*=<>]/) return 1
         if (after ~ /^[ \t*_]*([+*=\/:<>]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/ ||
             tolower(after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 1
         sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", after)
@@ -732,13 +733,29 @@ research_extract_numbers() {
 # a ticket, or "probe N" naming one of this run's probe results, is an
 # identifier unless a unit is attached to it or follows it.
 research_numeric_claims() {
-    LC_ALL=C awk -v declared_ids="${research_declared_ids:-}" -v probe_indices="${research_probe_index_list:-}" \
-        -v units="$(research_quantity_units)" -v currency_unit="$(research_currency_units)" -v table_header="${research_table_header:-}" "$(research_quantity_awk)"'
+    OCTOPUS_RESEARCH_TABLE_HEADER="${research_table_header:-}" LC_ALL=C awk \
+        -v declared_ids="${research_declared_ids:-}" -v probe_indices="${research_probe_index_list:-}" \
+        -v units="$(research_quantity_units)" -v currency_unit="$(research_currency_units)" "$(research_quantity_awk)"'
     BEGIN {
+        # Unlike -v assignments, ENVIRON retains Markdown backslashes verbatim.
+        table_header = ENVIRON["OCTOPUS_RESEARCH_TABLE_HEADER"]
         count = split(declared_ids, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") declared[parts[i]] = 1
         count = split(probe_indices, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") probe_index[parts[i]] = 1
+    }
+    function table_cells(text, cells,    at, cell, character) {
+        for (cell in cells) delete cells[cell]
+        sub(/^[ \t]*\|/, "", text)
+        cell = 1
+        for (at = 1; at <= length(text); at++) {
+            character = substr(text, at, 1)
+            if (character == "\\" && at < length(text)) {
+                cells[cell] = cells[cell] substr(text, ++at, 1)
+            } else if (character == "|") cell++
+            else cells[cell] = cells[cell] character
+        }
+        return cell
     }
     function declared_reference(number, before, after,    members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth, column, headings, heading, neighbor_before, neighbor_after) {
         # Normalize only the context used by these exemptions. Other numeric
@@ -760,16 +777,14 @@ research_numeric_claims() {
             neighbor_after ~ /^[ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 0
         if (tolower(neighbor_after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 0
         if (tolower(neighbor_before) ~ /[0-9][ \t*_]+out[ \t]+of[ \t*_]*$/) return 0
+        if (neighbor_before ~ /[0-9][ \t*_]+-[ \t*_]+$/ || neighbor_after ~ /^[ \t*_]+-[ \t*_]+[0-9]/) return 0
         if (before ~ /(&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
             after ~ /^[ \t*_]*(&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
         # In a Markdown table, retain measurements with units in the heading.
-        column = before
-        sub(/^[ \t]*\|/, "", column)
-        column = gsub(/\|/, "|", column) + 1
-        heading = table_header
-        sub(/^[ \t]*\|/, "", heading)
-        split(heading, headings, /\|/)
+        column = table_cells(before, headings)
+        table_cells(table_header, headings)
         heading = headings[column]
+        if (tolower(heading) ~ /^[ \t]*(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)[ \t]*$/) return 0
         sub(/^.*[(\[]/, "", heading)
         if (quantity_suffix(" " heading)) return 0
         # Numeric link labels stay claims, including links around endpoints.
@@ -777,7 +792,7 @@ research_numeric_claims() {
         if (number !~ /^[0-9]+(,[0-9]+)*$/) return 0
         if (before ~ /(^|[^.0-9])\.$/) return 0
         if (before ~ /(^|[^0-9A-Za-z_])([+-]|\342\210\222)$/) return 0
-        if (tolower(before) ~ /(^|[^a-z])(http(\/[0-9]+(\.[0-9]+)?)?([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)[ \t:]*$/) return 0
+        if (tolower(before) ~ /(^|[^a-z])(http(\/[0-9]+(\.[0-9]+)?)?([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)([ \t]+(is|was|equals?))?[ \t:]*$/) return 0
         if (before ~ /[<>=][ \t*_]*$/ || tolower(before) ~ /(^|[^a-z])(at (least|most)|more than|less than|no (more|less|fewer) than|approximately|roughly|nearly|almost)[ \t*_]*$/) return 0
         if (before ~ /(~|\342\211\210)[ \t*_]*$/) return 0
         # A table may place its unit immediately before the value.
