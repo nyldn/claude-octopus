@@ -2084,4 +2084,66 @@ for boundary in '' '## Next topic' $'```text\nignored\n```'; do
     if (cd "$declared_root" && research_verify_synthesis "$declared_draft"); then test_pass; else test_fail "table context leaked to a later block"; fi
 done
 
+
+# Review regressions deliberately cite a source missing the disputed value.
+printf '%s\n' 'Check PLAT-1928 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return [500, 2];' > "$declared_root/src/handler.ts"
+for quantity_text in 'Latency is 1928 \(ms\).' 'The rate is 1928 / workers.' \
+    'The product is 1928 * workers.' 'The rate is workers / 1928.' 'The power is 2^1928.' 'The difference is 1928 - -2.' \
+    'The difference is 1928 − +2.' 'The power is 1928^2.' 'The power is 1928**2.' \
+    'The vulnerability count is 1928.'; do
+    test_case "reviewed arithmetic/count/unit extraction: $quantity_text"
+    research_declared_ids='1928 1931'
+    actual=$(research_extract_numbers "$quantity_text")
+    if [[ "$actual" == *1928* ]]; then test_pass; else test_fail "declared quantity disappeared: $actual"; fi
+    research_declared_ids=''
+    test_case "actual verifier rejects unsupported reviewed quantity: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" != 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1928")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported reviewed quantity passed"; fi
+done
+for heading in Count 'Vulnerability count' 'Latency [ms] (average)' 'Latency (ms) (p95)' 'Latency [ms] (p95)' Ticket; do
+    test_case "all visible heading annotations retain measurement context: $heading"
+    printf '%s\n' "| $heading | Source |" '| --- | --- |' '| 1928 | `src/handler.ts:1` |' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$heading" == Ticket && "$declared_status" == 0 ]]; then test_pass
+    elif [[ "$heading" != Ticket && "$declared_status" != 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1928")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "incorrect heading classification: $heading"; fi
+done
+for operator in '/ capacity' '* workers' '× batch_size' '÷ capacity' '^ exponent' '- -2' '\(ms\)'; do
+    test_case "prompt named/signed arithmetic is not a ticket: $operator"
+    actual=$(printf '%s\n' "Investigate PLAT-1928 and 1931 $operator" | research_declared_identifier_numbers)
+    if [[ "$actual" == 1928 ]]; then test_pass; else test_fail "operand admitted: $actual"; fi
+    test_case "actual verifier checks the prompt arithmetic operand: $operator"
+    printf '%s\n' "Investigate PLAT-1928 and 1931 $operator" > "$RESEARCH_RUN_DIR/prompt.txt"
+    printf '%s\n' '- The result is 1931 (`src/handler.ts:1`).' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" != 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1931")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "prompt operand escaped actual verification"; fi
+done
+printf '%s\n' 'Check PLAT-1928 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return [500, 1928];' > "$declared_root/src/handler.ts"
+for quantity_text in 'The cost is $1928–1931.' 'The cost is USD 1928 to 1931.' 'The cost is €1928-1931.'; do
+    test_case "actual verifier checks every currency range endpoint: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" != 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1931")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "currency range endpoint escaped"; fi
+done
+printf '%s\n' 'return 500;' > "$declared_root/src/handler.ts"
+for heading in 'Latency (ms)' Ticket; do
+    test_case "dash-only data rows preserve the original heading: $heading"
+    printf '%s\n' "| $heading | Source |" '| --- | --- |' '| - | - |' '| 1928 | `src/handler.ts:1` |' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$heading" == Ticket && "$declared_status" == 0 ]]; then test_pass
+    elif [[ "$heading" != Ticket && "$declared_status" != 0 ]] && jq -e '.checks | any(.kind == "number_mismatch" and .detail == "1928")' "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "dash-only row replaced the header"; fi
+done
+
 test_summary

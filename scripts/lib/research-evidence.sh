@@ -626,6 +626,7 @@ research_quantity_awk() {
     cat <<'AWK_QUANTITY'
     function quantity_suffix(after) {
         gsub(/`/, "", after)
+        gsub(/\\[()]/, "", after)
         gsub(/\302\240|\342\200\257/, " ", after)
         sub(/^[ \t]*[*_(]+/, " ", after)
         sub(/^[ \t]*\|[ \t]*/, " ", after)
@@ -636,10 +637,11 @@ research_quantity_awk() {
     }
     function quantity_tail(after) {
         after = tolower(after)
+        gsub(/\\[()]/, " ", after)
         gsub(/`|[()]|\[|\]/, " ", after)
-        if (after ~ /^[ \t*_]*([+*=<>]|&lt;|&gt;|\342\211\244|\342\211\245)/) return 1
+        if (after ~ /^[ \t*_]*([+*=<>^\/:]|\303\227|\303\267|&lt;|&gt;|\342\211\244|\342\211\245)/) return 1
         # Spaced minus is arithmetic; compact ticket ranges remain references.
-        if (after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+[0-9]/) return 1
+        if (after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 1
         if (after ~ /^[ \t*_]*([+*=\/:<>]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/ ||
             tolower(after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 1
         sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", after)
@@ -760,7 +762,7 @@ research_numeric_claims() {
         }
         return cell
     }
-    function declared_reference(number, before, after,    members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth, column, headings, heading, neighbor_before, neighbor_after) {
+    function declared_reference(number, before, after,    members, member_count, member, probe_join, probe_prefix, preceding_cell, group_tail, group_depth, column, headings, heading, neighbor_before, neighbor_after, currency_before) {
         # Normalize only the context used by these exemptions. Other numeric
         # extraction rules still see literal code and Markdown destinations.
         gsub(/`/, "", before)
@@ -776,11 +778,11 @@ research_numeric_claims() {
         neighbor_before = before; neighbor_after = after
         gsub(/[()]/, "", neighbor_before)
         gsub(/[()]/, "", neighbor_after)
-        if (neighbor_before ~ /[0-9][ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*$/ ||
-            neighbor_after ~ /^[ \t*_]*([+*=\/:]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 0
+        if (neighbor_before ~ /([+*=\/:^]|\302\261|\303\227|\303\267)[ \t*_]*$/ ||
+            neighbor_after ~ /^[ \t*_]*([+*=\/:^]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 0
         if (tolower(neighbor_after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 0
         if (tolower(neighbor_before) ~ /[0-9][ \t*_]+out[ \t]+of[ \t*_]*$/) return 0
-        if (neighbor_before ~ /[0-9][ \t*_]+(-|\342\210\222)[ \t*_]+$/ || neighbor_after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+[0-9]/) return 0
+        if (neighbor_before ~ /[0-9][ \t*_]+(-|\342\210\222)[ \t*_]+$/ || neighbor_after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 0
         if (before ~ /(&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
             after ~ /^[ \t*_]*(&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
         # In a Markdown table, retain measurements with units in the heading.
@@ -789,8 +791,12 @@ research_numeric_claims() {
         heading = unformat(headings[column], 1)
         gsub(/`/, "", heading)
         if (tolower(heading) ~ /^[ \t]*\[?(http([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)\]?[ \t]*$/) return 0
-        sub(/^.*[(\[]/, "", heading)
+        if (tolower(heading) ~ /(^|[^a-z])counts?([^a-z]|$)/) return 0
         if (quantity_suffix(" " heading)) return 0
+        while (match(heading, /[(\[]/)) {
+            heading = substr(heading, RSTART + 1)
+            if (quantity_suffix(" " heading)) return 0
+        }
         # Numeric link labels stay claims, including links around endpoints.
         if (after ~ /^\]\(/) return 0
         if (number !~ /^[0-9]+(,[0-9]+)*$/) return 0
@@ -798,6 +804,7 @@ research_numeric_claims() {
         if (before ~ /(^|[^0-9A-Za-z_])([+-]|\342\210\222)[ \t*_]*$/) return 0
         if (tolower(before) ~ /(^|[^a-z])(http(\/[0-9]+(\.[0-9]+)?)?([ \t]+status([ \t]+code)?)?|status([ \t]+code)?)([ \t]+(is|was|equals?))?[ \t:]*$/) return 0
         if (before ~ /[<>=][ \t*_]*$/ || tolower(before) ~ /(^|[^a-z])(at (least|most)|more than|less than|no (more|less|fewer) than|approximately|roughly|nearly|almost)[ \t*_]*$/) return 0
+        if (tolower(before) ~ /(^|[^a-z])counts?([ \t]+(is|was|are|were|equals?))?[ \t:]*$/) return 0
         if (before ~ /(~|\342\211\210)[ \t*_]*$/) return 0
         # A table may place its unit immediately before the value.
         preceding_cell = before
@@ -806,13 +813,16 @@ research_numeric_claims() {
             if (quantity_suffix(" " preceding_cell)) return 0
         }
         if (number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
-        if (before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_`]*$/) return 0
-        if (tolower(before) ~ ("(^|[^a-z])" currency_unit "[ \\t*_]*$")) return 0
+        # A leading currency applies to each connected range/list member.
+        currency_before = tolower(before)
+        sub(/([0-9]+([.,][0-9]+)*[ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru|and|or|&|,)[ \t*_]*)+$/, "", currency_before)
+        if (currency_before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_]*$/ ||
+            currency_before ~ ("(^|[^a-z])" currency_unit "[ \\t*_]*$")) return 0
         if (before ~ /[0-9][ \t*_]*[+*=][ \t*_]*$|[0-9][ \t*_]*(\302\261|\303\227|\303\267)[ \t*_]*$/) return 0
         if (before ~ /[0-9][ \t*_]+-[ \t*_]+$/ || after ~ /^[ \t*_]+-[ \t*_]+[0-9]/) return 0
         if (before ~ /[0-9][ \t*_]*[\/:][ \t*_]*$/ || after ~ /^[ \t*_]*[\/:][ \t*_]*[0-9]/) return 0
         if (after ~ /^([.,][0-9]|[A-Za-z%])/) return 0
-        if (quantity_suffix(after) || after ~ /^[ \t*_`]*([+*=<>]|\302\261|\303\227|\303\267)/) return 0
+        if (quantity_suffix(after) || after ~ /^[ \t*_`]*([+*=<>^\/:]|\302\261|\303\227|\303\267)/) return 0
         if (after ~ /^-[A-Za-z]/ && quantity_suffix(" " substr(after, 2))) return 0
         # A trailing unit makes earlier range endpoints and list members quantities.
         if (quantity_tail(after)) return 0
@@ -1197,7 +1207,7 @@ research_verify_synthesis() {
         fi
         [[ "$in_fence" == "true" ]] && continue
         if [[ "$line" == *"|"* && "$line" =~ $table_delimiter_pattern ]]; then
-            research_table_header="$previous_table_line"
+            [[ -n "$research_table_header" ]] || research_table_header="$previous_table_line"
             previous_table_line="$line"
         elif [[ -z "${line//[[:space:]]/}" || "$line" =~ $table_end_pattern ]]; then
             research_table_header=""; previous_table_line=""
