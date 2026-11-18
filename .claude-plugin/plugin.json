@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.25.1",
-  "description": "v11.25.1 \u2014 Safer workflow recovery and Bash execution on zsh. Run /octo:setup.",
+  "version": "11.25.2",
+  "description": "v11.25.2 \u2014 Discover and Deliver stop completion when state updates fail. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
