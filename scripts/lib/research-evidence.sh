@@ -612,8 +612,13 @@ research_source_field() {
     fi
 }
 
+research_currency_units() {
+    printf '%s\n' '(usd|eur|gbp|jpy|cny|rmb|inr|aud|cad|chf|krw|rub|brl|zar|nzd|hkd|sgd|aed|dollars?|euros?|pounds?|yen|yuan|renminbi|rupees?|francs?|rubles?|reals?|rands?|won|dirhams?|krona|kroner)'
+}
+
 research_quantity_units() {
-    printf '%s\n' '(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|retries|attempts?)'
+    local modifier='((active|new|concurrently|concurrent|total|remaining|failed|successful|additional|unique|daily|monthly|average|maximum|minimum|peak)[ \t]+)?'
+    printf '%s\n' "${modifier}${modifier}${modifier}(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|retries|attempts?|$(research_currency_units))"
 }
 
 # A research prompt that names tickets declares their numbers: "PLAT-1927",
@@ -706,15 +711,13 @@ research_extract_numbers() {
 # identifier unless a unit is attached to it or follows it.
 research_numeric_claims() {
     LC_ALL=C awk -v declared_ids="${research_declared_ids:-}" -v probe_indices="${research_probe_index_list:-}" \
-        -v units="$(research_quantity_units)" -v table_header="${research_table_header:-}" '
+        -v units="$(research_quantity_units)" -v currency_unit="$(research_currency_units)" -v table_header="${research_table_header:-}" '
     BEGIN {
         count = split(declared_ids, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") declared[parts[i]] = 1
         count = split(probe_indices, parts, /[ \t]+/)
         for (i = 1; i <= count; i++) if (parts[i] != "") probe_index[parts[i]] = 1
-        unit_modifier = "((active|new|concurrently|concurrent|total|remaining|failed|successful|additional|unique|daily|monthly|average|maximum|minimum|peak)[ \\t]+)?"
-        currency_unit = "(usd|eur|gbp|jpy|cny|rmb|inr|aud|cad|chf|krw|rub|brl|zar|nzd|hkd|sgd|aed|dollars?|euros?|pounds?|yen|yuan|renminbi|rupees?|francs?|rubles?|reals?|rands?|won|dirhams?|krona|kroner)"
-        reference_unit = "^[ \\t]+[*_]*" unit_modifier unit_modifier unit_modifier "(" units "|" currency_unit ")([^0-9a-z_]|$)"
+        reference_unit = "^[ \\t]+[*_]*" units "([^0-9a-z_]|$)"
     }
     function quantity_suffix(after) {
         # Units may be code-formatted or use Unicode prefixes. Keep these

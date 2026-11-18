@@ -1443,6 +1443,7 @@ for declared_case in \
     'PLAT-01928..PLAT-01931|01928 01929 01930 01931' \
     'PLAT-1927-1931|1927 1928 1929 1930 1931' \
     'PLAT-1928, 1929 and 1930|1928 1929 1930' \
+    'PLAT-1928 and 1931|1928 1931' \
     'PLAT-1928 and 300 other bugs|1928' \
     'Apply PLAT-1927 to 1500 orgs|1927' \
     'PLAT-1927..AUTH-1931|1927 1931' \
@@ -1789,7 +1790,9 @@ done
 research_declared_ids=""
 for prompt_text in 'Investigate PLAT-1928 and 2000 ms timeouts' \
     'Investigate PLAT-1928 to 1931 ms timeouts' \
-    'Investigate PLAT-1928 and 1931 retries'; do
+    'Investigate PLAT-1928 and 1931 retries' \
+    'PLAT-1928 and 1931 USD in fees' 'PLAT-1928 and 1931 euros in fees' \
+    'PLAT-1928 and 1931 active users' 'PLAT-1928 and 1931 new concurrently active users'; do
     test_case "prompt quantity continuation does not declare identifiers: $prompt_text"
     actual=$(printf '%s\n' "$prompt_text" | research_declared_identifier_numbers)
     if [[ "$actual" == 1928 ]]; then test_pass
