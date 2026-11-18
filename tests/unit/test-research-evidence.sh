@@ -2169,4 +2169,54 @@ for quantity_text in 'The cost is $1928, 1929, and 1931.' 'The cost is USD 1928,
     else test_fail "currency list lost its final amount or ticket list changed"; fi
 done
 
+# A declared ticket must not exempt a measured quantity or arithmetic operand.
+printf '%s\n' 'Check PLAT-1928 and PLAT-1931' > "$RESEARCH_RUN_DIR/prompt.txt"
+printf '%s\n' 'return [500, 1928, -2000];' > "$declared_root/src/handler.ts"
+for quantity_case in \
+    'The clock runs at 1931 Hz.|1931' \
+    'The clock runs at 1931 kHz.|1931' \
+    'The clock runs at 1931 MHz.|1931' \
+    'The clock runs at 1931 GHz.|1931' \
+    'The difference is 1931 - workers.|1931' \
+    'The difference is 1931 − workers.|1931' \
+    'The remainder is 2000 % 1931.|1931' \
+    'Latency is 1931&nbsp;ms.|1931' \
+    'Latency is 1931&#160;ms.|1931' \
+    'Latency is 1931&#xA0;ms.|1931' \
+    'Latency is 1931 to -2000 ms.|1931' \
+    'The cost is USD (1928 to 1931).|1931'; do
+    quantity_text=${quantity_case%%|*}
+    disputed_value=${quantity_case#*|}
+    test_case "declared quantity survives extraction: $quantity_text"
+    research_declared_ids='1928 1931'
+    actual=$(research_extract_numbers "$quantity_text")
+    if [[ " $actual " == *"$disputed_value"* ]]; then test_pass
+    else test_fail "quantity disappeared: $actual"; fi
+    research_declared_ids=''
+    test_case "actual verifier rejects declared quantity absent from citation: $quantity_text"
+    printf '%s\n' "- $quantity_text (\`src/handler.ts:1\`)." > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" != 0 ]] && jq -e --arg value "$disputed_value" \
+        '.checks | any(.kind == "number_mismatch" and .detail == $value)' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "unsupported declared quantity passed verification"; fi
+done
+for prompt_tail in 'Hz sampling' 'MHz sampling' '- capacity' '− capacity' \
+    '&nbsp;ms latency' '&#160;ms latency' '&#xA0;ms latency' 'to -2000 ms offsets'; do
+    test_case "prompt quantity cannot declare a ticket continuation: $prompt_tail"
+    printf '%s\n' "Check PLAT-1928 and 1931 $prompt_tail" > "$RESEARCH_RUN_DIR/prompt.txt"
+    actual=$(research_declared_identifier_numbers < "$RESEARCH_RUN_DIR/prompt.txt")
+    if [[ "$actual" == 1928 ]]; then test_pass
+    else test_fail "quantity admitted as ticket: $actual"; fi
+    test_case "actual verifier checks prompt continuation: $prompt_tail"
+    printf '%s\n' '- The result is 1931 (`src/handler.ts:1`).' > "$declared_draft"
+    declared_status=0
+    (cd "$declared_root" && research_verify_synthesis "$declared_draft") || declared_status=$?
+    if [[ "$declared_status" != 0 ]] && jq -e \
+        '.checks | any(.kind == "number_mismatch" and .detail == "1931")' \
+        "$RESEARCH_RUN_DIR/verification.json" >/dev/null; then test_pass
+    else test_fail "prompt quantity escaped verification"; fi
+done
+
 test_summary

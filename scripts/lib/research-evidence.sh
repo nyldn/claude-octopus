@@ -618,7 +618,7 @@ research_currency_units() {
 
 research_quantity_units() {
     local modifier='((active|new|concurrently|concurrent|total|remaining|failed|successful|additional|unique|daily|monthly|average|maximum|minimum|peak)[ \t]+)?'
-    printf '%s\n' "${modifier}${modifier}${modifier}(ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bits?|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|retries|attempts?|$(research_currency_units))"
+    printf '%s\n' "${modifier}${modifier}${modifier}(hz|khz|mhz|ghz|thz|ns|us|ms|s|secs?|((nano|micro|milli)?seconds?)|mins?|minutes?|h|hrs?|hours?|days?|weeks?|b|bits?|bytes?|kb|kib|mb|mib|gb|gib|tb|tib|requests?|reqs?|rps|qps|tokens?|lines?|files?|rows?|records?|users?|orgs?|times|percent|x|mg|g|kg|mm|cm|m|km|inches?|feet|ft|yards?|yd|miles?|mi|errors?|items?|bugs?|tasks?|tests?|cases?|packets?|operations?|ops|connections?|cores?|retries|attempts?|$(research_currency_units))"
 }
 
 # Use the same quantity boundaries for prompt admission and synthesis checking.
@@ -627,7 +627,7 @@ research_quantity_awk() {
     function quantity_suffix(after) {
         gsub(/`/, "", after)
         gsub(/\\[()]/, "", after)
-        gsub(/\302\240|\342\200\257/, " ", after)
+        gsub(/\302\240|\342\200\257|&nbsp;|&#0*160;|&#[xX]0*[aA]0;/, " ", after)
         sub(/^[ \t]*[*_(]+/, " ", after)
         sub(/^[ \t]*\|[ \t]*/, " ", after)
         if (after ~ /^-[A-Za-z]/) after = " " substr(after, 2)
@@ -641,10 +641,10 @@ research_quantity_awk() {
         gsub(/`|[()]|\[|\]/, " ", after)
         if (after ~ /^[ \t*_]*([+*=<>^\/:]|\303\227|\303\267|&lt;|&gt;|\342\211\244|\342\211\245)/) return 1
         # Spaced minus is arithmetic; compact ticket ranges remain references.
-        if (after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 1
+        if (after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+([+-]|\342\210\222)?[ \t*_]*[0-9A-Za-z_]/) return 1
         if (after ~ /^[ \t*_]*([+*=\/:<>]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/ ||
             tolower(after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 1
-        sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", after)
+        sub(/^([ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|\342\210\222|to|through|thru|and|or|&|\302\261|,[ \t]*((and|or)[ \t]+)?)[ \t]*[*_]*([+-]|\342\210\222)?[ \t]*[0-9]+([.,][0-9]+)*[*_]*)+/, "", after)
         return quantity_suffix(after) || tolower(after) ~ /^[ \t]*,?[ \t]+in[ \t]+total([^0-9a-z_]|$)/
     }
 AWK_QUANTITY
@@ -778,11 +778,11 @@ research_numeric_claims() {
         neighbor_before = before; neighbor_after = after
         gsub(/[()]/, "", neighbor_before)
         gsub(/[()]/, "", neighbor_after)
-        if (neighbor_before ~ /([+*=\/:^]|\302\261|\303\227|\303\267)[ \t*_]*$/ ||
+        if (neighbor_before ~ /([+*=%\/:^]|\302\261|\303\227|\303\267)[ \t*_]*$/ ||
             neighbor_after ~ /^[ \t*_]*([+*=\/:^]|\302\261|\303\227|\303\267)[ \t*_]*([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 0
         if (tolower(neighbor_after) ~ /^[ \t*_]+out[ \t]+of[ \t]+[0-9]/) return 0
         if (tolower(neighbor_before) ~ /[0-9][ \t*_]+out[ \t]+of[ \t*_]*$/) return 0
-        if (neighbor_before ~ /[0-9][ \t*_]+(-|\342\210\222)[ \t*_]+$/ || neighbor_after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+([+-]|\342\210\222)?[ \t*_]*[0-9]/) return 0
+        if (neighbor_before ~ /[0-9][ \t*_]+(-|\342\210\222)[ \t*_]+$/ || neighbor_after ~ /^[ \t*_]+(-|\342\210\222)[ \t*_]+([+-]|\342\210\222)?[ \t*_]*[0-9A-Za-z_]/) return 0
         if (before ~ /(&lt;|&gt;|\342\211\244|\342\211\245)[ \t*_]*$/ ||
             after ~ /^[ \t*_]*(&lt;|&gt;|\342\211\244|\342\211\245)/) return 0
         # In a Markdown table, retain measurements with units in the heading.
@@ -817,6 +817,7 @@ research_numeric_claims() {
         if (number ~ /^[0-9][0-9]?[0-9]?(,[0-9][0-9][0-9])+$/) return 0
         # A leading currency applies to each connected range/list member.
         currency_before = tolower(before)
+        gsub(/[()]/, " ", currency_before)
         sub(/([0-9]+([.,][0-9]+)*[ \t*_]*(\.\.\.?|-|\342\200\223|\342\200\224|to|through|thru|and|or|&|,[ \t]*((and|or)[ \t]+)?)[ \t*_]*)+$/, "", currency_before)
         if (currency_before ~ /(\$|\302\243|\342\202\254|\302\245|\342\202\271)[ \t*_]*$/ ||
             currency_before ~ ("(^|[^a-z])" currency_unit "[ \\t*_]*$")) return 0
