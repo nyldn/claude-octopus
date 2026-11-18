@@ -90,6 +90,8 @@ persistence_home="$TEST_TMP_DIR/persistence-home"
 persistence_project="$TEST_TMP_DIR/persistence-project"
 persistence_synthesis="$persistence_home/.claude-octopus/results/probe-synthesis-persistence-fixture.md"
 mkdir -p "$persistence_home/.claude-octopus/plugin/scripts/helpers" "$persistence_project" "$(dirname "$persistence_synthesis")"
+# The state manager now binds its event library when it is sourced.
+ln -s "$PROJECT_ROOT/scripts/lib" "$persistence_home/.claude-octopus/plugin/scripts/lib"
 ln -s "$PROJECT_ROOT/scripts/state-manager.sh" "$persistence_home/.claude-octopus/plugin/scripts/state-manager.sh"
 ln -s "$PROJECT_ROOT/scripts/helpers/discovery-handoff.py" "$persistence_home/.claude-octopus/plugin/scripts/helpers/discovery-handoff.py"
 ln -s "$PROJECT_ROOT/scripts/helpers/discovery-project-complete.sh" "$persistence_home/.claude-octopus/plugin/scripts/helpers/discovery-project-complete.sh"
