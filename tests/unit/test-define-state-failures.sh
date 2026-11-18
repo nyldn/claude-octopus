@@ -58,8 +58,11 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                     if conditional:
                         program = '(\n' + program + '\n) && exit 0; exit $?'
                     succeeds = scenario in ('success', 'persistence off', 'headingless', 'large ascii', 'large utf8')
-                    attempts = 2 if succeeds else 1
+                    attempts = 2 if succeeds or scenario == 'update_state' else 1
                     for attempt in range(attempts):
+                        attempt_succeeds = succeeds or (scenario == 'update_state' and attempt > 0)
+                        if scenario == 'update_state' and attempt > 0:
+                            env['FAIL_OPERATION'] = ''
                         command = ['bash', '-euo', 'pipefail', '-c', program] if strict else ['bash', '-c', program]
                         result = subprocess.run(command,
                                                 env=env, cwd=temporary, capture_output=True, text=True, timeout=10)
@@ -70,9 +73,9 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                                     else operations[:operations.index(scenario) + 1])
                         observed = calls.read_text().splitlines() if calls.exists() else []
                         completed = succeeds or scenario == 'update_state'
-                        valid = ((result.returncode == 0) == succeeds and
+                        valid = ((result.returncode == 0) == attempt_succeeds and
                                  observed == expected * (attempt + 1) and
-                                 ('completion reached' in result.stdout) == succeeds and
+                                 ('completion reached' in result.stdout) == attempt_succeeds and
                                  state['metrics']['phases_completed'] == int(completed) and
                                  len(state['decisions']) == int(completed and scenario not in ('headingless', 'large ascii', 'large utf8')) and
                                  (not completed or state['context']['define'].strip() ==
@@ -162,6 +165,49 @@ for persistence in (None, 'false', 'true'):
                              if persistence == 'true' else not (directory / '.octo').exists())
             if result.returncode or not valid_project or state['metrics']['phases_completed'] != 1 or len(state['decisions']) != 1:
                 failures.append(f'actual helpers: persistence={persistence}, attempt={attempt}, exit={result.returncode}')
+            checked += 1
+# A project-status failure happens after the actual workflow transaction commits.
+# Retry both production recipes against the same real saved project and state.
+for tree in ('.claude/skills', 'skills'):
+    section = (root / tree / 'flow-define/SKILL.md').read_text().split('### STEP 6:', 1)[1].split('### STEP 7:', 1)[0]
+    recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+        directory = Path(temporary)
+        plugin = directory / 'plugin'
+        (plugin / 'scripts').mkdir(parents=True)
+        workflow_helper = plugin / 'scripts/state-manager.sh'
+        workflow_helper.write_text('#!/bin/sh\nexec \"' + str(helper) + '\" \"$@\"\n')
+        workflow_helper.chmod(0o755)
+        project_helper = plugin / 'scripts/octo-state.sh'
+        project_helper.write_text('#!/bin/sh\n'
+                                  'if [ "$1" = update_state ] && [ "$FAIL_OPERATION" = update_state ]; then\n'
+                                  '  touch "$FAILURE_MARKER"; exit 23\nfi\n'
+                                  'exec "$REAL_PROJECT_HELPER" "$@"\n')
+        project_helper.chmod(0o755)
+        synthesis = directory / 'synthesis.md'
+        synthesis.write_text('## Problem Definition\nselected the status recovery approach\n')
+        marker = directory / 'status-write-reached'
+        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(plugin), CODEX_PLUGIN_ROOT=str(plugin),
+                   SYNTHESIS_FILE=str(synthesis), OCTOPUS_PROJECT_PERSISTENCE='true',
+                   OCTOPUS_WORKFLOW_STATE_DIR=str(directory / 'state'),
+                   REAL_PROJECT_HELPER=str(root / 'scripts/octo-state.sh'),
+                   FAIL_OPERATION='update_state', FAILURE_MARKER=str(marker))
+        subprocess.run([str(helper), 'init_state'], env=env, cwd=directory, capture_output=True, check=True)
+        program = recipe + '\nprintf "completion reached\\n"'
+        for attempt in range(3):
+            if attempt:
+                env['FAIL_OPERATION'] = ''
+            result = subprocess.run(['bash', '-euo', 'pipefail', '-c', program], env=env,
+                                    cwd=directory, capture_output=True, text=True, timeout=10)
+            state = json.loads((directory / 'state/state.json').read_text())
+            project_state = (directory / '.octo/STATE.md').read_text()
+            valid = (marker.exists() and (result.returncode == 0) == (attempt > 0) and
+                     ('completion reached' in result.stdout) == (attempt > 0) and
+                     state['metrics']['phases_completed'] == 1 and len(state['decisions']) == 1 and
+                     len(state['phase_completions']['define']) == 1 and
+                     ('**Status:** complete' in project_state) == (attempt > 0))
+            if not valid:
+                failures.append(f'{tree}: actual status retry {attempt}, exit={result.returncode}, stderr={result.stderr[-500:]}, state={state}')
             checked += 1
 # A failed first roadmap publication must recover through the same recipe.
 for tree in ('.claude/skills', 'skills'):
