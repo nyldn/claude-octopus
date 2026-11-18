@@ -206,7 +206,14 @@ fi
 LESSONS_PRESERVED=false
 LESSONS_BACKUP_DIR=''
 if [ -f "$ROLLBACK_ROOT/.octo/LESSONS.md" ]; then
-  LESSONS_BACKUP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octo-rollback-lessons.XXXXXX") || exit 1
+  LESSONS_BACKUP_BASE=$(cd "${TMPDIR:-/tmp}" && pwd -P) || exit 1
+  case "$LESSONS_BACKUP_BASE/" in
+    "${ROLLBACK_ROOT%/}/"*) LESSONS_BACKUP_BASE=$(cd /tmp && pwd -P) || exit 1 ;;
+  esac
+  case "$LESSONS_BACKUP_BASE/" in
+    "${ROLLBACK_ROOT%/}/"*) echo "No temporary location outside the repository is available." >&2; exit 1 ;;
+  esac
+  LESSONS_BACKUP_DIR=$(mktemp -d "$LESSONS_BACKUP_BASE/octo-rollback-lessons.XXXXXX") || exit 1
   LESSONS_BACKUP_DIR=$(cd "$LESSONS_BACKUP_DIR" && pwd -P) || exit 1
   if ! (umask 077; cp -- "$ROLLBACK_ROOT/.octo/LESSONS.md" "$LESSONS_BACKUP_DIR/LESSONS.md"); then
     echo "Lessons backup failed; retain the private directory for recovery: $LESSONS_BACKUP_DIR" >&2

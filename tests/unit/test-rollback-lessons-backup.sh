@@ -22,7 +22,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     def recipe(step):
         section = source.split('### Step ' + str(step) + ':', 1)[1]
         return re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for mode in ('present', 'absent', 'dirty', 'missing-backup', 'linked-backup', 'linked-source', 'restore-failed', 'relative-tmp'):
+    for mode in ('present', 'absent', 'dirty', 'missing-backup', 'linked-backup', 'linked-source', 'restore-failed', 'relative-tmp', 'local-tmp'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2], prefix='lessons space ') as temporary:
             base = Path(temporary)
             repo = base / 'repo'
@@ -34,6 +34,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             if mode == 'relative-tmp':
                 env['TMPDIR'] = '..'
                 (repo / 'nested').mkdir()
+            elif mode == 'local-tmp':
+                env['TMPDIR'] = '.'
             for key in subprocess.check_output(['git', 'rev-parse', '--local-env-vars'], text=True).splitlines():
                 env.pop(key, None)
             def git(*args):
@@ -105,7 +107,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 backup.symlink_to(sentinel)
             before = git('write-tree')
             result = run(6)
-            if mode in ('present', 'absent', 'relative-tmp'):
+            if mode in ('present', 'absent', 'relative-tmp', 'local-tmp'):
                 assert result.returncode == 0, (tree, mode, result.stderr)
                 assert (repo / 'work.txt').read_text() == 'checkpoint\n'
                 assert lessons.read_text() == 'current lessons\n' if mode != 'absent' else not lessons.exists()
