@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Project initialization preserves inherited directory access permissions.
 - Define saves project roadmap and status in the selected project when invoked from a subdirectory.
 
 - Reject workflow-state directory destinations without modifying their contents.

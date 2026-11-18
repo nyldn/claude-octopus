@@ -127,4 +127,36 @@ assert all(stat.S_IMODE(p.stat().st_mode) == expected for p in files)
 PY_MODE
     then test_pass; else test_fail "initialization changed the caller's file access policy"; fi
 done
+for acl in 'u::rwx,g::---,o::---' 'u::rwx,g::r-x,o::---'; do
+    test_case "initial templates inherit the directory default ACL: $acl"
+    if ! command -v setfacl >/dev/null 2>&1; then
+        test_skip "setfacl unavailable on this platform"
+        continue
+    fi
+    workspace="$TEST_TMP_DIR/acl-${acl//[^a-zA-Z0-9]/}"
+    mkdir -p "$workspace/.octo"
+    if ! setfacl -d -m "$acl" "$workspace/.octo"; then
+        test_skip "filesystem does not support default ACLs"
+        continue
+    fi
+    if (cd "$workspace" && umask 0002 && printf control > .octo/control &&
+        OCTOPUS_PROJECT_PERSISTENCE=true bash "$helper" init_project >/dev/null) &&
+        python3 -I - "$workspace/.octo" <<'PY_ACL'
+from pathlib import Path
+import stat
+import sys
+
+directory = Path(sys.argv[1])
+control_mode = stat.S_IMODE((directory / 'control').stat().st_mode)
+files = [directory / name for name in
+         ('STATE.md', 'PROJECT.md', 'ROADMAP.md', 'config.json', 'ISSUES.md', 'LESSONS.md')]
+for path in files:
+    actual = stat.S_IMODE(path.stat().st_mode)
+    if actual != control_mode:
+        raise SystemExit(f'{path.name}: mode {actual:o}, inherited policy {control_mode:o}')
+if list(directory.glob('*.tmp.*')):
+    raise SystemExit('template staging entries leaked')
+PY_ACL
+    then test_pass; else test_fail "template publication changed inherited ACL access"; fi
+done
 test_summary

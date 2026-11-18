@@ -118,7 +118,7 @@ atomic_write() {
 }
 
 # Publish a template only while its exact destination remains absent.
-# Linking a completed same-directory file is atomic and never replaces a winner.
+# Linking a completed same-filesystem file is atomic and never replaces a winner.
 atomic_create() {
     # The second argument is an internal generator, checked before publication.
     local template_content
@@ -131,19 +131,17 @@ import tempfile
 
 target = Path(sys.argv[1])
 target.parent.mkdir(parents=True, exist_ok=True)
-fd, temporary = tempfile.mkstemp(prefix=target.name + '.tmp.', dir=target.parent)
-try:
-    mask = os.umask(0)
-    os.umask(mask)
-    os.fchmod(fd, 0o666 & ~mask)
+with tempfile.TemporaryDirectory(prefix=target.name + '.tmp.', dir=target.parent) as staging:
+    temporary = Path(staging) / 'content'
+    # The private directory inherits the destination's default ACL. Let the
+    # kernel apply that ACL, or the umask, when creating the staged inode.
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
     with os.fdopen(fd, 'w', encoding='utf-8') as stream:
         stream.write(sys.argv[2] + '\n')
     try:
         os.link(temporary, target)
     except FileExistsError:
         pass
-finally:
-    os.unlink(temporary)
 PY_CREATE
 }
 
