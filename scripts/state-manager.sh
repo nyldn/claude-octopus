@@ -7,6 +7,13 @@
 # ${VAR} in the 14K+ line caller and its libraries (#108, #189).
 set -eo pipefail
 
+# Bind libraries before a sourced caller can change its working directory.
+_octopus_state_manager_source="${BASH_SOURCE[0]}"
+_octopus_state_manager_lib_dir="$(CDPATH='' cd -- "$(dirname "$_octopus_state_manager_source")/lib" && pwd -P)" || {
+    return 1 2>/dev/null || exit 1
+}
+unset _octopus_state_manager_source
+
 # Configuration. Both standalone and orchestrated calls default to the
 # host/plugin-data workspace, namespaced by project, so merely inspecting or
 # starting a workflow never dirties the user's repository (#841). Set
@@ -91,9 +98,7 @@ success() {
 # All state writers hold the same lock from their first read through publication.
 # Each caller is a subshell, so its exit trap cannot replace the host's traps.
 state_writer_lock() {
-    local attempts rc state_manager_source="${BASH_SOURCE[0]}"
-    # Capture the source path before command substitutions on Bash 3.2.
-    # A sourced conditional caller must still find this helper's libraries.
+    local attempts rc
     # Bash 3.2 has no BASHPID. Explicit exec makes Python's parent the writer,
     # not another command-substitution shell. Writers run in subshells, so this
     # fallback stays local to the writer and also reaches its EXIT trap.
@@ -102,7 +107,7 @@ state_writer_lock() {
         [[ "$BASHPID" =~ ^[0-9]+$ ]] || return 1
     fi
     mkdir -p "$STATE_DIR" || return 1
-    source "$(dirname "$state_manager_source")/lib/events.sh" || return 1
+    source "$_octopus_state_manager_lib_dir/events.sh" || return 1
     for ((attempts = 0; attempts < 5; attempts++)); do
         if _octo_event_lock "$STATE_FILE"; then
             trap '_octo_event_unlock "$STATE_FILE"' EXIT

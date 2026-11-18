@@ -161,4 +161,28 @@ print(f'{checked}/{checked} directory destination controls passed')
 PY_DIRECTORY
 then test_pass; else test_fail "directory destination accepted or modified"; fi
 
+test_case "sourced writers retain their installation after changing directory"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_SOURCE'
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+for conditional in (False, True):
+    for legacy_pid in (False, True):
+        with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+            directory = Path(temporary)
+            call = 'init_state && update_context define retained'
+            if conditional:
+                call = 'if ' + call + '; then exit 0; else exit $?; fi'
+            program = 'source scripts/state-manager.sh; cd "$1"; ' + ('unset BASHPID; ' if legacy_pid else '') + call
+            result = subprocess.run(['bash', '-c', program, 'test', str(directory)], cwd=sys.argv[1],
+                env=dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(directory / 'state')), capture_output=True, text=True, timeout=10)
+            assert result.returncode == 0, result.stderr
+            assert json.loads((directory / 'state/state.json').read_text())['context']['define'] == 'retained'
+print('4/4 relative-source directory-change controls passed')
+PY_SOURCE
+then test_pass; else test_fail "directory change broke the sourced writer"; fi
+
 test_summary
