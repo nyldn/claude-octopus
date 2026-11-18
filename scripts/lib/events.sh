@@ -100,9 +100,21 @@ PY
 
 # Portable best-effort exclusive lock. Owner metadata lets a later caller
 # reclaim a lock leaked by SIGKILL without stealing a live holder's lock.
+_octo_event_claim_owner() {
+    local owner="" claim
+    # Called from the pinned lock inode. Never follow a marker symlink.
+    for claim in owner-*; do
+        [[ -e "$claim" || -L "$claim" ]] || continue
+        [[ -d "$claim" && ! -L "$claim" && -z "$owner" ]] || return 1
+        owner=${claim#owner-}
+        [[ "$owner" =~ ^[0-9]+$ ]] || return 1
+    done
+    printf '%s\n' "$owner"
+}
+
 _octo_event_reclaim_stale_lock() (
     local lockdir="$1" stale_secs="${OCTO_EVENT_LOCK_STALE_SECS:-30}"
-    local owner="" timestamp="" now
+    local owner="" timestamp="" now claim_owner=""
     [[ "$stale_secs" =~ ^[0-9]+$ ]] || stale_secs=30
     case "$lockdir" in /*) ;; *) lockdir="$PWD/$lockdir" ;; esac
     [[ -d "$lockdir" && ! -L "$lockdir" ]] || return 1
@@ -110,11 +122,18 @@ _octo_event_reclaim_stale_lock() (
     CDPATH='' cd -P -- "$lockdir" >/dev/null 2>&1 || return 1
     [[ ! -L pid && ! -L ts ]] || return 1
 
+    # The atomic directory name identifies an owner even if it dies while
+    # opening or writing pid. A live incomplete claim must never be reclaimed.
+    claim_owner=$(_octo_event_claim_owner) || return 1
     if [[ -e pid ]]; then
         [[ -f pid && -r pid ]] || return 1
         if [[ -s pid ]]; then
             IFS= read -r owner < pid || return 1
         fi
+    fi
+    if [[ -n "$claim_owner" ]]; then
+        [[ -z "$owner" || "$owner" == "$claim_owner" ]] || return 1
+        owner=$claim_owner
     fi
     if [[ "$owner" =~ ^[0-9]+$ ]] && kill -0 "$owner" 2>/dev/null; then
         return 75
@@ -144,6 +163,7 @@ _octo_event_reclaim_stale_lock() (
     fi
     [[ "$owner" =~ ^[0-9]+$ ]] || return 1
     rm -f pid ts 2>/dev/null || return 1
+    [[ -z "$claim_owner" ]] || rmdir "owner-$claim_owner" 2>/dev/null || return 1
     rmdir "$lockdir" 2>/dev/null
 )
 
@@ -161,13 +181,15 @@ _octo_event_lock() {
                 [[ ! -L pid && ! -L ts ]] || exit 1
                 [[ ! -e pid ]] || exit 75
                 [[ ! -e ts || -f ts ]] || exit 1
+                _octo_event_mkdir "owner-$owner" || exit 1
                 set -C
-                exec 3> pid || exit 75
+                exec 3> pid || { rmdir "owner-$owner" || true; exit 75; }
                 if printf '%s\n' "$owner" >&3 && date +%s > ts && [[ "$lockdir" -ef . ]]; then
                     exit 0
                 fi
                 # Only names relative to the inode containing our own claim.
                 rm -f pid ts || true
+                rmdir "owner-$owner" || true
                 rmdir "$lockdir" || true
                 exit 1
             ) 2>/dev/null; then
@@ -215,6 +237,7 @@ _octo_event_unlock() {
             exit 0
         fi
         rm -f pid ts 2>/dev/null || true
+        rmdir "owner-$owner" 2>/dev/null || true
         rmdir "$lockdir" 2>/dev/null || true
     )
 }

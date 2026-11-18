@@ -225,9 +225,10 @@ rc=0
 if [[ "$rc" == 1 && ! -e "$lockdir" && ! -e "$fixture/unexpected-sleep" ]]; then test_pass
 else test_fail "infrastructure creation error was retried or admitted"; fi
 
-test_case "stale cleanup cannot erase a claimant resuming on the same inode"
+test_case "lock claims survive stale cleanup and recover after interrupted admission"
 if python3 -I - "$PROJECT_ROOT/scripts/lib/events.sh" "$TEST_TMP_DIR" <<'PY_CLAIM'
 import os
+import signal
 from pathlib import Path
 import subprocess
 import sys
@@ -285,6 +286,13 @@ date() {
 OCTO_EVENT_LOCK_STALE_SECS=0 _octo_event_reclaim_stale_lock "$2.lock"
 ''', 'reaper', sys.argv[1], str(target)], env=env, capture_output=True, timeout=15)
             lock = Path(str(target) + '.lock')
+            # A published owner name can reject reclamation before the age
+            # hook. Resume that protected claimant from the coordinator.
+            if reaper.returncode == 75 and not (directory / 'release').exists():
+                (directory / 'release').touch()
+                deadline = time.monotonic() + 5
+                while not (directory / 'acquired').exists() and claimant.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.01)
             assert reaper.returncode != 0 and (directory / 'acquired').exists() and claimant.poll() is None, stage + ': reaper removed a live claim'
             assert int((lock / 'pid').read_text()) == claimant.pid, stage + ': live owner metadata lost'
             assert (lock / 'ts').read_text().strip().isdigit(), stage + ': timestamp lost'
@@ -297,7 +305,40 @@ OCTO_EVENT_LOCK_STALE_SECS=0 _octo_event_reclaim_stale_lock "$2.lock"
                 if claimant.poll() is None:
                     claimant.kill()
                     claimant.communicate()
-print('2/2 coordinated same-inode claim/reclamation controls passed')
+with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+    directory = Path(temporary)
+    target = directory / 'state'
+    claimant = subprocess.Popen(['bash', '-c', '''
+source "$1"
+printf() {
+    claim_pid=$(exec python3 -I -c 'import os; print(os.getppid())') || return 1
+    builtin printf '%s' "$claim_pid" > "$PARTIAL_DIR/partial-child"
+    kill -STOP "$claim_pid"
+}
+_octo_event_lock "$2"
+''', 'partial', sys.argv[1], str(target)],
+        env=dict(os.environ, PARTIAL_DIR=str(directory)), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    child = None
+    try:
+        deadline = time.monotonic() + 5
+        while not (directory / 'partial-child').exists() and claimant.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert (directory / 'partial-child').exists(), 'empty-pid barrier not reached'
+        child = int((directory / 'partial-child').read_text())
+        assert Path(str(target) + '.lock/pid').read_bytes() == b'', 'claim was not partial'
+        os.kill(child, signal.SIGKILL)
+        os.kill(claimant.pid, signal.SIGKILL)
+        claimant.communicate(timeout=5)
+        recovered = subprocess.run(['bash', '-c', 'source "$1"; OCTO_EVENT_LOCK_STALE_SECS=0 _octo_event_lock "$2" && _octo_event_unlock "$2"',
+                                    'recover', sys.argv[1], str(target)], capture_output=True, timeout=10)
+        assert recovered.returncode == 0 and not Path(str(target) + '.lock').exists(), 'abandoned partial claim cannot recover'
+    finally:
+        for pid in (child, claimant.pid):
+            if pid is not None:
+                try: os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError: pass
+        claimant.communicate(timeout=5)
+print('3/3 coordinated same-inode and abandoned partial-claim controls passed')
 PY_CLAIM
 then test_pass; else test_fail "stale reclamation deleted a concurrent live claim"; fi
 

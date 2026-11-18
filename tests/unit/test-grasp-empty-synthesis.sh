@@ -70,4 +70,27 @@ else
     test_fail "grasp_define returned non-zero when every synthesizer returned empty"
 fi
 
+test_case "same-second Define runs retain separate synthesis and completion identities"
+rm -f "$RESULTS_DIR"/grasp-consensus-*.md
+date() { if [[ "${1:-}" == +%s ]]; then builtin printf '1700000000\n'; else command date "$@"; fi; }
+grasp_define "First definition" >/dev/null 2>&1
+first_reports=("$RESULTS_DIR"/grasp-consensus-*.md)
+first_report=${first_reports[0]}
+first_content=$(cat "$first_report")
+grasp_define "Second definition" >/dev/null 2>&1
+unset -f date
+reports=("$RESULTS_DIR"/grasp-consensus-*.md)
+if [[ ${#reports[@]} == 2 && "$(cat "$first_report")" == "$first_content" ]]; then
+    second_report=${reports[0]}
+    [[ "$second_report" != "$first_report" ]] || second_report=${reports[1]}
+    export OCTOPUS_WORKFLOW_STATE_DIR="$TEST_TMP_DIR/workflow-state"
+    "$PROJECT_ROOT/scripts/state-manager.sh" init_state >/dev/null
+    "$PROJECT_ROOT/scripts/state-manager.sh" complete_define "$first_report" first first >/dev/null
+    "$PROJECT_ROOT/scripts/state-manager.sh" complete_define "$second_report" second second >/dev/null
+    if jq -e '.metrics.phases_completed == 2 and (.decisions | length) == 2 and (.phase_completions.define | length) == 2' \
+        "$OCTOPUS_WORKFLOW_STATE_DIR/state.json" >/dev/null; then test_pass
+    else test_fail "separate synthesis invocations shared a completion identity"; fi
+else
+    test_fail "same-second publication replaced a previously extracted synthesis"
+fi
 test_summary

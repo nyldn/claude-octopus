@@ -1449,7 +1449,7 @@ grasp_define() {
     fi
 
     # Build consensus
-    local consensus_file="${RESULTS_DIR}/grasp-consensus-${task_group}.md"
+    local consensus_file=""
 
     log INFO "Building consensus from perspectives..."
 
@@ -1501,7 +1501,18 @@ Constraints: $def3"
         fi
     fi
 
-    cat > "$consensus_file" << EOF
+    # Each invocation owns its artifact through extraction and persistence.
+    # A second run in the same second must not replace those synthesis bytes.
+    consensus_file=$(python3 -I - "$RESULTS_DIR" "$task_group" <<'PY_CONSENSUS'
+import os
+import sys
+import tempfile
+fd, path = tempfile.mkstemp(prefix='grasp-consensus-' + sys.argv[2] + '-', suffix='.md', dir=sys.argv[1])
+os.close(fd)
+print(path)
+PY_CONSENSUS
+    ) || return 1
+    cat > "$consensus_file" << EOF || { rm -f "$consensus_file"; return 1; }
 # GRASP Phase - Problem Definition Consensus
 <!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
 ## Task: $prompt

@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- Interrupted lock admission recovers a killed writer before its PID contents are published.
+- Same-second Define runs retain separate synthesis files through completion persistence.
 - Stale workflow-lock cleanup preserves a claimant that resumes publishing its owner metadata.
 - Failed project identification stops workflow-state access before selecting an unrelated namespace.
 - Interrupted project initialization recovers missing files while preserving saved project content.

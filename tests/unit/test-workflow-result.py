@@ -905,7 +905,7 @@ sys.exit(m.main())
 
     def test_actual_define_writer_binds_its_invocation(self):
         source = (ROOT / 'scripts/lib/workflows.sh').read_text()
-        start = source.index('    cat > "$consensus_file" << EOF\n')
+        start = source.index('    cat > "$consensus_file" << EOF')
         end = source.index('\nEOF', start) + len('\nEOF')
         def write_report():
             environment = dict(self.env, consensus_file=str(self.results / 'grasp-consensus-actual.md'),
