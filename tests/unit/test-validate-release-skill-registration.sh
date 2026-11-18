@@ -86,16 +86,20 @@ with tempfile.TemporaryDirectory(dir=temp_root) as temporary:
     shutil.copytree(fixture / 'skills', fixture / '.claude/skills')
     manifest = fixture / '.claude-plugin/plugin.json'
     valid = [['./skills/one/', './skills/pack/two/'], './skills/', ['./skills/'],
-             ['./skills/one', './skills/pack/'], ['./skills/', './skills/one/']]
+             ['./skills/one', './skills/pack/'], ['./skills/', './skills/one/'],
+             None, [], ['./skills/one/']]
     invalid = [['./skills/missing/'], ['../escape'], [7], {'path': './skills/'}]
     for registrations in valid + invalid:
-        manifest.write_text(json.dumps(dict(name='octo', version='1.0.0', description='Fixture', skills=registrations)))
+        data = dict(name='octo', version='1.0.0', description='Fixture')
+        if registrations is not None:
+            data['skills'] = registrations
+        manifest.write_text(json.dumps(data))
         command = 'set -euo pipefail\nROOT_DIR="$1"\nerrors=0\nGREEN=\nNC=\nlog() { printf "%s\\n" "$*" >&2; }\n' + section + '\nexit "$errors"\n'
         result = subprocess.run(['bash', '-c', command, 'registration-check', str(fixture)], capture_output=True, text=True)
         assert (result.returncode == 0) == (registrations in valid), (registrations, result.stdout, result.stderr)
         if registrations in valid:
             assert 'All 2 skills properly registered' in result.stdout, (registrations, result.stdout)
-print('5 supported and 4 invalid registration forms checked through the release section')
+print('8 supported and 4 invalid registration forms checked through the release section')
 PY_REGISTRATION_FORMS
 then test_pass; else test_fail "release and assembly disagree on supported registration forms"; fi
 

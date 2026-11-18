@@ -212,7 +212,12 @@ spec.loader.exec_module(module)
 metadata, error = module.extract_frontmatter(Path(sys.argv[2]).read_text())
 if error:
     sys.exit(error)
-print(metadata.get('agent', ''))
+agent = metadata.get('agent', '')
+# This dependency-free parser supports bare/quoted names, not YAML comments.
+# Reject unsupported forms rather than admitting a hidden read-only agent.
+if '#' in agent:
+    sys.exit('Unsupported commented agent scalar; use a bare or quoted name')
+print(agent)
 PY_AGENT
         ) || return 1
         if [[ "$agent" == Explore || "$agent" == Plan ]]; then

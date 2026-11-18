@@ -381,6 +381,9 @@ registrations = json.loads((root / ".claude-plugin/plugin.json").read_text()).ge
 if isinstance(registrations, str):
     registrations = [registrations]
 skills = set()
+if (root / "skills").exists():
+    files = assembly.registered_skill_files(root, "./skills", errors, required=False)
+    skills.update("./" + str(file.parent.relative_to(root)) for file in files)
 for registration in registrations:
     files = assembly.registered_skill_files(root, registration, errors)
     skills.update("./" + str(file.parent.relative_to(root)) for file in files)

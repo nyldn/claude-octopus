@@ -61,6 +61,25 @@ Claude mirrors. `scripts/build-factory-skills.sh` calls it as part of
 same builder; its `--dry-run` flag is a read-only check. Flow `.tmpl` files
 are retired. Edit the authored entries in the table.
 
+### Generated Codex resources
+
+Shared blocks include [architecture simplification](../codex-skills/blocks/architecture-simplification.md),
+[host adaptation](../codex-skills/blocks/codex-host-adapter.md),
+[debug feedback](../codex-skills/blocks/debug-feedback-loop.md),
+[design taste](../codex-skills/blocks/design-taste.md),
+[domain modeling](../codex-skills/blocks/domain-modeling.md),
+[enforcement](../codex-skills/blocks/enforcement-patterns.md),
+[engineering methods](../codex-skills/blocks/engineering-method-selection.md),
+[Fable prompting](../codex-skills/blocks/fable5-prompting.md),
+[model routing](../codex-skills/blocks/frontier-model-routing.md), and
+[provider checks](../codex-skills/blocks/provider-check.md).
+
+The [Codex refinement skill](../codex-skills/skill-refine/SKILL.md) uses
+[phase 2](../codex-skills/skill-refine/references/phase-2.md),
+[phase 3](../codex-skills/skill-refine/references/phase-3.md),
+[phase 4](../codex-skills/skill-refine/references/phase-4.md), and
+[phase 5](../codex-skills/skill-refine/references/phase-5.md).
+
 ## Other generated files
 
 | Authored source | Derived output | Generator |
