@@ -3,6 +3,9 @@
 # A changed path may match more than one row; all selected suites are unioned.
 # Any path with no matching row fails closed to the complete ci-local matrix.
 
+.claude/skills/flow-define/SKILL.md	tests/unit/test-define-state-failures.sh
+skills/flow-define/SKILL.md	tests/unit/test-define-state-failures.sh
+
 scripts/lib/review.sh	tests/unit/test-review-*.sh tests/unit/test-pr-review-*.sh tests/unit/test-v10-cancellation-recovery.sh tests/unit/test-pid-ledger-python.sh tests/integration/test-plugin-expert-review.sh
 scripts/helpers/review-diff-filter.py	tests/unit/test-review-skip.sh tests/unit/test-review-empty-round1.sh tests/unit/test-review-run.sh
 scripts/lib/model-resolver.sh	tests/unit/test-resolve-model.sh tests/unit/test-agy-provider.sh tests/unit/test-current-provider-model-defaults.sh tests/unit/test-model-config-role-routing.sh tests/unit/test-model-metadata-parity.sh tests/unit/test-bare-auth-probe-timeout.sh tests/unit/test-provider-auth-validity.sh tests/unit/test-frontier-model-policy.sh tests/unit/test-doctor-early-dispatch.sh
