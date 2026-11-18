@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- Stale workflow-lock cleanup preserves a claimant that resumes publishing its owner metadata.
+- Failed project identification stops workflow-state access before selecting an unrelated namespace.
 - Interrupted project initialization recovers missing files while preserving saved project content.
 - Initialization preserves a file created concurrently before its template can be published.
 - Concurrent workflow-state writers retain each other's decisions, context, blockers and completion counts.

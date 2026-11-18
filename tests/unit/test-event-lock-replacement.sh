@@ -225,4 +225,80 @@ rc=0
 if [[ "$rc" == 1 && ! -e "$lockdir" && ! -e "$fixture/unexpected-sleep" ]]; then test_pass
 else test_fail "infrastructure creation error was retried or admitted"; fi
 
+test_case "stale cleanup cannot erase a claimant resuming on the same inode"
+if python3 -I - "$PROJECT_ROOT/scripts/lib/events.sh" "$TEST_TMP_DIR" <<'PY_CLAIM'
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+
+for stage in ('before-pid', 'empty-pid'):
+    with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
+        directory = Path(temporary)
+        target = directory / 'state'
+        env = dict(os.environ, RACE_DIR=str(directory), RACE_STAGE=stage)
+        claimant = subprocess.Popen(['bash', '-c', '''
+source "$1"
+barrier() {
+    command touch "$RACE_DIR/ready"
+    for ((i=0; i<1000; i++)); do
+        [[ ! -e "$RACE_DIR/release" ]] || return 0
+        command sleep 0.01
+    done
+    return 1
+}
+eval "$(declare -f _octo_event_mkdir | sed '1s/_octo_event_mkdir/original_mkdir/')"
+_octo_event_mkdir() {
+    original_mkdir "$1" || return $?
+    [[ "$RACE_STAGE" != before-pid ]] || barrier
+}
+printf() {
+    [[ "$RACE_STAGE" != empty-pid ]] || barrier || return 1
+    builtin printf "$@"
+}
+_octo_event_lock "$2" || exit $?
+command touch "$RACE_DIR/acquired"
+for ((i=0; i<1000; i++)); do
+    if [[ -e "$RACE_DIR/finish" ]]; then _octo_event_unlock "$2"; exit 0; fi
+    command sleep 0.01
+done
+exit 24
+''', 'claimant', sys.argv[1], str(target)], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            deadline = time.monotonic() + 5
+            while not (directory / 'ready').exists() and claimant.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert (directory / 'ready').exists(), stage + ': claim barrier not reached'
+            reaper = subprocess.run(['bash', '-c', '''
+source "$1"
+stat() { builtin printf '1\\n'; }
+date() {
+    command touch "$RACE_DIR/release"
+    for ((i=0; i<1000; i++)); do
+        [[ ! -e "$RACE_DIR/acquired" ]] || { command date +%s; return; }
+        command sleep 0.01
+    done
+    return 1
+}
+OCTO_EVENT_LOCK_STALE_SECS=0 _octo_event_reclaim_stale_lock "$2.lock"
+''', 'reaper', sys.argv[1], str(target)], env=env, capture_output=True, timeout=15)
+            lock = Path(str(target) + '.lock')
+            assert reaper.returncode != 0 and (directory / 'acquired').exists() and claimant.poll() is None, stage + ': reaper removed a live claim'
+            assert int((lock / 'pid').read_text()) == claimant.pid, stage + ': live owner metadata lost'
+            assert (lock / 'ts').read_text().strip().isdigit(), stage + ': timestamp lost'
+        finally:
+            (directory / 'release').touch()
+            (directory / 'finish').touch()
+            try:
+                claimant.communicate(timeout=5)
+            finally:
+                if claimant.poll() is None:
+                    claimant.kill()
+                    claimant.communicate()
+print('2/2 coordinated same-inode claim/reclamation controls passed')
+PY_CLAIM
+then test_pass; else test_fail "stale reclamation deleted a concurrent live claim"; fi
+
 test_summary

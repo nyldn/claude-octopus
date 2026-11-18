@@ -57,8 +57,15 @@ if [[ -n "${OCTOPUS_WORKFLOW_STATE_DIR:-}" ]]; then
 else
     _octopus_workflow_project_root="${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}"
     _octopus_workflow_state_base="$(resolve_octopus_workspace)"
-    configure_state_paths "${_octopus_workflow_state_base}/projects/$(state_project_id "$_octopus_workflow_project_root")"
-    unset _octopus_workflow_project_root _octopus_workflow_state_base
+    if ! _octopus_workflow_project_id="$(state_project_id "$_octopus_workflow_project_root")" ||
+        [[ -z "$_octopus_workflow_project_id" ]]; then
+        unset STATE_DIR STATE_FILE BACKUP_FILE
+        unset _octopus_workflow_project_root _octopus_workflow_state_base _octopus_workflow_project_id
+        printf '%s\n' "Cannot select workflow state without a project identity." >&2
+        return 1 2>/dev/null || exit 1
+    fi
+    configure_state_paths "${_octopus_workflow_state_base}/projects/${_octopus_workflow_project_id}"
+    unset _octopus_workflow_project_root _octopus_workflow_state_base _octopus_workflow_project_id
 fi
 
 # Colors for output

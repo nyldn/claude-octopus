@@ -134,6 +134,15 @@ _octo_event_reclaim_stale_lock() (
     now="$(date +%s)" || return 1
     [[ "$timestamp" =~ ^[0-9]+$ && $((now - timestamp)) -ge "$stale_secs" ]] || return 1
 
+    # A claimant may still be between mkdir, opening pid and writing its owner.
+    # Only rmdir can atomically reclaim that empty inode without erasing a claim
+    # published since our read. If pid appeared, rmdir fails and leaves it intact.
+    # Unlink metadata only for a known dead owner, which cannot resume publishing.
+    if [[ -z "$owner" ]]; then
+        rmdir "$lockdir" 2>/dev/null
+        return $?
+    fi
+    [[ "$owner" =~ ^[0-9]+$ ]] || return 1
     rm -f pid ts 2>/dev/null || return 1
     rmdir "$lockdir" 2>/dev/null
 )
