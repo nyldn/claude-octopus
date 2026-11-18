@@ -319,9 +319,9 @@ else
     total_without_host=0
     total_with_host=0
     octo_consultative_provider_count_is_sufficient 1 0 || total_without_host=$?
-    octo_consultative_provider_count_is_sufficient 1 1 || total_with_host=$?
+    OCTO_ALLOWED_PROVIDERS=codex octo_consultative_provider_count_is_sufficient 1 1 || total_with_host=$?
     if [[ "$host_rc" -ne 0 && "$required" -eq 2 && "$launch_rc" -ne 0 && \
-          "$total_without_host" -ne 0 && "$total_with_host" -eq 0 ]]; then
+          "$total_without_host" -ne 0 && "$total_with_host" -ne 0 ]]; then
         test_pass
     else
         test_fail "host-disabled run must require two external successes: host=$host_rc required=$required launch=$launch_rc totals=$total_without_host/$total_with_host"
