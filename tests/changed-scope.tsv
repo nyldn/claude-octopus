@@ -126,7 +126,9 @@ RELEASING.md	tests/unit/test-readme-release-sync.sh
 THIRD_PARTY_NOTICES.md	tests/smoke/test-packaging-integrity.sh
 data/evals/*	tests/unit/test-workflow-method-contracts.sh
 licenses/*	tests/smoke/test-packaging-integrity.sh
-scripts/helpers/openai-compatible-agent.py	tests/unit/test-openai-compatible-agent.sh tests/unit/test-openai-compatible-provider-config.sh
+scripts/helpers/openai-compatible-agent.py	tests/unit/test-openai-compatible-agent.sh tests/unit/test-openai-compatible-provider-config.sh tests/unit/test-preset-endpoint-isolation.sh tests/unit/test-custom-provider-config.sh
+scripts/helpers/custom_provider_config.py	tests/unit/test-custom-provider-config.sh
+tests/unit/test-custom-provider-config.py	tests/unit/test-custom-provider-config.sh
 scripts/helpers/preview-routing.py	tests/unit/test-routing-preview.sh
 scripts/helpers/readiness-contract.py	tests/unit/test-provider-readiness-contract.sh
 scripts/helpers/setup-state.py	tests/unit/test-setup-state.sh tests/unit/test-setup-first-success.sh
