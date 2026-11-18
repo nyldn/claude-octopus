@@ -384,19 +384,24 @@ if [[ -n "$decision_made" ]]; then
   "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" write_decision \
     "define" \
     "$decision_made" \
-    "Consensus from multi-AI definition phase"
+    "Consensus from multi-AI definition phase" || exit 1
 fi
 
 # Update define phase context
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
   "define" \
-  "$key_definition"
+  "$key_definition" || exit 1
 
 # Update metrics
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1" || exit 1
 ```
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
+
+If a required write fails, report the failure and resume at that operation after
+repairing the cause. Do not repeat successful decision or context writes. An
+oversized context may need shortening before retrying. Do not increment completion
+or present the definition as saved while a required write is still failing.
 
 
 ### STEP 7: Present Problem Definition (Only After Steps 1-6 Complete)
