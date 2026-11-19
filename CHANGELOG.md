@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.26.0] - 2026-11-18
+
 ### Added
 
 - The OpenAI-compatible tool-loop helper can explicitly load a custom preset
