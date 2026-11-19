@@ -25,6 +25,10 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     for mode in ('present', 'absent', 'dirty', 'missing-backup', 'linked-backup', 'linked-source', 'restore-failed', 'relative-tmp', 'local-tmp', 'cdpath-tmp', 'cdpath-search'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2], prefix='lessons space ') as temporary:
             base = Path(temporary)
+            if mode == 'cdpath-search':
+                logical = base / 'logical-root'
+                logical.symlink_to(base.resolve(), target_is_directory=True)
+                base = logical
             repo = base / 'repo'
             repo.mkdir()
             env = dict(os.environ, TMPDIR=temporary, GIT_CONFIG_GLOBAL='/dev/null',
@@ -106,7 +110,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             if backup_dir:
                 assert backup_dir.is_absolute(), (tree, mode, 'backup path depends on the previous shell working directory')
                 if mode in ('cdpath-tmp', 'cdpath-search'):
-                    assert backup_dir.parent == scratch, (tree, mode, 'CDPATH changed the backup location')
+                    assert backup_dir.parent == scratch.resolve(), (tree, mode, 'CDPATH changed the backup location')
                 backup = backup_dir / 'LESSONS.md'
                 assert backup_dir.stat().st_mode & 0o777 == 0o700
                 assert backup.stat().st_mode & 0o777 == 0o600
