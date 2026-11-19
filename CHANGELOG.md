@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Project initialization refuses a pre-existing `.octo` symbolic link before
+  previewing or writing templates, preserving the linked destination.
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
 
