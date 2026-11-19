@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Project initialization symlink boundary"
 
@@ -47,16 +48,16 @@ for caller in cli sourced conditional; do
             before="$(snapshot "$destination")"
 
             for operation in actual preview; do
-                args=()
-                [[ "$operation" != preview ]] || args=(--dry-run)
+                set --
+                [[ "$operation" != preview ]] || set -- --dry-run
                 test_case "$caller $operation refuses $link link to $target_state target"
                 rc=0
                 output="$(
                     {
                         cd "$checkout"
                         case "$caller" in
-                            cli) bash "$initializer" init_project "${args[@]}" ;;
-                            sourced) bash -c 'source "$1"; shift; init_project "$@"' _ "$initializer" "${args[@]}" ;;
+                            cli) bash "$initializer" init_project "$@" ;;
+                            sourced) bash -c 'source "$1"; shift; init_project "$@"' _ "$initializer" "$@" ;;
                             conditional) bash -c '
                                 source "$1"; shift
                                 if init_project "$@"; then
@@ -66,7 +67,7 @@ for caller in cli sourced conditional; do
                                     printf "caller retained control\n"
                                     exit "$rc"
                                 fi
-                            ' _ "$initializer" "${args[@]}" ;;
+                            ' _ "$initializer" "$@" ;;
                         esac
                     } 2>&1
                 )" || rc=$?
