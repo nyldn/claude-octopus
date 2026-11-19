@@ -190,13 +190,45 @@ working tree. Preserve any unrelated changes separately.
 
 ### Step 5: Preserve LESSONS.md
 
+Run from the confirmed repository. Keep the exact printed backup directory and
+preservation flag in conversation context for Step 6, including an empty directory
+when no lessons exist. Use a temporary directory outside the repository. Never
+reuse a backup path from another rollback or place recovery state in the checkout.
+
 ```bash
-# Save current LESSONS.md if it exists
-if [ -f ".octo/LESSONS.md" ]; then
-  cp .octo/LESSONS.md /tmp/LESSONS_PRESERVED.md
+ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
+: "${ROLLBACK_PREVIEW_ROOT:?Restore the confirmed preview root}"
+if [[ "$ROLLBACK_ROOT" != "$ROLLBACK_PREVIEW_ROOT" ||
+      -L "$ROLLBACK_ROOT/.octo" || -L "$ROLLBACK_ROOT/.octo/LESSONS.md" ]]; then
+  echo "Cannot back up lessons from a changed repository or symlinked lessons path." >&2
+  exit 1
+fi
+LESSONS_PRESERVED=false
+LESSONS_BACKUP_DIR=''
+if [ -f "$ROLLBACK_ROOT/.octo/LESSONS.md" ]; then
+  LESSONS_BACKUP_BASE=$(CDPATH= cd -- "${TMPDIR:-/tmp}" && pwd -P) || exit 1
+  case "$LESSONS_BACKUP_BASE/" in
+    "${ROLLBACK_ROOT%/}/"*) LESSONS_BACKUP_BASE=$(CDPATH= cd -- /tmp && pwd -P) || exit 1 ;;
+  esac
+  case "$LESSONS_BACKUP_BASE/" in
+    "${ROLLBACK_ROOT%/}/"*) echo "No temporary location outside the repository is available." >&2; exit 1 ;;
+  esac
+  LESSONS_BACKUP_DIR=$(mktemp -d "$LESSONS_BACKUP_BASE/octo-rollback-lessons.XXXXXX") || exit 1
+  LESSONS_BACKUP_DIR=$(CDPATH= cd -- "$LESSONS_BACKUP_DIR" && pwd -P) || exit 1
+  if ! (umask 077; cp -- "$ROLLBACK_ROOT/.octo/LESSONS.md" "$LESSONS_BACKUP_DIR/LESSONS.md"); then
+    echo "Lessons backup failed; retain the private directory for recovery: $LESSONS_BACKUP_DIR" >&2
+    exit 1
+  fi
   LESSONS_PRESERVED=true
 fi
+printf 'LESSONS_PRESERVED=%s\n' "$LESSONS_PRESERVED"
+printf 'LESSONS_BACKUP_DIR=%q\n' "$LESSONS_BACKUP_DIR"
 ```
+
+Retain the private backup if restoration fails or is interrupted. After explicit
+cancellation, remove only this rollback's `LESSONS.md` backup and its empty private
+directory, using the same ownership and symlink checks as Step 6. Never remove a
+shared filename or recursively delete a recovery directory.
 
 ### Step 6: Execute Rollback
 
@@ -299,11 +331,28 @@ for target in targets:
     ):
         sys.exit('Rollback would overwrite ignored local files. Preserve them before retrying.')
 PY_IGNORED
+# Restore Step 5's exact printed values before changing project files.
+: "${LESSONS_PRESERVED:?Restore the lessons preservation flag from Step 5}"
+case "$LESSONS_PRESERVED" in
+  true)
+    : "${LESSONS_BACKUP_DIR:?Restore the private backup directory from Step 5}"
+    if [[ ! -d "$LESSONS_BACKUP_DIR" || -L "$LESSONS_BACKUP_DIR" || ! -O "$LESSONS_BACKUP_DIR" ||
+          ! -f "$LESSONS_BACKUP_DIR/LESSONS.md" || -L "$LESSONS_BACKUP_DIR/LESSONS.md" ||
+          ! -O "$LESSONS_BACKUP_DIR/LESSONS.md" ]]; then
+      echo "Private lessons backup is missing or unsafe; retain recovery state and stop." >&2
+      exit 1
+    fi
+    ;;
+  false) ;;
+  *) echo "Invalid lessons preservation flag; restore Step 5's exact value." >&2; exit 1 ;;
+esac
 git -C "$ROLLBACK_ROOT" checkout --no-overlay "$ROLLBACK_TARGET_COMMIT" -- . ':(exclude).octo/LESSONS.md' || exit 1
 
 # Restore preserved LESSONS.md
 if [ "$LESSONS_PRESERVED" = "true" ]; then
-  cp /tmp/LESSONS_PRESERVED.md .octo/LESSONS.md
+  cp -- "$LESSONS_BACKUP_DIR/LESSONS.md" "$ROLLBACK_ROOT/.octo/LESSONS.md" || exit 1
+  rm -- "$LESSONS_BACKUP_DIR/LESSONS.md" || exit 1
+  rmdir -- "$LESSONS_BACKUP_DIR" || exit 1
 fi
 ```
 
