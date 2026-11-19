@@ -36,21 +36,21 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Develop checks implementation-state updates, checkpoint creation and both
-checkpoint-state writes for failure. The affected block stops when an operation
-fails. Earlier successful writes and existing tags remain available for
-inspection before retrying.
+Select another OpenAI-compatible vendor through an explicit custom preset in the
+[tool-loop helper](docs/PROVIDERS.md#explicit-custom-presets-in-the-tool-loop-helper).
+Each preset keeps its own endpoint, credential and model allowlist. Orchestration
+seat registration and cost reporting are separate from this helper interface.
 
-Branch completion checks its repository, branch and PR description before
-pushing. A failed push stops PR creation, and an ambiguous GitHub write reports
-how to check for an existing PR before retrying. Local commits and branches stay
-available for recovery.
+Claude Code discovers native workflow skills, while Codex loads its adapted
+skills. Existing names, aliases and explicit invocation controls remain available.
 
-Brainstorming, debate, definition, branch review and deck red-team workflows
-run their required Bash blocks correctly from zsh hosts, including Claude Code
-on macOS. Provider allowlists and saved debate context reach the later steps.
+Debate requires two successful external advisors on Codex. An allowed native
+Sonnet task on Claude Code counts only after it completes with a usable round
+artifact. Define stops when required state saves fail, and research prompts keep
+full ticket and probe IDs in their results.
 
-See [review and recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery).
+See [workflow recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery)
+and [plugin compatibility](docs/PLUGIN-COMPATIBILITY.md).
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.25.2 — Discover and Deliver stop completion when state updates fail.**

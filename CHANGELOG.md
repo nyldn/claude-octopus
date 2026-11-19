@@ -22,6 +22,17 @@
 
 - Research prompts request full IDs (`PLAT-1931`, `probe-4`) to avoid false numeric-claim failures.
 
+Merged changes: [#1356](https://github.com/nyldn/claude-octopus/pull/1356),
+[#1369](https://github.com/nyldn/claude-octopus/pull/1369),
+[#1371](https://github.com/nyldn/claude-octopus/pull/1371),
+[#1370](https://github.com/nyldn/claude-octopus/pull/1370), and
+[#1375](https://github.com/nyldn/claude-octopus/pull/1375).
+The debate repair fixes [#1373](https://github.com/nyldn/claude-octopus/issues/1373).
+Custom orchestration seats remain tracked in
+[#1299](https://github.com/nyldn/claude-octopus/issues/1299), and broader runtime
+and installed-host acceptance work remains in
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
 ## [11.25.2] - 2026-11-17
 
 ### Fixed
