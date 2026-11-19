@@ -6,6 +6,9 @@
 
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
+- Tangle routes `[CODING]` and `[REASONING]` subtasks only to providers in
+  `OCTO_ALLOWED_PROVIDERS`, falling back to codex and then Claude Sonnet. An
+  installed but disallowed agy no longer aborts the run at spawn time.
 
 ## [11.26.0] - 2026-11-18
 
