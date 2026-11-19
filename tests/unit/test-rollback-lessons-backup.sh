@@ -98,49 +98,56 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             git('add', '.')
             git('commit', '-qm', 'current')
             capture(run(2))
-            preserved = run(5)
-            assert sentinel.read_text() == 'untouched\n', (tree, mode, 'backup followed the occupied destination')
-            if mode == 'linked-source':
-                assert preserved.returncode != 0, (tree, mode, 'linked source admitted')
+            backup_dir = None
+            try:
+                preserved = run(5)
+                if mode != 'linked-source':
+                    capture(preserved)
+                    backup_dir = Path(env['LESSONS_BACKUP_DIR']) if env['LESSONS_BACKUP_DIR'] else None
+                assert sentinel.read_text() == 'untouched\n', (tree, mode, 'backup followed the occupied destination')
+                if mode == 'linked-source':
+                    assert preserved.returncode != 0, (tree, mode, 'linked source admitted')
+                    checks += 1
+                    continue
+                assert env['LESSONS_PRESERVED'] == ('false' if mode == 'absent' else 'true')
+                if backup_dir:
+                    assert backup_dir.is_absolute(), (tree, mode, 'backup path depends on the previous shell working directory')
+                    if mode in ('cdpath-tmp', 'cdpath-search'):
+                        assert backup_dir.parent == scratch.resolve(), (tree, mode, 'CDPATH changed the backup location')
+                    backup = backup_dir / 'LESSONS.md'
+                    assert backup_dir.stat().st_mode & 0o777 == 0o700
+                    assert backup.stat().st_mode & 0o777 == 0o600
+                    assert backup.read_text() == 'current lessons\n'
+                if mode == 'dirty':
+                    (repo / 'work.txt').write_text('unsaved work\n')
+                elif mode == 'missing-backup':
+                    backup.unlink()
+                elif mode == 'linked-backup':
+                    backup.unlink()
+                    backup.symlink_to(sentinel)
+                before = git('write-tree')
+                result = run(6)
+                if mode in ('present', 'absent', 'relative-tmp', 'local-tmp', 'cdpath-tmp', 'cdpath-search'):
+                    assert result.returncode == 0, (tree, mode, result.stderr)
+                    assert (repo / 'work.txt').read_text() == 'checkpoint\n'
+                    assert lessons.read_text() == 'current lessons\n' if mode != 'absent' else not lessons.exists()
+                    assert backup_dir is None or not backup_dir.exists()
+                elif mode == 'restore-failed':
+                    assert result.returncode == 1, (tree, mode, result.stderr)
+                    assert git('write-tree') != before, 'checkout never ran before the failed copy'
+                    assert (repo / 'work.txt').read_text() == 'checkpoint\n'
+                    assert backup_dir.is_dir() and backup.read_text() == 'current lessons\n', 'failed copy discarded recovery state'
+                else:
+                    assert result.returncode != 0, (tree, mode, result.stderr)
+                    assert git('write-tree') == before
+                    assert (repo / 'work.txt').read_text() == ('unsaved work\n' if mode == 'dirty' else 'current\n')
+                    assert backup_dir.exists(), 'failed restoration discarded recovery state'
+                assert legacy.is_symlink() and sentinel.read_text() == 'untouched\n'
                 checks += 1
-                continue
-            capture(preserved)
-            assert env['LESSONS_PRESERVED'] == ('false' if mode == 'absent' else 'true')
-            backup_dir = Path(env['LESSONS_BACKUP_DIR']) if env['LESSONS_BACKUP_DIR'] else None
-            if backup_dir:
-                assert backup_dir.is_absolute(), (tree, mode, 'backup path depends on the previous shell working directory')
-                if mode in ('cdpath-tmp', 'cdpath-search'):
-                    assert backup_dir.parent == scratch.resolve(), (tree, mode, 'CDPATH changed the backup location')
-                backup = backup_dir / 'LESSONS.md'
-                assert backup_dir.stat().st_mode & 0o777 == 0o700
-                assert backup.stat().st_mode & 0o777 == 0o600
-                assert backup.read_text() == 'current lessons\n'
-            if mode == 'dirty':
-                (repo / 'work.txt').write_text('unsaved work\n')
-            elif mode == 'missing-backup':
-                backup.unlink()
-            elif mode == 'linked-backup':
-                backup.unlink()
-                backup.symlink_to(sentinel)
-            before = git('write-tree')
-            result = run(6)
-            if mode in ('present', 'absent', 'relative-tmp', 'local-tmp', 'cdpath-tmp', 'cdpath-search'):
-                assert result.returncode == 0, (tree, mode, result.stderr)
-                assert (repo / 'work.txt').read_text() == 'checkpoint\n'
-                assert lessons.read_text() == 'current lessons\n' if mode != 'absent' else not lessons.exists()
-                assert backup_dir is None or not backup_dir.exists()
-            elif mode == 'restore-failed':
-                assert result.returncode == 1, (tree, mode, result.stderr)
-                assert git('write-tree') != before, 'checkout never ran before the failed copy'
-                assert (repo / 'work.txt').read_text() == 'checkpoint\n'
-                assert backup_dir.is_dir() and backup.read_text() == 'current lessons\n', 'failed copy discarded recovery state'
-            else:
-                assert result.returncode != 0, (tree, mode, result.stderr)
-                assert git('write-tree') == before
-                assert (repo / 'work.txt').read_text() == ('unsaved work\n' if mode == 'dirty' else 'current\n')
-                assert backup_dir.exists(), 'failed restoration discarded recovery state'
-            assert legacy.is_symlink() and sentinel.read_text() == 'untouched\n'
-            checks += 1
+            finally:
+                if backup_dir is not None and backup_dir.exists():
+                    (backup_dir / 'LESSONS.md').unlink(missing_ok=True)
+                    backup_dir.rmdir()
 print(f'{checks} production backup/restore cases passed')
 PY
 then test_pass; else test_fail "rollback backup or recovery boundary failed"; fi
