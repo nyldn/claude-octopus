@@ -110,6 +110,76 @@ else
     test_fail "reachable validation path did not report the missing dispatched result"
 fi
 
+environment_blocked_output='## Worktree Changes
+
+Implemented source and tests in five authorized files.
+
+## Verification
+
+Incomplete due to an environment blocker:
+
+- `pnpm install --frozen-lockfile --offline`: failed with `EPERM`.
+- Focused Vitest runs: blocked because `vitest` is unavailable.'
+setup_blocked_output='## Verification
+
+Blocked by environment setup:
+
+- Build/lint/typecheck/test could not start: `turbo` not found.
+
+The implementation is therefore incomplete pending dependency installation, regeneration, and the prescribed gates.'
+pending_gates_output='## Verification
+
+- **Blocked:** `pnpm platform:check` needs dependencies that are not installed.'
+complete_output='## Worktree Changes
+
+- Blocked users are excluded from search results.
+- Incomplete payloads are rejected with a 400 response.
+
+## Integration Evidence
+
+- Blocked-user filtering is wired into the search route.
+
+## Verification
+
+- Blockers: none.
+- `pnpm test`: 12 passed.'
+
+for spec in \
+    "environment-blocked:$environment_blocked_output:blocked" \
+    "setup-blocked:$setup_blocked_output:blocked" \
+    "pending-gates:$pending_gates_output:blocked" \
+    "complete-with-blocked-terms:$complete_output:success"; do
+    name="${spec%%:*}"
+    expected="${spec##*:}"
+    output="${spec#*:}"
+    output="${output%:*}"
+    file=$(make_result "$name" 'SUCCESS' "$output")
+    test_case "classifies a successful launch whose output reports $name as $expected"
+    if [[ "$(tangle_result_terminal_outcome "$file")" == "$expected" ]]; then
+        test_pass
+    else
+        test_fail "unexpected terminal outcome: $(tangle_result_terminal_outcome "$file")"
+    fi
+done
+
+test_case "a subtask that reports itself incomplete fails the quality gate"
+self_report_results="$TEST_TMP_DIR/self-report-validation"
+mkdir -p "$self_report_results"
+make_result self-report 'SUCCESS' "$setup_blocked_output" > /dev/null
+cp "$TEST_TMP_DIR/self-report.md" "$self_report_results/test-tangle-selfreport-0.md"
+RESULTS_DIR="$self_report_results"
+WORKSPACE_DIR="$TEST_TMP_DIR/workspace"
+mkdir -p "$WORKSPACE_DIR"
+validate_tangle_results "selfreport" "Implement the plan" "" "" "" "self-report" >/dev/null 2>&1 || true
+self_report_validation="$RESULTS_DIR/tangle-validation-selfreport.md"
+if grep -q -- '### Quality Gate: FAILED' "$self_report_validation" &&
+   grep -q -- '- Success Rate: 0% ' "$self_report_validation" &&
+   grep -q -- '- Terminal Outcomes: 1 blocked' "$self_report_validation"; then
+    test_pass
+else
+    test_fail "gate scored a self-reported incomplete subtask as: $(grep -E 'Quality Gate|Success Rate|Terminal Outcomes' "$self_report_validation" 2>/dev/null | tr '\n' ' ')"
+fi
+
 test_case "watcher reports finished rather than complete"
 if grep -q 'subtasks finished' "$PROJECT_ROOT/scripts/lib/workflows.sh" \
    && ! grep -q 'subtasks complete' "$PROJECT_ROOT/scripts/lib/workflows.sh"; then

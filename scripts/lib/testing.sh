@@ -142,9 +142,10 @@ tangle_result_has_blocker_output() {
     local result_file="$1"
     local output
     local blocker_pattern='(blocker report|cannot complete|unable to complete|sandbox (is )?blocking|blocked by (the )?sandbox|landlock|no write tools available|all shell commands (are )?blocked|filesystem access is blocked|cannot create or modify files|apply_patch.*not available)'
+    local self_reported_pattern='^[[:space:]>#*_-]*(incomplete|blocked)[*_]*[[:space:]]*(:|$|(due to|by|pending|because)[[:space:]])|(implementation|subtask|task|work|verification) (is|remains) (therefore |still )?(incomplete|blocked)'
     output=$(extract_tangle_result_body "$result_file")
 
-    grep -Eiq "$blocker_pattern" <<< "$output"
+    grep -Eiq "$blocker_pattern" <<< "$output" || grep -Eiq "$self_reported_pattern" <<< "$output"
 }
 
 check_explicit_file_coverage() {
