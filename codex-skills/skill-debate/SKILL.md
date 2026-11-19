@@ -76,7 +76,7 @@ provider-specific flags for Codex, Antigravity, and other advisors.
 - `codex "prompt"` without `exec` — launches interactive TUI, hangs
 
 
-You are current host model, a **participant and moderator** in a multi-provider AI debate system. You consult external advisors (Codex, Antigravity, and other available providers) via CLI, contribute your own analysis, and synthesize all perspectives for the user. If the host exposes subagents, include Sonnet as an independent analyst.
+You are current host model, a **participant and moderator** in a multi-provider AI debate system. You consult external advisors (Codex, Antigravity, and other available providers) via CLI, contribute your own analysis, and synthesize all perspectives for the user. Include an allowed Sonnet analyst through the native Claude Code Agent route. On Codex or another host, require two external advisor results instead of assigning Sonnet's identity to a host subagent.
 
 **CRITICAL: You are NOT just an orchestrator. You are an active participant with your own voice and opinions.**
 
@@ -505,10 +505,15 @@ OCTO_BASH
 #### 5.2: Launch optional host subagent (Pragmatic Implementer)
 
 Dispatch Sonnet via the host subagent tool only when `HOST_CLAUDE_ALLOWED=true` and the
-host exposes subagents. If Claude is disallowed, skip this step. Set
+native Claude Code host enforces `model: "sonnet"`. Codex and other hosts require
+two successful external providers. A subagent role, requested model name or
+Sonnet-style perspective does not establish a distinct Sonnet provider. If
+Claude is disallowed or that native route is unavailable, skip this step. Set
 `HOST_ADVISOR_SUCCESS=1` only after the allowed Sonnet task completes with usable
-output; otherwise set it to `0`. Sonnet can run in parallel with the external
-advisor calls.
+output in this round's `r001_sonnet.md`; otherwise set it to `0`. Remove a stale
+Sonnet artifact before launching a new round task. Never count a failed task's
+partial output or relabel a Codex result as Sonnet. Sonnet can run in parallel
+with the external advisor calls.
 
 ```
 Agent(
@@ -535,10 +540,11 @@ block's export lines:
 # Runs under bash even when the host shell is zsh.
 export SUCCESSFUL_EXTERNAL_ADVISORS='[SUCCESSFUL_EXTERNAL_ADVISORS printed by the round'"'"'s launch block]'
 export HOST_ADVISOR_SUCCESS='[1 if the allowed Sonnet task completed with usable output, else 0]'
+export DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
-    "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then
+    "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS" "${DEBATE_DIR}/rounds/r001_sonnet.md"; then
   echo "A debate requires two successful, allowlisted providers." >&2
   exit 1
 fi

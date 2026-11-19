@@ -126,6 +126,9 @@ chmod +x "$E2E/fleet-builder.sh"
 # STUB_CODEX_BIN says so) and the test's isolated Octopus state.
 in_stub_env() {
     (
+        # This fixture models native Claude Code. The invoking test runner may
+        # itself be Codex, whose runtime markers must not change the fixture.
+        unset CODEX_THREAD_ID CODEX_SESSION_ID CODEX_SANDBOX CODEX_PLUGIN_ROOT CODEX_HOME DROID_PLUGIN_ROOT
         export "HOME=$E2E/home" "CLAUDE_PLUGIN_DATA=$E2E/data" \
             "CLAUDE_PLUGIN_ROOT=$PROJECT_ROOT" "OCTOPUS_PROJECT_DIR=$E2E/project" \
             "TMPDIR=$E2E/tmp" "OCTOPUS_SKIP_PROVIDER_PROBES=true" "OPENAI_API_KEY=test-only" \

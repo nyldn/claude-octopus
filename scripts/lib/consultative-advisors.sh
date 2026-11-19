@@ -11,6 +11,10 @@ if [ -z "${BASH_VERSION:-}" ]; then
 fi
 
 _octo_consultative_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+if ! source "${_octo_consultative_lib_dir}/host-runtime.sh"; then
+    printf 'ERROR: consultative host runtime detection is unavailable\n' >&2
+    return 1 2>/dev/null || exit 1
+fi
 _octo_consultative_allowlist="${_octo_consultative_lib_dir}/provider-allowlist.sh"
 if [[ ! -r "$_octo_consultative_allowlist" ]] ||
    ! source "$_octo_consultative_allowlist"; then
@@ -33,6 +37,9 @@ octo_consultative_provider_is_launchable() {
 }
 
 octo_consultative_host_allowed() {
+    # Only Claude Code enforces Agent(model: "sonnet"). A requested model or
+    # implementer role in another host does not establish a Sonnet identity.
+    [[ "$(octo_detect_host_runtime)" == claude ]] || return 1
     octo_provider_allowed claude-sonnet
 }
 
@@ -47,7 +54,15 @@ octo_consultative_required_external_count() {
 octo_consultative_provider_count_is_sufficient() {
     local external_count="$1" host_count="$2"
     case "$external_count" in ""|*[!0-9]*) return 1 ;; esac
-    case "$host_count" in ""|*[!0-9]*) return 1 ;; esac
+    case "$host_count" in 0|1) ;; *) return 1 ;; esac
+    if [[ "$host_count" == 1 ]]; then
+        octo_consultative_host_allowed || return 1
+        # Debate supplies its completed round artifact. Other consumers may
+        # collect native Agent output directly in their tool result.
+        if [[ $# -ge 3 ]]; then
+            [[ -f "$3" && -s "$3" && ! -L "$3" ]] || return 1
+        fi
+    fi
     [[ $((external_count + host_count)) -ge 2 ]]
 }
 
