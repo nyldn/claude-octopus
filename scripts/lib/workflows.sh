@@ -4905,6 +4905,81 @@ tangle_prepare_run_worktree() {
     log INFO "Tangle run branch: $TANGLE_RUN_BRANCH (base $TANGLE_RUN_SOURCE_COMMIT)"
 }
 
+# The same two gates spawn_agent applies before starting a worker: an open
+# circuit breaker and a quota/auth-dead mark. Either one makes spawn_agent
+# refuse the seat without printing a provider PID.
+tangle_subtask_agent_dispatchable() {
+    local agent="${1:-}" provider quota_provider
+    [[ -n "$agent" ]] || return 1
+    provider="$(octo_agent_spec_provider "$agent" 2>/dev/null)" || provider="${agent%%[-:]*}"
+    if declare -f is_provider_available >/dev/null 2>&1 && ! is_provider_available "$provider"; then
+        return 1
+    fi
+    quota_provider="$(octo_provider_canonical "$provider" 2>/dev/null || printf '%s' "$provider")"
+    if declare -f octo_quota_is_dead >/dev/null 2>&1 && octo_quota_is_dead "$quota_provider"; then
+        return 1
+    fi
+    return 0
+}
+
+# Candidates for one subtask: its routed agent, then codex, then claude-sonnet,
+# one per provider, skipping a missing codex binary and any provider outside
+# OCTO_ALLOWED_PROVIDERS. claude-sonnet needs no binary check because the
+# claude host process is always present.
+tangle_subtask_fallback_agents() {
+    local agent="${1:-}" candidate provider seen="|"
+    for candidate in "$agent" codex claude-sonnet; do
+        [[ -n "$candidate" ]] || continue
+        provider="$(octo_agent_spec_provider "$candidate" 2>/dev/null)" || provider="${candidate%%[-:]*}"
+        [[ "$seen" == *"|$provider|"* ]] && continue
+        seen+="$provider|"
+        if [[ "$candidate" != "$agent" ]]; then
+            [[ "$candidate" == codex ]] && ! command -v codex >/dev/null 2>&1 && continue
+            if declare -f octo_provider_allowed >/dev/null 2>&1 && ! octo_provider_allowed "$provider"; then
+                continue
+            fi
+        fi
+        printf '%s\n' "$candidate"
+    done
+}
+
+# Spawn one Step 2 subtask. Subtask providers are routed once, before the loop,
+# so a provider whose circuit opens or whose quota dies mid-run (for example
+# codex hitting its usage limit on an earlier subtask) would refuse every later
+# subtask, and one refused spawn aborts the whole run. Move the subtask to the
+# next candidate when its provider is unavailable before the spawn, or became
+# unavailable while the spawn was preparing. A refusal while the provider is
+# still healthy is a real failure and is returned as one. Sets
+# TANGLE_SPAWNED_PID, and keeps the active-agent slot on the candidate in
+# flight so cancellation finds its result file.
+tangle_spawn_subtask() {
+    local agent="$1" prompt="$2" task_id="$3" role="$4" pane_title="$5" active_idx="$6"
+    local candidate pid
+    TANGLE_SPAWNED_PID=""
+    while IFS= read -r candidate; do
+        if ! tangle_subtask_agent_dispatchable "$candidate"; then
+            log WARN "Tangle task $task_id: $candidate is unavailable (circuit open or quota exhausted); trying the next provider"
+            continue
+        fi
+        [[ "$candidate" == "$agent" ]] || log WARN "Tangle task $task_id: dispatching to $candidate instead of $agent"
+        OCTOPUS_ACTIVE_TANGLE_AGENTS[$active_idx]="$candidate"
+        if [[ "$TMUX_MODE" == "true" ]]; then
+            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" "tangle" "$pane_title" </dev/null) && {
+                TANGLE_SPAWNED_PID="$pid"
+                return 0
+            }
+        else
+            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" "tangle" </dev/null) && {
+                TANGLE_SPAWNED_PID="$pid"
+                return 0
+            }
+        fi
+        tangle_subtask_agent_dispatchable "$candidate" && return 1
+        log WARN "Tangle task $task_id: $candidate became unavailable during its spawn; trying the next provider"
+    done < <(tangle_subtask_fallback_agents "$agent")
+    return 1
+}
+
 tangle_develop() {
     local prompt="$1"
     local grasp_file="${2:-}"
@@ -5464,27 +5539,14 @@ $(tangle_decomposition_json_contract_guidance)"
         # markers are written for the completion watcher. This also allows
         # configurable CLI-backed coding/reasoning agents without requiring
         # Claude Agent Teams hooks in the host process.
-        if [[ "$TMUX_MODE" == "true" ]]; then
-            # Use async+tmux spawning
-            local pid
-            if ! pid=$(spawn_agent_async "$agent" "$subtask_prompt" "$task_id" "$role" "tangle" "$pane_title" </dev/null); then
-                log ERROR "Failed to spawn Tangle task $task_id"
-                octopus_tangle_cancel_active TERM
-                _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
-                return 1
-            fi
-            pids+=("$pid")
-        else
-            # Standard spawning
-            local pid
-            if ! pid=$(spawn_agent_capture_pid "$agent" "$subtask_prompt" "$task_id" "$role" "tangle" </dev/null); then
-                log ERROR "Failed to spawn Tangle task $task_id"
-                octopus_tangle_cancel_active TERM
-                _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
-                return 1
-            fi
-            pids+=("$pid")
+        if ! tangle_spawn_subtask "$agent" "$subtask_prompt" "$task_id" "$role" "$pane_title" "$active_idx"; then
+            log ERROR "Failed to spawn Tangle task $task_id"
+            octopus_tangle_cancel_active TERM
+            _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
+            return 1
         fi
+        local pid="$TANGLE_SPAWNED_PID"
+        pids+=("$pid")
         OCTOPUS_ACTIVE_TANGLE_PIDS[$active_idx]="$pid"
         task_ids+=("$task_id")
         ((subtask_num++)) || true

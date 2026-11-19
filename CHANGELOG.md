@@ -6,6 +6,10 @@
 
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
+- Tangle moves a subtask to codex, then claude-sonnet, when its provider's
+  circuit opens or its quota dies mid-run, instead of aborting the whole
+  Develop run on the first refused spawn. A refusal from a healthy provider
+  still aborts.
 
 ## [11.26.0] - 2026-11-18
 
