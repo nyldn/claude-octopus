@@ -73,6 +73,12 @@ In debate, restore the printed run directory before collecting advisor results.
 A failed provider-allowlist or advisor-library load stops the block; inspect
 that error before retrying.
 
+Debate counts a native Sonnet advisor only on an allowed Claude Code route after
+the task completes and writes a usable round artifact. Codex and unknown hosts
+require two successful external providers. A host role label or a requested
+Sonnet model name cannot substitute for that native route. Missing, empty or
+symlinked Sonnet artifacts stop a claimed host success from satisfying the gate.
+
 ## Review and compaction recovery
 
 Branch completion dispatches the configured `code-reviewer` persona and waits
