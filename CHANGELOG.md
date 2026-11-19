@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Rollback preserves lessons in a private temporary backup, carries its exact
+  path across shell calls, and retains recovery data when restoration fails.
+
+## [11.26.0] - 2026-11-18
+
 ### Added
 
 - The OpenAI-compatible tool-loop helper can explicitly load a custom preset
@@ -10,8 +17,6 @@
 
 ### Fixed
 
-- Rollback preserves lessons in a private temporary backup, carries its exact
-  path across shell calls, and retains recovery data when restoration fails.
 - Debate counts the native Sonnet advisor only on an allowed Claude Code route
   with a completed round artifact. Codex requires two external advisor results
   instead of counting an unverified host subagent as Sonnet.
@@ -23,6 +28,17 @@
   earlier state and requiring repair before presenting the result as saved.
 
 - Research prompts request full IDs (`PLAT-1931`, `probe-4`) to avoid false numeric-claim failures.
+
+Merged changes: [#1356](https://github.com/nyldn/claude-octopus/pull/1356),
+[#1369](https://github.com/nyldn/claude-octopus/pull/1369),
+[#1371](https://github.com/nyldn/claude-octopus/pull/1371),
+[#1370](https://github.com/nyldn/claude-octopus/pull/1370), and
+[#1375](https://github.com/nyldn/claude-octopus/pull/1375).
+The debate repair fixes [#1373](https://github.com/nyldn/claude-octopus/issues/1373).
+Custom orchestration seats remain tracked in
+[#1299](https://github.com/nyldn/claude-octopus/issues/1299), and broader runtime
+and installed-host acceptance work remains in
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
 ## [11.25.2] - 2026-11-17
 
