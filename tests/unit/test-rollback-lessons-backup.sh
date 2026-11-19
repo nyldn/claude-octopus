@@ -22,7 +22,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
     def recipe(step):
         section = source.split('### Step ' + str(step) + ':', 1)[1]
         return re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-    for mode in ('present', 'absent', 'dirty', 'missing-backup', 'linked-backup', 'linked-source', 'restore-failed', 'relative-tmp', 'local-tmp'):
+    for mode in ('present', 'absent', 'dirty', 'missing-backup', 'linked-backup', 'linked-source', 'restore-failed', 'relative-tmp', 'local-tmp', 'cdpath-tmp', 'cdpath-search'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2], prefix='lessons space ') as temporary:
             base = Path(temporary)
             repo = base / 'repo'
@@ -36,6 +36,17 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 (repo / 'nested').mkdir()
             elif mode == 'local-tmp':
                 env['TMPDIR'] = '.'
+            elif mode in ('cdpath-tmp', 'cdpath-search'):
+                scratch = base / 'outside'
+                scratch.mkdir()
+                (repo / 'scratch').symlink_to(scratch, target_is_directory=True)
+                env['TMPDIR'] = 'scratch'
+                env['CDPATH'] = '.'
+                if mode == 'cdpath-search':
+                    search = base / 'search'
+                    search.mkdir()
+                    (search / 'scratch').symlink_to(scratch, target_is_directory=True)
+                    env['CDPATH'] = str(search)
             for key in subprocess.check_output(['git', 'rev-parse', '--local-env-vars'], text=True).splitlines():
                 env.pop(key, None)
             def git(*args):
@@ -94,6 +105,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             backup_dir = Path(env['LESSONS_BACKUP_DIR']) if env['LESSONS_BACKUP_DIR'] else None
             if backup_dir:
                 assert backup_dir.is_absolute(), (tree, mode, 'backup path depends on the previous shell working directory')
+                if mode in ('cdpath-tmp', 'cdpath-search'):
+                    assert backup_dir.parent == scratch, (tree, mode, 'CDPATH changed the backup location')
                 backup = backup_dir / 'LESSONS.md'
                 assert backup_dir.stat().st_mode & 0o777 == 0o700
                 assert backup.stat().st_mode & 0o777 == 0o600
@@ -107,7 +120,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 backup.symlink_to(sentinel)
             before = git('write-tree')
             result = run(6)
-            if mode in ('present', 'absent', 'relative-tmp', 'local-tmp'):
+            if mode in ('present', 'absent', 'relative-tmp', 'local-tmp', 'cdpath-tmp', 'cdpath-search'):
                 assert result.returncode == 0, (tree, mode, result.stderr)
                 assert (repo / 'work.txt').read_text() == 'checkpoint\n'
                 assert lessons.read_text() == 'current lessons\n' if mode != 'absent' else not lessons.exists()
