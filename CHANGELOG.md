@@ -2,10 +2,19 @@
 
 ## [Unreleased]
 
+### Added
+
+- The OpenAI-compatible tool-loop helper can explicitly load a custom preset
+  from `providers.json` with its own endpoint, credential and model allowlist.
+  Custom presets do not yet register orchestration seats or cost-report rows.
+
 ### Fixed
 
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
+- Debate counts the native Sonnet advisor only on an allowed Claude Code route
+  with a completed round artifact. Codex requires two external advisor results
+  instead of counting an unverified host subagent as Sonnet.
 - Claude Code discovers native workflow skills while Codex loads its separate
   adapted skill tree. All existing skill names, explicit invocation controls,
   aliases and starter-pack entries remain available.
