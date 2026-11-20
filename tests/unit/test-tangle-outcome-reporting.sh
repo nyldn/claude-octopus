@@ -153,12 +153,19 @@ No subtask remains incomplete.
 
 - Blocked: none
 - **Incomplete:** no
+- Blocked: no
 - Blocked: N/A'
 cleared_then_blocked_output='## Verification
 
 - Blocked: none
 
 Gates: the verification is still blocked until `turbo` is installed.'
+explained_blocker_output='## Verification
+
+- Blocked: no network access; dependency installation and tests could not run.'
+cleared_and_blocked_line_output='## Verification
+
+Blocked: none. The implementation is incomplete pending dependency installation.'
 
 for spec in \
     "environment-blocked:$environment_blocked_output:blocked" \
@@ -166,6 +173,8 @@ for spec in \
     "pending-gates:$pending_gates_output:blocked" \
     "emphasized-incomplete:$emphasized_incomplete_output:blocked" \
     "cleared-then-blocked:$cleared_then_blocked_output:blocked" \
+    "explained-blocker:$explained_blocker_output:blocked" \
+    "cleared-and-blocked-line:$cleared_and_blocked_line_output:blocked" \
     "complete-with-blocked-terms:$complete_output:success" \
     "negated-blockers:$negated_output:success"; do
     name="${spec%%:*}"
