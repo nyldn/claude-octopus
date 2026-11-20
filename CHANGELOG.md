@@ -6,6 +6,11 @@
 
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
+- Tangle keeps its out-of-scope path list out of the environment and caps the
+  scope-contract finding at 20 paths, so a stray directory such as
+  `.pnpm-store/` fails the write-scope pre-gate with a full validation report
+  instead of `Argument list too long` from every later command. A failed
+  worktree snapshot is no longer reported as missing worktree progress.
 
 ## [11.26.0] - 2026-11-18
 
