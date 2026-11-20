@@ -564,6 +564,7 @@ if [[ -n "$PNPM_ROOT" ]]; then
     mkdir -p "$PNPM_ROOT/pnpm-bin" "$PNPM_STORE/v10/files" "$PNPM_STORE/v10/projects" "$PNPM_STORE/v10/tmp"
     cat > "$PNPM_ROOT/pnpm-bin/pnpm" <<EOF
 #!/bin/sh
+pwd -P >> "$PNPM_ROOT/pnpm-cwd.log"
 [ "\$1 \$2" = "store path" ] || exit 64
 printf '%s\n' "$PNPM_STORE/v10"
 EOF
@@ -576,19 +577,41 @@ pnpm_tmpfs_count() {
     printf '%s\n' "$count"
 }
 
-test_case "a pnpm implementer gets a private tmpfs over the store's projects and tmp"
+test_case "a pnpm implementer gets a private tmpfs over the store's projects and tmp with globbing off"
 if [[ -z "$PNPM_ROOT" ]]; then
     test_skip "no fixture directory outside /tmp"
 else
     agent_type="claude"
     touch "$BOUNDARY_WORKTREE/pnpm-lock.yaml"
     cmd_array=(true)
-    if PATH="$PNPM_ROOT/pnpm-bin:$PATH" octopus_tangle_apply_execution_boundary &&
-       [[ "$(pnpm_tmpfs_count)" == 2 ]] && ! boundary_binds_rw "$PNPM_STORE/v10/files"; then
+    pnpm_status=0
+    set -f
+    PATH="$PNPM_ROOT/pnpm-bin:$PATH" octopus_tangle_apply_execution_boundary || pnpm_status=$?
+    set +f
+    if [[ "$pnpm_status" -eq 0 && "$(pnpm_tmpfs_count)" == 2 ]] && ! boundary_binds_rw "$PNPM_STORE/v10/files"; then
         test_pass
     else
-        test_fail "pnpm store mounts were not private: $(pnpm_tmpfs_count)/2"
+        test_fail "pnpm store mounts were not private: status=$pnpm_status $(pnpm_tmpfs_count)/2"
     fi
+fi
+
+test_case "the pnpm store is never resolved from a temporary directory inside the worktree"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+else
+    mkdir -p "$BOUNDARY_WORKTREE/tmp"
+    : > "$PNPM_ROOT/pnpm-cwd.log"
+    cmd_array=(true)
+    pnpm_status=0
+    TMPDIR="$BOUNDARY_WORKTREE/tmp" PATH="$PNPM_ROOT/pnpm-bin:$PATH" octopus_tangle_apply_execution_boundary || pnpm_status=$?
+    physical_boundary_worktree="$(cd "$BOUNDARY_WORKTREE" && pwd -P)"
+    if [[ "$pnpm_status" -eq 0 && "$(pnpm_tmpfs_count)" == 0 ]] &&
+       ! grep -Fq "$physical_boundary_worktree" "$PNPM_ROOT/pnpm-cwd.log"; then
+        test_pass
+    else
+        test_fail "status=$pnpm_status mounts=$(pnpm_tmpfs_count) pnpm cwd: $(tr '\n' ' ' < "$PNPM_ROOT/pnpm-cwd.log")"
+    fi
+    rm -rf "$BOUNDARY_WORKTREE/tmp"
 fi
 
 test_case "reviewers, projects that name their own pnpm store, and projects without a pnpm lockfile get no pnpm tmpfs"

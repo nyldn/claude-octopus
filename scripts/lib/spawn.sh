@@ -717,7 +717,7 @@ octopus_tangle_bind_codex_state_dirs() {
 }
 
 octopus_tangle_bind_pnpm_store_dirs() {
-    local physical_worktree="$1" probe_dir store real_root layout private_dir
+    local physical_worktree="$1" probe_dir physical_probe store="" real_root layout private_dir
     [[ -f "$physical_worktree/pnpm-lock.yaml" ]] || return 0
     command -v pnpm >/dev/null 2>&1 || return 0
     if grep -Eqs '^[[:space:]]*(store-dir[[:space:]]*=|storeDir[[:space:]]*:)' \
@@ -725,7 +725,10 @@ octopus_tangle_bind_pnpm_store_dirs() {
         return 0
     fi
     probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/octo-pnpm-store.XXXXXX")" || return 0
-    store="$(cd "$probe_dir" && pnpm store path 2>/dev/null </dev/null)" || store=""
+    if physical_probe="$(cd "$probe_dir" && pwd -P)" &&
+       octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$physical_probe"; then
+        store="$(cd "$physical_probe" && pnpm store path 2>/dev/null </dev/null)" || store=""
+    fi
     rm -rf -- "$probe_dir"
     store="${store##*$'\n'}"
     [[ "$store" == /* && "${store##*/}" =~ ^v[0-9]+$ ]] || return 0
@@ -734,14 +737,14 @@ octopus_tangle_bind_pnpm_store_dirs() {
         /|/tmp/*) return 0 ;;
     esac
     octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$real_root" || return 0
-    for layout in "$real_root"/v*; do
-        [[ "${layout##*/}" =~ ^v[0-9]+$ && -d "$layout" && ! -L "$layout" ]] || continue
+    while IFS= read -r -d '' layout; do
+        [[ "${layout##*/}" =~ ^v[0-9]+$ ]] || continue
         for private_dir in projects tmp; do
             if [[ -d "$layout/$private_dir" && ! -L "$layout/$private_dir" ]]; then
                 boundary_cmd+=(--tmpfs "$layout/$private_dir")
             fi
         done
-    done
+    done < <(find "$real_root" -mindepth 1 -maxdepth 1 -type d -name 'v*' -print0 2>/dev/null)
 }
 
 octopus_tangle_apply_execution_boundary() {
