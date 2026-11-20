@@ -269,6 +269,15 @@ git diff --no-ext-diff --no-textconv origin/main -- > /tmp/reviewed.diff
 Counts appear in each seat's `grounding` object in `summary.json`. Set
 `OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to disable citation quote verification.
 
+## Bounded seat reading
+
+Seat prompts tell seats to read only the files and diffs named in the task or
+supplied by the council, plus a file they cite when they open it to check a
+specific finding. They are told not to list, search or explore the rest of the
+repository. The instruction is fixed text ahead of the task-specific blocks, so
+it stays in the cached prompt prefix. Set `OCTOPUS_COUNCIL_BOUNDED_READING=0`
+to drop it.
+
 ## Failed provider diagnostics
 
 A failed council seat retains redacted diagnostics in `stderr/<seat>.log`.
