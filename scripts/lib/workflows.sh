@@ -5548,7 +5548,13 @@ $(tangle_decomposition_json_contract_guidance)"
     expected_subtask_ids=$(printf '%s\n' "${task_ids[@]}")
     tangle_validate_results_with_scope_contract "$task_group" "$resolved_prompt" "$worktree_before_file" "$subtasks" "$tangle_start_head" "$tangle_scope_manifest" "$worktree_before_state_file" "$expected_subtask_ids" || validation_rc=$?
 
-    if ! tangle_should_attempt_contextual_review "$validation_rc" "$worktree_before_state_file"; then
+    local contextual_review_rc=0
+    tangle_should_attempt_contextual_review "$validation_rc" "$worktree_before_state_file" || contextual_review_rc=$?
+    if [[ "$contextual_review_rc" -eq 2 ]]; then
+        log ERROR "Tangle validation failed with status ${validation_rc}; unable to snapshot the worktree to check for recoverable progress, stopping before contextual review and corrections"
+        return "$validation_rc"
+    fi
+    if [[ "$contextual_review_rc" -ne 0 ]]; then
         log ERROR "Tangle validation failed with status ${validation_rc}; no recoverable worktree progress detected, stopping before contextual review and corrections"
         return "$validation_rc"
     fi
@@ -5666,7 +5672,6 @@ tangle_validate_results_with_scope_contract() {
         violations="${violations}${integrity_violations}"
     fi
     TANGLE_SCOPE_CONTRACT_VIOLATIONS="$violations"
-    export TANGLE_SCOPE_CONTRACT_VIOLATIONS
     if [[ -n "$violations" ]]; then
         mkdir -p "$(dirname "$validation_file")"
         if [[ -n "$adaptive_scope_evidence" ]]; then
@@ -5703,12 +5708,22 @@ tangle_validate_results_with_scope_contract() {
     return "$base_rc"
 }
 
+tangle_scope_violation_summary() {
+    printf '%s\n' "$1" | awk -v limit=20 '
+        $0 == "" { next }
+        ++count <= limit { summary = summary (count > 1 ? " " : "") $0 }
+        END {
+            if (count > limit) summary = summary " ... and " (count - limit) " more"
+            printf "%s", summary
+        }'
+}
+
 tangle_ensure_scope_contract_finding() {
     local findings_file="$1" violations="${2:-${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}}"
     [[ -n "$violations" && -n "$findings_file" ]] || return 0
     local first_path detail tmp
     first_path=$(printf '%s\n' "$violations" | sed '/^$/d' | head -n 1)
-    detail="Implementation changed paths outside the authorized Files:/Creates: write scopes; Reads: is context only: $(printf '%s' "$violations" | tr '\n' ' ')"
+    detail="Implementation changed paths outside the authorized Files:/Creates: write scopes; Reads: is context only: $(tangle_scope_violation_summary "$violations")"
     tmp=$(mktemp "${TMPDIR:-/tmp}/octo-scope-findings.XXXXXX") || return 1
     if [[ -f "$findings_file" ]] && jq -e '.findings | type == "array"' "$findings_file" >/dev/null 2>&1; then
         if jq -e '.findings[]? | select(.category == "scope-contract")' "$findings_file" >/dev/null 2>&1; then rm -f "$tmp"; return 0; fi
@@ -5737,7 +5752,7 @@ tangle_should_attempt_contextual_review() {
     type snapshot_tangle_worktree_state >/dev/null 2>&1 || return 1
 
     local worktree_after_state_file=""
-    worktree_after_state_file=$(mktemp "${TMPDIR:-/tmp}/octo-tangle-worktree-state-after.XXXXXX") || return 1
+    worktree_after_state_file=$(mktemp "${TMPDIR:-/tmp}/octo-tangle-worktree-state-after.XXXXXX") || return 2
     snapshot_tangle_worktree_state > "$worktree_after_state_file" 2>/dev/null || true
     if cmp -s "$worktree_before_state_file" "$worktree_after_state_file"; then
         rm -f "$worktree_after_state_file"
