@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- Council seat prompts limit reading to the files and diffs the council
+  supplies and cited files opened to check a finding, instead of exploring the
+  repository. Set `OCTOPUS_COUNCIL_BOUNDED_READING=0` to drop the instruction.
+
 ### Fixed
 
 - Rollback preserves lessons in a private temporary backup, carries its exact
