@@ -293,6 +293,22 @@ prices, with cached input at a tenth of the input price
 the round total does not include them. Set `OCTOPUS_COUNCIL_SEAT_USAGE=0` to run
 seats with plain text output.
 
+## Claude seat prompt caching
+
+Council Claude seats start with `--setting-sources project,local` and
+`--strict-mcp-config`, so they load no user plugins, hooks or MCP servers.
+Those make Claude Code's system prompt differ from call to call, and every seat
+then re-writes 10-30k tokens of prompt cache. With project and local settings
+only, a later seat in the same workspace reads that prefix from cache. Values in
+the `env` block of user settings still reach seats through the inherited
+environment.
+
+User settings stay loaded when they route Claude authentication: an
+`apiKeyHelper`, AWS credential hooks, or an `env` block that sets a base URL,
+API key, auth token, `CLAUDE_CODE_USE_*` provider or AWS or Vertex variables.
+Set `OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS=1` to keep user settings for every
+Claude seat.
+
 ## Failed provider diagnostics
 
 A failed council seat retains redacted diagnostics in `stderr/<seat>.log`.
