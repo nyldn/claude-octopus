@@ -4905,9 +4905,6 @@ tangle_prepare_run_worktree() {
     log INFO "Tangle run branch: $TANGLE_RUN_BRANCH (base $TANGLE_RUN_SOURCE_COMMIT)"
 }
 
-# The same two gates spawn_agent applies before starting a worker: an open
-# circuit breaker and a quota/auth-dead mark. Either one makes spawn_agent
-# refuse the seat without printing a provider PID.
 tangle_subtask_agent_dispatchable() {
     local agent="${1:-}" provider quota_provider
     [[ -n "$agent" ]] || return 1
@@ -4922,10 +4919,6 @@ tangle_subtask_agent_dispatchable() {
     return 0
 }
 
-# Candidates for one subtask: its routed agent, then codex, then claude-sonnet,
-# one per provider, skipping a missing codex binary and any provider outside
-# OCTO_ALLOWED_PROVIDERS. claude-sonnet needs no binary check because the
-# claude host process is always present.
 tangle_subtask_fallback_agents() {
     local agent="${1:-}" candidate provider seen="|"
     for candidate in "$agent" codex claude-sonnet; do
@@ -4943,15 +4936,6 @@ tangle_subtask_fallback_agents() {
     done
 }
 
-# Spawn one Step 2 subtask. Subtask providers are routed once, before the loop,
-# so a provider whose circuit opens or whose quota dies mid-run (for example
-# codex hitting its usage limit on an earlier subtask) would refuse every later
-# subtask, and one refused spawn aborts the whole run. Move the subtask to the
-# next candidate when its provider is unavailable before the spawn, or became
-# unavailable while the spawn was preparing. A refusal while the provider is
-# still healthy is a real failure and is returned as one. Sets
-# TANGLE_SPAWNED_PID, and keeps the active-agent slot on the candidate in
-# flight so cancellation finds its result file.
 tangle_spawn_subtask() {
     local agent="$1" prompt="$2" task_id="$3" role="$4" pane_title="$5" active_idx="$6"
     local candidate pid

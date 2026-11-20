@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# WHY: Tangle binds each subtask kind to one provider before Step 2. When that
-# provider's circuit opened mid-run (codex hit its usage limit on subtask 1),
-# spawn_agent refused every later subtask with "Circuit open ... (use
-# fallback)", nothing fell back, and the one refused spawn aborted the whole
-# Develop run with "spawn_agent produced no provider PID". A subtask whose
-# provider is circuit-open or quota-dead, before or during its spawn, must move
-# to the next allowed provider; any other spawn refusal must still abort.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,12 +17,6 @@ mkdir -p "$STUB_BIN"
 printf '#!/bin/sh\nexit 0\n' > "$STUB_BIN/codex"
 chmod +x "$STUB_BIN/codex"
 
-# run_scenario <name> <scenario> [allowlist]
-# Runs tangle_develop with two [CODING] subtasks routed to codex. The spawn
-# stub applies spawn_agent's own gates (circuit breaker, then quota-dead), and
-# the scenario decides when codex dies. Prints "rc=<n>", then one
-# "attempt <task> <agent>" line per spawn attempt and one
-# "spawned <task> <agent>" line per accepted spawn.
 run_scenario() (
     local name="$1"
     SCENARIO="$2"
