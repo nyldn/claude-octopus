@@ -143,12 +143,31 @@ complete_output='## Worktree Changes
 
 - Blockers: none.
 - `pnpm test`: 12 passed.'
+emphasized_incomplete_output='## Verification
+
+The implementation is **incomplete** pending dependency installation.'
+negated_output='## Verification
+
+Implementation complete. No task is blocked. All tests passed.
+No subtask remains incomplete.
+
+- Blocked: none
+- **Incomplete:** no
+- Blocked: N/A'
+cleared_then_blocked_output='## Verification
+
+- Blocked: none
+
+Gates: the verification is still blocked until `turbo` is installed.'
 
 for spec in \
     "environment-blocked:$environment_blocked_output:blocked" \
     "setup-blocked:$setup_blocked_output:blocked" \
     "pending-gates:$pending_gates_output:blocked" \
-    "complete-with-blocked-terms:$complete_output:success"; do
+    "emphasized-incomplete:$emphasized_incomplete_output:blocked" \
+    "cleared-then-blocked:$cleared_then_blocked_output:blocked" \
+    "complete-with-blocked-terms:$complete_output:success" \
+    "negated-blockers:$negated_output:success"; do
     name="${spec%%:*}"
     expected="${spec##*:}"
     output="${spec#*:}"
