@@ -6,6 +6,10 @@
 
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
+- The Embrace debate gate names why a provider seat failed. A codex usage
+  limit reads `codex=failed (usage limit reached; try again at ...)` in the
+  gate artifact and in the synthesis prompt instead of a bare `failed` with no
+  output, and other failures carry the provider's error line.
 
 ## [11.26.0] - 2026-11-18
 
