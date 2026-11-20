@@ -4263,14 +4263,14 @@ tangle_correction_identity_message() {
 
 # Apply verified normal findings within the correction budget. Track worktree
 # progress and completion separately so progress reporting cannot delay reaping.
-tangle_apply_review_corrections() {
+tangle_run_review_correction() {
     local resolved_prompt="$1"
     local context_file="$2"
     local findings_file="$3"
     local round_num="$4"
     local correction_agent="${5:-codex}"
     local correction_strategy="${6:-delta}"
-    local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-$(date +%s).md"
+    local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-${correction_agent//[^A-Za-z0-9._-]/_}-$(date +%s).md"
     local rc_file="${correction_file}.rc"
     local normal_findings strategy_text before_fp after_fp last_fp last_size last_progress now
 
@@ -4437,6 +4437,38 @@ ${normal_findings}
         echo "# Completed: $(date)"
     } >> "$correction_file"
     log WARN "Correction round ${round_num} failed with no observable worktree change: $correction_file"
+    return 1
+}
+
+tangle_correction_next_agent() {
+    local routed_agent="$1" tried="$2" candidate
+    while IFS= read -r candidate; do
+        [[ "$tried" == *"|$candidate|"* ]] && continue
+        tangle_subtask_agent_dispatchable "$candidate" || continue
+        printf '%s\n' "$candidate"
+        return 0
+    done < <(tangle_subtask_fallback_agents "$routed_agent")
+    return 1
+}
+
+tangle_apply_review_corrections() {
+    local round_num="$4" routed_agent="${5:-codex}" agent tried="|" rc
+    TANGLE_CORRECTION_FILE=""
+    TANGLE_CORRECTION_CHANGED="0"
+    TANGLE_CORRECTION_CONTAMINATION=""
+    while agent=$(tangle_correction_next_agent "$routed_agent" "$tried"); do
+        tried+="$agent|"
+        [[ "$agent" == "$routed_agent" ]] || log WARN "Correction round ${round_num}: dispatching to $agent instead of $routed_agent (circuit open or quota exhausted)"
+        rc=0
+        tangle_run_review_correction "$1" "$2" "$3" "$round_num" "$agent" "${6:-delta}" || rc=$?
+        if [[ "$TANGLE_CORRECTION_STATUS" == "failed-no-progress" ]] && ! tangle_subtask_agent_dispatchable "$agent"; then
+            log WARN "Correction round ${round_num}: $agent became unavailable without writing anything; retrying on the next provider"
+            continue
+        fi
+        return "$rc"
+    done
+    TANGLE_CORRECTION_STATUS="provider-unavailable"
+    log ERROR "Correction round ${round_num}: no provider is available for $routed_agent (circuit open or quota exhausted)"
     return 1
 }
 
