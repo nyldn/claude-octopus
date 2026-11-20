@@ -6,6 +6,8 @@
 
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
+- Tangle's write-scope pre-gate collects out-of-scope paths in linear time. A
+  30,000-path list that took about 18 minutes now takes about 2 seconds.
 
 ## [11.26.0] - 2026-11-18
 
