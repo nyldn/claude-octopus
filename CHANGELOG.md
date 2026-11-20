@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- Council `summary.json` reports real token usage and cost for Claude and
+  Codex seats: per seat, per phase and for the round. Each dispatch is also
+  appended to `usage.jsonl` in the run directory. Set
+  `OCTOPUS_COUNCIL_SEAT_USAGE=0` to keep plain text seat output.
+- Council Claude seats start without user plugins, hooks and MCP servers so
+  their prompt prefix is cached across seats. Measured on two identical calls,
+  the second one cost about a tenth as much. User settings that route Claude
+  authentication stay loaded, and `OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS=1`
+  keeps them for every seat.
+
 ### Fixed
 
 - Rollback preserves lessons in a private temporary backup, carries its exact
