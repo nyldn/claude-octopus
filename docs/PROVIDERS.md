@@ -397,6 +397,17 @@ unconfined fallback. Existing configuration and credentials are not copied or
 rewritten. These mounts protect persistent configuration; they do not prevent a
 worker from damaging an auth file it can refresh, or hide readable credentials.
 
+Implementer seats in a pnpm project get private temporary storage over the
+`projects` and `tmp` directories of each `v<N>` layout of the pnpm store.
+pnpm 10 records every project it installs in `projects`, even for
+`pnpm install --offline`, so without these mounts an install in a worktree
+the store has not seen before fails with `EROFS`. The mounts apply when the
+worktree root has a `pnpm-lock.yaml`, `pnpm` is on `PATH`, neither `.npmrc`
+nor `pnpm-workspace.yaml` names a store directory, and the store that
+`pnpm store path` reports from an empty directory outside the worktree lies
+outside `/tmp` and the worktree. Package files in the store stay read-only,
+so an install that needs a package the store does not hold yet still fails.
+
 Codex also needs permission to start its own sandbox inside Bubblewrap. An
 outer Bubblewrap probe can pass while host AppArmor policy denies the nested
 namespace. This inert command checks that separate requirement:

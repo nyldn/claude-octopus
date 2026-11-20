@@ -555,6 +555,87 @@ EOF
     fi
 fi
 
+PNPM_ROOT="${OUTSIDE_TMP_ROOT:-$CODEX_ROOT}"
+if [[ "$PNPM_ROOT/" == /tmp/* ]]; then
+    PNPM_ROOT=""
+fi
+if [[ -n "$PNPM_ROOT" ]]; then
+    PNPM_STORE="$PNPM_ROOT/pnpm-store"
+    mkdir -p "$PNPM_ROOT/pnpm-bin" "$PNPM_STORE/v10/files" "$PNPM_STORE/v10/projects" "$PNPM_STORE/v10/tmp"
+    cat > "$PNPM_ROOT/pnpm-bin/pnpm" <<EOF
+#!/bin/sh
+pwd -P >> "$PNPM_ROOT/pnpm-cwd.log"
+[ "\$1 \$2" = "store path" ] || exit 64
+printf '%s\n' "$PNPM_STORE/v10"
+EOF
+    chmod 755 "$PNPM_ROOT/pnpm-bin/pnpm"
+fi
+pnpm_tmpfs_count() {
+    local count=0
+    boundary_private_tmpfs "$PNPM_STORE/v10/projects" && count=$((count + 1))
+    boundary_private_tmpfs "$PNPM_STORE/v10/tmp" && count=$((count + 1))
+    printf '%s\n' "$count"
+}
+
+test_case "a pnpm implementer gets a private tmpfs over the store's projects and tmp with globbing off"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+else
+    agent_type="claude"
+    touch "$BOUNDARY_WORKTREE/pnpm-lock.yaml"
+    cmd_array=(true)
+    pnpm_status=0
+    set -f
+    PATH="$PNPM_ROOT/pnpm-bin:$PATH" octopus_tangle_apply_execution_boundary || pnpm_status=$?
+    set +f
+    if [[ "$pnpm_status" -eq 0 && "$(pnpm_tmpfs_count)" == 2 ]] && ! boundary_binds_rw "$PNPM_STORE/v10/files"; then
+        test_pass
+    else
+        test_fail "pnpm store mounts were not private: status=$pnpm_status $(pnpm_tmpfs_count)/2"
+    fi
+fi
+
+test_case "the pnpm store is never resolved from a temporary directory inside the worktree"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+else
+    mkdir -p "$BOUNDARY_WORKTREE/tmp"
+    : > "$PNPM_ROOT/pnpm-cwd.log"
+    cmd_array=(true)
+    pnpm_status=0
+    TMPDIR="$BOUNDARY_WORKTREE/tmp" PATH="$PNPM_ROOT/pnpm-bin:$PATH" octopus_tangle_apply_execution_boundary || pnpm_status=$?
+    physical_boundary_worktree="$(cd "$BOUNDARY_WORKTREE" && pwd -P)"
+    if [[ "$pnpm_status" -eq 0 && "$(pnpm_tmpfs_count)" == 0 ]] &&
+       ! grep -Fq "$physical_boundary_worktree" "$PNPM_ROOT/pnpm-cwd.log"; then
+        test_pass
+    else
+        test_fail "status=$pnpm_status mounts=$(pnpm_tmpfs_count) pnpm cwd: $(tr '\n' ' ' < "$PNPM_ROOT/pnpm-cwd.log")"
+    fi
+    rm -rf "$BOUNDARY_WORKTREE/tmp"
+fi
+
+test_case "reviewers, projects that name their own pnpm store, and projects without a pnpm lockfile get no pnpm tmpfs"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+else
+    pnpm_mounts=""
+    role="reviewer"
+    cmd_array=(true)
+    PATH="$PNPM_ROOT/pnpm-bin:$PATH" octopus_tangle_apply_execution_boundary && pnpm_mounts+="reviewer=$(pnpm_tmpfs_count) "
+    role="implementer"
+    printf 'store-dir=.pnpm-store\n' > "$BOUNDARY_WORKTREE/.npmrc"
+    cmd_array=(true)
+    PATH="$PNPM_ROOT/pnpm-bin:$PATH" octopus_tangle_apply_execution_boundary && pnpm_mounts+="named=$(pnpm_tmpfs_count) "
+    rm -f "$BOUNDARY_WORKTREE/.npmrc" "$BOUNDARY_WORKTREE/pnpm-lock.yaml"
+    cmd_array=(true)
+    PATH="$PNPM_ROOT/pnpm-bin:$PATH" octopus_tangle_apply_execution_boundary && pnpm_mounts+="unlocked=$(pnpm_tmpfs_count)"
+    if [[ "$pnpm_mounts" == "reviewer=0 named=0 unlocked=0" ]]; then
+        test_pass
+    else
+        test_fail "unexpected pnpm mounts: $pnpm_mounts"
+    fi
+fi
+
 eval "$saved_probe"
 CODEX_HOME="$CODEX_STATE_HOME"
 
@@ -709,6 +790,44 @@ if octopus_tangle_execution_boundary_probe; then
         fi
         OCTOPUS_TANGLE_WORKTREE="$BOUNDARY_WORKTREE"
         CODEX_HOME="$CODEX_STATE_HOME"
+    fi
+fi
+if octopus_tangle_execution_boundary_probe; then
+    test_case "pnpm install --frozen-lockfile --offline runs for a worktree pnpm has never registered"
+    if [[ -z "$PNPM_ROOT" ]] || ! real_pnpm="$(command -v pnpm)"; then
+        test_skip "pnpm or a fixture directory outside /tmp is unavailable"
+    else
+        pnpm_seed="$BOUNDARY_ROOT/pnpm-seed"
+        pnpm_ws="$BOUNDARY_ROOT/pnpm-ws"
+        pnpm_host_store="$PNPM_ROOT/pnpm-host-store"
+        for pnpm_dir in "$pnpm_seed" "$pnpm_ws"; do
+            mkdir -p "$pnpm_dir/packages/a"
+            printf '{"name":"root","version":"0.0.0","private":true}\n' > "$pnpm_dir/package.json"
+            printf 'packages:\n  - "packages/*"\n' > "$pnpm_dir/pnpm-workspace.yaml"
+            printf '{"name":"a","version":"0.0.0"}\n' > "$pnpm_dir/packages/a/package.json"
+        done
+        if ! (cd "$pnpm_seed" && npm_config_store_dir="$pnpm_host_store" "$real_pnpm" install --lockfile-only >/dev/null 2>&1) ||
+           ! cp "$pnpm_seed/pnpm-lock.yaml" "$pnpm_ws/pnpm-lock.yaml"; then
+            test_skip "pnpm could not write a lockfile outside the boundary"
+        else
+            mkdir -p "$pnpm_host_store/v10/projects" "$pnpm_host_store/v10/tmp"
+            registered_before="$(ls -A "$pnpm_host_store/v10/projects" | wc -l | tr -d ' ')"
+            agent_type="claude"
+            role="implementer"
+            install_status=0
+            cmd_array=(bash -c 'cd "$1" && pnpm install --frozen-lockfile --offline' _ "$pnpm_ws")
+            if npm_config_store_dir="$pnpm_host_store" OCTOPUS_TANGLE_WORKTREE="$pnpm_ws" octopus_tangle_apply_execution_boundary; then
+                npm_config_store_dir="$pnpm_host_store" "${cmd_array[@]}" >/dev/null 2>&1 || install_status=$?
+            else
+                install_status=125
+            fi
+            if [[ "$install_status" -eq 0 && -d "$pnpm_ws/node_modules" ]] &&
+               [[ "$(ls -A "$pnpm_host_store/v10/projects" | wc -l | tr -d ' ')" == "$registered_before" ]]; then
+                test_pass
+            else
+                test_fail "status=$install_status"
+            fi
+        fi
     fi
 fi
 unset agent_type CODEX_HOME

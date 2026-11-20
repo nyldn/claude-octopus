@@ -6,6 +6,12 @@
 
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
+- Implementer seats in bounded Tangle can run `pnpm install
+  --frozen-lockfile --offline`. pnpm 10 records each installed project in its
+  store, which the boundary mounts read-only, so every install in a new run
+  worktree failed with `EROFS` and no repository gate that needs
+  `node_modules` could run. The store's `projects` and `tmp` directories now
+  get private tmpfs mounts; its package files stay read-only.
 
 ## [11.26.0] - 2026-11-18
 

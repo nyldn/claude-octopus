@@ -716,6 +716,37 @@ octopus_tangle_bind_codex_state_dirs() {
     done <<< "$codex_dirs"
 }
 
+octopus_tangle_bind_pnpm_store_dirs() {
+    local physical_worktree="$1" probe_dir physical_probe store="" real_root layout private_dir
+    [[ -f "$physical_worktree/pnpm-lock.yaml" ]] || return 0
+    command -v pnpm >/dev/null 2>&1 || return 0
+    if grep -Eqs '^[[:space:]]*(store-dir[[:space:]]*=|storeDir[[:space:]]*:)' \
+        "$physical_worktree/.npmrc" "$physical_worktree/pnpm-workspace.yaml"; then
+        return 0
+    fi
+    probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/octo-pnpm-store.XXXXXX")" || return 0
+    if physical_probe="$(cd "$probe_dir" && pwd -P)" &&
+       octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$physical_probe"; then
+        store="$(cd "$physical_probe" && pnpm store path 2>/dev/null </dev/null)" || store=""
+    fi
+    rm -rf -- "$probe_dir"
+    store="${store##*$'\n'}"
+    [[ "$store" == /* && "${store##*/}" =~ ^v[0-9]+$ ]] || return 0
+    real_root="$(cd "${store%/*}" 2>/dev/null && pwd -P)" || return 0
+    case "$real_root/" in
+        /|/tmp/*) return 0 ;;
+    esac
+    octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$real_root" || return 0
+    while IFS= read -r -d '' layout; do
+        [[ "${layout##*/}" =~ ^v[0-9]+$ ]] || continue
+        for private_dir in projects tmp; do
+            if [[ -d "$layout/$private_dir" && ! -L "$layout/$private_dir" ]]; then
+                boundary_cmd+=(--tmpfs "$layout/$private_dir")
+            fi
+        done
+    done < <(find "$real_root" -mindepth 1 -maxdepth 1 -type d -name 'v*' -print0 2>/dev/null)
+}
+
 octopus_tangle_apply_execution_boundary() {
     # Adaptive scope expansion is never allowed to rely on the caller's
     # opt-in flag. Enforce the boundary at the provider dispatch point too,
@@ -811,6 +842,10 @@ octopus_tangle_apply_execution_boundary() {
         # still reaches the parent through already-open descriptors; the
         # provider cannot forge result artifacts by pathname.
         boundary_cmd+=(--ro-bind "$physical_results" "$physical_results")
+    fi
+
+    if [[ "${role:-}" == "implementer" ]]; then
+        octopus_tangle_bind_pnpm_store_dirs "$physical_worktree"
     fi
 
     case "${agent_type:-}" in
