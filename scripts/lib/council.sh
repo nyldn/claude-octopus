@@ -1806,7 +1806,11 @@ EOF
                 _agy_print_timeout="${_seat_timeout}s"
             fi
         fi
+        # Claude and codex seats append their real token usage and cost here
+        # (agent-sync.sh octo_seat_usage_record); summary.json totals it.
         OCTOPUS_AGY_PRINT_TIMEOUT="${_agy_print_timeout:-5m0s}" \
+        _OCTOPUS_SEAT_USAGE_FILE="${COUNCIL_RUN_DIR:+${COUNCIL_RUN_DIR}/usage.jsonl}" \
+        _OCTOPUS_SEAT_USAGE_LABEL="${dispatch_phase}|${persona}" \
             run_agent_sync_consultative "$agent_type" "$prompt" "$_seat_timeout" "$persona" "council"
         return $?
     fi
@@ -6300,6 +6304,33 @@ council_create_run_dir() {
     printf 'Council run dir: %s\n' "$COUNCIL_RUN_DIR" >&2
 }
 
+# Totals of the seat usage ledger (usage.jsonl), or null when no seat reported.
+# Each line is one claude or codex dispatch; token fields are disjoint, so
+# input_tokens excludes cache reads and writes. cost_complete is false when a
+# dispatch reported tokens without a cost (or no tokens at all), and agy seats
+# do not report usage, so a round total is a floor, not the whole bill.
+council_usage_summary_json() {
+    local ledger="${COUNCIL_RUN_DIR:-}/usage.jsonl"
+    [[ -n "${COUNCIL_RUN_DIR:-}" && -s "$ledger" ]] || { printf 'null\n'; return 0; }
+    jq -R 'fromjson? // empty' "$ledger" 2>/dev/null | jq -s -c '
+        def total: {
+            dispatches: length,
+            input_tokens: (map(.input_tokens // 0) | add // 0),
+            cache_read_tokens: (map(.cache_read_tokens // 0) | add // 0),
+            cache_write_tokens: (map(.cache_write_tokens // 0) | add // 0),
+            output_tokens: (map(.output_tokens // 0) | add // 0),
+            reasoning_tokens: (map(.reasoning_tokens // 0) | add // 0),
+            cost_usd: ((map(.cost_usd // 0) | add // 0) * 1000000 | round / 1000000),
+            cost_complete: all(.[]; .cost_usd != null)
+        };
+        if length == 0 then null else {
+            total: total,
+            by_phase: (group_by(.phase // "unknown") | map({key: (.[0].phase // "unknown"), value: total}) | from_entries),
+            by_persona: (group_by(.persona // "unknown") | map({key: (.[0].persona // "unknown"), value: total}) | from_entries),
+            dispatches: .
+        } end' 2>/dev/null || printf 'null\n'
+}
+
 council_write_summary_json() {
     local status="$1"
     local summary_path="${COUNCIL_RUN_DIR}/summary.json"
@@ -6320,7 +6351,12 @@ council_write_summary_json() {
     local synthesis_written="false"
     [[ -f "${COUNCIL_RUN_DIR}/synthesis.md" ]] && synthesis_written="true"
 
+    local usage_json
+    usage_json="$(council_usage_summary_json)"
+    [[ -n "$usage_json" ]] || usage_json=null
+
     jq -n \
+        --argjson usage "$usage_json" \
         --arg run_id "$COUNCIL_RUN_ID" \
         --arg session_id "${COUNCIL_SESSION_ID:-}" \
         --arg artifact_digest "${COUNCIL_ARTIFACT_DIGEST:-}" \
@@ -6464,7 +6500,9 @@ council_write_summary_json() {
             chair_fallback_persona: (if $chair_fallback_persona == "" then null else $chair_fallback_persona end)
           },
           council: $council_roster,
-          seats: $seat_records,
+          seats: (if $usage == null then $seat_records
+                  else $seat_records | map(. + {usage: ($usage.by_persona[.persona // ""] // null)}) end),
+          usage: (if $usage == null then null else ($usage | del(.by_persona)) end),
           veto: {
             triggered: ($veto_triggered == "true"),
             severity: (if $veto_severity == "" then null else $veto_severity end),

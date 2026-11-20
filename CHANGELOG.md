@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Council `summary.json` reports real token usage and cost for Claude and
+  Codex seats: per seat, per phase and for the round. Each dispatch is also
+  appended to `usage.jsonl` in the run directory. Set
+  `OCTOPUS_COUNCIL_SEAT_USAGE=0` to keep plain text seat output.
+
 ### Fixed
 
 - Rollback preserves lessons in a private temporary backup, carries its exact

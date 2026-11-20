@@ -269,6 +269,30 @@ git diff --no-ext-diff --no-textconv origin/main -- > /tmp/reviewed.diff
 Counts appear in each seat's `grounding` object in `summary.json`. Set
 `OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to disable citation quote verification.
 
+## Token usage and cost
+
+Claude and Codex seats report their real token usage. When a council runs,
+Claude seats use `--output-format json` and Codex seats use `--json`. The
+council turns that output back into the answer text and appends one line per
+dispatch to `usage.jsonl` in the run directory.
+
+`summary.json` reports:
+
+- `usage.total`: dispatches, `input_tokens`, `cache_read_tokens`,
+  `cache_write_tokens`, `output_tokens`, `reasoning_tokens`, `cost_usd` and
+  `cost_complete`.
+- `usage.by_phase`: the same totals for advice, critique, revision and chair
+  synthesis.
+- `usage.dispatches`: each recorded dispatch.
+- `seats[].usage`: the totals for that seat's persona across all phases.
+
+Token fields do not overlap: `input_tokens` excludes cache reads and writes.
+Claude reports its own `total_cost_usd`. Codex cost is estimated from list
+prices, with cached input at a tenth of the input price
+(`OCTOPUS_CODEX_CACHED_INPUT_RATIO`). Antigravity seats do not report usage, so
+the round total does not include them. Set `OCTOPUS_COUNCIL_SEAT_USAGE=0` to run
+seats with plain text output.
+
 ## Failed provider diagnostics
 
 A failed council seat retains redacted diagnostics in `stderr/<seat>.log`.
