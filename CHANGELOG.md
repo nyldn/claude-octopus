@@ -14,6 +14,11 @@
   its implementer's circuit is open or its quota is dead, and reruns the round
   there when the implementer dies without writing anything. With no provider
   left, the correction loop stops at once instead of retrying the dead one.
+- Tangle reruns a Step 2 subtask on codex, then claude-sonnet, when its
+  provider's circuit opens or its quota dies while the subtask runs, keeping
+  the partial edits it left in the run worktree. A `--loop` retry also moves
+  off a dead provider instead of stopping the run. A failure from a healthy
+  provider is not moved.
 
 ## [11.26.0] - 2026-11-18
 

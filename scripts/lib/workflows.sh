@@ -4996,6 +4996,46 @@ tangle_spawn_subtask() {
     return 1
 }
 
+tangle_rerun_dead_provider_subtasks() {
+    local task_group="$1"
+    local done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
+    local results_dir="${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
+    local i ran_on next candidate result prompt rerun
+    local -a tried=()
+    while :; do
+        rerun=false
+        for i in "${!task_ids[@]}"; do
+            [[ "$(cat "${done_dir}/${task_ids[$i]}.done" 2>/dev/null)" != 0 ]] || continue
+            ran_on="${OCTOPUS_ACTIVE_TANGLE_AGENTS[$i]:-}"
+            tangle_subtask_agent_dispatchable "$ran_on" && continue
+            tried[$i]="${tried[$i]:-|}${ran_on}|"
+            next=""
+            while IFS= read -r candidate; do
+                [[ "${tried[$i]}" == *"|${candidate}|"* ]] && continue
+                tangle_subtask_agent_dispatchable "$candidate" || continue
+                next="$candidate"
+                break
+            done < <(tangle_subtask_fallback_agents "${subtask_agents[$i]}")
+            [[ -n "$next" ]] || continue
+            log WARN "Tangle task ${task_ids[$i]}: $ran_on became unavailable while it ran; rerunning it on $next"
+            for result in "$results_dir"/*-"${task_ids[$i]}".md; do
+                [[ ! -f "$result" ]] || mv "$result" "${result}.provider-unavailable" || return 1
+            done
+            rm -f "${done_dir}/${task_ids[$i]}.done"
+            prompt="A previous attempt at this subtask stopped when its provider (${ran_on}) became unavailable. Any edits it made are still in the worktree: review them and finish the subtask from there instead of starting over."$'\n\n'"${subtask_prompts[$i]}"
+            if ! tangle_spawn_subtask "$next" "$prompt" "${task_ids[$i]}" "${subtask_roles[$i]}" "${subtask_pane_titles[$i]}" "$i"; then
+                log ERROR "Failed to rerun Tangle task ${task_ids[$i]}"
+                return 1
+            fi
+            pids[$i]="$TANGLE_SPAWNED_PID"
+            OCTOPUS_ACTIVE_TANGLE_PIDS[$i]="$TANGLE_SPAWNED_PID"
+            rerun=true
+        done
+        [[ "$rerun" == true ]] || return 0
+        tangle_wait_for_subtasks "$task_group" || return 1
+    done
+}
+
 tangle_develop() {
     local prompt="$1"
     local grasp_file="${2:-}"
@@ -5462,6 +5502,7 @@ $(tangle_decomposition_json_contract_guidance)"
     local subtask_num=0
     local pids=()
     local task_ids=()
+    local subtask_agents=() subtask_prompts=() subtask_roles=() subtask_pane_titles=()
     local subtask_lines=()
 
     # Materialize parseable lines before dispatching providers. spawn helpers and
@@ -5565,6 +5606,10 @@ $(tangle_decomposition_json_contract_guidance)"
         pids+=("$pid")
         OCTOPUS_ACTIVE_TANGLE_PIDS[$active_idx]="$pid"
         task_ids+=("$task_id")
+        subtask_agents+=("$agent")
+        subtask_prompts+=("$subtask_prompt")
+        subtask_roles+=("$role")
+        subtask_pane_titles+=("$pane_title")
         ((subtask_num++)) || true
     done
     fleet_dispatch_end
@@ -5584,7 +5629,7 @@ $(tangle_decomposition_json_contract_guidance)"
 
     local _done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
     local _failed_tasks=()
-    if ! tangle_wait_for_subtasks "$task_group"; then
+    if ! tangle_wait_for_subtasks "$task_group" || ! tangle_rerun_dead_provider_subtasks "$task_group"; then
         octopus_tangle_cancel_active TERM
         _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
         return 1
