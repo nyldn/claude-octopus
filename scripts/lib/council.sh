@@ -59,6 +59,7 @@ COUNCIL_CHAIR_HOST_NATIVE=""
 COUNCIL_CHAIR_SYNTHESIS_AVAILABLE=""
 COUNCIL_CHAIR_FALLBACK_USED=""
 COUNCIL_CHAIR_FALLBACK_PERSONA=""
+COUNCIL_CHAIR_FALLBACK_ATTEMPTS="0"
 COUNCIL_IMPLEMENTATION_PLAN_WRITTEN=""
 COUNCIL_GATE_A_APPROVED=""
 COUNCIL_GATE_B_APPROVED=""
@@ -178,6 +179,7 @@ council_reset_defaults() {
     COUNCIL_QUOTA_LIMITED_SEATS=""
     COUNCIL_CHAIR_FALLBACK_USED="false"
     COUNCIL_CHAIR_FALLBACK_PERSONA=""
+    COUNCIL_CHAIR_FALLBACK_ATTEMPTS="0"
     COUNCIL_IMPLEMENTATION_PLAN_WRITTEN="false"
     COUNCIL_GATE_A_APPROVED="false"
     COUNCIL_GATE_B_APPROVED="false"
@@ -5417,11 +5419,24 @@ council_synthesis_capable_persona() {
     return 1
 }
 
+# Dispatched chair-fallback attempts per run (OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX,
+# default 1). Each attempt is a full advice dispatch under another persona with
+# the same prompt and evidence, so a chair rejected as blind was usually
+# followed by four more rejected attempts that never reached seats[]. Reusing an
+# accepted advice response is not an attempt and stays available after the cap.
+council_chair_fallback_max() {
+    local max="${OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX:-1}"
+    [[ "$max" =~ ^[0-9]+$ ]] || max=1
+    printf '%s\n' "$((10#$max))"
+}
+
 council_run_chair_fallback() {
     local persona provider member_json slug output_path index
     local seat_agent_spec seat_org seat_model seat_model_family resp_bytes verdict seat_status seat_rec existing_response dispatch_rc
     local dispatch_timeout_provenance contribution_json grounding_report artifact_digest="${1:-}"
     local evidence_root="${OCTOPUS_PROJECT_DIR:-${PROJECT_ROOT:-$PWD}}"
+    local fallback_max cap_noted="" fallback_attempts=0
+    fallback_max="$(council_chair_fallback_max)"
     [[ -d "$evidence_root" ]] || evidence_root="$PWD"
     if [[ -z "$artifact_digest" ]]; then
         artifact_digest="$(council_artifact_digest "$evidence_root" "${COUNCIL_TASK:-}")" || artifact_digest="unavailable"
@@ -5468,10 +5483,19 @@ council_run_chair_fallback() {
             COUNCIL_DEADLINE_HIT="true"
             return 0
         fi
+        if (( fallback_attempts >= fallback_max )); then
+            if [[ -z "$cap_noted" ]]; then
+                cap_noted=1
+                echo "Council warning: chair fallback stopped after ${fallback_attempts} dispatched attempt(s) (OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX=${fallback_max}); read the per-seat verdicts instead of a synthesis." >&2
+            fi
+            continue
+        fi
         local fallback_stderr="${COUNCIL_RUN_DIR}/stderr/$(basename "$output_path" .md).log"
         local fallback_model_file="${COUNCIL_RUN_DIR}/models/$(basename "$output_path" .md).txt"
         local fallback_model_used="" fallback_model_busy=""
         rm -f "$fallback_stderr" "$fallback_model_file" 2>/dev/null
+        fallback_attempts=$((fallback_attempts + 1))
+        COUNCIL_CHAIR_FALLBACK_ATTEMPTS="$fallback_attempts"
         _OCTOPUS_SEAT_STDERR_FILE="$fallback_stderr" _OCTOPUS_AGY_MODEL_USED_FILE="$fallback_model_file" \
             council_dispatch_member_detached "$member_json" "independent-advice" "$output_path" || dispatch_rc=$?
         dispatch_timeout_provenance="$COUNCIL_LAST_DISPATCH_TIMEOUT_PROVENANCE"
@@ -6378,6 +6402,7 @@ council_write_summary_json() {
         --arg chair_synthesis_available "${COUNCIL_CHAIR_SYNTHESIS_AVAILABLE:-false}" \
         --arg chair_fallback_used "$COUNCIL_CHAIR_FALLBACK_USED" \
         --arg chair_fallback_persona "$COUNCIL_CHAIR_FALLBACK_PERSONA" \
+        --arg chair_fallback_attempts "${COUNCIL_CHAIR_FALLBACK_ATTEMPTS:-0}" \
         --arg implementation_plan_written "$COUNCIL_IMPLEMENTATION_PLAN_WRITTEN" \
         --arg synthesis_written "$synthesis_written" \
         --arg gate_a_approved "$COUNCIL_GATE_A_APPROVED" \
@@ -6461,7 +6486,8 @@ council_write_summary_json() {
             provider_diversity_replaced: ($diversity_replaced == "true"),
             provider_diversity: (if $diversity_warning == "" then null else $diversity_warning end),
             chair_fallback: ($chair_fallback_used == "true"),
-            chair_fallback_persona: (if $chair_fallback_persona == "" then null else $chair_fallback_persona end)
+            chair_fallback_persona: (if $chair_fallback_persona == "" then null else $chair_fallback_persona end),
+            chair_fallback_attempts: ($chair_fallback_attempts | tonumber? // 0)
           },
           council: $council_roster,
           seats: $seat_records,
