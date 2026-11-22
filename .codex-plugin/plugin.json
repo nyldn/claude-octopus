@@ -1,6 +1,6 @@
 {
   "name": "claude-octopus",
-  "version": "11.25.0",
+  "version": "11.26.0",
   "description": "Multi-LLM orchestration with Double Diamond workflows, provider routing, safety gates, and automation. Dispatches to Codex, Antigravity, Cursor CLI, Grok, Copilot, Qwen, Perplexity, OpenRouter, OrcaRouter, Ollama, OpenCode, and Kimi Code from a single plugin.",
   "author": {
     "name": "nyldn"
@@ -33,7 +33,7 @@
     "code-review",
     "research"
   ],
-  "skills": "./skills/",
+  "skills": "./codex-skills/",
   "interface": {
     "displayName": "Claude Octopus",
     "shortDescription": "Multi-LLM orchestration \u2014 dispatch to 12 providers from one plugin.",

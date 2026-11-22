@@ -4,6 +4,61 @@
 
 ### Fixed
 
+- Rollback preserves lessons in a private temporary backup, carries its exact
+  path across shell calls, and retains recovery data when restoration fails.
+
+## [11.26.0] - 2026-11-18
+
+### Added
+
+- The OpenAI-compatible tool-loop helper can explicitly load a custom preset
+  from `providers.json` with its own endpoint, credential and model allowlist.
+  Custom presets do not yet register orchestration seats or cost-report rows.
+
+### Fixed
+
+- Debate counts the native Sonnet advisor only on an allowed Claude Code route
+  with a completed round artifact. Codex requires two external advisor results
+  instead of counting an unverified host subagent as Sonnet.
+- Claude Code discovers native workflow skills while Codex loads its separate
+  adapted skill tree. All existing skill names, explicit invocation controls,
+  aliases and starter-pack entries remain available.
+
+- Define stops after failed decision, context or completion writes, preserving
+  earlier state and requiring repair before presenting the result as saved.
+
+- Research prompts request full IDs (`PLAT-1931`, `probe-4`) to avoid false numeric-claim failures.
+
+Merged changes: [#1356](https://github.com/nyldn/claude-octopus/pull/1356),
+[#1369](https://github.com/nyldn/claude-octopus/pull/1369),
+[#1371](https://github.com/nyldn/claude-octopus/pull/1371),
+[#1370](https://github.com/nyldn/claude-octopus/pull/1370), and
+[#1375](https://github.com/nyldn/claude-octopus/pull/1375).
+The debate repair fixes [#1373](https://github.com/nyldn/claude-octopus/issues/1373).
+Custom orchestration seats remain tracked in
+[#1299](https://github.com/nyldn/claude-octopus/issues/1299), and broader runtime
+and installed-host acceptance work remains in
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
+## [11.25.2] - 2026-11-17
+
+### Fixed
+
+- Discover rejects missing or empty synthesis and stops after failed context or
+  metrics writes, preserving earlier state instead of presenting completion.
+
+- Deliver stops after failed context, metrics or ready-to-ship state writes and
+  failed summary reads, preserving earlier state without reporting completion.
+
+Merged changes: [#1366](https://github.com/nyldn/claude-octopus/pull/1366) and
+[#1363](https://github.com/nyldn/claude-octopus/pull/1363).
+These address focused parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime, provenance and installed-host acceptance work remains open.
+
+## [11.25.1] - 2026-11-17
+
+### Fixed
+
 - Brainstorm Team mode, debate, branch-completion review, the deck red-team seat
   recipe and define run their shell blocks under bash when the host shell is zsh,
   as Claude Code's Bash tool is on macOS. The bash-only libraries they load now
@@ -20,6 +75,13 @@
 - Branch completion validates its branch, repository and required PR description
   before pushing, and stops PR creation after a failed push instead of reporting
   successful publication.
+
+Merged changes: [#1359](https://github.com/nyldn/claude-octopus/pull/1359),
+[#1360](https://github.com/nyldn/claude-octopus/pull/1360),
+[#1361](https://github.com/nyldn/claude-octopus/pull/1361), and
+[#1350](https://github.com/nyldn/claude-octopus/pull/1350).
+These address focused parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime, provenance and installed-host acceptance work remains open.
 
 ## [11.25.0] - 2026-11-16
 

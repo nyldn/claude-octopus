@@ -4,6 +4,7 @@ import importlib.util
 import os
 from pathlib import Path
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
@@ -34,10 +35,22 @@ def main():
     scripts = Path(scripts).resolve(strict=True)
     prompt = Path(prompt).resolve(strict=True)
     output = Path(output).resolve(strict=True)
+    staged = None
+
+    def interrupted(signum, _frame):
+        # Clean before unwinding subprocess.run: its child may ignore TERM and
+        # prevent that context manager from returning before the controller KILL.
+        if staged is not None:
+            staged.cleanup()
+        raise SystemExit(128 + signum)
+
+    for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(signum, interrupted)
     try:
         # A new empty directory prevents project instructions, symlinks, or
         # other run files from becoming implicit judge inputs.
-        with tempfile.TemporaryDirectory(prefix="octopus-refine-input-") as temporary:
+        staged = tempfile.TemporaryDirectory(prefix="octopus-refine-input-")
+        with staged as temporary:
             directory = Path(temporary).resolve()
             request = directory / "request.txt"
             request.write_bytes(prompt.read_bytes())

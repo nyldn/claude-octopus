@@ -1,14 +1,26 @@
 ---
 name: skill-visual-feedback
-description: "Process screenshot-based UI/UX feedback to fix visual issues — use when users share screenshots of bugs"
 disable-model-invocation: true
+aliases:
+  - visual-feedback
+  - ui-ux-fixes
+  - image-feedback
+description: Process screenshot-based UI/UX feedback to fix visual issues — use when users share screenshots of bugs
+trigger: |
+  EXPLICITLY USE when user provides visual feedback:
+  - "[Image X] The /settings should be Y"
+  - "[Image X] these button styles need to be fixed"
+  - "[Image X] When X is set to Y, it shows as Z"
+  - "button styles need to be fixed everywhere"
+  - "UI is a hot mess" or "UX still a hot mess"
+  - Screenshots with descriptions of visual issues
+
+  DO NOT activate for:
+  - Text-only feedback without visual context
+  - General feature requests
+  - Code-only issues
+  - Performance problems
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Visual Feedback Processing
 
@@ -18,6 +30,7 @@ Systematic approach to processing image-based UI/UX feedback, identifying visual
 
 **Core principle:** Analyze image → Identify issues → Locate code → Fix systematically → Verify visually.
 
+---
 
 ## When to Use
 
@@ -34,6 +47,7 @@ Systematic approach to processing image-based UI/UX feedback, identifying visual
 - Performance or functional bugs
 - Backend issues
 
+---
 
 ## The Process
 
@@ -79,6 +93,7 @@ Let me analyze the visual issues:
 - Consistency: [list inconsistency issues]
 ```
 
+---
 
 ### Phase 2: Code Investigation
 
@@ -127,6 +142,7 @@ pattern: "style={{|styled\.|makeStyles"
 
 Read the component files and associated styles to understand current implementation.
 
+---
 
 ### Phase 3: Root Cause Analysis
 
@@ -182,6 +198,7 @@ Option 3: **Design System Fix** (update base component)
 
 Use AskUserQuestion to get user preference on scope.
 
+---
 
 ### Phase 4: Implementation
 
@@ -239,6 +256,7 @@ Fixing all instances...
 
 Fix each file systematically.
 
+---
 
 ### Phase 5: Verification
 
@@ -291,6 +309,7 @@ Changes made:
 Let me know if the visual issues are resolved or if further adjustments are needed.
 ```
 
+---
 
 ## Common Patterns
 
@@ -349,6 +368,7 @@ Process:
 5. Verify improvements with user
 ```
 
+---
 
 ## Integration with Other Skills
 
@@ -375,6 +395,7 @@ Visual feedback requires new component?
 → Use skill-visual-feedback to verify it matches design
 ```
 
+---
 
 ## Best Practices
 
@@ -416,6 +437,7 @@ Always check if the fix works across breakpoints:
 - Desktop (> 1024px): [status]
 ```
 
+---
 
 ## Red Flags - Don't Do This
 
@@ -428,6 +450,7 @@ Always check if the fix works across breakpoints:
 | Skip verification | User has to report same issue again |
 | Make assumptions without asking | Might not match user's vision |
 
+---
 
 ## Quick Reference
 
@@ -438,6 +461,7 @@ Always check if the fix works across breakpoints:
 | "UI is a mess" | Request specifics → Prioritize → Fix incrementally |
 | "When X, shows Y instead of Z" | Debug state/logic → Fix mapping → Test all cases |
 
+---
 
 ## The Bottom Line
 

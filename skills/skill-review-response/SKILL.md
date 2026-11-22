@@ -1,14 +1,16 @@
 ---
 name: skill-review-response
-description: "Use when a reviewer, CI bot, or another AI leaves feedback to address"
 disable-model-invocation: true
+description: "Use when a reviewer, CI bot, or another AI leaves feedback to address"
+trigger: |
+  EXPLICITLY USE when:
+  - Receiving code review feedback (PR comments, review agent output)
+  - Processing suggestions from /octo:review or /octo:staged-review
+  - Responding to CI failure feedback
+  - Handling changes-requested status on a PR
+paths:
+  - ".git/**"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Receiving Code Review
 

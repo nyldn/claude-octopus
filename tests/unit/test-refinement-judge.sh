@@ -11,6 +11,8 @@ import importlib.util
 import os
 from pathlib import Path
 import shutil
+import signal
+import time
 import subprocess
 import sys
 import tempfile
@@ -96,6 +98,44 @@ print(json.dumps({"argv":sys.argv[1:], "judge":os.environ["OCTOPUS_REFINEMENT_JU
     denied = subprocess.run(args, env=dict(environment, OCTOPUS_CLAUDE_BIN="claude --mcp-config unsafe.json"),
                             capture_output=True, text=True)
     assert denied.returncode == 2 and not denied.stdout, denied
+    # Cancellation must remove private input even if the trusted client ignores TERM.
+    runner.write_text('''#!/usr/bin/env python3
+import os,signal,time
+from pathlib import Path
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+Path(os.environ['STAGE_CAPTURE']).write_text(os.getcwd())
+while True: time.sleep(1)
+''')
+    runner.chmod(0o755)
+    capture = fixture / 'stage-path'
+    cancellation_args = ['bash', str(adapter), 'claude', '30', str(prompt), 'cancel', str(fixture)]
+    staged = None
+    child = subprocess.Popen(cancellation_args,
+        env=dict(environment, OCTOPUS_CLAUDE_BIN='claude', STAGE_CAPTURE=str(capture)),
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+    try:
+        deadline = time.monotonic() + 5
+        while not capture.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert capture.exists(), 'inert judge did not launch'
+        staged = Path(capture.read_text())
+        assert (staged/'request.txt').is_file()
+        os.killpg(child.pid, signal.SIGTERM)
+        deadline = time.monotonic() + 1
+        while staged.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert not staged.exists(), 'SIGTERM retained a private staged request'
+    finally:
+        try:
+            if child.poll() is None: os.killpg(child.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            # macOS can report EPERM for a group whose leader just exited.
+            if child.poll() is None: raise
+        child.communicate(timeout=5)
+        if staged is not None and staged.exists(): shutil.rmtree(staged)
+
 PY
 then
     test_pass

@@ -195,19 +195,36 @@ test_flow_skill_frontmatter() {
             return 1
         fi
 
-        # Discovery orchestrates other agents and writes its synthesis from the
-        # main conversation. An Explore fork cannot provide that tool contract.
-        if [[ "$skill" == flow-discover ]]; then
-            if grep -cE '^(agent|context):' "$skill_path" >/dev/null; then
-                log_fail "Discovery must retain its main-conversation tools and context"
-                return 1
-            fi
-            log_pass "Discovery retains main-conversation tools and context"
-        elif grep -q "^agent:" "$skill_path"; then
-            log_pass "Skill $skill has agent field"
-        else
-            log_fail "Skill $skill missing agent field"
+        # Discovery must retain its main-conversation tools; other writable
+        # workflows also cannot default to read-only Explore/Plan agents.
+        if [[ "$skill" == flow-discover ]] && grep -qE '^(agent|context):' "$skill_path"; then
+            log_fail "Discovery must retain its main-conversation tools and context"
             return 1
+        fi
+        local agent
+        agent=$(python3 - "$PROJECT_ROOT" "$skill_path" <<'PY_AGENT'
+import importlib.util
+from pathlib import Path
+import sys
+spec = importlib.util.spec_from_file_location('assembly', Path(sys.argv[1]) / 'scripts/validate-plugin-assembly.py')
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+metadata, error = module.extract_frontmatter(Path(sys.argv[2]).read_text())
+if error:
+    sys.exit(error)
+agent = metadata.get('agent', '')
+# This dependency-free parser supports bare/quoted names, not YAML comments.
+# Reject unsupported forms rather than admitting a hidden read-only agent.
+if '#' in agent:
+    sys.exit('Unsupported commented agent scalar; use a bare or quoted name')
+print(agent)
+PY_AGENT
+        ) || return 1
+        if [[ "$agent" == Explore || "$agent" == Plan ]]; then
+            log_fail "Skill $skill defaults to a read-only agent"
+            return 1
+        else
+            log_pass "Skill $skill preserves a writable execution context"
         fi
 
         # Check for context field

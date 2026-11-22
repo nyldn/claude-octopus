@@ -1,14 +1,16 @@
 ---
 name: sys-configure
-description: "Configure Claude Octopus — redirects to /octo:setup interactive wizard"
 disable-model-invocation: true
+effort: low
+user-invocable: true
+aliases:
+  - config
+  - configure
+description: Configure Claude Octopus — redirects to /octo:setup interactive wizard
+trigger: |
+  Use this skill when the user wants to "configure Claude Octopus", "setup octopus",
+  "configure providers", "set up API keys for octopus", or mentions octopus configuration.
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Configuration to setup redirect
 

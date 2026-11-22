@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.25.0",
-  "description": "v11.25.0 \u2014 Advisors keep their briefs and delivery preserves audited work. Run /octo:setup.",
+  "version": "11.26.0",
+  "description": "v11.26.0 \u2014 Custom provider presets in the tool helper, native skills and debate advisor checks. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

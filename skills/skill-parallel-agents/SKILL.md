@@ -1,14 +1,36 @@
 ---
 name: skill-parallel-agents
-description: "Decompose large tasks across parallel agents — use for migrations, multi-file refactors, or batch work"
 disable-model-invocation: true
+effort: high
+description: Decompose large tasks across parallel agents — use for migrations, multi-file refactors, or batch work
+trigger: |
+  PRIORITY TRIGGERS (always invoke immediately):
+  - "/octo:multi" (explicit command)
+  - "run this with all providers", "run with all providers"
+  - "I want multiple AI models to look at", "use all providers for"
+  - "get multiple perspectives on", "force multi-provider analysis"
+
+  EXPLICITLY USE (without asking user) when the user requests:
+  - Research, explore, investigate, or analyze topics (e.g., "octo research OAuth patterns", "octo analyze technical debt", "octo explore different approaches")
+  - Build, implement, create, or develop features (e.g., "octo build a login system", "octo implement caching", "octo create a dashboard")
+  - Review, validate, test, or check code quality (e.g., "octo review this code", "octo validate the API", "octo check for issues")
+  - Adversarial review, debate solutions, or red team security (e.g., "octo debate the design", "red team this auth code", "find security flaws")
+  - Full workflows from research to delivery (e.g., "create a complete notification feature")
+
+  DO NOT ask "do you want me to use the plugin?" - JUST USE IT.
+  The user installed this plugin to use it automatically!
+
+  NEVER use for:
+  - Built-in Claude Code commands (/plugin, /init, /help, /clear, /commit, /remember, etc.)
+  - Plugin management or Claude Code configuration
+  - Simple file operations, git commands, or basic terminal tasks
+execution_mode: enforced
+pre_execution_contract:
+  - visual_indicators_displayed
+validation_gates:
+  - orchestrate_sh_executed
+  - output_artifact_exists
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Claude Octopus - Multi-Tentacled Orchestrator
 
@@ -22,6 +44,7 @@ disable-model-invocation: true
 
 **This skill exists specifically for multi-provider parallel work. If you catch yourself thinking "I'll just do this myself" — STOP.**
 
+---
 
 **Multi-tentacled orchestrator for Claude Code** - using Double Diamond methodology for comprehensive problem exploration, consensus building, and validated delivery.
 
@@ -104,7 +127,7 @@ Claude Octopus uses **visual indicators** so you always know which AI is respond
 | 🐙 | **Parallel Mode** | Multiple CLIs orchestrated via orchestrate.sh |
 | 🔴 | **Codex CLI** | OpenAI Codex (your OPENAI_API_KEY) |
 | 🧭 | **Antigravity CLI** | Google Antigravity (your authenticated seat) |
-| 🔵 | **Claude Subagent** | Claude Code host subagent tool (built-in) |
+| 🔵 | **Claude Subagent** | Claude Code Task tool (built-in) |
 
 ### What Triggers External CLIs vs Subagents
 
@@ -126,6 +149,7 @@ Claude Octopus uses **visual indicators** so you always know which AI is respond
 
 When you see 🐙 **CLAUDE OCTOPUS ACTIVATED**, external CLI providers such as Codex, Antigravity, and others will be invoked for multi-perspective analysis.
 
+---
 
 ## Force Multi-Provider Mode
 
@@ -199,6 +223,7 @@ Providers:
 
 Followed by results from each provider marked with their indicators (for example 🔴 🟡 🧭 🔵).
 
+---
 
 ## Prerequisites check
 
