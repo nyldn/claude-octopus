@@ -547,29 +547,24 @@ done
 echo ""
 echo "=== 7. Skill Frontmatter ==="
 
-# context: fork on heavy skills
-for skill in skill-prd skill-code-review skill-debate skill-deep-research; do
+# Workflows need conversation scope, user questions and writable provider dispatch.
+for skill in skill-prd skill-code-review skill-deep-research flow-discover flow-define flow-develop flow-deliver skill-debate skill-ui-ux-design skill-content-pipeline; do
     skill_path="$(resolve_claude_skill_path "$skill")"
-    if [[ -f "$skill_path" ]] && grep -q '^context: fork' "$skill_path"; then
-        pass "$skill.md has context: fork"
+    if [[ -f "$skill_path" ]] && python3 - "$PROJECT_ROOT" "$skill_path" <<'PY_CONTEXT'
+import importlib.util
+import sys
+from pathlib import Path
+root, skill = map(Path, sys.argv[1:])
+spec = importlib.util.spec_from_file_location("assembly", root / "scripts/validate-plugin-assembly.py")
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+meta, error = module.extract_frontmatter(skill.read_text())
+raise SystemExit(bool(error) or meta.get("agent") in {"Explore", "Plan"} or meta.get("context") == "fork")
+PY_CONTEXT
+    then
+        pass "$skill.md preserves a writable execution context"
     else
-        fail "$skill.md has context: fork" "missing or file not found"
-    fi
-done
-
-# agent field on specialized skills
-if grep -q '^agent: Plan' "$(resolve_claude_skill_path "skill-prd")"; then
-    pass "skill-prd.md has agent: Plan"
-else
-    fail "skill-prd.md agent" "missing agent: Plan"
-fi
-
-for skill in skill-code-review skill-deep-research; do
-    skill_path="$(resolve_claude_skill_path "$skill")"
-    if [[ -f "$skill_path" ]] && grep -q '^agent: Explore' "$skill_path"; then
-        pass "$skill.md has agent: Explore"
-    else
-        fail "$skill.md agent" "missing agent: Explore"
+        fail "$skill.md execution context" "missing skill or read-only workflow assignment"
     fi
 done
 

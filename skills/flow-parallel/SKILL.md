@@ -1,26 +1,36 @@
 ---
 name: flow-parallel
-description: "Decompose and execute large changes, migrations, or multi-issue fixes in parallel with quality gates"
 disable-model-invocation: true
+effort: high
+aliases:
+  - parallel
+  - batch
+  - team
+  - teams
+  - team-of-teams
+description: "Decompose and execute large changes, migrations, or multi-issue fixes in parallel with quality gates"
+execution_mode: enforced
+validation_gates:
+  - wbs_generated
+  - instructions_written
+  - processes_launched
+  - all_work_packages_complete
+codex_short_description: "Run a large implementation in coordinated work packages"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # STOP - SKILL ALREADY LOADED
 
 **DO NOT call Skill() again. DO NOT load any more skills. Execute directly.**
 
+---
 
 ## EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact 7-step sequence.
 
-**Architectural Principle:** host subagent tool subagents do NOT load plugins. Independent `claude -p` processes DO. This skill spawns independent `claude -p` processes so each work package gets the full Octopus plugin, its own Double Diamond, agents, and quality gates.
+**Architectural Principle:** Task tool subagents do NOT load plugins. Independent `claude -p` processes DO. This skill spawns independent `claude -p` processes so each work package gets the full Octopus plugin, its own Double Diamond, agents, and quality gates.
 
+---
 
 ### STEP 1: Clarifying Questions (MANDATORY)
 
@@ -51,10 +61,11 @@ If user says "skip" for any question, use defaults: 3 work packages, fully indep
 
 **DO NOT PROCEED TO STEP 2 until questions answered.**
 
+---
 
 ### STEP 2: Display Visual Indicators (MANDATORY - BLOCKING)
 
-**MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
+**MANDATORY: You MUST use the Bash tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"
@@ -84,6 +95,7 @@ Estimated Time: 5-15 minutes (depending on task complexity)
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.**
 
+---
 
 ### STEP 3: Read Prior State (MANDATORY - State Management)
 
@@ -113,6 +125,7 @@ Use any prior context (discover findings, spec definitions, project state) to in
 
 **DO NOT PROCEED TO STEP 4 until state read.**
 
+---
 
 ### STEP 4: Decompose into WBS (MANDATORY)
 
@@ -166,6 +179,7 @@ fi
 
 **DO NOT PROCEED TO STEP 5 until WBS validated.**
 
+---
 
 ### STEP 4.5: Adversarial WBS Cross-Check (RECOMMENDED)
 
@@ -201,6 +215,7 @@ fi
 
 **Skip with `--fast` or when user explicitly requests speed over thoroughness.**
 
+---
 
 ### STEP 4.6: Dependency Validation & Wave Assignment (MANDATORY)
 
@@ -295,6 +310,7 @@ DEPEOF
 
 **DO NOT PROCEED TO STEP 5 until dependencies validated (or step skipped for independent WPs).**
 
+---
 
 ### STEP 5: Generate Instruction Files (MANDATORY)
 
@@ -422,14 +438,18 @@ fi
 # Reject stale directories from another project, branch, or non-worktree path.
 cd "$WORKTREE_DIR" || fail "ERROR: cannot enter $WORKTREE_DIR"
 WORKTREE_DIR="$(pwd -P)"
-WORKTREE_TOP="$(git rev-parse --show-toplevel)" || fail "ERROR: not a Git worktree"
-WORKTREE_TOP="$(cd "$WORKTREE_TOP" && pwd -P)" || fail "ERROR: cannot resolve worktree root"
-WORKTREE_COMMON_DIR="$(git rev-parse --git-common-dir)" || fail "ERROR: cannot identify worktree repository"
-WORKTREE_COMMON_DIR="$(cd "$WORKTREE_COMMON_DIR" && pwd -P)" || fail "ERROR: cannot resolve worktree repository"
-WORKTREE_BRANCH="$(git symbolic-ref --quiet --short HEAD)" || fail "ERROR: worktree has detached HEAD"
-[[ "$WORKTREE_TOP" == "$WORKTREE_DIR" && "$WORKTREE_COMMON_DIR" == "$COMMON_DIR" && \
-   "$WORKTREE_BRANCH" == "$WP_BRANCH" ]] || fail "ERROR: worktree repository or branch does not match this package"
-git merge-base --is-ancestor "$BASE_REF" HEAD || fail "ERROR: worktree does not include the frozen base commit"
+validate_worktree() {
+    local worktree_top worktree_common_dir worktree_branch
+    worktree_top="$(git -C "$WORKTREE_DIR" rev-parse --show-toplevel)" || fail "ERROR: not a Git worktree; retained $WORKTREE_DIR"
+    worktree_top="$(cd "$worktree_top" && pwd -P)" || fail "ERROR: cannot resolve worktree root; retained $WORKTREE_DIR"
+    worktree_common_dir="$(git -C "$WORKTREE_DIR" rev-parse --git-common-dir)" || fail "ERROR: cannot identify worktree repository; retained $WORKTREE_DIR"
+    worktree_common_dir="$(cd "$WORKTREE_DIR" && cd "$worktree_common_dir" && pwd -P)" || fail "ERROR: cannot resolve worktree repository; retained $WORKTREE_DIR"
+    worktree_branch="$(git -C "$WORKTREE_DIR" symbolic-ref --quiet --short HEAD)" || fail "ERROR: worktree has detached HEAD; retained $WORKTREE_DIR"
+    [[ "$worktree_top" == "$WORKTREE_DIR" && "$worktree_common_dir" == "$COMMON_DIR" && \
+       "$worktree_branch" == "$WP_BRANCH" ]] || fail "ERROR: worktree repository or branch does not match this package; retained $WORKTREE_DIR"
+    git -C "$WORKTREE_DIR" merge-base --is-ancestor "$BASE_REF" HEAD || fail "ERROR: worktree does not include the frozen base commit; retained $WORKTREE_DIR"
+}
+validate_worktree
 
 # Register agent in registry
 if [[ -x "$REGISTRY" ]]; then
@@ -444,6 +464,9 @@ unset OPENAI_API_KEY AGY_AUTH_TOKEN ANTIGRAVITY_API_KEY OPENROUTER_API_KEY PERPL
 # code and .done rather than abort the script before either is written.
 claude -p < "$SCRIPT_DIR/instructions.md" > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
 EXIT_CODE=$?
+# The worker can change branches, detach HEAD or replace the repository. Admit
+# the resulting worktree again before reporting completion or removing it.
+validate_worktree
 echo $EXIT_CODE > "$SCRIPT_DIR/exit-code"
 
 # Update agent registry with completion status
@@ -536,6 +559,7 @@ fi
 
 **DO NOT PROCEED TO STEP 6 until all instruction files validated.**
 
+---
 
 ### STEP 6: Launch & Monitor — Wave-Based Execution (MANDATORY)
 
@@ -682,10 +706,11 @@ echo "All waves executed."
 
 **Validation gate: `processes_launched`** — Verify PID files exist for all WPs.
 
-**IMPORTANT:** The launch and monitor commands above should be run via the native shell command tool. You may need to combine them or run the monitor as a separate polling step. The monitor loop will block until each wave completes or times out.
+**IMPORTANT:** The launch and monitor commands above should be run via the Bash tool. You may need to combine them or run the monitor as a separate polling step. The monitor loop will block until each wave completes or times out.
 
 **DO NOT PROCEED TO STEP 7 until all waves complete.**
 
+---
 
 ### STEP 7: Aggregate & Present (MANDATORY)
 
@@ -794,6 +819,7 @@ if [[ -x "$REGISTRY" ]]; then
 fi
 ```
 
+---
 
 ## Coordination Protocol Directory Structure
 
@@ -816,10 +842,11 @@ Created and managed by this skill:
     ...
 ```
 
+---
 
 ## Prohibitions (MANDATORY - CANNOT VIOLATE)
 
-- CANNOT use host subagent tool subagents as substitute — Task subagents run in isolated sandboxes without plugin access, so they get no Octopus quality gates, personas, or provider orchestration
+- CANNOT use Task tool subagents as substitute — Task subagents run in isolated sandboxes without plugin access, so they get no Octopus quality gates, personas, or provider orchestration
 - CANNOT skip WBS decomposition (Step 4) — without decomposition, agents receive the full compound task and produce overlapping, uncoordinated output
 - CANNOT launch without instruction files (Step 5 must precede Step 6)
 - CANNOT skip 12-second stagger between launches — simultaneous process spawning causes CPU/memory contention that degrades all agents' performance
@@ -831,6 +858,7 @@ Created and managed by this skill:
 - CANNOT launch a wave before its dependency wave completes — later waves consume outputs from earlier waves, so premature launch produces agents working with missing context
 - CANNOT skip dependency validation when dependencies exist
 
+---
 
 ## Error Handling
 
@@ -849,6 +877,7 @@ Created and managed by this skill:
 1. Check with `command -v claude`
 2. Report to user and STOP — cannot proceed without claude CLI
 
+---
 
 ## Example Usage
 

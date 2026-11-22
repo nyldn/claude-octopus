@@ -1,0 +1,5 @@
+interface:
+  display_name: "Provider Health"
+  short_description: "Check provider availability before choosing a workflow"
+policy:
+  allow_implicit_invocation: false

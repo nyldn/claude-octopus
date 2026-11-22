@@ -345,22 +345,58 @@ def parse_args(raw: str) -> dict:
     try: return json.loads(raw or "{}")
     except Exception: return {"_raw": raw}
 
-def main() -> int:
+def _parse_arguments():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--provider", choices=sorted(PROVIDERS), default="generic")
+    provider_choice = ap.add_mutually_exclusive_group()
+    provider_choice.add_argument("--provider", choices=sorted(PROVIDERS), default="generic")
+    provider_choice.add_argument("--custom-provider", help="Explicit custom_providers entry from providers.json")
     ap.add_argument("--base-url"); ap.add_argument("--api-key-env"); ap.add_argument("--model")
     ap.add_argument("--cwd", required=True)
     ap.add_argument("--prompt")
     ap.add_argument("--reasoning-effort", choices=["none", "low", "medium", "high", "xhigh", "max"])
     ap.add_argument("--reasoning-policy", choices=["strict", "best_effort"], default="best_effort")
     ap.add_argument("--tool-policy", choices=["auto", "none"], default="auto")
-    args = ap.parse_args(); cfg = PROVIDERS[args.provider]
+    return ap.parse_args()
+
+
+def _provider_configuration(args):
+    if args.custom_provider is None:
+        return PROVIDERS[args.provider], None
+    config_spec = importlib.util.spec_from_file_location(
+        "octopus_custom_provider_config", Path(__file__).with_name("custom_provider_config.py")
+    )
+    config_module = importlib.util.module_from_spec(config_spec)
+    config_spec.loader.exec_module(config_module)
+    custom = config_module.load_custom_provider(args.custom_provider)
+    if args.base_url is not None or args.api_key_env is not None:
+        raise ValueError("custom providers bind endpoint and credential in providers.json")
+    if (args.model or custom["default_model"]) not in custom["allowed_models"]:
+        raise ValueError("custom provider model is outside allowed_models")
+    cfg = {"base_url": custom["base_url"], "api_key_env": custom["api_key_env"],
+           "model": custom["default_model"], "headers": {}}
+    args.provider = args.custom_provider
+    isolated_env = config_module.custom_provider_environment(cfg["api_key_env"])
+    os.environ.clear()
+    os.environ.update(isolated_env)
+    return cfg, custom
+
+
+def main() -> int:
+    args = _parse_arguments()
+    try:
+        cfg, custom = _provider_configuration(args)
+    except (OSError, ValueError) as error:
+        # Do not echo config contents or paths, which can contain secrets.
+        print(f"ERROR: invalid custom provider configuration ({type(error).__name__}); check the file, endpoint, key name and model allowlist", file=sys.stderr)
+        return 2
     # Generic-slot configuration must not redirect a named preset or select
     # another vendor's credential. Explicit command arguments still take priority.
-    generic = args.provider == "generic"
+    generic = custom is None and args.provider == "generic"
     base_url = args.base_url or (os.environ.get("OPENAI_COMPAT_BASE_URL") if generic else None) or cfg["base_url"]
     key_env = args.api_key_env or (os.environ.get("OPENAI_COMPAT_API_KEY_ENV") if generic else None) or cfg["api_key_env"]
-    if args.provider == "atlascloud":
+    if custom is not None:
+        model = args.model or cfg["model"]
+    elif args.provider == "atlascloud":
         model = args.model or os.environ.get("ATLASCLOUD_MODEL") or os.environ.get("OCTOPUS_ATLASCLOUD_MODEL") or cfg["model"]
     elif args.provider == "cheaperinference":
         model = args.model or os.environ.get("CHEAPER_INFERENCE_MODEL") or os.environ.get("OCTOPUS_CHEAPERINFERENCE_MODEL") or cfg["model"]
@@ -393,10 +429,10 @@ def main() -> int:
         return 2
     if not base_url:
         print("ERROR: missing OPENAI_COMPAT_BASE_URL or --base-url", file=sys.stderr); return 2
-    if args.provider == "litellm":
+    if custom is None and args.provider == "litellm":
         base_url = litellm_base_url(base_url)
     key = os.environ.get(key_env)
-    if not key:
+    if not key or (custom is not None and not key.strip()):
         print(f"ERROR: missing {key_env}", file=sys.stderr); return 2
     max_tokens = env_int("OPENAI_COMPAT_MAX_TOKENS", 0, 0)
     request_timeout = env_float("OPENAI_COMPAT_REQUEST_TIMEOUT", 60.0)

@@ -7,6 +7,128 @@
 - Codex plugin listings include the existing logo artwork, complete skill
   descriptions, and explicit starter prompts. First-use guidance explains
   provider setup, readiness limits, and account costs.
+- Rollback preserves lessons in a private temporary backup, carries its exact
+  path across shell calls, and retains recovery data when restoration fails.
+
+## [11.26.0] - 2026-11-18
+
+### Added
+
+- The OpenAI-compatible tool-loop helper can explicitly load a custom preset
+  from `providers.json` with its own endpoint, credential and model allowlist.
+  Custom presets do not yet register orchestration seats or cost-report rows.
+
+### Fixed
+
+- Debate counts the native Sonnet advisor only on an allowed Claude Code route
+  with a completed round artifact. Codex requires two external advisor results
+  instead of counting an unverified host subagent as Sonnet.
+- Claude Code discovers native workflow skills while Codex loads its separate
+  adapted skill tree. All existing skill names, explicit invocation controls,
+  aliases and starter-pack entries remain available.
+
+- Define stops after failed decision, context or completion writes, preserving
+  earlier state and requiring repair before presenting the result as saved.
+
+- Research prompts request full IDs (`PLAT-1931`, `probe-4`) to avoid false numeric-claim failures.
+
+Merged changes: [#1356](https://github.com/nyldn/claude-octopus/pull/1356),
+[#1369](https://github.com/nyldn/claude-octopus/pull/1369),
+[#1371](https://github.com/nyldn/claude-octopus/pull/1371),
+[#1370](https://github.com/nyldn/claude-octopus/pull/1370), and
+[#1375](https://github.com/nyldn/claude-octopus/pull/1375).
+The debate repair fixes [#1373](https://github.com/nyldn/claude-octopus/issues/1373).
+Custom orchestration seats remain tracked in
+[#1299](https://github.com/nyldn/claude-octopus/issues/1299), and broader runtime
+and installed-host acceptance work remains in
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
+## [11.25.2] - 2026-11-17
+
+### Fixed
+
+- Discover rejects missing or empty synthesis and stops after failed context or
+  metrics writes, preserving earlier state instead of presenting completion.
+
+- Deliver stops after failed context, metrics or ready-to-ship state writes and
+  failed summary reads, preserving earlier state without reporting completion.
+
+Merged changes: [#1366](https://github.com/nyldn/claude-octopus/pull/1366) and
+[#1363](https://github.com/nyldn/claude-octopus/pull/1363).
+These address focused parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime, provenance and installed-host acceptance work remains open.
+
+## [11.25.1] - 2026-11-17
+
+### Fixed
+
+- Brainstorm Team mode, debate, branch-completion review, the deck red-team seat
+  recipe and define run their shell blocks under bash when the host shell is zsh,
+  as Claude Code's Bash tool is on macOS. The bash-only libraries they load now
+  stop with that fix instead of reporting the advisor allowlist as unavailable.
+  Those blocks export literal inputs before the heredoc and print what later
+  steps need, including whether host Claude may join. Request text cannot expand
+  as shell code or terminate the fixed heredoc. Bash children receive the provider
+  allowlist, and later debate steps restore their run directory.
+- Develop stops after a failed implementation decision, context or metrics write,
+  preserving earlier state for inspection instead of presenting completion.
+
+- Stop development completion after failed checkpoint creation or state updates.
+
+- Branch completion validates its branch, repository and required PR description
+  before pushing, and stops PR creation after a failed push instead of reporting
+  successful publication.
+
+Merged changes: [#1359](https://github.com/nyldn/claude-octopus/pull/1359),
+[#1360](https://github.com/nyldn/claude-octopus/pull/1360),
+[#1361](https://github.com/nyldn/claude-octopus/pull/1361), and
+[#1350](https://github.com/nyldn/claude-octopus/pull/1350).
+These address focused parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime, provenance and installed-host acceptance work remains open.
+
+## [11.25.0] - 2026-11-16
+
+### Added
+
+- Direct spawn callers can select `OCTOPUS_SPAWN_ROLE=advisor` to keep the
+  advisor brief and read/search tool policy without implementer or architecture
+  persona injection. Other nonempty values are rejected. ([#1353](https://github.com/nyldn/claude-octopus/pull/1353))
+
+### Fixed
+
+- Repeated citations reuse ordered path and line bindings so large grounded
+  council answers can finish within the existing quote-verification deadline.
+- Parallel work packages recheck their repository, branch and frozen-base ancestry
+  after the worker exits. Unexpected changes stop completion and retain the
+  worktree for inspection instead of counting or removing unrelated work.
+- Shipping state updates reject linked or nonregular files and stop delivery when
+  required context is missing or a write fails. Readiness uses the shared state
+  reader so canonical status takes precedence over legacy and historical fields.
+  Atomic replacements preserve access ACLs and extended attributes, and stop
+  before publication if that metadata cannot be retained.
+- Rollback history verifies the confirmed repository before appending, so a
+  later shell in another clone cannot record recovery in the wrong project.
+- Rollback history refuses hard-linked state files before appending, protecting
+  files outside the project that share the same inode.
+- Shipping checkpoints stop when the source has changed since its audit and
+  tag the exact audited commit. A failed tag stops finalization.
+- Brainstorm, debate and deck advisors spawn in a dedicated `advisor` role.
+  Their prompt is no longer wrapped in the implementer persona and the
+  architecture-review skill contract, which made Codex answer a brainstorm as
+  an architecture decision. Persona packs and routing rules no longer reassign
+  advisor briefs. Cursor and Command Code advisors default to read-only modes;
+  `OCTOPUS_CURSOR_AGENT_MODE` and `OCTOPUS_COMMANDCODE_PERMISSION_MODE` can
+  override those defaults. Codex retains its configured sandbox mode.
+
+Merged changes: [#1349](https://github.com/nyldn/claude-octopus/pull/1349),
+[#1353](https://github.com/nyldn/claude-octopus/pull/1353),
+[#1354](https://github.com/nyldn/claude-octopus/pull/1354),
+[#1355](https://github.com/nyldn/claude-octopus/pull/1355),
+[#1352](https://github.com/nyldn/claude-octopus/pull/1352), and
+[#1357](https://github.com/nyldn/claude-octopus/pull/1357).
+These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
+its broader runtime and installed-host acceptance work remains open.
+
 
 ## [11.24.2] - 2026-11-16
 

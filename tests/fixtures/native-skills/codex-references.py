@@ -1,0 +1,268 @@
+#!/usr/bin/env python3
+"""Exercise generated host routes without invoking a model or changing logins."""
+import re
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(sys.argv.pop(1)).resolve()
+GENERATOR = ROOT / "scripts/build-codex-skills.sh"
+
+# Git cwd/-C do not override inherited repository, index or object locations.
+for git_variable in subprocess.check_output(
+        ["git", "rev-parse", "--local-env-vars"], text=True).splitlines():
+    os.environ.pop(git_variable, None)
+os.environ.update(GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_NOSYSTEM="1")
+
+
+def adapt(text):
+    return subprocess.check_output([
+        "/bin/bash", "-eu", "-c",
+        'source "$1"; adapt_skill_references_for_codex', "fixture", str(GENERATOR)
+    ], input=text, text=True)
+
+
+class CodexReferences(unittest.TestCase):
+
+    def test_preserved_entries_run_helpers_from_the_verified_loaded_root(self):
+        with tempfile.TemporaryDirectory(prefix='octopus root ') as temporary:
+            root = Path(temporary)
+            source = root / 'source/demo/SKILL.md'
+            source.parent.mkdir(parents=True)
+            source.write_text('---\nname: demo\ndescription: fixture\n'
+                              'disable-model-invocation: true\n---\nBody.\n')
+            native = root / 'native'
+            entries = ('skill-council', 'octopus-starter-pack/provider-health')
+            for name in entries:
+                entry = native / name / 'SKILL.md'
+                entry.parent.mkdir(parents=True)
+                entry.write_text('---\nname: ' + name.rsplit('/', 1)[-1] +
+                                 '\ndescription: \'Compare "fast" models under C:\\sdk\'\ndisable-model-invocation: true\n---\n'
+                                 '```bash\n"${CLAUDE_PLUGIN_ROOT}/scripts/helpers/check-providers.sh"\n```\n')
+                metadata = entry.parent / 'agents/openai.yaml'
+                metadata.parent.mkdir()
+                metadata.write_text('interface:\n  display_name: "Original label"\n'
+                                    '  short_description: "Original interface description"\n'
+                                    'policy:\n  allow_implicit_invocation: false\n')
+            command = ('source "$1"; SKILLS_DIR="$2/source"; OUTPUT_DIR="$2/codex"; '
+                       'NATIVE_OUTPUT_DIR="$2/native"; main')
+            result = subprocess.run(['/bin/bash', '-eu', '-c', command,
+                                     'fixture', str(GENERATOR), str(root)],
+                                    capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            helper = root / 'scripts/helpers/check-providers.sh'
+            helper.parent.mkdir(parents=True)
+            helper.write_text('#!/bin/sh\nprintf "loaded-root-helper\\n"\n')
+            helper.chmod(0o755)
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ('CLAUDE_PLUGIN_ROOT', 'CODEX_PLUGIN_ROOT', 'OCTO_ROOT')}
+            env['OCTO_ROOT'] = str(root)
+            for name in entries:
+                text = (root / 'codex' / name / 'SKILL.md').read_text()
+                self.assertIn('Host: Codex CLI', text)
+                self.assertIn('Before the first helper call', text)
+                description = re.search(r'^description: (.+)$', text, re.M)[1]
+                self.assertEqual(json.loads(description), 'Compare "fast" models under C:\\sdk')
+                self.assertEqual((root / 'codex' / name / 'agents/openai.yaml').read_bytes(),
+                                 (native / name / 'agents/openai.yaml').read_bytes())
+                recipe = re.search(r'```bash\n(.*?)\n```', text, re.S)[1]
+                executed = subprocess.run(['/bin/bash', '-eu', '-c', recipe], env=env,
+                                          capture_output=True, text=True, timeout=5)
+                self.assertEqual(executed.returncode, 0, executed.stderr)
+                self.assertEqual(executed.stdout, 'loaded-root-helper\n')
+
+    def test_setup_redirect_does_not_invoke_itself(self):
+        text = (ROOT / 'codex-skills/sys-configure/SKILL.md').read_text()
+        action = re.search(r'^\*\*Action:\*\*.*$', text, re.M)[0]
+        self.assertNotIn('$sys-configure', action)
+        self.assertIn('/commands/setup.md', action)
+
+
+    def test_check_reports_only_the_missing_generated_tree_without_writing(self):
+        for missing in (('codex',), ('native',), ('codex', 'native')):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / 'source/demo/SKILL.md'
+                source.parent.mkdir(parents=True)
+                source.write_text('---\nname: demo\ndescription: fixture\n'
+                                  'disable-model-invocation: true\n---\nBody.\n')
+                command = ('source "$1"; SKILLS_DIR="$2/source"; OUTPUT_DIR="$2/codex"; '
+                           'NATIVE_OUTPUT_DIR="$2/native"; ')
+                result = subprocess.run(['/bin/bash', '-eu', '-c', command + 'main',
+                                         'fixture', str(GENERATOR), str(root)],
+                                        capture_output=True, text=True, timeout=15)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                for name in missing:
+                    shutil.rmtree(root / name)
+                before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+                result = subprocess.run(['/bin/bash', '-eu', '-c', command + 'CHECK_MODE=true; main',
+                                         'fixture', str(GENERATOR), str(root)],
+                                        capture_output=True, text=True, timeout=15)
+                self.assertNotEqual(result.returncode, 0)
+                for name, label in [('codex', 'Codex'), ('native', 'native')]:
+                    self.assertEqual(label + ' skill tree does not exist:' in result.stderr, name in missing)
+                after = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+                self.assertEqual(after, before)
+
+    def test_source_directory_names_stay_distinct_from_loaded_resource_paths(self):
+        source = ('Enumerate `.claude/skills/`, `skills/`, and `codex-skills/`.\n'
+                  'Read `skills/blocks/evidence.md` and `$OCTO_ROOT/skills/$SKILL/SKILL.md`.\n'
+                  'Read "${OCTO_ROOT}/skills/flow-parallel/SKILL.md".\n')
+        expected = ('Enumerate `.claude/skills/`, `skills/`, and `codex-skills/`.\n'
+                    'Read `codex-skills/blocks/evidence.md` and `$OCTO_ROOT/codex-skills/$SKILL/SKILL.md`.\n'
+                    'Read "${OCTO_ROOT}/codex-skills/flow-parallel/SKILL.md".\n')
+        result = subprocess.check_output([
+            '/bin/bash', '-eu', '-c',
+            'source "$1"; adapt_shared_paths_for_codex', 'fixture', str(GENERATOR)
+        ], input=source, text=True)
+        self.assertEqual(result, expected)
+
+    def test_delivery_continuations_load_the_host_specific_entries(self):
+        names = ("skill-doc-sync", "skill-ship", "skill-finish-branch")
+        source = "\n".join(
+            "Read ${OCTO_ROOT}/.claude/skills/" + name + "/SKILL.md and execute it."
+            for name in names
+        ) + "\n"
+        result = subprocess.check_output([
+            "/bin/bash", "-eu", "-c",
+            'source "$1"; adapt_shared_paths_for_codex', "fixture", str(GENERATOR)
+        ], input=source, text=True)
+        self.assertEqual(result, source.replace(".claude/skills/", "codex-skills/"))
+        native = (ROOT / "skills/flow-deliver/SKILL.md").read_text()
+        codex = (ROOT / "codex-skills/flow-deliver/SKILL.md").read_text()
+        for name in names:
+            with self.subTest(name=name):
+                self.assertIn(".claude/skills/" + name + "/SKILL.md", native)
+                self.assertNotIn(".claude/skills/" + name + "/SKILL.md", codex)
+                self.assertIn("codex-skills/" + name + "/SKILL.md", codex)
+                self.assertTrue((ROOT / "codex-skills" / name / "SKILL.md").is_file())
+
+    def test_engineering_methods_load_codex_tdd_guidance(self):
+        block = (ROOT / 'codex-skills/blocks/engineering-method-selection.md').read_text()
+        path = re.search(r'corresponding ([^,\s]+)', block)[1]
+        entry = ROOT / path / 'SKILL.md'
+        self.assertIn('Host: Codex CLI', entry.read_text())
+        for name in ('skill-tdd', 'skill-coverage-audit', 'skill-writing-plans',
+                     'skill-work-slicing', 'skill-pressure-test', 'skill-prototype',
+                     'skill-authoring'):
+            self.assertTrue((entry.parent.parent / name / 'SKILL.md').is_file(), name)
+
+    def test_user_routes_reach_installed_skills(self):
+        routes = {
+            "parallel": "flow-parallel", "quick": "octopus-quick",
+            "discover": "flow-discover", "define": "flow-define",
+            "develop": "flow-develop", "deliver": "flow-deliver",
+            "debate": "skill-debate", "docs": "skill-doc-delivery",
+            "deck": "skill-deck", "prd": "skill-prd",
+            "brainstorm": "skill-thought-partner", "setup": "sys-configure",
+            "status": "skill-status", "debug": "skill-debug",
+            "security": "octopus-security-audit", "skill-doctor": "skill-doctor",
+        }
+        source = "\n".join("Use `/octo:" + n + " topic` next." for n in routes) + "\n"
+        expected = "\n".join("Use `$" + n + " topic` next." for n in routes.values()) + "\n"
+        self.assertEqual(adapt(source), expected)
+        for name in routes.values():
+            entry = ROOT / "codex-skills" / name / "SKILL.md"
+            self.assertRegex(entry.read_text(), r"(?m)^name: " + re.escape(name) + r"$")
+
+    def test_multiple_routes_and_start_of_line(self):
+        self.assertEqual(adapt('/octo:review then `/octo:tdd` or "/octo:research"\n'),
+                         '$skill-code-review then `$skill-tdd` or "$octopus-research"\n')
+
+    def test_executable_snippets_keep_command_literals_without_shell_expansion(self):
+        shell = '```bash\necho "Run /octo:setup and /octo:ship"\n```\n'
+        program = '```javascript\nconst command = "/octo:review";\n```\n'
+        self.assertEqual(adapt(shell + program), shell + program)
+        self.assertEqual(adapt('```text\n/octo:quick "task"\n```\n'),
+                         '```text\n$octopus-quick "task"\n```\n')
+
+    def test_unknown_commands_urls_paths_and_longer_names_stay_literal(self):
+        source = "\n".join([
+            "/octo:does-not-exist", "/octo:review-extra", "/octo:review.md",
+            "https://example.invalid/octo:review", "docs/octo:review.md",
+            "/docs/octo:review", "/octo:review/file", "/octo:*",
+            "historical /octo:doctor", "/octo:embrace", "octo:review",
+        ]) + "\n"
+        self.assertEqual(adapt(source), source)
+
+    def test_generation_keeps_native_bytes_and_adapts_alias_and_shared_resource(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source/skill-verification-gate/SKILL.md"
+            source.parent.mkdir(parents=True)
+            text = ('---\nname: skill-verification-gate\ndescription: "Verify evidence"\n'
+                    'disable-model-invocation: true\n---\n\nUse `/octo:review` before `/octo:deliver`.\n')
+            source.write_text(text)
+            block = root / "native/blocks/routes.md"
+            block.parent.mkdir(parents=True)
+            block.write_text('Use `/octo:debate` and `skills/blocks/evidence.md`.\n')
+            subprocess.run([
+                "/bin/bash", "-eu", "-c",
+                'source "$1"; SKILLS_DIR="$2/source"; OUTPUT_DIR="$2/codex"; '
+                'NATIVE_OUTPUT_DIR="$2/native"; main >/dev/null',
+                "fixture", str(GENERATOR), str(root)
+            ], check=True, capture_output=True)
+            self.assertEqual((root / "native/skill-verification-gate/SKILL.md").read_text(), text)
+            for name in ("skill-verification-gate", "skill-verify"):
+                generated = (root / "codex" / name / "SKILL.md").read_text()
+                self.assertIn('Use `$skill-code-review` before `$flow-deliver`.', generated)
+                self.assertRegex(generated, r"(?m)^name: " + name + r"$")
+                self.assertIn('allow_implicit_invocation: false',
+                              (root / "codex" / name / "agents/openai.yaml").read_text())
+            self.assertEqual((root / "codex/blocks/routes.md").read_text(),
+                             'Use `$skill-debate` and `codex-skills/blocks/evidence.md`.\n')
+            self.assertEqual(block.read_text(), 'Use `/octo:debate` and `skills/blocks/evidence.md`.\n')
+
+    def test_packaged_prose_uses_available_host_routes(self):
+        for name, obsolete in {
+            "flow-parallel": ("parallel",),
+            "octopus-quick": ("quick", "discover", "define", "develop", "deliver"),
+            "skill-deck": ("discover", "deck", "docs", "prd", "brainstorm"),
+            "skill-doctor": ("setup", "status", "debug", "skill-doctor"),
+            "skill-work-slicing": ("parallel",),
+            "octopus-ui-ux-design": ("debate",),
+        }.items():
+            text = (ROOT / "codex-skills" / name / "SKILL.md").read_text()
+            prose = []
+            in_fence = False
+            for line in text.splitlines():
+                if re.match(r"^\s*(```|~~~)", line):
+                    in_fence = not in_fence
+                elif not in_fence:
+                    prose.append(line)
+            for command in obsolete:
+                self.assertNotRegex("\n".join(prose), r"/octo:" + re.escape(command) + r"(?![a-z0-9-])", name)
+
+
+    def test_codex_debug_does_not_claim_unbound_freeze_enforcement(self):
+        native = (ROOT / "skills/skill-debug/SKILL.md").read_text()
+        codex = (ROOT / "codex-skills/skill-debug/SKILL.md").read_text()
+        self.assertIn("## Scoped freeze guard", native)
+        self.assertIn("os.open", native)
+        self.assertIn("does not bind its Claude freeze-check hook to Codex", codex)
+        self.assertNotIn("/tmp/octopus-freeze-", codex)
+        self.assertNotIn("os.open", codex)
+        sample = "## Scoped freeze guard\nunsafe activation\n## Next section\nkeep me\n"
+        result = subprocess.check_output([
+            "/bin/bash", "-eu", "-c", 'source "$1"; adapt_freeze_for_codex',
+            "fixture", str(GENERATOR)
+        ], input=sample, text=True)
+        self.assertNotIn("unsafe activation", result)
+        self.assertIn("## Next section\nkeep me", result)
+
+
+    def test_loaded_block_paths_belong_to_the_codex_tree(self):
+        for name in ("skill-authoring", "skill-audit", "skill-meta-prompt"):
+            text = (ROOT / "codex-skills" / name / "SKILL.md").read_text()
+            self.assertNotRegex(text, r"(?<![a-z/.-])skills/blocks/")
+            for relative in re.findall(r"`(codex-skills/blocks/[a-z0-9-]+\.md)`", text):
+                self.assertTrue((ROOT / relative).is_file(), relative)
+
+
+if __name__ == "__main__":
+    unittest.main()

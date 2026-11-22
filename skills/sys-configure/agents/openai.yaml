@@ -1,5 +1,0 @@
-interface:
-  display_name: "Setup"
-  short_description: "Set up Octopus providers, authentication, and preferences"
-policy:
-  allow_implicit_invocation: false

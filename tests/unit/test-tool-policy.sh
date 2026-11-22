@@ -184,5 +184,27 @@ test_policy_applied_in_persona
 test_config_yaml_documentation
 test_dry_run_with_tool_policy
 
+for scenario in advisor reviewer unknown disabled skipped; do
+    test_case "roles without a persona preserve tool-policy behavior: $scenario"
+    if (
+        source "$PROJECT_ROOT/scripts/lib/dispatch.sh"
+        get_persona_instruction() { printf ''; }
+        DISABLE_PERSONAS=false OCTOPUS_TOOL_POLICIES=true
+        role=advisor skip=false expected='TOOL POLICY: You MUST NOT use Write, Edit, or Bash for modifications.'
+        case "$scenario" in
+            reviewer) role=code-reviewer; expected='TOOL POLICY: You MUST NOT use Write or Edit.' ;;
+            unknown) role=fixture-unknown; expected='fixture task' ;;
+            disabled) OCTOPUS_TOOL_POLICIES=false; expected='fixture task' ;;
+            skipped) skip=true; expected='fixture task' ;;
+        esac
+        observed="$(apply_persona "$role" 'fixture task' "$skip" '')"
+        if [[ "$expected" == 'fixture task' ]]; then
+            [[ "$observed" == "$expected" ]]
+        else
+            [[ "$observed" == *"$expected"* && "$observed" == *'fixture task'* ]]
+        fi
+    ); then test_pass; else test_fail "$scenario policy mismatch"; fi
+done
+
 rm -f "$ALL_SRC"
 test_summary

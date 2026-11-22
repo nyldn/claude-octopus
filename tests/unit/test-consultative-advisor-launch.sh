@@ -66,7 +66,7 @@ if [[ "\${1:-}" == "--version" ]]; then
     printf '%s\n' 'codex-cli 0.155.1'
     exit 0
 fi
-cat >/dev/null
+cat > "$E2E/codex-prompt.txt"
 # Answer only after spawn has printed its worker PID and returned.
 sleep 3
 printf '%s\n' 'stub codex progress note on stderr' >&2
@@ -83,6 +83,39 @@ printf '%s\n' 'stub codex: simulated provider failure' >&2
 exit 1
 SH
 chmod +x "$E2E/answer-bin/codex" "$E2E/fail-bin/codex"
+# A Claude Code host new enough for agent-type routing, which adds curated
+# personas and skill context to direct spawns. Only its version probe answers.
+mkdir -p "$E2E/routing-bin"
+ln -s "$E2E/answer-bin/codex" "$E2E/routing-bin/codex"
+cat > "$E2E/routing-bin/claude" <<SH
+#!/usr/bin/env bash
+if [[ "\$*" == --version ]]; then
+    printf '%s\n' '2.1.200 (Claude Code)'
+    exit 0
+fi
+printf '%s %s\n' "\${0##*/}" "\$*" >> "$E2E/tripwire.log"
+exit 1
+SH
+chmod +x "$E2E/routing-bin/claude"
+mkdir -p "$E2E/agy-bin"
+ln -s "$E2E/answer-bin/codex" "$E2E/agy-bin/codex"
+cat > "$E2E/agy-bin/agy" <<SH
+#!/usr/bin/env bash
+if [[ "\${1:-}" == --version ]]; then
+    printf '%s\n' 'agy 0.3.0'
+    exit 0
+fi
+while (( \$# > 0 )); do
+    if [[ "\$1" == --print && \$# -ge 2 ]]; then
+        printf '%s' "\$2" > "$E2E/agy-prompt.txt"
+        printf '%s\n' 'STUB AGY ANSWER'
+        exit 0
+    fi
+    shift
+done
+exit 1
+SH
+chmod +x "$E2E/agy-bin/agy"
 cat > "$E2E/fleet-builder.sh" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' 'codex|Problem Analysis|fixture'
@@ -93,12 +126,16 @@ chmod +x "$E2E/fleet-builder.sh"
 # STUB_CODEX_BIN says so) and the test's isolated Octopus state.
 in_stub_env() {
     (
+        # This fixture models native Claude Code. The invoking test runner may
+        # itself be Codex, whose runtime markers must not change the fixture.
+        unset CODEX_THREAD_ID CODEX_SESSION_ID CODEX_SANDBOX CODEX_PLUGIN_ROOT CODEX_HOME DROID_PLUGIN_ROOT
         export "HOME=$E2E/home" "CLAUDE_PLUGIN_DATA=$E2E/data" \
             "CLAUDE_PLUGIN_ROOT=$PROJECT_ROOT" "OCTOPUS_PROJECT_DIR=$E2E/project" \
             "TMPDIR=$E2E/tmp" "OCTOPUS_SKIP_PROVIDER_PROBES=true" "OPENAI_API_KEY=test-only" \
             "PATH=$E2E/${STUB_CODEX_BIN:-answer-bin}:$E2E/tripwire-bin:$PATH" \
             "OCTO_ALLOWED_PROVIDERS=${STUB_ALLOWED_PROVIDERS:-codex}" \
             "OCTOPUS_FLEET_BUILDER=$E2E/fleet-builder.sh" \
+            "OCTOPUS_PERSONA_PACKS=${STUB_PERSONA_PACK:-off}" \
             "OCTOPUS_ADVISOR_WAIT_SECONDS=180"
         cd "$E2E/project"
         "$@"
@@ -491,12 +528,34 @@ rc=0
 block_out="$(STUB_ALLOWED_PROVIDERS='codex claude' in_stub_env \
     bash -c "$(team_block "$PROJECT_ROOT/commands/brainstorm.md")" 2>"$TEST_TMP_DIR/team.err")" || rc=$?
 if [[ "$rc" -eq 0 ]] &&
+   grep -qx 'HOST_CLAUDE_ALLOWED=true' <<< "$block_out" &&
    grep -qx 'SUCCESSFUL_EXTERNAL_ADVISORS=1' <<< "$block_out" &&
    grep -Fqx 'STUB CODEX ANSWER 4242' <<< "$block_out" &&
    grep -Fqx 'final answer line' <<< "$block_out"; then
     test_pass
 else
     test_fail "rc=$rc stdout: $(printf '%s' "$block_out" | tail -5 | tr '\n' '|') stderr: $(tail -3 "$TEST_TMP_DIR/team.err" | tr '\n' '|')"
+fi
+
+# Claude Code's Bash tool runs blocks in the user's login shell, which is zsh on
+# macOS. zsh leaves BASH_SOURCE empty, so the sourced library looked for its
+# allowlist in the working directory and the Team block stopped before launch.
+test_case "commands/brainstorm.md: the Team block runs from a zsh host shell"
+if command -v zsh >/dev/null 2>&1; then
+    rc=0
+    block_out="$(STUB_ALLOWED_PROVIDERS='codex claude' in_stub_env \
+        zsh -fc "$(team_block "$PROJECT_ROOT/commands/brainstorm.md")" 2>"$TEST_TMP_DIR/team-zsh.err")" || rc=$?
+    if [[ "$rc" -eq 0 ]] &&
+       grep -qx 'HOST_CLAUDE_ALLOWED=true' <<< "$block_out" &&
+       grep -qx 'SUCCESSFUL_EXTERNAL_ADVISORS=1' <<< "$block_out" &&
+       grep -Fqx 'STUB CODEX ANSWER 4242' <<< "$block_out" &&
+       grep -Fqx 'final answer line' <<< "$block_out"; then
+        test_pass
+    else
+        test_fail "rc=$rc stdout: $(printf '%s' "$block_out" | tail -5 | tr '\n' '|') stderr: $(tail -3 "$TEST_TMP_DIR/team-zsh.err" | tr '\n' '|')"
+    fi
+else
+    test_skip "zsh not installed"
 fi
 
 # The generated Codex copy of a skill names the host's background option
@@ -520,6 +579,126 @@ if [[ -z "$missing" ]]; then
     test_pass
 else
     test_fail "no background/timeout guidance in: $missing"
+fi
+
+fake_orch="$TEST_TMP_DIR/orch-role"
+cat > "$fake_orch" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\${OCTOPUS_SPAWN_ROLE:-unset}" >> "$TEST_TMP_DIR/spawn-roles"
+printf 'answer from %s\n' "\$2"
+SH
+chmod +x "$fake_orch"
+test_case "every advisor is spawned in the consultative advisor role"
+out="$TEST_TMP_DIR/role"
+mkdir -p "$out"
+rc=0
+count="$(octo_launch_advisors "$fake_orch" agy,agy "$out" t- x 2 2>"$out/error")" || rc=$?
+if [[ "$rc" -eq 0 && "$count" == 2 &&
+      "$(sort -u "$TEST_TMP_DIR/spawn-roles")" == advisor ]]; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count' roles: $(tr '\n' '|' < "$TEST_TMP_DIR/spawn-roles" 2>/dev/null)"
+fi
+
+ADVISOR_TOPIC='Think creatively about: a STAR interview answer coach with a provider abstraction'
+test_case "a direct codex spawn still defaults to the implementer role"
+rc=0
+dry_out="$(in_stub_env "$ORCH" --dry-run spawn codex "$ADVISOR_TOPIC" 2>&1)" || rc=$?
+if [[ "$rc" -eq 0 && "$dry_out" == *"role=implementer"* ]]; then
+    test_pass
+else
+    test_fail "rc=$rc output: $(printf '%s' "$dry_out" | tail -3 | tr '\n' '|')"
+fi
+
+test_case "OCTOPUS_SPAWN_ROLE=advisor replaces the implementer default"
+rc=0
+advisor_out="$(in_stub_env env OCTOPUS_SPAWN_ROLE=advisor \
+    "$ORCH" --dry-run spawn codex "$ADVISOR_TOPIC" 2>&1)" || rc=$?
+if [[ "$rc" -eq 0 && "$advisor_out" == *"role=advisor"* ]]; then
+    test_pass
+else
+    test_fail "rc=$rc output: $(printf '%s' "$advisor_out" | tail -3 | tr '\n' '|')"
+fi
+
+test_case "an unsupported OCTOPUS_SPAWN_ROLE fails before dispatch"
+rc=0
+bad_out="$(in_stub_env env OCTOPUS_SPAWN_ROLE=implementer \
+    "$ORCH" --dry-run spawn codex "$ADVISOR_TOPIC" 2>&1)" || rc=$?
+if [[ "$rc" -ne 0 && "$bad_out" == *"OCTOPUS_SPAWN_ROLE"* && "$bad_out" != *"Would execute"* ]]; then
+    test_pass
+else
+    test_fail "rc=$rc output: $(printf '%s' "$bad_out" | tail -3 | tr '\n' '|')"
+fi
+
+test_case "the advisor role keeps tool-loop providers read-only"
+tool_loop_is_read_only() {
+    (
+        PLUGIN_DIR="$PROJECT_ROOT"
+        # shellcheck source=/dev/null
+        source "$PROJECT_ROOT/scripts/lib/dispatch.sh" >/dev/null 2>&1
+        octo_tool_loop_requires_no_tools "" "$1"
+    )
+}
+if tool_loop_is_read_only advisor && ! tool_loop_is_read_only implementer; then
+    test_pass
+else
+    test_fail "the advisor role would get a write-capable tool loop"
+fi
+
+mkdir -p "$E2E/advisor-pack"
+printf 'name: advisor-fixture\npersonas:\n  - file: persona.md\n    replaces: codex\n  - file: persona.md\n    replaces: agy\n' > "$E2E/advisor-pack/pack.yaml"
+printf '%s\n' 'PERSONA PACK IMPLEMENTER MARKER' > "$E2E/advisor-pack/persona.md"
+test_case "the advisor isolation fixture has a working codex persona override"
+pack_content="$(STUB_PERSONA_PACK="$E2E/advisor-pack" in_stub_env bash -c '
+    source "$CLAUDE_PLUGIN_ROOT/scripts/lib/personas.sh"
+    WORKSPACE_DIR="$CLAUDE_PLUGIN_DATA"
+    auto_load_persona_packs >/dev/null
+    get_persona_override_content codex
+')"
+if [[ "$pack_content" == 'PERSONA PACK IMPLEMENTER MARKER' ]]; then
+    test_pass
+else
+    test_fail "persona fixture was not active: $pack_content"
+fi
+
+test_case "an advisor prompt excludes persona packs, implementer personas and curated skill context"
+out="$TEST_TMP_DIR/advisor-prompt"
+mkdir -p "$out"
+rm -f "$E2E/codex-prompt.txt"
+rc=0
+count="$(STUB_CODEX_BIN=routing-bin STUB_PERSONA_PACK="$E2E/advisor-pack" in_stub_env octo_launch_advisors "$ORCH" codex "$out" \
+    octopus-brainstorm- "$ADVISOR_TOPIC
+You are {{advisor}}, an independent brainstorm advisor." 1 2>"$out/error")" || rc=$?
+result_file="$(grep -rl 'independent brainstorm advisor' "$E2E/data" 2>/dev/null |
+    grep '/codex-[^/]*\.md$' | tail -1 || true)"
+prompt="$(cat "$E2E/codex-prompt.txt" 2>/dev/null)"
+if [[ "$rc" -eq 0 && "$count" == 1 ]] &&
+   [[ "$prompt" == *"You are codex, an independent brainstorm advisor."* ]] &&
+   [[ "$prompt" != *"Agent Skill Context"* && "$prompt" != *"Caller contract"* ]] &&
+   [[ "$prompt" != *"senior software engineer"* && "$prompt" != *"Deliverable integrity"* ]] &&
+   [[ "$prompt" != *"PERSONA PACK IMPLEMENTER MARKER"* ]] &&
+   [[ "$prompt" == *"TOOL POLICY: You MUST NOT use Write, Edit, or Bash for modifications."* ]] &&
+   grep -qx '# Role: advisor' "$result_file" 2>/dev/null; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count' result=$result_file role: $(grep '^# Role:' "$result_file" 2>/dev/null) prompt sections: $(grep -E '^(## |--- Skill|You are|\*\*Task)' "$E2E/codex-prompt.txt" 2>/dev/null | tr '\n' '|')"
+fi
+
+test_case "a synchronous AGY advisor excludes persona packs and receives the role policy"
+out="$TEST_TMP_DIR/agy-advisor-prompt"
+mkdir -p "$out"
+rc=0
+count="$(STUB_CODEX_BIN=agy-bin STUB_ALLOWED_PROVIDERS=agy STUB_PERSONA_PACK="$E2E/advisor-pack" \
+    in_stub_env octo_launch_advisors "$ORCH" agy "$out" octopus-brainstorm- \
+    "$ADVISOR_TOPIC You are {{advisor}}, an independent brainstorm advisor." 1 2>"$out/error")" || rc=$?
+prompt="$(cat "$E2E/agy-prompt.txt" 2>/dev/null)"
+if [[ "$rc" -eq 0 && "$count" == 1 ]] &&
+   [[ "$prompt" == *"You are agy, an independent brainstorm advisor."* ]] &&
+   [[ "$prompt" != *"PERSONA PACK IMPLEMENTER MARKER"* ]] &&
+   [[ "$prompt" == *"TOOL POLICY: You MUST NOT use Write, Edit, or Bash for modifications."* ]]; then
+    test_pass
+else
+    test_fail "rc=$rc count='$count' AGY advisor isolation or policy missing"
 fi
 
 # Runs last, so the tripwire log covers every stub-environment run above.

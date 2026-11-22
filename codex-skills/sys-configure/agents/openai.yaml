@@ -1,0 +1,5 @@
+interface:
+  display_name: "Setup"
+  short_description: "Set up providers, accounts, and workflow preferences"
+policy:
+  allow_implicit_invocation: false

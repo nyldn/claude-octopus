@@ -1,14 +1,22 @@
 ---
 name: skill-doctor
-description: "Environment diagnostics — check providers, auth, config, hooks, scheduler, and more"
 disable-model-invocation: true
+effort: low
+description: "Environment diagnostics — check providers, auth, config, hooks, scheduler, and more"
+trigger: |
+  EXPLICITLY USE when user asks about:
+  - "doctor" or "run doctor" or "diagnostics"
+  - "check my setup" or "is everything working"
+  - "health check" or "environment check"
+  - "what's wrong with my setup" or "why isn't octopus working"
+  - "check providers" or "check auth" or "check hooks"
+
+  DO NOT activate for:
+  - Initial setup (use /octo:setup)
+  - Project status or workflow progress (use /octo:status)
+  - Debugging application code (use /octo:debug)
+codex_short_description: "Start here: check provider setup and plugin health"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Environment Doctor
 
@@ -31,6 +39,7 @@ correctly.
 
 **Core principle:** Detect problems before they surface in workflows.
 
+---
 
 ## When to Use
 
@@ -46,6 +55,7 @@ correctly.
 - Project workflow status (use `/octo:status`)
 - Debugging application code (use `/octo:debug`)
 
+---
 
 ## The Process
 
@@ -274,6 +284,7 @@ Offer to run the login command for the expired provider.
 
 **Multiple fixable issues:** Batch them into a single AskUserQuestion with multiSelect where appropriate, rather than asking one at a time.
 
+---
 
 ## Check Categories
 
@@ -299,6 +310,7 @@ Software dependency installation is checked separately by
 `scripts/install-deps.sh check` in Step 3, including Node.js, jq, provider CLIs,
 RTK token compression, the statusline resolver, and recommended plugins.
 
+---
 
 ## Interpreting Results
 
@@ -322,6 +334,7 @@ All checks pass — no action needed.
 | RTK gain stats unavailable | Run some bash commands first, then check `rtk gain` to see token savings |
 | Conflicting plugins | Uninstall conflicting plugins or adjust scope |
 
+---
 
 ## Integration with Other Skills
 
@@ -332,6 +345,7 @@ All checks pass — no action needed.
 | Doctor finds hook errors | Guide user to fix hooks.json |
 | All checks pass, user still has issues | Suggest `/octo:debug` for deeper investigation |
 
+---
 
 ## Context and intensity profiles
 
@@ -349,6 +363,7 @@ lifecycle hooks. A missing or invalid hook-profile registry fails closed.
 `balanced`, and `quality` values. It is not an alias for either context
 setting, and it must not be used to claim that safety hooks are disabled.
 
+---
 
 ## Legacy intensity profile
 
@@ -382,6 +397,7 @@ from the optional context-hook profiles above.
 | Optional context hooks | Off | Workflow context only | All profile-managed context hooks |
 | Safety and lifecycle hooks | Active | Active | Active |
 
+---
 
 ## Project Tier Hint
 
@@ -395,6 +411,7 @@ Also report `OCTO_TIER` when set. This is a recommendation hint, not a hard poli
 
 If unset, show `OCTO_TIER=unset` and suggest setting it only when the project has a stable risk profile.
 
+---
 
 ## Remote Session Checks
 
@@ -408,6 +425,7 @@ If `CLAUDE_CODE_REMOTE=true` or `OCTOPUS_REMOTE_SESSION=true`, report:
 
 Suggest `/octo:setup` only for configuration guidance; do not recommend interactive provider logins inside the remote session.
 
+---
 
 ## Runtime Context
 
@@ -423,6 +441,7 @@ The doctor checks for project-level `RUNTIME.md` — a file that provides projec
 
 Without a `RUNTIME.md`, orchestration prompts lack project-specific details — leading to generic advice about test commands, environment variables, and build steps. A populated `RUNTIME.md` makes every workflow more accurate.
 
+---
 
 ## Quick Reference
 

@@ -1,14 +1,15 @@
 ---
 name: skill-rollback
-description: "Roll back to a previous checkpoint via git — use when a change went wrong and you need to revert"
 disable-model-invocation: true
+user-invocable: true
+description: "Roll back to a previous checkpoint via git — use when a change went wrong and you need to revert"
+trigger: |
+  EXPLICITLY USE when user mentions:
+  - "rollback" or "revert" or "undo"
+  - "go back to" or "restore checkpoint"
+argument-hint: "[list|<checkpoint-tag>]"
+codex_short_description: "Restore a Git checkpoint while preserving recovery evidence"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Checkpoint Rollback
 
@@ -16,6 +17,7 @@ Safely rollback to a previous checkpoint while preserving lessons learned.
 
 **Core principle:** List checkpoints → Confirm explicitly → Create safety backup → Restore → Preserve lessons.
 
+---
 
 ## Subcommand Detection
 
@@ -26,6 +28,7 @@ Parse the user's request to determine mode:
 | `list`, `show checkpoints`, no argument | LIST | Show available checkpoints |
 | `octo-checkpoint-*` tag name | ROLLBACK | Rollback to specific checkpoint |
 
+---
 
 ## Mode: LIST (Default)
 
@@ -57,6 +60,7 @@ To create a manual checkpoint:
   git tag -a octo-checkpoint-manual-$(date +%Y%m%d-%H%M%S) -m "Manual checkpoint"
 ```
 
+---
 
 ## Mode: ROLLBACK
 
@@ -187,13 +191,45 @@ working tree. Preserve any unrelated changes separately.
 
 ### Step 5: Preserve LESSONS.md
 
+Run from the confirmed repository. Keep the exact printed backup directory and
+preservation flag in conversation context for Step 6, including an empty directory
+when no lessons exist. Use a temporary directory outside the repository. Never
+reuse a backup path from another rollback or place recovery state in the checkout.
+
 ```bash
-# Save current LESSONS.md if it exists
-if [ -f ".octo/LESSONS.md" ]; then
-  cp .octo/LESSONS.md /tmp/LESSONS_PRESERVED.md
+ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
+: "${ROLLBACK_PREVIEW_ROOT:?Restore the confirmed preview root}"
+if [[ "$ROLLBACK_ROOT" != "$ROLLBACK_PREVIEW_ROOT" ||
+      -L "$ROLLBACK_ROOT/.octo" || -L "$ROLLBACK_ROOT/.octo/LESSONS.md" ]]; then
+  echo "Cannot back up lessons from a changed repository or symlinked lessons path." >&2
+  exit 1
+fi
+LESSONS_PRESERVED=false
+LESSONS_BACKUP_DIR=''
+if [ -f "$ROLLBACK_ROOT/.octo/LESSONS.md" ]; then
+  LESSONS_BACKUP_BASE=$(CDPATH= cd -- "${TMPDIR:-/tmp}" && pwd -P) || exit 1
+  case "$LESSONS_BACKUP_BASE/" in
+    "${ROLLBACK_ROOT%/}/"*) LESSONS_BACKUP_BASE=$(CDPATH= cd -- /tmp && pwd -P) || exit 1 ;;
+  esac
+  case "$LESSONS_BACKUP_BASE/" in
+    "${ROLLBACK_ROOT%/}/"*) echo "No temporary location outside the repository is available." >&2; exit 1 ;;
+  esac
+  LESSONS_BACKUP_DIR=$(mktemp -d "$LESSONS_BACKUP_BASE/octo-rollback-lessons.XXXXXX") || exit 1
+  LESSONS_BACKUP_DIR=$(CDPATH= cd -- "$LESSONS_BACKUP_DIR" && pwd -P) || exit 1
+  if ! (umask 077; cp -- "$ROLLBACK_ROOT/.octo/LESSONS.md" "$LESSONS_BACKUP_DIR/LESSONS.md"); then
+    echo "Lessons backup failed; retain the private directory for recovery: $LESSONS_BACKUP_DIR" >&2
+    exit 1
+  fi
   LESSONS_PRESERVED=true
 fi
+printf 'LESSONS_PRESERVED=%s\n' "$LESSONS_PRESERVED"
+printf 'LESSONS_BACKUP_DIR=%q\n' "$LESSONS_BACKUP_DIR"
 ```
+
+Retain the private backup if restoration fails or is interrupted. After explicit
+cancellation, remove only this rollback's `LESSONS.md` backup and its empty private
+directory, using the same ownership and symlink checks as Step 6. Never remove a
+shared filename or recursively delete a recovery directory.
 
 ### Step 6: Execute Rollback
 
@@ -296,11 +332,28 @@ for target in targets:
     ):
         sys.exit('Rollback would overwrite ignored local files. Preserve them before retrying.')
 PY_IGNORED
+# Restore Step 5's exact printed values before changing project files.
+: "${LESSONS_PRESERVED:?Restore the lessons preservation flag from Step 5}"
+case "$LESSONS_PRESERVED" in
+  true)
+    : "${LESSONS_BACKUP_DIR:?Restore the private backup directory from Step 5}"
+    if [[ ! -d "$LESSONS_BACKUP_DIR" || -L "$LESSONS_BACKUP_DIR" || ! -O "$LESSONS_BACKUP_DIR" ||
+          ! -f "$LESSONS_BACKUP_DIR/LESSONS.md" || -L "$LESSONS_BACKUP_DIR/LESSONS.md" ||
+          ! -O "$LESSONS_BACKUP_DIR/LESSONS.md" ]]; then
+      echo "Private lessons backup is missing or unsafe; retain recovery state and stop." >&2
+      exit 1
+    fi
+    ;;
+  false) ;;
+  *) echo "Invalid lessons preservation flag; restore Step 5's exact value." >&2; exit 1 ;;
+esac
 git -C "$ROLLBACK_ROOT" checkout --no-overlay "$ROLLBACK_TARGET_COMMIT" -- . ':(exclude).octo/LESSONS.md' || exit 1
 
 # Restore preserved LESSONS.md
 if [ "$LESSONS_PRESERVED" = "true" ]; then
-  cp /tmp/LESSONS_PRESERVED.md .octo/LESSONS.md
+  cp -- "$LESSONS_BACKUP_DIR/LESSONS.md" "$ROLLBACK_ROOT/.octo/LESSONS.md" || exit 1
+  rm -- "$LESSONS_BACKUP_DIR/LESSONS.md" || exit 1
+  rmdir -- "$LESSONS_BACKUP_DIR" || exit 1
 fi
 ```
 
@@ -322,14 +375,22 @@ safety checkpoint; do not claim that rollback completed.
 
 Restore `CHECKPOINT_TAG` to the exact target used by the successful Step 6
 restoration and `SAFETY_CHECKPOINT_TAG` to the exact name printed by Step 4.
+Restore `ROLLBACK_PREVIEW_ROOT` from the confirmed preview too. History must run
+in that repository; matching checkpoint tags in another clone are insufficient.
 Carry these literal values into this shell call even when earlier shell
 variables no longer exist. Do not reconstruct the safety tag from a new clock
 value or select a different tag by age. If either value is unavailable, report
 that history was not updated rather than writing an incomplete recovery entry.
-Symlinked state paths and non-regular files are refused before any append.
+Symlinked state paths, hard-linked state files and non-regular files are refused
+before any append.
 
 ```bash
 ROLLBACK_ROOT=$(git rev-parse --show-toplevel) || exit 1
+: "${ROLLBACK_PREVIEW_ROOT:?Restore the confirmed preview root from Step 2}"
+if [[ "$ROLLBACK_ROOT" != "$ROLLBACK_PREVIEW_ROOT" ]]; then
+  echo "Rollback history was not updated: repository differs from the confirmed preview." >&2
+  exit 1
+fi
 python3 -I - "$ROLLBACK_ROOT" "${CHECKPOINT_TAG:-}" "${SAFETY_CHECKPOINT_TAG:-}" <<'PY_HISTORY' || exit 1
 from contextlib import ExitStack
 from datetime import datetime
@@ -354,8 +415,9 @@ try:
             except FileNotFoundError:
                 sys.exit(0)  # History remains optional when its state path is absent.
             opened.callback(os.close, descriptor)
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError("rollback state must be a regular file")
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise ValueError("rollback state must be a regular, unlinked file")
         if not target or not safety:
             raise ValueError("restore the exact target from Step 6 and safety tag from Step 4")
         for tag in (target, safety):
@@ -399,6 +461,7 @@ Rollback Complete
    ```
 ```
 
+---
 
 ## Safety Measures
 
@@ -411,6 +474,7 @@ Rollback Complete
 | **Show affected files first** | Preview before confirmation |
 | **No history modification** | Uses checkout, not reset |
 
+---
 
 ## Red Flags - Never Do
 
@@ -423,6 +487,7 @@ Rollback Complete
 | Force push after rollback | Affects collaborators |
 | Delete checkpoint tags | Removes recovery points |
 
+---
 
 ## Checkpoint Tag Format
 
@@ -442,6 +507,7 @@ Examples:
 - `octo-checkpoint-pre-rollback-20260203-161530`
 - `octo-checkpoint-manual-20260203-170000`
 
+---
 
 ## Quick Reference
 
@@ -451,6 +517,7 @@ Examples:
 | `/octo:rollback list` | List available checkpoints |
 | `/octo:rollback <tag>` | Rollback to specific checkpoint |
 
+---
 
 ## The Bottom Line
 

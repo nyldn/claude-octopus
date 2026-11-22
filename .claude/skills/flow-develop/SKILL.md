@@ -9,8 +9,6 @@ aliases:
 description: "Multi-AI implementation using available external providers (Double Diamond Develop phase). DO NOT use for simple code edits, reading/reviewing code, built-in commands, or trivial single-file changes."
 
 # Claude Code v2.1.12+ Integration
-agent: general-purpose
-context: fork
 task_management: true
 task_dependencies:
   - flow-define
@@ -330,6 +328,9 @@ or rerun the workflow to recover a shell variable.
 
 **After synthesis is verified, record implementation details in state:**
 
+Stop on the first failed write. Preserve prior successful writes for inspection
+before retrying; do not present completion while implementation state is incomplete.
+
 ```bash
 # Extract key implementation decisions from synthesis
 implementation_approach=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Implementation\|## Approach" | tail -3 | tr '\n' ' ')
@@ -341,16 +342,16 @@ if [[ -n "$decision_made" ]]; then
   "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" write_decision \
     "develop" \
     "$decision_made" \
-    "Multi-AI implementation consensus"
+    "Multi-AI implementation consensus" || exit 1
 fi
 
 # Update develop phase context
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
   "develop" \
-  "$implementation_approach"
+  "$implementation_approach" || exit 1
 
 # Update metrics
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1"
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics "phases_completed" "1" || exit 1
 ```
 
 **DO NOT PROCEED TO STEP 7 until state updated.**
@@ -841,22 +842,24 @@ After development completes:
    `skill-verification-gate`; stop if they fail.
 2. Create checkpoint: `git tag octo-checkpoint-post-develop-$(date +%Y%m%d-%H%M%S)`
 3. Update `.octo/STATE.md` with completion and add a history entry with files modified.
+Stop this block if checkpoint creation or either state write fails. Preserve any
+created tag and inspect the recorded state before retrying.
 
 ```bash
 # Enter this block only after fresh targeted tests pass.
 checkpoint_tag="octo-checkpoint-post-develop-$(date +%Y%m%d-%H%M%S)"
-git tag "$checkpoint_tag" -m "Post-develop checkpoint from embrace workflow"
+git tag "$checkpoint_tag" -m "Post-develop checkpoint from embrace workflow" || exit 1
 echo "📌 Created checkpoint: $checkpoint_tag"
 
 # Update state only after verification and checkpoint creation succeed.
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
   --status "complete" \
-  --history "Develop phase completed"
+  --history "Develop phase completed" || exit 1
 
 # Record files modified in this phase
 modified_files=$(git diff --name-only HEAD~1 2>/dev/null || echo "See git log")
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" update_state \
-  --history "Files modified: $modified_files"
+  --history "Files modified: $modified_files" || exit 1
 ```
 
 ---

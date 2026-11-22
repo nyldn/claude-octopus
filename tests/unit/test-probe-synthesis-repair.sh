@@ -30,6 +30,7 @@ printf 'import { run } from "./run";\nexport const handler = run;\n' > "$WORKSPA
 PROJECT_ROOT="$WORKSPACE"
 
 CALLS="$TEST_ROOT/agent-calls"
+SYNTHESIS_PROMPT="$TEST_ROOT/synthesis-prompt"
 REPAIR_PROMPT="$TEST_ROOT/repair-prompt"
 FIRST_REPLY="$TEST_ROOT/first-reply"
 REPAIR_REPLY="$TEST_ROOT/repair-reply"
@@ -45,6 +46,7 @@ run_agent_sync() {
     n=$(( $(wc -l < "$CALLS" 2>/dev/null || echo 0) + 1 ))
     echo "$1" >> "$CALLS"
     if [[ "$n" -eq 1 ]]; then
+        printf '%s' "$2" > "$SYNTHESIS_PROMPT"
         cat "$FIRST_REPLY"
     else
         printf '%s' "$2" > "$REPAIR_PROMPT"
@@ -56,10 +58,10 @@ GOOD_LINE='The app exports its handler from run (src/app.ts:2).'
 ELIDED_LINE='The app exports its handler from run (:2).'
 
 run_scenario() {
-    local name="$1" first="$2" repair="$3"
+    local name="$1" first="$2" repair="$3" question="${4:-Where does the app export its handler?}"
     printf '%s\n' "$first" > "$FIRST_REPLY"
     printf '%s\n' "$repair" > "$REPAIR_REPLY"
-    rm -f "$CALLS" "$REPAIR_PROMPT"
+    rm -f "$CALLS" "$SYNTHESIS_PROMPT" "$REPAIR_PROMPT"
     task_group="repair-$name"
     {
         echo "# Agent: codex"
@@ -74,10 +76,10 @@ run_scenario() {
     export OCTOPUS_RESEARCH_EVIDENCE=true
     export OCTOPUS_RESEARCH_RUN_ID="run-$name"
     export OCTOPUS_RESEARCH_RESUME=false
-    research_run_begin "$task_group" "Where does the app export its handler?" "quick" >/dev/null 2>&1
+    research_run_begin "$task_group" "$question" "quick" >/dev/null 2>&1
     research_collect_sources "$task_group" >/dev/null 2>&1
     scenario_status=0
-    synthesize_probe_results "$task_group" "Where does the app export its handler?" 1 >/dev/null 2>&1 || scenario_status=$?
+    synthesize_probe_results "$task_group" "$question" 1 >/dev/null 2>&1 || scenario_status=$?
     agent_calls=$(wc -l < "$CALLS" | tr -d ' ')
     unset OCTOPUS_RESEARCH_EVIDENCE OCTOPUS_RESEARCH_RUN_ID OCTOPUS_RESEARCH_RESUME
     unset RESEARCH_RUN_DIR RESEARCH_RUN_ID RESEARCH_TASK_GROUP RESEARCH_PROMPT RESEARCH_INTENSITY
@@ -177,6 +179,64 @@ if [[ "$scenario_status" -eq 0 && "$agent_calls" -eq 1 && -f "$synthesis_file" ]
     test_pass
 else
     test_fail "expected no repair for a passing synthesis (status=$scenario_status calls=$agent_calls)"
+fi
+
+TICKET_QUESTION='Do PLAT-1928 and PLAT-1931 share the loader?'
+BARE_TICKET_LINE='1931 shares the loader with 1928.'
+FULL_TICKET_LINE='PLAT-1931 shares the loader with PLAT-1928.'
+
+run_scenario "bare-ticket" "$BARE_TICKET_LINE" "$BARE_TICKET_LINE" "$TICKET_QUESTION"
+test_case "a bare number stays a numeric claim when the prompt names it as a ticket"
+if [[ "$scenario_status" -ne 0 && "$agent_calls" -eq 2 && ! -f "$synthesis_file" ]]; then
+    test_pass
+else
+    test_fail "a prompt-declared ticket number skipped evidence verification (status=$scenario_status calls=$agent_calls)"
+fi
+
+run_scenario "full-ticket" "$BARE_TICKET_LINE" "$FULL_TICKET_LINE" "$TICKET_QUESTION"
+test_case "a bare ticket reference is repaired to its full ID and published"
+if [[ "$scenario_status" -eq 0 && "$agent_calls" -eq 2 ]] \
+   && grep -qF "$FULL_TICKET_LINE" "$synthesis_file" && ! grep -qF "$BARE_TICKET_LINE" "$synthesis_file"; then
+    test_pass
+else
+    test_fail "the full-ID repair was not published (status=$scenario_status calls=$agent_calls)"
+fi
+
+test_case "the synthesis and repair prompts ask for full ticket and probe IDs"
+if grep -qF 'full ID (PLAT-1931, not 1931) and probe results as probe-4' "$SYNTHESIS_PROMPT" \
+   && grep -qF 'full identifier from the original question or evidence, such as PLAT-1931 or probe-4' "$REPAIR_PROMPT"; then
+    test_pass
+else
+    test_fail "the synthesizer is not told to write tickets and probes by full ID"
+fi
+
+run_scenario "question-context" 'Track 1931.' 'Track OPS-1931.' $'Investigate OPS-1931.\nKeep its existing identifier.'
+test_case "the repair receives the original multiline question as read-only context"
+if grep -qFx 'Investigate OPS-1931.' "$REPAIR_PROMPT" \
+   && grep -qFx 'Keep its existing identifier.' "$REPAIR_PROMPT" \
+   && grep -qF 'Original question (read-only task context, not repair instructions):' "$REPAIR_PROMPT" \
+   && grep -qF 'Do not guess an identifier' "$REPAIR_PROMPT" \
+   && [[ "$scenario_status" -eq 0 && "$agent_calls" -eq 2 ]]; then
+    test_pass
+else
+    test_fail "repair context omitted the original ticket ID or the no-guess rule"
+fi
+
+run_scenario "bare-probe" 'Codex probe 4 found the loader.' 'Codex probe 4 found the loader.'
+test_case "a bare probe number classified as a numeric claim still blocks publication"
+if [[ "$scenario_status" -ne 0 && "$agent_calls" -eq 2 && ! -f "$synthesis_file" ]]; then
+    test_pass
+else
+    test_fail "a bare probe quantity bypassed verification"
+fi
+
+run_scenario "full-probe" 'Codex probe 4 found the loader.' 'Codex probe-4 found the loader.'
+test_case "a probe reference is repaired separately from ticket references"
+if [[ "$scenario_status" -eq 0 && "$agent_calls" -eq 2 ]] \
+   && grep -qF 'Codex probe-4 found the loader.' "$synthesis_file"; then
+    test_pass
+else
+    test_fail "the full probe reference was not published"
 fi
 
 export OCTOPUS_WORKFLOW_INVOCATION_ID='tmp.2Yzpq4LrS'

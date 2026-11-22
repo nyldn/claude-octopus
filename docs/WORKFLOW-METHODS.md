@@ -51,6 +51,34 @@ Architecture is named `octopus-architecture`; the other direct methods include
 /octo:auto "Prototype a parser to measure throughput"
 ```
 
+## Completion and publication recovery
+
+Develop stops at the first failed implementation decision, context or metrics
+write. It also stops if the post-development checkpoint or either completion
+state write fails. Inspect earlier successful writes and any existing checkpoint
+tag before retrying; completion does not imply that partial state was rolled
+back or that repeating a metrics increment is safe.
+
+Branch completion checks the repository, branch and required PR description
+before pushing. A failed push stops PR creation and preserves local work. If a
+GitHub write has an unknown outcome, use the reported repository and branch to
+check for an existing PR before retrying.
+
+## Shell context recovery
+
+Brainstorm Team mode, debate, definition, branch-completion review and deck
+red-team blocks run under Bash when the host shell is zsh. Use the literal
+assignments printed by a block when a later tool call starts a fresh shell.
+In debate, restore the printed run directory before collecting advisor results.
+A failed provider-allowlist or advisor-library load stops the block; inspect
+that error before retrying.
+
+Debate counts a native Sonnet advisor only on an allowed Claude Code route after
+the task completes and writes a usable round artifact. Codex and unknown hosts
+require two successful external providers. A host role label or a requested
+Sonnet model name cannot substitute for that native route. Missing, empty or
+symlinked Sonnet artifacts stop a claimed host success from satisfying the gate.
+
 ## Review and compaction recovery
 
 Branch completion dispatches the configured `code-reviewer` persona and waits
@@ -81,6 +109,39 @@ archive. LESSONS.md remains outside the archive.
 Quick shipping audits inspect both changed blob revisions for binary bytes,
 including bytes hidden by forced-text attributes or outside patch context.
 Changed binary content needs a separate complete review before shipping.
+
+Shipping checkpoints require the repository and clean commit recorded by the
+completed audit. Later source changes require a fresh audit. The tag names that
+exact commit, and a tag failure stops finalization.
+Sparse checkout and index flags that can hide tracked edits also stop the
+checkpoint, including hidden exclusions in initialized submodules. Preserve local
+work before clearing those exclusions and reauditing. Finalization requires an
+exclusive worktree with other source writers stopped; concurrent source writes
+are unsupported. HEAD is checked again after the source-state checks.
+
+Rollback history requires the exact repository root retained from the confirmed
+preview, along with the target and safety checkpoint names. A later shell in
+another clone stops before writing, even when its tags match. History writes
+reject hard-linked state files so an external file sharing the inode remains
+unchanged.
+
+Brainstorm, debate and deck launch advisors with an explicit advisor role. Their
+briefs keep their own format instead of inheriting implementer or architecture
+instructions. Direct spawn callers can select this role with
+`OCTOPUS_SPAWN_ROLE=advisor`; other nonempty values are rejected. Provider
+permission overrides and the configured Codex sandbox remain in effect.
+
+Shipment-state replacement installs the original access policy before writing
+content and verifies it again before publication. Owner, group, mode, ACLs and
+extended attributes remain intact. Linked or nonregular state paths, missing
+context, preparation failures and persistence failures stop delivery. The current
+status ends before History, with canonical status taking precedence over legacy
+status. Retrying the same completed archive does not duplicate shipment history.
+
+Parallel work packages validate repository identity, the expected package branch
+and frozen-base ancestry before and after the worker runs. A mismatch records
+failure before completion is reported or commits are counted. The worktree stays
+available for inspection; detached HEAD and a different repository are refused.
 
 ## Host-native by default
 

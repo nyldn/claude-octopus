@@ -20,14 +20,16 @@ if python3 - "$PROJECT_ROOT" <<'PY_META'
 import json, re, sys
 from pathlib import Path
 root = Path(sys.argv[1])
-interface = json.loads((root / '.codex-plugin/plugin.json').read_text())['interface']
+manifest = json.loads((root / '.codex-plugin/plugin.json').read_text())
+interface = manifest['interface']
+skill_root = root / manifest['skills']
 assert 0 < len(interface['shortDescription']) <= 30
 assert 0 < len(interface['longDescription']) <= 4000
 assert 'provider accounts' in interface['longDescription']
 assert 'charges' in interface['longDescription']
 assert not re.search(r'\b\d+ (providers|personas|commands|skills)\b', interface['longDescription'])
 names = set()
-for skill in (root / 'skills').rglob('SKILL.md'):
+for skill in skill_root.rglob('SKILL.md'):
     match = re.search(r'^name:\s*["\']?([^\n"\']+)', skill.read_text(), re.M)
     if match:
         names.add(match[1])
@@ -35,7 +37,7 @@ for prompt in interface['defaultPrompt']:
     assert len(prompt) <= 128
     references = re.findall(r'\$([a-z][a-z0-9-]+)', prompt)
     assert references and all(name in names for name in references), prompt
-for metadata in (root / 'skills').rglob('agents/openai.yaml'):
+for metadata in skill_root.rglob('agents/openai.yaml'):
     text = metadata.read_text()
     description = json.loads(re.search(r'^  short_description: (.*)$', text, re.M)[1])
     assert 25 <= len(description) <= 64, metadata

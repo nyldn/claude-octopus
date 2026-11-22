@@ -239,6 +239,34 @@ with tempfile.TemporaryDirectory() as temporary:
     assert '- **Safety checkpoint:** ' + safety + '\n' in history, history
     assert not (nested / '.octo/STATE.md').exists()
     checks += 1
+    # A later shell can accidentally run in another clone with identical tags.
+    # That clone must never receive the confirmed repository's recovery entry.
+    failures = []
+    with tempfile.TemporaryDirectory() as other:
+        clone = Path(other) / 'clone'
+        git('clone', '-q', '--no-local', str(repo), str(clone))
+        clone_state = clone / '.octo/STATE.md'
+        clone_state.write_text('other repository state\n')
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            entry = root / tree / 'skill-rollback/SKILL.md'
+            if not entry.exists():
+                continue
+            section = entry.read_text().split('### Step 7: Update STATE.md (If Exists)', 1)[1]
+            history_recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+            for context in ('missing', 'empty', 'other clone'):
+                values = dict(env, SAFETY_CHECKPOINT_TAG=safety)
+                if context == 'missing':
+                    values.pop('ROLLBACK_PREVIEW_ROOT', None)
+                elif context == 'empty':
+                    values['ROLLBACK_PREVIEW_ROOT'] = ''
+                before = state.read_bytes(), clone_state.read_bytes()
+                working = clone if context == 'other clone' else nested
+                result = subprocess.run(['bash', '-c', history_recipe], cwd=working,
+                                        env=values, capture_output=True, timeout=5)
+                if result.returncode == 0 or (state.read_bytes(), clone_state.read_bytes()) != before:
+                    failures.append((tree, context, result.returncode))
+                checks += 1
+    assert not failures, ('history accepted an unconfirmed repository', failures)
     # Checkpoints can track symlinks, including a state path outside the repo.
     evil_tag = 'octo-checkpoint-$(id)'
     git('tag', evil_tag)
@@ -266,6 +294,40 @@ with tempfile.TemporaryDirectory() as temporary:
         state.parent.unlink()
         saved.rename(state.parent)
         checks += 1
+        # A hard link bypasses O_NOFOLLOW while sharing an external inode.
+        failures = []
+        for tree in ('.claude/skills', 'skills', 'codex-skills'):
+            entry = root / tree / 'skill-rollback/SKILL.md'
+            if not entry.exists():
+                continue
+            section = entry.read_text().split('### Step 7: Update STATE.md (If Exists)', 1)[1]
+            history_recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+            for linked in (False, True):
+                victim.write_bytes(before)
+                if linked:
+                    os.link(victim, state)
+                else:
+                    state.write_bytes(before)
+                state.chmod(0o600)
+                result = subprocess.run(['bash', '-c', history_recipe + '\nprintf done > history-completed'],
+                                        cwd=nested, env=dict(env, SAFETY_CHECKPOINT_TAG=safety),
+                                        capture_output=True, timeout=5)
+                completed = nested / 'history-completed'
+                valid = ((result.returncode == 0) == (not linked)
+                         and completed.exists() == (not linked)
+                         and victim.read_bytes() == before
+                         and state.stat().st_mode & 0o777 == 0o600)
+                if linked:
+                    valid = valid and state.read_bytes() == before
+                else:
+                    valid = valid and '- **Safety checkpoint:** ' + safety in state.read_text()
+                if not valid:
+                    failures.append((tree, linked, result.returncode))
+                state.unlink()
+                if completed.exists():
+                    completed.unlink()
+                checks += 1
+        assert not failures, ('rollback history escaped its state boundary', failures)
     os.mkfifo(state)
     result = subprocess.run(['bash', '-c', recipe(7)], cwd=nested,
                             env=dict(env, SAFETY_CHECKPOINT_TAG=safety),

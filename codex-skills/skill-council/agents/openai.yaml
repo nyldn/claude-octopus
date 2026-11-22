@@ -1,0 +1,5 @@
+interface:
+  display_name: "Council"
+  short_description: "Collect model verdicts on an artifact and explain disagreement"
+policy:
+  allow_implicit_invocation: false

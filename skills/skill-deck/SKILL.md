@@ -1,14 +1,23 @@
 ---
 name: skill-deck
-description: "Generate slide deck presentations from briefs — use when you need slides, pitch decks, or visual summaries"
 disable-model-invocation: true
+aliases:
+  - deck
+  - slides
+  - presentation
+description: Generate slide deck presentations from briefs — use when you need slides, pitch decks, or visual summaries
+trigger: |
+  EXPLICITLY USE when user requests:
+  - "create a deck", "build slides", "make a presentation"
+  - "generate a pitch deck", "create board presentation"
+  - "slide deck for [topic]", "presentation about [topic]"
+  - "investor deck", "strategy presentation", "project update slides"
+
+  DO NOT activate for:
+  - Converting existing markdown to PPTX (use /octo:docs instead)
+  - General file conversions (use document-skills directly)
+codex_short_description: "Turn a brief and supporting evidence into a slide deck"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Slide Deck Generator
 
@@ -84,7 +93,7 @@ instead of inventing stakeholder positions.
 
 If the topic needs external research or context gathering:
 
-- Use the **host subagent tool** with `Explore` or `general-purpose` subagent to gather relevant information
+- Use the **Task tool** with `Explore` or `general-purpose` subagent to gather relevant information
 - For deeper multi-AI research, suggest: "For comprehensive multi-provider research, run `/octo:discover [topic]` first, then `/octo:deck` to build slides from the results"
 - If the user provides their own content, notes, or a research file, skip this step entirely
 
@@ -303,9 +312,14 @@ flag, run it against the draft skeleton before requesting approval or rendering:
    `SEAT_DIR` to its fresh writable artifact directory, and `SEAT_WAIT_SECONDS`
    to the approved deadline. The launcher's six arguments include the output
    prefix and the required success count; a single-seat collection requires 1.
+   Export these values in the same shell invocation as the recipe: under a zsh
+   host shell it runs as a separate bash process, which sees only exported
+   variables from that invocation.
 
    <!-- deck-seat-collection:start -->
    ```bash
+   # Runs under bash even when the host shell is zsh.
+   if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
    case "${ADVISOR_ID%%:*}" in
        openai-compatible*|openai-tools*|atlascloud*|cheaperinference*|uberllm*|api-route*|litellm*)
            printf 'Seat incomplete: transport cannot bound request count\n' >&2
@@ -324,6 +338,7 @@ flag, run it against the draft skeleton before requesting approval or rendering:
        printf 'Seat incomplete: %s\n' "$SEAT_DIR" >&2
        exit 1
    fi
+   OCTO_BASH
    ```
    <!-- deck-seat-collection:end -->
 
@@ -549,5 +564,6 @@ User: "I need a comprehensive investor deck about the autonomous vehicles market
 → Then: "/octo:deck" using the research synthesis
 ```
 
+---
 
 *Slide deck skill for claude-octopus.*

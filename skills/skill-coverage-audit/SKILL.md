@@ -1,14 +1,26 @@
 ---
 name: skill-coverage-audit
-description: "Trace codepaths in diffs, map against tests, auto-generate missing coverage — use before shipping PRs"
 disable-model-invocation: true
+paths:
+  - "**/*.test.*"
+  - "**/*.spec.*"
+  - "**/coverage/**"
+aliases:
+  - coverage-audit
+  - test-coverage
+description: "Trace codepaths in diffs, map against tests, auto-generate missing coverage — use before shipping PRs"
+trigger: |
+  EXPLICITLY USE when user requests coverage analysis:
+  - "check test coverage" or "coverage audit"
+  - "what's not tested" or "find untested code"
+  - "generate tests for gaps"
+
+  DO NOT activate for:
+  - General code audits (use skill-audit)
+  - Code review without coverage focus (use skill-code-review)
+  - TDD workflow (use skill-tdd)
+codex_short_description: "Find changed code paths that lack meaningful tests"
 ---
-
-> **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
-> Cross-reference commands use installed skill names in Codex rather than `/octo:*` slash commands.
-> Use the active Codex shell and subagent tools. Do not claim a provider, model, or host subagent is available until the current session exposes it.
-> For host tool equivalents, see `skills/blocks/codex-host-adapter.md`.
-
 
 # Test Coverage Audit
 
@@ -22,6 +34,7 @@ Trace every codepath in a diff, map each path against existing tests, visualize 
 
 **Core principle:** Trace codepaths in changed files -> Map against existing tests -> Score coverage quality -> Generate tests for gaps -> Report before/after counts.
 
+---
 
 ## Caps and Limits
 
@@ -31,6 +44,7 @@ These hard limits prevent runaway analysis:
 - **20 tests generated max** per audit. Focus on highest-impact gaps first.
 - **2-minute per-test exploration cap.** If understanding a single test path takes longer than 2 minutes, mark it as "needs manual review" and move on.
 
+---
 
 ## Phase 1: Codepath Tracing
 
@@ -82,6 +96,7 @@ Produce a structured inventory:
 
 **Risk assessment:** `high` = user-facing failure or data loss, `medium` = degraded behavior, `low` = cosmetic or logging
 
+---
 
 ## Phase 2: Test Mapping and Quality Scoring
 
@@ -130,6 +145,7 @@ Map each codepath to its test coverage:
 | 6 | processOrder() success | test-orders.sh:15 | ★★★ | Full integration test |
 ```
 
+---
 
 ## Phase 3: Coverage Diagram
 
@@ -159,6 +175,7 @@ BY RISK:
 
 Use full block for covered and light shade for uncovered. 10-character bar. Always show exact fractions and percentages.
 
+---
 
 ## Phase 4: Auto-Generate Tests
 
@@ -209,6 +226,7 @@ AFTER:  11/12 paths tested (92%)
   Remaining gaps: 1 (manual review needed)
 ```
 
+---
 
 ## Integration with Other Skills
 
@@ -227,6 +245,7 @@ If coverage audit finds gaps in new code, recommend the user adopt TDD for the n
 
 After generating tests, use skill-verification-gate to run the test suite and confirm the new tests pass.
 
+---
 
 ## Red Flags -- Do Not Do This
 
@@ -240,6 +259,7 @@ After generating tests, use skill-verification-gate to run the test suite and co
 | Generate more than 20 tests | Diminishing returns; focus on highest impact |
 | Spend more than 2 min on one path | Mark as needs-manual-review and move on |
 
+---
 
 ## Quick Reference
 

@@ -350,5 +350,31 @@ if [[ "$(cat "$TEST_TMP_DIR/WP-STATUSFAIL/exit-code")" == "1" &&
 else
     test_fail "a failed status check was treated as a clean worktree"
 fi
+rm "$STUB_BIN/git"
+
+for index in "${!SKILL_FILES[@]}"; do
+    for change in branch detached ancestry repository; do
+        test_case "completion retains and rejects changed $change in host $index"
+        wp="WP-IDENTITY-$index-$change"
+        branch="octo/$wp"
+        action="git checkout --quiet -b octo/escaped-$index"
+        case "$change" in
+            detached) action='git checkout --quiet --detach HEAD' ;;
+            ancestry) action="git checkout --quiet --orphan octo/orphan-$index; git rm -q -rf .; git commit --quiet --allow-empty -m 'unrelated root'; git branch -M '$branch'" ;;
+            repository) action="rm .git; git init --quiet .; git config user.email octo@example.com; git config user.name 'Octo Test'; git fetch --quiet '$FIXTURE' main; git reset --quiet --mixed FETCH_HEAD; git add .; git commit --quiet -m 'nested replacement'; git branch -M '$branch'" ;;
+        esac
+        make_stub "printf 'package work\\n' > wp.txt; git add wp.txt; git commit --quiet -m 'worker commit'; $action"
+        run_package "$wp" "$branch" "$FIXTURE" main "${SKILL_FILES[$index]}"
+        retained="$TEST_TMP_DIR/.octo-worktree-repo-$wp"
+        if [[ -f "$retained/wp.txt" || "$change" == ancestry && -d "$retained" ]] &&
+           [[ "$(cat "$TEST_TMP_DIR/$wp/exit-code")" == 1 && -f "$TEST_TMP_DIR/$wp/.done" ]] &&
+           [[ ! -e "$TEST_TMP_DIR/$wp/commit-count" ]] &&
+           git -C "$FIXTURE" show-ref --verify --quiet "refs/heads/$branch"; then
+            test_pass
+        else
+            test_fail "changed $change was accepted or discarded: host $index"
+        fi
+    done
+done
 
 test_summary

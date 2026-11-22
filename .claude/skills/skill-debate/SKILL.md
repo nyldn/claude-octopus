@@ -6,7 +6,6 @@ user-invocable: true
 aliases:
   - debate
 description: Structured multi-provider AI debates between Claude and available advisors — use for critical decisions
-context: fork
 trigger: |
   EXPLICITLY USE when user says:
   - "/debate <question>"
@@ -67,10 +66,12 @@ Participants:
 
 **You MUST use this exact command pattern. Do NOT improvise provider flags.**
 
-For debate rounds, dispatch every external advisor through Octopus routing:
+For debate rounds, dispatch every external advisor through Octopus routing in
+the advisor role, so the debate prompt does not inherit an implementer persona
+or curated skill context:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$advisor" "$prompt"
+OCTOPUS_SPAWN_ROLE=advisor "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$advisor" "$prompt"
 ```
 
 Do not call provider CLIs directly from the debate workflow. The router applies
@@ -89,7 +90,7 @@ provider-specific flags for Codex, Antigravity, and other advisors.
 
 ---
 
-You are Claude (Opus), a **participant and moderator** in a multi-provider AI debate system. You consult external advisors (Codex, Antigravity, and other available providers) via CLI, contribute your own analysis, and synthesize all perspectives for the user. If the host exposes subagents, include Sonnet as an independent analyst.
+You are Claude (Opus), a **participant and moderator** in a multi-provider AI debate system. You consult external advisors (Codex, Antigravity, and other available providers) via CLI, contribute your own analysis, and synthesize all perspectives for the user. Include an allowed Sonnet analyst through the native Claude Code Agent route. On Codex or another host, require two external advisor results instead of assigning Sonnet's identity to a host subagent.
 
 **CRITICAL: You are NOT just an orchestrator. You are an active participant with your own voice and opinions.**
 
@@ -372,9 +373,23 @@ AskUserQuestion({
 - Incorporate all other answers into the debate context.
 
 ### Step 3: Parse Arguments & Build Debate Fleet
+
+The blocks that load `consultative-advisors.sh` run under bash even when the host
+shell is zsh, where each one runs as a separate bash process. No block sees the
+variables an earlier block set, so set each block's inputs first: before the
+heredoc as exported assignments for a wrapped block, before the block otherwise.
+Take them from the user's request and from the values earlier blocks print. Insert every carried
+value as a single-quoted shell literal, escaping each embedded single quote as
+`'\''`, or generate the complete value with Python's `shlex.quote`. This keeps
+quotes, dollar signs, backticks and newlines literal instead of executing them.
+Keep user values outside the fixed heredoc, so a request line equal to
+`OCTO_BASH` cannot terminate it.
+
 ```bash
+# Runs under bash even when the host shell is zsh.
+export QUESTION='Should we use Redis or in-memory cache?'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 # Extract question and flags
-QUESTION="Should we use Redis or in-memory cache?"
 ROUNDS=3
 STYLE="thorough"
 
@@ -392,12 +407,26 @@ if ! ADVISORS=$("$ADVISOR_SELECTOR" debate standard "$QUESTION"); then
   echo "No eligible external debate advisors are available." >&2
   exit 1
 fi
+printf 'HOST_CLAUDE_ALLOWED=%s\nREQUIRED_EXTERNAL_ADVISORS=%s\nADVISORS=%s\nROUNDS=%s\nSTYLE=%s\n' \
+  "$HOST_CLAUDE_ALLOWED" "$REQUIRED_EXTERNAL_ADVISORS" "$ADVISORS" "$ROUNDS" "$STYLE"
+OCTO_BASH
 ```
 
 **The `build-fleet.sh debate` command** selects up to 3 debaters from different model families (for example, codex/OpenAI, agy/Google Antigravity, and copilot/Microsoft) to maximize training-bias diversity. Do not hardcode provider pairs; use the runtime `ADVISORS` list.
 
 ### Step 4: Setup Debate Folder
+
+Run this block in a fresh shell. Restore the printed fleet settings and the
+original question and clarifying answers using the literal quoting rule above.
+
 ```bash
+QUESTION='[Original question from Step 3]'
+ROUNDS='[ROUNDS printed by Step 3]'
+STYLE='[STYLE printed by Step 3]'
+ADVISORS='[ADVISORS printed by Step 3]'
+USER_GOAL='[Primary goal from Step 2]'
+USER_PRIORITY='[Priority factor from Step 2]'
+USER_CONSTRAINTS='[Constraints from Step 2]'
 # Create debate directory structure
 DEBATE_BASE_DIR="${HOME}/.claude-octopus/debates/${CLAUDE_CODE_SESSION:-./debates}"
 DEBATE_ID="042-redis-vs-memcached"
@@ -452,6 +481,7 @@ with Path(path).open('w', encoding='utf-8') as stream:
     json.dump(state, stream, ensure_ascii=False, indent=2)
     stream.write('\n')
 PY_DEBATE_STATE
+printf 'DEBATE_DIR=%s\n' "$DEBATE_DIR"
 ```
 
 ### Step 5: Conduct Rounds
@@ -465,7 +495,16 @@ the launcher waits up to `OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). Each a
 An advisor that fails leaves no file:
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+export QUESTION='[QUESTION from Step 3]'
+export CONTEXT='[Clarifying context from Step 2]'
+export MAX_WORDS='[--max-words value, default 300]'
+export DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
+export ADVISORS='[ADVISORS printed by Step 3]'
+export REQUIRED_EXTERNAL_ADVISORS='[REQUIRED_EXTERNAL_ADVISORS printed by Step 3]'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
 ORCH="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh"
+source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 DEBATE_PROMPT="You are {{advisor}} participating in debate round 1.
 
 DEBATE QUESTION: ${QUESTION}
@@ -478,15 +517,22 @@ if ! SUCCESSFUL_EXTERNAL_ADVISORS=$(octo_launch_advisors "$ORCH" "$ADVISORS" \
   echo "The required external debate advisors did not complete successfully." >&2
   exit 1
 fi
+printf 'SUCCESSFUL_EXTERNAL_ADVISORS=%s\n' "$SUCCESSFUL_EXTERNAL_ADVISORS"
+OCTO_BASH
 ```
 
 #### 5.2: Launch Sonnet (Pragmatic Implementer)
 
 Dispatch Sonnet via the Agent tool only when `HOST_CLAUDE_ALLOWED=true` and the
-host exposes subagents. If Claude is disallowed, skip this step. Set
+native Claude Code host enforces `model: "sonnet"`. Codex and other hosts require
+two successful external providers. A subagent role, requested model name or
+Sonnet-style perspective does not establish a distinct Sonnet provider. If
+Claude is disallowed or that native route is unavailable, skip this step. Set
 `HOST_ADVISOR_SUCCESS=1` only after the allowed Sonnet task completes with usable
-output; otherwise set it to `0`. Sonnet can run in parallel with the external
-advisor calls.
+output in this round's `r001_sonnet.md`; otherwise set it to `0`. Remove a stale
+Sonnet artifact before launching a new round task. Never count a failed task's
+partial output or relabel a Codex result as Sonnet. Sonnet can run in parallel
+with the external advisor calls.
 
 ```
 Agent(
@@ -506,14 +552,22 @@ Cover: implementation feasibility, hidden gotchas, concrete effort estimates, an
 )
 ```
 
-After all allowed advisors finish, enforce the two-provider minimum:
+After all allowed advisors finish, enforce the two-provider minimum. Fill in the
+block's export lines:
 
 ```bash
+# Runs under bash even when the host shell is zsh.
+export SUCCESSFUL_EXTERNAL_ADVISORS='[SUCCESSFUL_EXTERNAL_ADVISORS printed by the round'"'"'s launch block]'
+export HOST_ADVISOR_SUCCESS='[1 if the allowed Sonnet task completed with usable output, else 0]'
+export DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
+source "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/lib/consultative-advisors.sh" || exit 1
 if ! octo_consultative_provider_count_is_sufficient \
-    "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS"; then
+    "$SUCCESSFUL_EXTERNAL_ADVISORS" "$HOST_ADVISOR_SUCCESS" "${DEBATE_DIR}/rounds/r001_sonnet.md"; then
   echo "A debate requires two successful, allowlisted providers." >&2
   exit 1
 fi
+OCTO_BASH
 ```
 
 **WHY Sonnet and not just more Opus?** Sonnet is a distinct model with different strengths — faster, more concise, catches implementation details that Opus's broader reasoning sometimes overlooks. Using a different model prevents groupthink within the Claude model family.
@@ -523,6 +577,7 @@ fi
 #### 5.3: Write Your Analysis (Opus)
 Use the Read tool to read all advisor responses, then write your independent analysis:
 ```bash
+DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
 # Read what all advisors said
 for response_file in "${DEBATE_DIR}"/rounds/r001_*.md; do
   printf '\n## %s\n' "$(basename "$response_file" .md)"
@@ -540,6 +595,7 @@ EOF
 #### 5.4: Quality Gates (Claude-Octopus Enhancement)
 After each advisor responds, evaluate response quality:
 ```bash
+DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
 evaluate_response_quality() {
     local response_file="${1}"
     local advisor="${2}"
@@ -573,6 +629,8 @@ done
 After all rounds complete, write a comprehensive synthesis:
 
 ```bash
+DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
+QUESTION='[Original question from Step 3]'
 cat > "${DEBATE_DIR}/synthesis.md" <<EOF
 # Final Synthesis: ${QUESTION}
 
