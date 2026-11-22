@@ -17,7 +17,7 @@ import subprocess
 import sys
 import tempfile
 
-root = Path(sys.argv[1])
+root = Path(sys.argv[1]).resolve()
 validation = r'''
 source "$1/scripts/lib/utils.sh"
 OCTOPUS_CLAUDE_BIN='claude --tools Read,Glob,Grep --strict-mcp-config --restricted --safe-mode'

@@ -220,6 +220,9 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
     fi
     if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true && "$enhanced_prompt" != "$perspective" ]]; then
         log ERROR "Refinement judge request was altered by the context budget"
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
         return 2
     fi
     _budget_final_chars=${#enhanced_prompt}

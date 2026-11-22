@@ -53,8 +53,10 @@ snapshot with the appropriate host tools. If you cannot inspect it, stop and
 name the missing capability. Do not score an unseen attachment or a URL title.
 
 Before any external provider call, including model-assisted research, inspect
-only the candidate and the supporting evidence selected for that call for
-credentials and private tokens. Repeat for new content before dispatch. Do not
+every field selected for the outgoing request for credentials and private tokens.
+This includes the candidate, supporting evidence, user-supplied rubric, purpose,
+constraints, and guard evidence. Before each judge dispatch, inspect the complete
+frozen blind prompt, and repeat the inspection for any new content. Do not
 open unrelated credential files, enumerate their keys, or scan the whole project
 as part of this check. If a selected input contains a secret, stop before
 research or judging and name the affected input without quoting its values.
@@ -118,8 +120,8 @@ the next phase, and reload its resource after compaction before resuming it:
 4. Load `skills/skill-refine/references/phase-4.md` before edits and rescoring.
 5. Load `skills/skill-refine/references/phase-5.md` before delivery and trajectory.
 
-Before external research or judging, inspect the selected candidate and evidence
-for secrets as required above. Run declared guards before model review.
+Before external research or judging, inspect every field in the outgoing request
+for secrets as required above, including the rubric and guard evidence. Run declared guards before model review.
 Choose exactly Claude and Codex with `bash "$OCTO_ROOT/scripts/helpers/preflight.sh" --providers claude,codex --json`,
 without changing the council roster. Preserve fixed explicit models and efforts,
 record requested and resolved identities, and stop on a required provider failure.

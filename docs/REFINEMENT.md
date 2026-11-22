@@ -35,9 +35,12 @@ target in their prompts. The host preserves their actual responses and runtime
 identities. The lower total is the reported aggregate. This conservative rule
 does not remove model bias or turn the score into a probability of correctness.
 
-Before any external call, including model-assisted research, inspect only the
-candidate and selected supporting evidence for credentials and private tokens.
-Repeat for new content. Do not open unrelated credential files, enumerate their
+Before any external call, including model-assisted research, inspect every field
+selected for the outgoing request for credentials and private tokens. Include the
+candidate, supporting evidence, user-supplied rubric, purpose, constraints, and
+guard evidence. Before each judge dispatch, inspect the complete frozen blind
+prompt, and repeat the inspection for any new content. Do not open unrelated
+credential files, enumerate their
 keys, or scan the whole repository. If a selected input contains a secret, stop
 and name that input without quoting its values. Do not silently redact or
 change the frozen candidate. Host inspection is not an automatic secret scanner.

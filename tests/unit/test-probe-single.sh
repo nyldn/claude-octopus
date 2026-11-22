@@ -93,6 +93,8 @@ export OCTOPUS_REFINEMENT_JUDGE=true SUPPORTS_AGENT_TYPE_ROUTING=false
 RESULTS_DIR="$2/results" LOGS_DIR="$2/logs" PROJECT_ROOT="$2"
 log() { :; }
 preflight_check() { return 0; }
+research_probe_single_begin() { printf 'started\n' > "$EVENT_CAPTURE"; }
+research_probe_single_record() { printf 'completed:%s\n' "$3" >> "$EVENT_CAPTURE"; }
 classify_task() { echo research; }
 match_routing_rule() { return 1; }
 apply_persona() { echo leaked-persona >> "$2/persona-read"; echo altered; }
@@ -104,10 +106,12 @@ probe_single_agent codex 'frozen judge input' fixture
 '''
 with tempfile.TemporaryDirectory() as d:
     capture = Path(d)/'captured'
+    events = Path(d)/'events'
     for change, expected in [('no', 125), ('yes', 2)]:
         result = subprocess.run([sys.argv[2], '-c', program, '_', sys.argv[1], d],
-            env=dict(os.environ, CHANGE_REQUEST=change, CAPTURE_BYTES=str(capture)), capture_output=True)
+            env=dict(os.environ, CHANGE_REQUEST=change, CAPTURE_BYTES=str(capture), EVENT_CAPTURE=str(events)), capture_output=True)
         assert result.returncode == expected, (result.returncode, result.stderr)
+        assert events.read_text().splitlines() == ['started', 'completed:failed'], events.read_text()
         if change == 'no':
             assert capture.read_text() == str(len('frozen judge input'.encode()))
             capture.unlink()

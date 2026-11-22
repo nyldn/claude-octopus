@@ -23,6 +23,12 @@ the requested numeric target, prior scores, or author identity. Omit `target`
 from their rubric view while retaining the hash of the full frozen rubric in
 the response envelope. Do not show revision history in scoring prompts.
 
+Before each pair dispatch, inspect every field in the complete frozen blind
+prompt for credentials and private tokens, including the user-supplied rubric,
+candidate, supporting evidence, purpose, constraints, and guard evidence. Repeat
+for any new content. Stop if a selected input contains a secret; do not open
+unrelated credential files or silently redact frozen inputs to continue.
+
 Before the baseline pair, run these commands with the declared guard results
 as a JSON array. Baseline and rubric-correction calibration failures may be recorded; new
 improvement guards must pass.
