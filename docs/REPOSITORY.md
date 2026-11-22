@@ -111,5 +111,7 @@ Author `codex_display_name` and `codex_short_description` in a skill's
 `.claude/skills/` source. Short descriptions must be complete phrases of 25-64
 characters. The generator keeps the full skill description separate from UI
 copy. Compatibility aliases can use `codex_alias_short_description`.
+The generator requires Python 3 to count Unicode characters consistently across
+locales.
 Canonical root skills and starter-pack entries own their `agents/openai.yaml`
 metadata directly. Preserve registered names and explicit-invocation controls.
