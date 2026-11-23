@@ -397,16 +397,15 @@ unconfined fallback. Existing configuration and credentials are not copied or
 rewritten. These mounts protect persistent configuration; they do not prevent a
 worker from damaging an auth file it can refresh, or hide readable credentials.
 
-Implementer seats in a pnpm project get private temporary storage over the
-`projects` and `tmp` directories of each `v<N>` layout of the pnpm store.
-pnpm 10 records every project it installs in `projects`, even for
-`pnpm install --offline`, so without these mounts an install in a worktree
-the store has not seen before fails with `EROFS`. The mounts apply when the
-worktree root has a `pnpm-lock.yaml`, `pnpm` is on `PATH`, neither `.npmrc`
-nor `pnpm-workspace.yaml` names a store directory, and the store that
-`pnpm store path` reports from an empty directory outside the worktree lies
-outside `/tmp` and the worktree. Package files in the store stay read-only,
-so an install that needs a package the store does not hold yet still fails.
+Implementer seats in pnpm 10 projects can install already cached packages
+with `pnpm install --offline`. Tangle gives the sandboxed process private
+temporary mounts over the default store's existing `v10/projects` and
+`v10/tmp` directories, and pins that store inside the sandbox. Package files
+remain read-only. Tangle derives the Linux default from `PNPM_HOME`,
+`XDG_DATA_HOME`, or `HOME` without running pnpm before confinement. The
+worktree root must have `pnpm-lock.yaml`, and `pnpm` must be on `PATH`.
+Custom store settings and stores in `/tmp` or overlapping the worktree or
+result channel skip these mounts.
 
 Codex also needs permission to start its own sandbox inside Bubblewrap. An
 outer Bubblewrap probe can pass while host AppArmor policy denies the nested

@@ -717,34 +717,52 @@ octopus_tangle_bind_codex_state_dirs() {
 }
 
 octopus_tangle_bind_pnpm_store_dirs() {
-    local physical_worktree="$1" probe_dir physical_probe store="" real_root layout private_dir
+    local physical_worktree="$1" physical_results="$2" store real_root config layout
     [[ -f "$physical_worktree/pnpm-lock.yaml" ]] || return 0
     command -v pnpm >/dev/null 2>&1 || return 0
-    if grep -Eqs '^[[:space:]]*(store-dir[[:space:]]*=|storeDir[[:space:]]*:)' \
-        "$physical_worktree/.npmrc" "$physical_worktree/pnpm-workspace.yaml"; then
+    [[ -z "${npm_config_store_dir:-}${NPM_CONFIG_STORE_DIR:-}${pnpm_config_store_dir:-}${PNPM_CONFIG_STORE_DIR:-}" ]] || return 0
+    for config in "$physical_worktree/.npmrc" "$physical_worktree/pnpm-workspace.yaml" \
+        "${npm_config_userconfig:-${NPM_CONFIG_USERCONFIG:-${HOME:-}/.npmrc}}" \
+        "${npm_config_globalconfig:-${NPM_CONFIG_GLOBALCONFIG:-/etc/npmrc}}" \
+        "${XDG_CONFIG_HOME:-${HOME:-}/.config}/pnpm/rc" \
+        "${XDG_CONFIG_HOME:-${HOME:-}/.config}/pnpm/config.yaml"; do
+        [[ ! -L "$config" ]] || return 0
+        [[ -e "$config" ]] || continue
+        [[ -f "$config" && -r "$config" ]] || return 0
+        if grep -Eiq "^[[:space:]]*[\"']?(store-dir|storeDir)[\"']?[[:space:]]*[:=]" -- "$config"; then
+            return 0
+        fi
+    done
+
+    # Derive pnpm 10's standard Linux store without executing pnpm or its
+    # configuration hooks in the launcher.
+    if [[ -n "${PNPM_HOME:-}" ]]; then
+        store="${PNPM_HOME%/}/store"
+    elif [[ -n "${XDG_DATA_HOME:-}" ]]; then
+        store="${XDG_DATA_HOME%/}/pnpm/store"
+    elif [[ -n "${HOME:-}" ]]; then
+        store="${HOME%/}/.local/share/pnpm/store"
+    else
         return 0
     fi
-    probe_dir="$(mktemp -d "${TMPDIR:-/tmp}/octo-pnpm-store.XXXXXX")" || return 0
-    if physical_probe="$(cd "$probe_dir" && pwd -P)" &&
-       octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$physical_probe"; then
-        store="$(cd "$physical_probe" && pnpm store path 2>/dev/null </dev/null)" || store=""
-    fi
-    rm -rf -- "$probe_dir"
-    store="${store##*$'\n'}"
-    [[ "$store" == /* && "${store##*/}" =~ ^v[0-9]+$ ]] || return 0
-    real_root="$(cd "${store%/*}" 2>/dev/null && pwd -P)" || return 0
-    case "$real_root/" in
-        /|/tmp/*) return 0 ;;
-    esac
+    [[ "$store" == /* ]] || return 0
+    real_root="$(cd "$store" 2>/dev/null && pwd -P)" || return 0
+    [[ "$real_root" == "$store" ]] || return 0
+    case "$real_root" in /|/tmp|/tmp/*) return 0 ;; esac
     octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$real_root" || return 0
-    while IFS= read -r -d '' layout; do
-        [[ "${layout##*/}" =~ ^v[0-9]+$ ]] || continue
-        for private_dir in projects tmp; do
-            if [[ -d "$layout/$private_dir" && ! -L "$layout/$private_dir" ]]; then
-                boundary_cmd+=(--tmpfs "$layout/$private_dir")
-            fi
-        done
-    done < <(find "$real_root" -mindepth 1 -maxdepth 1 -type d -name 'v*' -print0 2>/dev/null)
+    octopus_tangle_boundary_paths_are_disjoint "$physical_results" "$real_root" || return 0
+    layout="$real_root/v10"
+    [[ -d "$layout" && ! -L "$layout" ]] || return 0
+    [[ -d "$layout/projects" && ! -L "$layout/projects" ]] || return 0
+    [[ -d "$layout/tmp" && ! -L "$layout/tmp" ]] || return 0
+    # Bubblewrap makes the usual hardlink probe fail. Keep pnpm on the
+    # same cache whose writable bookkeeping directories we overlay.
+    boundary_cmd+=(--tmpfs "$layout/projects" --tmpfs "$layout/tmp")
+    if [[ "${cmd_array[0]:-}" == env && "${cmd_array[1]:-}" == -i ]]; then
+        cmd_array=(env -i "npm_config_store_dir=$real_root" "${cmd_array[@]:2}")
+    else
+        boundary_cmd+=(--setenv npm_config_store_dir "$real_root")
+    fi
 }
 
 octopus_tangle_apply_execution_boundary() {
@@ -845,7 +863,7 @@ octopus_tangle_apply_execution_boundary() {
     fi
 
     if [[ "${role:-}" == "implementer" ]]; then
-        octopus_tangle_bind_pnpm_store_dirs "$physical_worktree"
+        octopus_tangle_bind_pnpm_store_dirs "$physical_worktree" "$physical_results"
     fi
 
     case "${agent_type:-}" in

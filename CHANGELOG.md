@@ -8,13 +8,21 @@
   fallback by default. Set `OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to choose a limit
   from zero to five. The run summary reports how many attempts were dispatched.
 
+- Staged review checks the staged versions of source files for placeholders
+  and short files, even when unstaged edits differ.
+
 - The Embrace debate gate reports why each provider seat failed, including
   quota retry guidance when available.
-- Bounded Tangle lets implementers register new worktrees with the pnpm 10
-  store during offline installs. It gives eligible stores private temporary
-  mounts for `projects` and `tmp`. Projects with a custom store setting in
-  `.npmrc` or `pnpm-workspace.yaml` skip these mounts. All required packages
-  must already be cached. See [bounded Tangle store requirements](docs/PROVIDERS.md#codex-in-bounded-tangle-runs).
+- Tangle keeps its out-of-scope path list out of the environment and caps the
+  scope-contract finding at 20 paths. It writes the validation report even for
+  oversized lists and reports failed worktree snapshots explicitly.
+- Tangle routes coding and reasoning subtasks to providers allowed by
+  `OCTO_ALLOWED_PROVIDERS`. If a required subtask type has no permitted provider,
+  Tangle reports which type needs a provider before launching any subtask.
+- Bounded Tangle lets implementers use an existing default pnpm 10 store for
+  offline installs. It gives pnpm private temporary storage for bookkeeping
+  and keeps the cached packages read-only. All required packages must already
+  be cached. See [bounded Tangle store requirements](docs/PROVIDERS.md#codex-in-bounded-tangle-runs).
 
 ## [11.26.1] - 2026-11-23
 
