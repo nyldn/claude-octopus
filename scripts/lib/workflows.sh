@@ -176,28 +176,34 @@ probe_single_agent() {
 
     # Apply persona to prompt
     local enhanced_prompt
-    enhanced_prompt=$(apply_persona "$role" "$perspective" "false" "${curated_name_early:-}")
+    if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true ]]; then
+        # Preserve the complete blind request without project/persona injection.
+        enhanced_prompt="$perspective"
+    else
+        enhanced_prompt=$(apply_persona "$role" "$perspective" "false" "${curated_name_early:-}")
 
-    # v8.21.0: Persona pack override
-    if type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
-        local pack_persona
-        pack_persona=$(get_persona_override_content "${curated_name_early:-$agent_type}" 2>/dev/null)
-        if [[ -n "$pack_persona" ]]; then
-            enhanced_prompt="${pack_persona}
+        # v8.21.0: Persona pack override
+        if type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
+            local pack_persona
+            pack_persona=$(get_persona_override_content "${curated_name_early:-$agent_type}" 2>/dev/null)
+            if [[ -n "$pack_persona" ]]; then
+                enhanced_prompt="${pack_persona}
 
 ---
 
 ${enhanced_prompt}"
+            fi
         fi
-    fi
 
-    # v9.3.0: Search spiral guard — prevent research agents from token waste (STABLE — static boilerplate)
-    enhanced_prompt="${enhanced_prompt}
+        # v9.3.0: Search spiral guard — prevent research agents from token waste (STABLE — static boilerplate)
+        enhanced_prompt="${enhanced_prompt}
 
 IMPORTANT: If you find yourself searching or grepping more than 3 times in a row without reading files or writing analysis, STOP searching. Consolidate what you've found so far and write your analysis. More searching rarely improves the output — synthesis does."
 
-    # ── VARIABLE SUFFIX ───────────────────────────────────────────────────────
-    # (probe dispatch has minimal variable content — context budget is the boundary)
+        # ── VARIABLE SUFFIX ───────────────────────────────────────────────────────
+        # (probe dispatch has minimal variable content — context budget is the boundary)
+
+    fi
 
     # v8.10.0: Enforce context budget AFTER all injections
     local tokens_in _budget_original_chars _budget_final_chars _budget_compression
@@ -211,6 +217,13 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi
         return "$_budget_rc"
+    fi
+    if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true && "$enhanced_prompt" != "$perspective" ]]; then
+        log ERROR "Refinement judge request was altered by the context budget"
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
+        return 2
     fi
     _budget_final_chars=${#enhanced_prompt}
     _budget_compression=none
@@ -6484,6 +6497,34 @@ octo_newest_existing_file() {
     [[ -n "$newest" && -f "$newest" ]] && printf '%s\n' "$newest"
 }
 
+embrace_gate_failure_reason() {
+    local capture="$1" line="" hint=""
+    [[ -s "$capture" ]] || return 0
+    # Only the writer's stderr section is eligible for the quota pattern.
+    # A standalone stdout status is validated separately by the capture parser.
+    if declare -F quota_watcher_match_line >/dev/null 2>&1 &&
+       line=$(quota_watcher_match_line <(awk '
+                  NR == 1 { next }
+                  NR == 2 && $0 == "-- terminal stdout status --" { getline; next }
+                  !stderr {
+                      if ($0 != "-- stderr --") exit
+                      stderr = 1
+                      next
+                  }
+                  { print }
+              ' "$capture") /dev/null stream 2>/dev/null ||
+              octo_quota_session_limit_line "$capture" capture 2>/dev/null); then
+        hint=$(octo_quota_reset_hint "$line")
+        if [[ -n "$hint" ]]; then
+            printf 'usage limit reached; try again %s\n' "$hint"
+        else
+            printf '%s\n' 'terminal quota or auth error'
+        fi
+        return 0
+    fi
+    sed -n '1s/^== [^ ]* [^ ]* exited [^:]*: //p' "$capture" 2>/dev/null | cut -c1-240
+}
+
 embrace_debate_gate() {
     local gate="$1"
     local prompt="$2"
@@ -6555,35 +6596,46 @@ Return a concise gate review with:
 
     local codex_view="" agy_view="" claude_view="" synthesis=""
     local codex_status="failed" agy_status="failed" claude_status="failed"
+    local codex_reason="" agy_reason="" claude_reason=""
+    local seat_capture_prefix="${RESULTS_DIR}/embrace-gate-${gate_slug}-${task_group}"
     local successful=0
+    rm -f "${seat_capture_prefix}-codex.stderr.log" "${seat_capture_prefix}-agy.stderr.log" \
+        "${seat_capture_prefix}-claude.stderr.log"
 
-    if codex_view=$(run_agent_sync "codex" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
+    if codex_view=$(_OCTOPUS_SEAT_STDERR_FILE="${seat_capture_prefix}-codex.stderr.log" \
+        run_agent_sync "codex" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
         if [[ -n "$codex_view" ]]; then
             codex_status="ok"
             successful=$((successful + 1))
         fi
     fi
+    [[ "$codex_status" == ok ]] || codex_reason=$(embrace_gate_failure_reason "${seat_capture_prefix}-codex.stderr.log")
     # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
     if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
-        if agy_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
+        if agy_view=$(_OCTOPUS_SEAT_STDERR_FILE="${seat_capture_prefix}-agy.stderr.log" \
+            run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
             if [[ -n "$agy_view" ]]; then
                 agy_status="ok"
                 successful=$((successful + 1))
             fi
         fi
+        [[ "$agy_status" == ok ]] || agy_reason=$(embrace_gate_failure_reason "${seat_capture_prefix}-agy.stderr.log")
     else
         agy_status="skipped"
     fi
-    if claude_view=$(run_agent_sync "claude-sonnet" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
+    if claude_view=$(_OCTOPUS_SEAT_STDERR_FILE="${seat_capture_prefix}-claude.stderr.log" \
+        run_agent_sync "claude-sonnet" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
         if [[ -n "$claude_view" ]]; then
             claude_status="ok"
             successful=$((successful + 1))
         fi
     fi
+    [[ "$claude_status" == ok ]] || claude_reason=$(embrace_gate_failure_reason "${seat_capture_prefix}-claude.stderr.log")
+    local provider_statuses="codex=${codex_status}${codex_reason:+ (${codex_reason})}, agy=${agy_status}${agy_reason:+ (${agy_reason})}, claude=${claude_status}${claude_reason:+ (${claude_reason})}"
 
     if [[ "$successful" -eq 0 ]]; then
-        log ERROR "Embrace debate gate '${gate_slug}' produced no provider output"
-        echo -e "${RED:-}✗${NC:-} Debate gate ${title} produced no provider output"
+        log ERROR "Embrace debate gate '${gate_slug}' produced no provider output: ${provider_statuses}"
+        echo -e "${RED:-}✗${NC:-} Debate gate ${title} produced no provider output: ${provider_statuses}"
         return 1
     fi
 
@@ -6591,16 +6643,16 @@ Return a concise gate review with:
 
 Task: ${prompt}
 Gate style: ${style}
-Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
+Provider statuses: ${provider_statuses}
 
 Codex:
-${codex_view:-[no output]}
+${codex_view:-[no output${codex_reason:+; failure reason: ${codex_reason}}]}
 
 Antigravity (agy):
-${agy_view:-[no output]}
+${agy_view:-[no output${agy_reason:+; failure reason: ${agy_reason}}]}
 
 Claude:
-${claude_view:-[no output]}
+${claude_view:-[no output${claude_reason:+; failure reason: ${claude_reason}}]}
 
 Return:
 1. Gate verdict
@@ -6621,7 +6673,7 @@ Return:
 **Task:** ${prompt}
 **Style:** ${style}
 **Context Artifact:** ${context_file}
-**Provider Statuses:** codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
+**Provider Statuses:** ${provider_statuses}
 
 ---
 
@@ -6635,15 +6687,15 @@ ${synthesis}
 
 ### Codex (${codex_status})
 
-${codex_view:-No output.}
+${codex_view:-No output.${codex_reason:+ Failure reason: ${codex_reason}}}
 
 ### Antigravity / agy (${agy_status})
 
-${agy_view:-No output.}
+${agy_view:-No output.${agy_reason:+ Failure reason: ${agy_reason}}}
 
 ### Claude (${claude_status})
 
-${claude_view:-No output.}
+${claude_view:-No output.${claude_reason:+ Failure reason: ${claude_reason}}}
 EOF
 
     if declare -f save_session_checkpoint >/dev/null 2>&1; then
@@ -6656,7 +6708,7 @@ EOF
             "Embrace debate gate completed: ${prompt:0:80}" \
             "" \
             "high" \
-            "Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}" \
+            "Provider statuses: ${provider_statuses}" \
             "" 2>/dev/null || true
     fi
 

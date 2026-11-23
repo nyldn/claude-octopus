@@ -22,6 +22,7 @@ trigger: |
   "analyze the architecture", "explore different approaches to Y", or "what are the options for Z".
 
   Execution: orchestrate.sh probe via Bash tool (multi-provider research with available providers)
+codex_short_description: "Investigate a complex question across sources in depth"
 ---
 
 ## ⚠️ EXECUTION CONTRACT (MANDATORY - CANNOT SKIP)

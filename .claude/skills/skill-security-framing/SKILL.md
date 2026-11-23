@@ -18,6 +18,7 @@ trigger: |
   - Analyzing external documents
   - Processing user-provided links
   - Handling webhook payloads or API responses
+codex_short_description: "Handle untrusted source content with explicit safety checks"
 ---
 
 # Security Framing Standard

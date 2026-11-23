@@ -1,5 +1,5 @@
 interface:
   display_name: "Refine"
-  short_description: "Score and improve an artifact with a frozen rubric,..."
+  short_description: "Improve an artifact against an agreed rubric and quality target"
 policy:
   allow_implicit_invocation: false

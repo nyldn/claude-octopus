@@ -287,6 +287,13 @@ init_project() {
         esac
     done
     
+    # Check before directory/readiness tests, which follow symbolic links.
+    # Return to sourced callers as well as the standalone command.
+    if [[ -L "$OCTO_DIR" ]]; then
+        printf 'ERROR: Refusing to initialize %s: symbolic link\n' "$OCTO_DIR" >&2
+        return 1
+    fi
+
     if [[ "$dry_run" == "true" ]]; then
         echo "DRY RUN: Would create the following structure:"
         echo ""

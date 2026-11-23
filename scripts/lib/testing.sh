@@ -140,11 +140,17 @@ extract_tangle_result_body() {
 
 tangle_result_has_blocker_output() {
     local result_file="$1"
-    local output
+    local output status_lines
     local blocker_pattern='(blocker report|cannot complete|unable to complete|sandbox (is )?blocking|blocked by (the )?sandbox|landlock|no write tools available|all shell commands (are )?blocked|filesystem access is blocked|cannot create or modify files|apply_patch.*not available)'
+    local self_reported_statement_pattern='(^|[.!?:;][*_]*[[:space:]]+)[[:space:]>#*_-]*((the|this|that|my|our) )?(implementation|subtask|task|work|verification) (is|remains) (therefore |still )?[*_]*(incomplete|blocked)'
+    local self_reported_status_pattern='^[[:space:]>#*_-]*(incomplete|blocked)[*_]*[[:space:]]*(:|$|(due to|by|pending|because)[[:space:]])'
+    local cleared_status_pattern='^[[:space:]>#*_-]*(incomplete|blocked)[*_]*[[:space:]]*:[*_]*[[:space:]]*[*_]*(none|no|n/a|nothing|false)[*_.]*[[:space:]]*$'
     output=$(extract_tangle_result_body "$result_file")
 
-    grep -Eiq "$blocker_pattern" <<< "$output"
+    grep -Eiq "$blocker_pattern" <<< "$output" && return 0
+    grep -Eiq "$self_reported_statement_pattern" <<< "$output" && return 0
+    status_lines=$(grep -Ei "$self_reported_status_pattern" <<< "$output") || return 1
+    grep -Eivq "$cleared_status_pattern" <<< "$status_lines"
 }
 
 check_explicit_file_coverage() {

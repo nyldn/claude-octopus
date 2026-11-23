@@ -1,5 +1,5 @@
 interface:
   display_name: "Meta Prompt"
-  short_description: "Craft better prompts using proven optimization techniques —..."
+  short_description: "Turn a rough request into a clear, structured prompt"
 policy:
   allow_implicit_invocation: false

@@ -20,6 +20,7 @@ trigger: |
   - General feature requests
   - Code-only issues
   - Performance problems
+codex_short_description: "Turn visual feedback into specific UI changes and checks"
 ---
 
 # Visual Feedback Processing

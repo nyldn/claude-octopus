@@ -9,6 +9,7 @@ triggerPatterns:
   - "toggle.*knowledge"
   - "force.*knowledge"
   - "force.*dev"
+codex_short_description: "Apply research and writing guidance to knowledge tasks"
 ---
 
 # Knowledge Work Mode - Context Override Skill
