@@ -183,9 +183,24 @@ ISSUE_ID="$ISSUE_ID" awk -F '|' '
     if (issue_id !~ /^ISS-[0-9]+-[0-9]+$/ ||
         length(parts[2]) != 8 || length(parts[3]) < 3) exit 1
   }
-  /^##[[:blank:]]+Open Issues[[:blank:]]*$/ { in_open = 1; next }
-  /^##?[[:blank:]]/ { in_open = 0 }
-  in_open && NF >= 3 && $(1) ~ /^[[:blank:]]*$/ {
+  { line = $(0); sub(/\r$/, "", line) }
+  !in_open {
+    if (line ~ /^##[[:blank:]]+Open Issues[[:blank:]]*$/) in_open = 1
+    next
+  }
+  !header_seen {
+    if (line ~ /^[[:blank:]]*$/) next
+    if (line !~ /^[[:blank:]]*\|[[:blank:]]*ID[[:blank:]]*\|/) exit
+    header_seen = 1
+    next
+  }
+  !separator_seen {
+    if (line !~ /^[[:blank:]]*\|([[:blank:]]*:?-+:?[[:blank:]]*\|)+[[:blank:]]*$/) exit
+    separator_seen = 1
+    next
+  }
+  NF < 3 || $(1) !~ /^[[:blank:]]*$/ { exit }
+  {
     id = $(2)
     gsub(/^[[:blank:]]+|[[:blank:]]+$/, "", id)
     if (id == issue_id) {
@@ -216,7 +231,7 @@ Please provide resolution notes:
 
 #### Step 3: Move to Resolved Section
 
-1. Extract the row whose ID exactly matches `ISSUE_ID` in the Open Issues table
+1. Extract the row whose ID exactly matches `ISSUE_ID` in the contiguous Open Issues table
 2. Remove that row from Open Issues
 3. Add to Resolved Issues with resolution date and notes
 

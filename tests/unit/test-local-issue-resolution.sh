@@ -27,6 +27,9 @@ cases = [
     ("similarly named open ID", issue_id, f"| {issue_id}0 | high | integration | Login fails | 2026-02-03 | Develop |", "", False),
     ("ID in another issue's description", issue_id, f"| ISS-20260203-002 | high | integration | Follow up {issue_id} | 2026-02-03 | Develop |", "", False),
     ("ID in notes", issue_id, "", f"\n## Notes\n\n| {issue_id} | Historical reference |", False),
+    ("nested subsection", issue_id, f"\n### References\n\n| {issue_id} | Historical reference |", "", False),
+    ("separate reference table", issue_id, f"\n| ID | Note |\n|----|------|\n| {issue_id} | Historical reference |", "", False),
+    ("matching row after prose", issue_id, f"\nHistorical reference:\n\n| {issue_id} | Historical reference |", "", False),
     ("table header", "ID", "", "", False),
     ("table separator", "----", "", "", False),
     ("short date", "ISS-2026020-001", "| ISS-2026020-001 | high | integration | Invalid date width | 2026-02-03 | Develop |", "", False),
@@ -40,15 +43,16 @@ with tempfile.TemporaryDirectory(dir=sys.argv[3]) as workdir:
     for name, requested_id, open_rows, resolved_rows, should_succeed in cases:
         ledger = template.replace("| <!-- Issues will be appended here --> |", open_rows)
         ledger = ledger.replace("| <!-- Resolved issues moved here --> |", resolved_rows)
-        (state / "ISSUES.md").write_text(ledger)
-        result = subprocess.run(
-            ["bash", "-c", check_issue], cwd=workdir,
-            env={"ISSUE_ID": requested_id, "PATH": os.environ.get("PATH", os.defpath)},
-            capture_output=True, text=True,
-        )
-        if (result.returncode == 0) != should_succeed:
-            print(f"{name}: unexpected status {result.returncode}", file=sys.stderr)
-            failed = True
+        for newline in ("\n", "\r\n"):
+            (state / "ISSUES.md").write_bytes(ledger.replace("\n", newline).encode())
+            result = subprocess.run(
+                ["bash", "-c", check_issue], cwd=workdir,
+                env={"ISSUE_ID": requested_id, "PATH": os.environ.get("PATH", os.defpath)},
+                capture_output=True, text=True,
+            )
+            if (result.returncode == 0) != should_succeed:
+                print(f"{name} with {newline!r}: unexpected status {result.returncode}", file=sys.stderr)
+                failed = True
 sys.exit(failed)
 PY
     then
