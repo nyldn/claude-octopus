@@ -721,15 +721,30 @@ octopus_tangle_bind_pnpm_store_dirs() {
     [[ -f "$physical_worktree/pnpm-lock.yaml" ]] || return 0
     command -v pnpm >/dev/null 2>&1 || return 0
     [[ -z "${npm_config_store_dir:-}${NPM_CONFIG_STORE_DIR:-}${pnpm_config_store_dir:-}${PNPM_CONFIG_STORE_DIR:-}" ]] || return 0
+    [[ -z "${npm_config_userconfig:-}${NPM_CONFIG_USERCONFIG:-}${pnpm_config_userconfig:-}${PNPM_CONFIG_USERCONFIG:-}" ]] || return 0
+    [[ -z "${npm_config_globalconfig:-}${NPM_CONFIG_GLOBALCONFIG:-}${pnpm_config_globalconfig:-}${PNPM_CONFIG_GLOBALCONFIG:-}" ]] || return 0
+    [[ -z "${npm_config_prefix:-}${NPM_CONFIG_PREFIX:-}${pnpm_config_prefix:-}${PNPM_CONFIG_PREFIX:-}${PREFIX:-}${DESTDIR:-}" ]] || return 0
+
+    # pnpm 10 can read npm's global config relative to either the selected
+    # Node path or its real executable. Never run Node or pnpm to inspect it.
+    local node_path resolved_node node_prefix resolved_prefix
+    node_path="$(type -P node)" && [[ "$node_path" == /*/* ]] || return 0
+    resolved_node="$(command -p readlink -f "$node_path" 2>/dev/null)" && [[ "$resolved_node" == /*/* ]] || return 0
+    node_prefix="${node_path%/*}"; node_prefix="${node_prefix%/*}"
+    resolved_prefix="${resolved_node%/*}"; resolved_prefix="${resolved_prefix%/*}"
     for config in "$physical_worktree/.npmrc" "$physical_worktree/pnpm-workspace.yaml" \
-        "${npm_config_userconfig:-${NPM_CONFIG_USERCONFIG:-${HOME:-}/.npmrc}}" \
-        "${npm_config_globalconfig:-${NPM_CONFIG_GLOBALCONFIG:-/etc/npmrc}}" \
+        "${HOME:-}/.npmrc" /etc/npmrc "$node_prefix/etc/npmrc" "$resolved_prefix/etc/npmrc" \
+        "$node_prefix/lib/node_modules/npm/npmrc" "$resolved_prefix/lib/node_modules/npm/npmrc" \
+        /usr/share/nodejs/npm/npmrc \
         "${XDG_CONFIG_HOME:-${HOME:-}/.config}/pnpm/rc" \
         "${XDG_CONFIG_HOME:-${HOME:-}/.config}/pnpm/config.yaml"; do
-        [[ ! -L "$config" ]] || return 0
+        [[ "$config" == /* && ! -L "$config" ]] || return 0
         [[ -e "$config" ]] || continue
         [[ -f "$config" && -r "$config" ]] || return 0
-        if grep -Eiq "^[[:space:]]*[\"']?(store-dir|storeDir)[\"']?[[:space:]]*[:=]" -- "$config"; then
+        # A redirect or config dependency makes the effective store uncertain.
+        if command -p grep -Eiq "^[[:space:]]*[\"']?(store-dir|storeDir|globalconfig|npm-globalconfig|userconfig|prefix|config-dependencies|configDependencies)[\"']?[[:space:]]*[:=]" -- "$config"; then
+            return 0
+        elif [[ "$?" -ne 1 ]]; then
             return 0
         fi
     done

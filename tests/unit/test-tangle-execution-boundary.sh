@@ -569,6 +569,8 @@ printf 'called\n' > "$PNPM_ROOT/pnpm-called"
 printf '%s\n' "$PNPM_STORE/v10"
 EOF
     chmod 755 "$PNPM_ROOT/pnpm-bin/pnpm"
+    printf '#!/bin/sh\nexit 1\n' > "$PNPM_ROOT/pnpm-bin/node"
+    chmod 755 "$PNPM_ROOT/pnpm-bin/node"
 fi
 pnpm_tmpfs_count() {
     local count=0
@@ -577,9 +579,17 @@ pnpm_tmpfs_count() {
     printf '%s\n' "$count"
 }
 
+with_pnpm_test_config() {
+    HOME="$PNPM_TEST_HOME" XDG_CONFIG_HOME="$PNPM_TEST_HOME/.config" \
+        npm_config_store_dir= NPM_CONFIG_STORE_DIR= pnpm_config_store_dir= PNPM_CONFIG_STORE_DIR= \
+        npm_config_userconfig= NPM_CONFIG_USERCONFIG= pnpm_config_userconfig= PNPM_CONFIG_USERCONFIG= \
+        npm_config_globalconfig= NPM_CONFIG_GLOBALCONFIG= pnpm_config_globalconfig= PNPM_CONFIG_GLOBALCONFIG= \
+        npm_config_prefix= NPM_CONFIG_PREFIX= pnpm_config_prefix= PNPM_CONFIG_PREFIX= PREFIX= DESTDIR= "$@"
+}
+
 pnpm_boundary() {
-    HOME="$PNPM_TEST_HOME" PNPM_HOME= XDG_DATA_HOME= \
-        PATH="$PNPM_ROOT/pnpm-bin:$PATH" octopus_tangle_apply_execution_boundary
+    PNPM_HOME= XDG_DATA_HOME= PATH="$PNPM_ROOT/pnpm-bin:$PATH" \
+        with_pnpm_test_config octopus_tangle_apply_execution_boundary
 }
 
 pnpm_store_is_pinned() {
@@ -656,6 +666,24 @@ elif (
     test_pass
 else
     test_fail "the Codex credential-removal prefix stripped the pinned store"
+fi
+
+test_case "pnpm skips the default store when the Node prefix selects or redirects a global store"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+elif (
+    umask 077
+    mkdir -p "$PNPM_ROOT/etc"
+    trap 'rm -f "$PNPM_ROOT/etc/npmrc"' EXIT
+    for setting in 'store-dir=/custom/pnpm/store' 'globalconfig=/custom/npmrc'; do
+        printf '%s\n' "$setting" > "$PNPM_ROOT/etc/npmrc"
+        cmd_array=(true)
+        pnpm_boundary && [[ "$(pnpm_tmpfs_count)" == 0 ]] && ! pnpm_store_is_pinned || exit 1
+    done
+); then
+    test_pass
+else
+    test_fail "a global store or redirected config was overridden"
 fi
 
 test_case "reviewers, projects that name their own pnpm store, and projects without a pnpm lockfile get no pnpm tmpfs"
@@ -863,7 +891,7 @@ if octopus_tangle_execution_boundary_probe; then
     test_case "pnpm install --frozen-lockfile --offline runs for a worktree pnpm has never registered"
     if [[ -z "$PNPM_ROOT" ]] || ! real_pnpm="$(command -v pnpm)"; then
         test_skip "pnpm or a fixture directory outside /tmp is unavailable"
-    elif [[ "$(cd "$PNPM_ROOT" && "$real_pnpm" --version)" != 10.* ]]; then
+    elif [[ "$(cd "$PNPM_ROOT" && env -i "HOME=$PNPM_TEST_HOME" "PATH=$PATH" "$real_pnpm" --version)" != 10.* ]]; then
         test_skip "requires pnpm 10 to exercise its v10 store"
     else
         pnpm_seed="$PNPM_ROOT/pnpm-seed"
@@ -877,7 +905,8 @@ if octopus_tangle_execution_boundary_probe; then
             printf 'packages:\n  - "packages/*"\n' > "$pnpm_dir/pnpm-workspace.yaml"
             printf '{"name":"a","version":"0.0.0"}\n' > "$pnpm_dir/packages/a/package.json"
         done
-        if ! (cd "$pnpm_seed" && PNPM_HOME="$pnpm_home" "$real_pnpm" install --lockfile-only >/dev/null 2>&1) ||
+        if ! (cd "$pnpm_seed" && env -i "HOME=$PNPM_TEST_HOME" "PATH=$PATH" "PNPM_HOME=$pnpm_home" \
+                 CI=true "$real_pnpm" install --lockfile-only >/dev/null 2>&1) ||
            ! cp "$pnpm_seed/pnpm-lock.yaml" "$pnpm_ws/pnpm-lock.yaml"; then
             test_skip "pnpm could not write a lockfile outside the boundary"
         else
@@ -886,9 +915,10 @@ if octopus_tangle_execution_boundary_probe; then
             agent_type="claude"
             role="implementer"
             install_status=0
-            cmd_array=(env -i "HOME=$HOME" "PATH=$PATH" "CI=true"
+            cmd_array=(env -i "HOME=$PNPM_TEST_HOME" "PATH=$PATH" "CI=true"
                        bash -c 'cd "$1" && pnpm install --frozen-lockfile --offline' _ "$pnpm_ws")
-            if PNPM_HOME="$pnpm_home" OCTOPUS_TANGLE_WORKTREE="$pnpm_ws" octopus_tangle_apply_execution_boundary; then
+            if PNPM_HOME="$pnpm_home" OCTOPUS_TANGLE_WORKTREE="$pnpm_ws" \
+                with_pnpm_test_config octopus_tangle_apply_execution_boundary; then
                 "${cmd_array[@]}" >"$PNPM_ROOT/pnpm-install.log" 2>&1 || install_status=$?
             else
                 install_status=125
