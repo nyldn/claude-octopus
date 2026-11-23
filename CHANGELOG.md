@@ -10,12 +10,11 @@
 
 - The Embrace debate gate reports why each provider seat failed, including
   quota retry guidance when available.
-- Implementer seats in bounded Tangle can run `pnpm install
-  --frozen-lockfile --offline`. pnpm 10 records each installed project in its
-  store, which the boundary mounts read-only, so every install in a new run
-  worktree failed with `EROFS` and no repository gate that needs
-  `node_modules` could run. The store's `projects` and `tmp` directories now
-  get private tmpfs mounts; its package files stay read-only.
+- Bounded Tangle lets implementers register new worktrees with the pnpm 10
+  store during offline installs. It gives eligible stores private temporary
+  mounts for `projects` and `tmp`. Projects with a custom store setting in
+  `.npmrc` or `pnpm-workspace.yaml` skip these mounts. All required packages
+  must already be cached. See [bounded Tangle store requirements](docs/PROVIDERS.md#codex-in-bounded-tangle-runs).
 
 ## [11.26.1] - 2026-11-23
 
