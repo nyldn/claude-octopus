@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.27.0] - 2026-11-23
+
 ### Added
 
 - Council `summary.json` reports real token usage and cost for Claude and
