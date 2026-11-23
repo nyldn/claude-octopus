@@ -193,17 +193,47 @@ Would you like to review any of these before creating a new design?
 
 ## Step 3: Link Revision Chain
 
-If a prior design exists for the same branch, the new design document includes a `supersedes` field in its frontmatter pointing to the prior filename.
+If a prior design exists for the same branch, use the newest matching document
+as `SUPERSEDES` before saving the next revision. Compare the original branch in
+the frontmatter because different branch names can share a filename slug.
+Existing designs keep their original filenames.
 
 ```bash
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo "no-branch")
+SLUG=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+DESIGNS_DIR="${HOME}/.claude-octopus/designs/${SLUG}"
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || BRANCH=no-branch
 
-# Find the most recent design for this branch
-PRIOR=$(ls -t "${DESIGNS_DIR}"/*-${BRANCH}-design-*.md 2>/dev/null | head -1)
+BRANCH_DESIGNS=$(python3 -I - "$DESIGNS_DIR" "$BRANCH" <<'PY_DESIGNS'
+from pathlib import Path
+import sys
 
-if [[ -n "$PRIOR" ]]; then
-  SUPERSEDES=$(basename "$PRIOR")
-fi
+root = Path(sys.argv[1])
+branch_field = f"branch: {sys.argv[2]}"
+matches = []
+for design in root.glob("*-design-*.md"):
+    try:
+        if not design.is_file() or "\n" in design.name:
+            continue
+        with design.open(encoding="utf-8") as document:
+            if document.readline().rstrip("\n") != "---":
+                continue
+            branches = []
+            for line in document:
+                line = line.rstrip("\n")
+                if line == "---":
+                    if branches == [branch_field]:
+                        matches.append((design.stat().st_mtime_ns, design.name))
+                    break
+                if line.startswith("branch:"):
+                    branches.append(line)
+    except (OSError, UnicodeError):
+        continue
+
+for _, name in sorted(matches, reverse=True)[:3]:
+    print(name)
+PY_DESIGNS
+) || exit 1
+SUPERSEDES=${BRANCH_DESIGNS%%$'\n'*}
 ```
 
 This creates a linked chain of revisions:
@@ -223,24 +253,17 @@ done
 
 ## Step 4: Cross-Session Discovery
 
-Downstream commands (deliver, review, develop) auto-discover design context by checking the designs directory before starting work.
+Downstream commands (deliver, review, develop) can auto-discover design context.
+Run the lookup block from Step 3 in the same shell before running this block.
+It returns up to three filenames for the current branch, newest first.
 
 ```bash
-SLUG=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-DESIGNS_DIR="${HOME}/.claude-octopus/designs/${SLUG}"
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo "no-branch")
-
-# Find designs for current branch
-BRANCH_DESIGNS=$(ls -t "${DESIGNS_DIR}"/*-${BRANCH}-design-*.md 2>/dev/null | head -3)
-
 if [[ -n "$BRANCH_DESIGNS" ]]; then
   echo "Design context found for branch ${BRANCH}:"
-  for design in $BRANCH_DESIGNS; do
-    echo "  - $(basename "$design")"
-  done
-  # Read the most recent design for context
-  LATEST_DESIGN=$(echo "$BRANCH_DESIGNS" | head -1)
-  DESIGN_CONTEXT=$(<"$LATEST_DESIGN")
+  while IFS= read -r design; do
+    printf '  - %s\n' "$design"
+  done <<< "$BRANCH_DESIGNS"
+  DESIGN_CONTEXT=$(<"${DESIGNS_DIR}/${SUPERSEDES}")
 fi
 ```
 

@@ -26,6 +26,8 @@
 - Tangle routes coding and reasoning subtasks to providers allowed by
   `OCTO_ALLOWED_PROVIDERS`. If a required subtask type has no permitted provider,
   Tangle reports which type needs a provider before launching any subtask.
+- Design history and workflow context match the original branch name, so
+  branches with identical filename slugs keep separate revision chains.
 
 ## [11.26.1] - 2026-11-23
 
