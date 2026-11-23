@@ -8,8 +8,17 @@
   fallback by default. Set `OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to choose a limit
   from zero to five. The run summary reports how many attempts were dispatched.
 
+- Staged review checks the staged versions of source files for placeholders
+  and short files, even when unstaged edits differ.
+
 - The Embrace debate gate reports why each provider seat failed, including
   quota retry guidance when available.
+- Tangle keeps its out-of-scope path list out of the environment and caps the
+  scope-contract finding at 20 paths. It writes the validation report even for
+  oversized lists and reports failed worktree snapshots explicitly.
+- Tangle routes coding and reasoning subtasks to providers allowed by
+  `OCTO_ALLOWED_PROVIDERS`. If a required subtask type has no permitted provider,
+  Tangle reports which type needs a provider before launching any subtask.
 - Design history and workflow context match the original branch name, so
   branches with identical filename slugs keep separate revision chains.
 
