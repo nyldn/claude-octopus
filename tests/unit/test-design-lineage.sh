@@ -183,6 +183,7 @@ mkdir -p "$fixture/project" "$fixture/home"
 git -C "$fixture/project" init -q
 git -C "$fixture/project" symbolic-ref HEAD refs/heads/feature/auth
 git -C "$fixture/project" -c user.name=Test -c user.email=test@example.invalid \
+    -c commit.gpgsign=false -c core.hooksPath=/dev/null \
     commit -q --allow-empty -m "Initial commit"
 designs_dir="$fixture/home/.claude-octopus/designs/project"
 mkdir -p "$designs_dir"
