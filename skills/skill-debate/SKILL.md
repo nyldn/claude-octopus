@@ -511,8 +511,9 @@ status and artifact presence when checking progress.
 In cross-critique mode, write the moderator's analysis after reading the
 current round's responses, as described in Step 5.3.
 
-For each round, iterate the runtime advisor list and dispatch through Octopus. The launch
-waits for every advisor to finish, often several minutes, so run the block with
+For each round, iterate the runtime advisor list and dispatch through Octopus.
+The examples use round one. Use the current round number and its `rNNN` prefix
+in the prompts, paths, and calls for later rounds. The launch waits for every advisor to finish, often several minutes, so run the block with
 `run_in_background: true`; a foreground 600000 ms timeout stops it after 10 minutes, while
 the launcher waits up to `OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). Each answer lands in
 `${DEBATE_DIR}/rounds/r001_<advisor>.md`, with any character other than a letter, digit,
@@ -637,9 +638,12 @@ done
 
 #### 5.4: Quality Gates (Claude-Octopus Enhancement)
 In cross-critique mode, evaluate response quality after each advisor responds.
-In blinded mode, wait until Step 6 before scoring advisor responses.
+In blinded mode, wait until Step 6 before scoring advisor responses. Set
+`ROUND_PREFIX` to the current round's prefix for each invocation.
+
 ```bash
 DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
+ROUND_PREFIX=r001
 evaluate_response_quality() {
     local response_file="${1}"
     local word_count has_citations has_code addresses_others score=0
@@ -659,9 +663,11 @@ evaluate_response_quality() {
     echo "$score"
 }
 
-for response_file in "${DEBATE_DIR}"/rounds/r001_*.md; do
-    [ "$response_file" = "${DEBATE_DIR}/rounds/r001_claude.md" ] && continue
-    advisor=$(basename "$response_file" .md | sed 's/^r001_//')
+for response_file in "${DEBATE_DIR}/rounds/${ROUND_PREFIX}_"*.md; do
+    [ -f "$response_file" ] || continue
+    response_name=$(basename "$response_file" .md)
+    advisor="${response_name#"${ROUND_PREFIX}_"}"
+    [ "$advisor" = claude ] && continue
     quality_score=$(evaluate_response_quality "$response_file") || exit 1
     if (( quality_score < 50 )); then
         echo "Low quality response from ${advisor} (score: $quality_score). Re-prompting..."
@@ -673,8 +679,9 @@ done
 ### Step 6: Final Synthesis
 
 After all rounds complete, write a comprehensive synthesis. In blinded mode,
-first read the advisor responses using Step 5.3, then score them with Step 5.4.
-Cite the saved moderator analyses when comparing perspectives.
+use Steps 5.3 and 5.4 to read and score the advisor responses for each
+completed round. Use the same round prefix in both steps and cite the saved
+moderator analyses when comparing perspectives.
 
 ```bash
 DEBATE_DIR='[DEBATE_DIR printed by Step 4]'

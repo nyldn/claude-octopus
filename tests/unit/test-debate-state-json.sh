@@ -176,4 +176,41 @@ if errors:
 print("18 executable Debate response-order scenarios passed")
 PY_BLIND
 then test_pass; else test_fail "Debate response reading did not preserve independent analysis"; fi
+test_case "Debate scores only the selected round's advisors"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_ROUND_QUALITY'
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+
+root, tmp = map(Path, sys.argv[1:])
+errors = []
+for tree in (".claude/skills", "skills", "codex-skills"):
+    text = (root / tree / "skill-debate/SKILL.md").read_text()
+    section = text.split("#### 5.4:", 1)[1]
+    scorer = re.search(r"```bash\n(.*?)\n```", section, re.S)[1]
+    with tempfile.TemporaryDirectory(dir=tmp) as directory:
+        rounds = Path(directory) / "rounds"
+        rounds.mkdir()
+        for prefix, seat in (("r001", "codex"), ("r002", "agy"), ("r003", "sonnet")):
+            (rounds / f"{prefix}_{seat}.md").write_text("short answer", encoding="utf-8")
+            (rounds / f"{prefix}_claude.md").write_text("moderator analysis", encoding="utf-8")
+        scorer = re.sub(r"^DEBATE_DIR=.*$", lambda _: "DEBATE_DIR=" + shlex.quote(directory),
+                        scorer, flags=re.M)
+        for prefix, seat in (("r001", "codex"), ("r002", "agy"), ("r003", "sonnet")):
+            recipe = re.sub(r"^ROUND_PREFIX=.*$", "ROUND_PREFIX=" + prefix, scorer, flags=re.M)
+            result = subprocess.run(["/bin/bash", "-euo", "pipefail", "-c", recipe],
+                                    capture_output=True, text=True, timeout=5)
+            lines = result.stdout.splitlines()
+            if result.returncode or len(lines) != 1 or f"from {seat} (score: 0)" not in lines[0]:
+                errors.append(f"{tree}, {prefix}: rc={result.returncode}, "
+                              f"stdout={result.stdout!r}, stderr={result.stderr!r}")
+if errors:
+    print("\n".join(errors), file=sys.stderr)
+    sys.exit(1)
+print("9 executable Debate round-scoring scenarios passed")
+PY_ROUND_QUALITY
+then test_pass; else test_fail "Debate scored a different round or included the moderator"; fi
 test_summary
