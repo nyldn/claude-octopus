@@ -193,6 +193,48 @@ if env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR/home-provider-state" "VERBOSE=false" 
     ' _ "$PROJECT_ROOT" "$TEST_TMP_DIR"; then test_pass
 else test_fail "a failed save reported success or marked the configuration loaded"; fi
 
+test_case "failed provider writes and replacements preserve the last good configuration"
+if env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR/home-provider-state" "VERBOSE=false" \
+    bash -e -c '
+        source "$1/scripts/lib/smoke.sh"
+        PROVIDERS_CONFIG_FILE="$2/replace-provider-state"
+        log() { :; }
+        invalidations=0
+        tier_cache_invalidate() { invalidations=$((invalidations + 1)); }
+        PROVIDER_CODEX_INSTALLED=true
+        PROVIDER_CODEX_AUTH_METHOD=oauth
+        save_providers_config
+        cp "$PROVIDERS_CONFIG_FILE" "$2/expected-provider-state"
+
+        PROVIDER_CODEX_INSTALLED=false
+        PROVIDER_CODEX_AUTH_METHOD=none
+        PROVIDERS_CONFIG_LOADED=false
+        cat() { printf "partial write\n"; return 7; }
+        rc=0
+        save_providers_config || rc=$?
+        unset -f cat
+        [[ "$rc" == 7 ]]
+        cmp "$2/expected-provider-state" "$PROVIDERS_CONFIG_FILE"
+
+        mv() { return 9; }
+        rc=0
+        save_providers_config || rc=$?
+        unset -f mv
+        [[ "$rc" == 9 ]]
+        cmp "$2/expected-provider-state" "$PROVIDERS_CONFIG_FILE"
+        [[ "$PROVIDERS_CONFIG_LOADED" == false && "$invalidations" == 1 ]]
+        set -- "$PROVIDERS_CONFIG_FILE".tmp.*
+        [[ ! -e "$1" ]]
+
+        load_providers_config
+        [[ "$PROVIDER_CODEX_INSTALLED" == true && "$PROVIDER_CODEX_AUTH_METHOD" == oauth ]]
+        PROVIDER_CODEX_INSTALLED=false
+        save_providers_config
+        load_providers_config
+        [[ "$PROVIDER_CODEX_INSTALLED" == false && "$invalidations" == 2 ]]
+    ' _ "$PROJECT_ROOT" "$TEST_TMP_DIR"; then test_pass
+else test_fail "failed replacement lost config, left a temporary file, or broke retry"; fi
+
 test_case "a provider file-open failure remains retryable in the same shell"
 if env -i "PATH=$PATH" "HOME=$TEST_TMP_DIR/home-provider-state" "VERBOSE=false" \
     bash -e -c '

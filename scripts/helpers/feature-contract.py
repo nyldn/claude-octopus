@@ -214,6 +214,11 @@ def resolve(args):
             relative(path)
             if path.endswith('.md'):
                 feature = os.path.dirname(path)
+                if feature and args.create:
+                    try:
+                        os.close(root.directory(relative(feature), create=True))
+                    except OSError:
+                        pass
                 result = selection(root, feature, 'explicit artifact path', legacy=not bool(feature))
                 result['spec_path'] = path
                 return result

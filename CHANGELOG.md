@@ -6,11 +6,17 @@
 
 - Project initialization refuses a pre-existing `.octo` symbolic link before
   previewing or writing templates, preserving the linked destination.
+- Failed provider configuration saves preserve the last working settings.
 - Codex plugin listings include the existing logo artwork, complete skill
   descriptions, and explicit starter prompts. First-use guidance explains
   provider setup, readiness limits, and account costs.
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
+- The Tangle quality gate counts a subtask as blocked when its own output says
+  the work is incomplete or blocked, for example a verification section that
+  opens with "Incomplete due to an environment blocker:" or "Blocked by
+  environment setup:". Such subtasks had launched successfully, so the gate
+  scored them as 100% success.
 
 ## [11.26.0] - 2026-11-18
 
