@@ -28,6 +28,8 @@
   Tangle reports which type needs a provider before launching any subtask.
 - Design history and workflow context match the original branch name, so
   branches with identical filename slugs keep separate revision chains.
+- Tangle collects and reports large lists of out-of-scope paths without the
+  slowdown caused by repeatedly copying the growing list.
 
 ## [11.26.1] - 2026-11-23
 
