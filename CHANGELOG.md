@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Failed provider configuration saves preserve the last working settings.
 - Codex plugin listings include the existing logo artwork, complete skill
   descriptions, and explicit starter prompts. First-use guidance explains
   provider setup, readiness limits, and account costs.
