@@ -4873,6 +4873,40 @@ tangle_rollback_run_worktree() {
     return "$rollback_rc"
 }
 
+# A provider outside OCTO_ALLOWED_PROVIDERS is as unusable for a Tangle
+# subtask as a missing binary: spawn_agent refuses it, and one refused
+# subtask aborts the whole run after design review and decomposition.
+tangle_subtask_agent_allowed() {
+    declare -f octo_provider_allowed >/dev/null 2>&1 || return 0
+    octo_provider_allowed "${1:-}"
+}
+
+# Resolve the provider for one subtask kind (coding|reasoning), falling back
+# to codex, then claude-sonnet. [REASONING] also falls back when its binary is
+# missing: without that, users without agy get an unconditional exit 127 on
+# every REASONING subtask even though the provider health check already
+# flagged agy as absent. claude-sonnet is a type resolved by get_agent_command,
+# not a bare executable. Keep it as the last resort when the allowlist permits it.
+tangle_route_subtask_agent() {
+    local kind="${1:-coding}" agent="${2:-}"
+    if [[ "$kind" == "reasoning" ]] && ! command -v "$agent" >/dev/null 2>&1; then
+        agent=""
+    fi
+    if [[ -n "$agent" ]] && tangle_subtask_agent_allowed "$agent"; then
+        printf '%s\n' "$agent"
+        return 0
+    fi
+    if command -v codex >/dev/null 2>&1 && tangle_subtask_agent_allowed codex; then
+        printf '%s\n' "codex"
+        return 0
+    fi
+    if tangle_subtask_agent_allowed claude-sonnet; then
+        printf '%s\n' "claude-sonnet"
+        return 0
+    fi
+    return 1
+}
+
 tangle_prepare_run_worktree() {
     local task_group="$1"
     local source_root source_commit runtime_root run_parent
@@ -5374,17 +5408,13 @@ $(tangle_decomposition_json_contract_guidance)"
         feature_tasks_revalidate_active_wave || return 1
     fi
 
-    # Coding providers must run behind a parent-owned filesystem boundary.
-    export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
-    export OCTOPUS_TANGLE_WORKTREE="$PROJECT_ROOT"
-    export OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
-
     # Step 2: Parallel execution with progress tracking
     log INFO "Step 2: Parallel execution..."
     local subtask_num=0
     local pids=()
     local task_ids=()
     local subtask_lines=()
+    local has_reasoning_subtask=false
 
     # Materialize parseable lines before dispatching providers. spawn helpers and
     # external CLIs may read stdin; if the dispatch loop itself reads from a
@@ -5394,6 +5424,9 @@ $(tangle_decomposition_json_contract_guidance)"
         [[ -z "$line" ]] && continue
         tangle_line_is_numbered_subtask "$line" || continue
         subtask_lines+=("$line")
+        if [[ "$line" == *'[REASONING]'* ]]; then
+            has_reasoning_subtask=true
+        fi
     done <<< "$subtasks"
 
     if [[ ${#subtask_lines[@]} -ne $parseable_subtask_count ]]; then
@@ -5422,20 +5455,20 @@ $(tangle_decomposition_json_contract_guidance)"
         tangle_reasoning_agent=$(octopus_execution_profile_provider "tangle" "reasoning" "researcher" "agy")
     fi
 
-    # [REASONING] falls back through available providers. Without this, users
-    # without agy get an unconditional exit 127 on every REASONING subtask even
-    # though the provider health check already flagged agy as absent.
-    if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
-        if command -v codex >/dev/null 2>&1; then
-            tangle_reasoning_agent="codex"
-        fi
-        # claude-sonnet is a type resolved by get_agent_command, not a bare
-        # executable — command -v never finds it. Fall back unconditionally
-        # since the claude binary (the host process) is always available.
-        if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
-            tangle_reasoning_agent="claude-sonnet"
-        fi
+    if ! tangle_coding_agent=$(tangle_route_subtask_agent coding "$tangle_coding_agent"); then
+        log ERROR "No permitted provider available for Tangle coding subtasks"
+        return 1
     fi
+    if [[ "$has_reasoning_subtask" == true ]] && \
+        ! tangle_reasoning_agent=$(tangle_route_subtask_agent reasoning "$tangle_reasoning_agent"); then
+        log ERROR "No permitted provider available for Tangle reasoning subtasks"
+        return 1
+    fi
+
+    # Coding providers must run behind a parent-owned filesystem boundary.
+    export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
+    export OCTOPUS_TANGLE_WORKTREE="$PROJECT_ROOT"
+    export OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
 
     local tangle_previous_int_trap tangle_previous_term_trap
     tangle_previous_int_trap="$(trap -p INT)"
