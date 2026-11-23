@@ -11,7 +11,9 @@ mkdir -p "$TEST_TMP_DIR"
 LONG_ENTRIES_FILE="$TEST_TMP_DIR/long-entries.txt"
 LONG_ENTRY_COUNT=40
 awk -v count="$LONG_ENTRY_COUNT" 'BEGIN {
-    filler = sprintf("%060000d", 0)
+    filler = "0"
+    while (length(filler) < 60000) filler = filler filler
+    filler = substr(filler, 1, 60000)
     for (i = 0; i < count; i++) printf ".pnpm-store/v10/files/%02x/%s-index.json\n", i, filler
 }' > "$LONG_ENTRIES_FILE"
 FIRST_LONG_ENTRY=$(sed -n 1p "$LONG_ENTRIES_FILE")
