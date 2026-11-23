@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.27.0] - 2026-11-23
+
 ### Added
 
 - Council `summary.json` reports real token usage and cost for Claude and
@@ -30,6 +32,20 @@
   branches with identical filename slugs keep separate revision chains.
 - Tangle collects and reports large lists of out-of-scope paths without the
   slowdown caused by repeatedly copying the growing list.
+- In blinded Debate, the moderator saves independent analyses before reading
+  advisor responses and scores responses from the current round.
+
+Included pull requests:
+[#1390](https://github.com/nyldn/claude-octopus/pull/1390),
+[#1397](https://github.com/nyldn/claude-octopus/pull/1397),
+[#1385](https://github.com/nyldn/claude-octopus/pull/1385),
+[#1383](https://github.com/nyldn/claude-octopus/pull/1383),
+[#1398](https://github.com/nyldn/claude-octopus/pull/1398),
+[#1378](https://github.com/nyldn/claude-octopus/pull/1378),
+[#1387](https://github.com/nyldn/claude-octopus/pull/1387),
+[#1399](https://github.com/nyldn/claude-octopus/pull/1399),
+[#1384](https://github.com/nyldn/claude-octopus/pull/1384).
+Several fixes address parts of the [runtime safety work tracked in #1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
 ## [11.26.1] - 2026-11-23
 
