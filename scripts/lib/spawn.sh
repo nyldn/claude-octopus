@@ -841,6 +841,7 @@ spawn_agent() {
     local role="${4:-}"         # Optional role override
     local phase="${5:-}"        # Optional phase context
     local use_fork="${6:-false}" # Optional fork context (v2.1.12+)
+    local contract_task_id="${7:-$task_id}" # Retry identity for the execution contract only
 
     # v7.25.0: Debug logging
     log "DEBUG" "spawn_agent: agent=$agent_type, task_id=$task_id, role=${role:-auto}, phase=${phase:-none}, fork=$use_fork"
@@ -913,8 +914,8 @@ spawn_agent() {
     fi
 
     local _contract_seat_id
-    _contract_seat_id="$(octo_spawn_contract_seat_id "$task_id")"
-    if ! octo_spawn_contract_plan "$task_id" "$agent_type" \
+    _contract_seat_id="$(octo_spawn_contract_seat_id "$contract_task_id")"
+    if ! octo_spawn_contract_plan "$contract_task_id" "$agent_type" \
         "${OCTOPUS_REQUESTED_MODEL:-}" "${OCTOPUS_REQUESTED_EFFORT:-}" \
         "${phase:-unknown}" "${role:-none}"; then
         log ERROR "Unable to persist planned execution contract for background task $task_id"
@@ -2430,6 +2431,7 @@ spawn_agent_capture_pid() {
     local role="${4:-}"
     local phase="${5:-}"
     local use_fork="${6:-false}"
+    local contract_task_id="${7:-$task_id}"
     local pid_file err_file
     if ! pid_file=$(mktemp "${TMPDIR:-/tmp}/octo-spawn-pid.XXXXXX"); then
         return 1
@@ -2442,7 +2444,7 @@ spawn_agent_capture_pid() {
         printf 'capture-file:%s\n' "$pid_file" >&9
     fi
 
-    spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" \
+    spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" "$contract_task_id" \
         8>&- >"$pid_file" 2>"$err_file" &
     local wrapper_pid=$!
     if [[ "${OCTOPUS_SPAWN_PID_HANDOFF_FD:-}" == "9" ]]; then

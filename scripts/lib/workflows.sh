@@ -4973,11 +4973,9 @@ tangle_subtask_fallback_agents() {
         provider="$(octo_agent_spec_provider "$candidate" 2>/dev/null)" || provider="${candidate%%[-:]*}"
         [[ "$seen" == *"|$provider|"* ]] && continue
         seen+="$provider|"
-        if [[ "$candidate" != "$agent" ]]; then
-            [[ "$candidate" == codex ]] && ! command -v codex >/dev/null 2>&1 && continue
-            if declare -f octo_provider_allowed >/dev/null 2>&1 && ! octo_provider_allowed "$provider"; then
-                continue
-            fi
+        tangle_subtask_agent_allowed "$candidate" || continue
+        if [[ "$candidate" == codex && "$candidate" != "$agent" ]] && ! command -v codex >/dev/null 2>&1; then
+            continue
         fi
         printf '%s\n' "$candidate"
     done
@@ -4985,7 +4983,7 @@ tangle_subtask_fallback_agents() {
 
 tangle_spawn_subtask() {
     local agent="$1" prompt="$2" task_id="$3" role="$4" pane_title="$5" active_idx="$6"
-    local candidate pid
+    local candidate pid attempt=0 contract_task_id
     TANGLE_SPAWNED_PID=""
     while IFS= read -r candidate; do
         if ! tangle_subtask_agent_dispatchable "$candidate"; then
@@ -4994,16 +4992,21 @@ tangle_spawn_subtask() {
         fi
         [[ "$candidate" == "$agent" ]] || log WARN "Tangle task $task_id: dispatching to $candidate instead of $agent"
         OCTOPUS_ACTIVE_TANGLE_AGENTS[$active_idx]="$candidate"
+        ((attempt += 1))
+        # Keep completion markers and PID tracking on the logical task.
+        # Each retry needs a new contract seat after the prior seat terminates.
+        contract_task_id="$task_id"
+        if (( attempt > 1 )); then
+            contract_task_id="${task_id}:attempt-$attempt"
+        fi
         if [[ "$TMUX_MODE" == "true" ]]; then
-            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" "tangle" "$pane_title" </dev/null) && {
-                TANGLE_SPAWNED_PID="$pid"
-                return 0
-            }
+            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" tangle "$pane_title" "$contract_task_id" </dev/null) || pid=""
         else
-            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" "tangle" </dev/null) && {
-                TANGLE_SPAWNED_PID="$pid"
-                return 0
-            }
+            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" tangle false "$contract_task_id" </dev/null) || pid=""
+        fi
+        if [[ "$pid" =~ ^[1-9][0-9]*$ ]]; then
+            TANGLE_SPAWNED_PID="$pid"
+            return 0
         fi
         tangle_subtask_agent_dispatchable "$candidate" && return 1
         log WARN "Tangle task $task_id: $candidate became unavailable during its spawn; trying the next provider"

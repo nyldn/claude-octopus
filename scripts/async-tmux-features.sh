@@ -184,6 +184,7 @@ spawn_agent_async() {
     local role="${4:-}"
     local phase="${5:-}"
     local pane_title="${6:-$agent_type}"
+    local contract_task_id="${7:-$task_id}"
 
     # Create tmux pane if tmux mode enabled
     if [[ "$TMUX_MODE" == "true" ]]; then
@@ -193,9 +194,10 @@ spawn_agent_async() {
     # Spawn agent and return the worker PID, not a short-lived wrapper from
     # command substitution around spawn_agent.
     local pid
-    pid=$(spawn_agent_capture_pid "$agent_type" "$prompt" "$task_id" "$role" "$phase")
+    pid=$(spawn_agent_capture_pid "$agent_type" "$prompt" "$task_id" "$role" "$phase" false "$contract_task_id") || return $?
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
 
-    echo "$pid"
+    printf '%s\n' "$pid"
 }
 
 # Wait for multiple async agents to complete with progress indicator
