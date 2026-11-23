@@ -20,6 +20,7 @@ source "$PROJECT_ROOT/scripts/lib/secure.sh"
 
 HELPER="$PROJECT_ROOT/scripts/helpers/seat-usage.py"
 WORK="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/seat-usage.XXXXXX")"
+WORK="$(cd -- "$WORK" && pwd -P)"
 
 CLAUDE_JSON='{"type":"result","subtype":"success","is_error":false,"result":"Reviewed it.\nVERDICT: APPROVE","total_cost_usd":0.0421,"usage":{"input_tokens":9,"cache_creation_input_tokens":1000,"cache_read_input_tokens":0,"output_tokens":41},"modelUsage":{"claude-opus-5-5":{"inputTokens":12,"outputTokens":300,"cacheReadInputTokens":5000,"cacheCreationInputTokens":2000,"costUSD":0.0421}}}'
 CODEX_JSONL='{"type":"thread.started","thread_id":"t"}
