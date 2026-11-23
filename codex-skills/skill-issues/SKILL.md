@@ -173,12 +173,26 @@ Mark issue as resolved and move to Resolved section.
 
 #### Step 1: Validate Issue Exists
 
+Set `ISSUE_ID` to the ID supplied with `resolve`.
+
 ```bash
-# Check if issue ID exists in Open Issues
-grep "ISS-20260203-001" .octo/ISSUES.md
+ISSUE_ID="$ISSUE_ID" awk -F '|' '
+  /^##[[:blank:]]+Open Issues[[:blank:]]*$/ { in_open = 1; next }
+  /^##?[[:blank:]]/ { in_open = 0 }
+  in_open && NF >= 3 && $(1) ~ /^[[:blank:]]*$/ {
+    id = $(2)
+    gsub(/^[[:blank:]]+|[[:blank:]]+$/, "", id)
+    if (id != "" && id == ENVIRON["ISSUE_ID"]) {
+      found = 1
+      exit
+    }
+  }
+  END { exit !found }
+' .octo/ISSUES.md
 ```
 
-If not found, show error:
+If the check fails, stop before asking for resolution notes or editing the
+ledger. Show this error for the requested ID.
 
 ```markdown
 ❌ Issue ISS-20260203-001 not found in open issues.
@@ -196,8 +210,8 @@ Please provide resolution notes:
 
 #### Step 3: Move to Resolved Section
 
-1. Extract issue row from Open Issues table
-2. Remove from Open Issues
+1. Extract the row whose ID exactly matches `ISSUE_ID` in the Open Issues table
+2. Remove that row from Open Issues
 3. Add to Resolved Issues with resolution date and notes
 
 **Resolved Issues format:**
