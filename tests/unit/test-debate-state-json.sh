@@ -79,4 +79,45 @@ for tree in ('.claude/skills', 'skills'):
 print(f'{checks} executable debate state scenarios passed')
 PY
 then test_pass; else test_fail "debate state recipe did not preserve valid JSON"; fi
+test_case "debate quality scoring handles absent and present signals on every host"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_QUALITY'
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+root, tmp = map(Path, sys.argv[1:])
+response = tmp / "quality-response.md"
+plain = "reason " * 50
+scenarios = {
+    "empty": ("", 0),
+    "no markers": (plain, 25),
+    "citation only": (plain + "[ref]", 50),
+    "code only": (plain + "```", 50),
+    "advisor only": (plain + "Codex", 50),
+    "all markers": (plain + "[ref] ``` Claude", 100),
+}
+errors = []
+for tree in ("skills", ".claude/skills", "codex-skills"):
+    text = (root / tree / "skill-debate/SKILL.md").read_text()
+    scorer = re.search(r"(?ms)^evaluate_response_quality\(\) \{\n.*?^\}", text)[0]
+    command = scorer + '\nevaluate_response_quality "$1"'
+    for name, (body, expected) in scenarios.items():
+        response.write_text(body, encoding="utf-8")
+        result = subprocess.run(["/bin/bash", "-euo", "pipefail", "-c", command,
+                                 "_", str(response)], capture_output=True, text=True, timeout=5)
+        if (result.returncode, result.stdout, result.stderr) != (0, f"{expected}\n", ""):
+            errors.append(f"{tree}, {name}: rc={result.returncode}, "
+                          f"score={result.stdout.strip()!r}, stderr={result.stderr.strip()!r}")
+    result = subprocess.run(["/bin/bash", "-euo", "pipefail", "-c", command,
+                             "_", str(tmp / "missing-response.md")],
+                            capture_output=True, text=True, timeout=5)
+    if result.returncode == 0 or result.stdout:
+        errors.append(f"{tree}: treated a missing response as a scored response")
+if errors:
+    print("\n".join(errors), file=sys.stderr)
+    sys.exit(1)
+print("21 executable debate quality scenarios passed")
+PY_QUALITY
+then test_pass; else test_fail "debate quality scoring failed"; fi
 test_summary

@@ -49,7 +49,8 @@ identify themselves as blocked in its quality gate.
 If a provider settings save fails, Octopus keeps the last working configuration.
 Branch completion now follows the same option numbers shown in its menu.
 Project initialization also refuses an existing `.octo` symlink to protect the
-linked directory.
+linked directory. Debate scores responses even when they have no citations,
+code blocks, or advisor mentions.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.26.0 — Custom provider presets in the tool helper, native skills and debate advisor checks.**

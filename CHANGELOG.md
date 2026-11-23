@@ -20,15 +20,18 @@
   saves that feature's identity when preparing the spec.
 - The Tangle quality gate counts subtasks that report incomplete or blocked
   work as blocked, even when the provider exits successfully.
+- Debate scores responses with no citations, code blocks, or advisor mentions
+  without Bash arithmetic errors.
 
-Merged fixes: [#1374](https://github.com/nyldn/claude-octopus/pull/1374),
+This release includes changes from [#1374](https://github.com/nyldn/claude-octopus/pull/1374),
 [#1364](https://github.com/nyldn/claude-octopus/pull/1364),
 [#1351](https://github.com/nyldn/claude-octopus/pull/1351),
 [#1379](https://github.com/nyldn/claude-octopus/pull/1379),
 [#1381](https://github.com/nyldn/claude-octopus/pull/1381),
 [#1393](https://github.com/nyldn/claude-octopus/pull/1393),
 [#1394](https://github.com/nyldn/claude-octopus/pull/1394),
-[#1377](https://github.com/nyldn/claude-octopus/pull/1377).
+[#1377](https://github.com/nyldn/claude-octopus/pull/1377), and
+[#1395](https://github.com/nyldn/claude-octopus/pull/1395).
 This release includes the fixes for [#1372](https://github.com/nyldn/claude-octopus/issues/1372)
 and [#1392](https://github.com/nyldn/claude-octopus/issues/1392).
 The wider runtime work is tracked in [#1304](https://github.com/nyldn/claude-octopus/issues/1304).
