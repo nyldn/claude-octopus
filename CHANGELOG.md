@@ -10,6 +10,8 @@
 
 - The Embrace debate gate reports why each provider seat failed, including
   quota retry guidance when available.
+- Design history and workflow context match the original branch name, so
+  branches with identical filename slugs keep separate revision chains.
 
 ## [11.26.1] - 2026-11-23
 
