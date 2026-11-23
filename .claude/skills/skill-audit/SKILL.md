@@ -18,6 +18,7 @@ trigger: |
   - Security audits (use skill-security-audit)
   - Code reviews (use skill-code-review)
   - Simple grep/search operations
+codex_short_description: "Check a codebase for defects and inconsistent patterns"
 ---
 
 # Systematic Audit Process

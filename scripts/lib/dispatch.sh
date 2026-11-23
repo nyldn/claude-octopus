@@ -231,6 +231,7 @@ _build_codex_exec_command() {
         # The policy helper emits only fixed flags and restricted server names.
         judge_policy="$(python3 "${PLUGIN_DIR}/scripts/helpers/refinement-codex-policy.py")" || return 1
         base+=" ${judge_policy}"
+        sandbox_flag="" # The scoped permissions profile replaces the legacy preset.
     fi
     [[ -n "$reasoning_fragment" ]] && base+=" ${reasoning_fragment}"
     base+=" ${sandbox_flag} -"

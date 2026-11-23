@@ -1,5 +1,5 @@
 interface:
   display_name: "Discover"
-  short_description: "Multi-AI research using available external providers..."
+  short_description: "Research a question using multiple AI providers"
 policy:
   allow_implicit_invocation: false

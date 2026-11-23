@@ -176,28 +176,34 @@ probe_single_agent() {
 
     # Apply persona to prompt
     local enhanced_prompt
-    enhanced_prompt=$(apply_persona "$role" "$perspective" "false" "${curated_name_early:-}")
+    if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true ]]; then
+        # Preserve the complete blind request without project/persona injection.
+        enhanced_prompt="$perspective"
+    else
+        enhanced_prompt=$(apply_persona "$role" "$perspective" "false" "${curated_name_early:-}")
 
-    # v8.21.0: Persona pack override
-    if type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
-        local pack_persona
-        pack_persona=$(get_persona_override_content "${curated_name_early:-$agent_type}" 2>/dev/null)
-        if [[ -n "$pack_persona" ]]; then
-            enhanced_prompt="${pack_persona}
+        # v8.21.0: Persona pack override
+        if type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
+            local pack_persona
+            pack_persona=$(get_persona_override_content "${curated_name_early:-$agent_type}" 2>/dev/null)
+            if [[ -n "$pack_persona" ]]; then
+                enhanced_prompt="${pack_persona}
 
 ---
 
 ${enhanced_prompt}"
+            fi
         fi
-    fi
 
-    # v9.3.0: Search spiral guard — prevent research agents from token waste (STABLE — static boilerplate)
-    enhanced_prompt="${enhanced_prompt}
+        # v9.3.0: Search spiral guard — prevent research agents from token waste (STABLE — static boilerplate)
+        enhanced_prompt="${enhanced_prompt}
 
 IMPORTANT: If you find yourself searching or grepping more than 3 times in a row without reading files or writing analysis, STOP searching. Consolidate what you've found so far and write your analysis. More searching rarely improves the output — synthesis does."
 
-    # ── VARIABLE SUFFIX ───────────────────────────────────────────────────────
-    # (probe dispatch has minimal variable content — context budget is the boundary)
+        # ── VARIABLE SUFFIX ───────────────────────────────────────────────────────
+        # (probe dispatch has minimal variable content — context budget is the boundary)
+
+    fi
 
     # v8.10.0: Enforce context budget AFTER all injections
     local tokens_in _budget_original_chars _budget_final_chars _budget_compression
@@ -211,6 +217,13 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi
         return "$_budget_rc"
+    fi
+    if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true && "$enhanced_prompt" != "$perspective" ]]; then
+        log ERROR "Refinement judge request was altered by the context budget"
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
+        return 2
     fi
     _budget_final_chars=${#enhanced_prompt}
     _budget_compression=none

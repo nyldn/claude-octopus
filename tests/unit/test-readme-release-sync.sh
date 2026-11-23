@@ -267,8 +267,8 @@ for variant in agent-catalog component-metadata; do
         line="$(grep -m1 'specialized personas' "$duplicate_fixture/docs/AGENTS.md")"
         printf '%s\n' "$line" >>"$duplicate_fixture/docs/AGENTS.md"
     else
-        phrase="$(grep -oE '[0-9]+ personas, [0-9]+ commands, [0-9]+ skills' "$duplicate_fixture/.codex-plugin/plugin.json")"
-        python3 - "$duplicate_fixture/.codex-plugin/plugin.json" "$phrase" <<'PY'
+        phrase="$(grep -oE '[0-9]+ personas, [0-9]+ commands, [0-9]+ skills' "$duplicate_fixture/.factory-plugin/marketplace.json")"
+        python3 - "$duplicate_fixture/.factory-plugin/marketplace.json" "$phrase" <<'PY'
 from pathlib import Path
 import sys
 
@@ -327,7 +327,7 @@ if "$SYNC_SCRIPT" --root "$fixture" >/tmp/octo-readme-sync-update.out 2>&1 &&
        .components.agents.breakdown.droids == $droids and
        .components.skills.count == $skills' \
       "$fixture/.claude-plugin/plugin-manifest.json" >/dev/null &&
-   grep -q "${CURRENT_PERSONA_COUNT} personas, ${CURRENT_COMMAND_COUNT} commands, ${CURRENT_SKILL_COUNT} skills" "$fixture/.codex-plugin/plugin.json" &&
+   cmp -s "$PROJECT_ROOT/.codex-plugin/plugin.json" "$fixture/.codex-plugin/plugin.json" &&
    grep -q "${CURRENT_PERSONA_COUNT} expert personas, ${CURRENT_COMMAND_COUNT} commands, ${CURRENT_SKILL_COUNT} skills" "$fixture/.factory-plugin/plugin.json" &&
    grep -q "${CURRENT_PERSONA_COUNT} personas, ${CURRENT_COMMAND_COUNT} commands, ${CURRENT_SKILL_COUNT} skills" "$fixture/.factory-plugin/marketplace.json" &&
    grep -qF "**Traction (as of ${CURRENT_RELEASE_DATE}):**" "$fixture/PRODUCT.md" &&

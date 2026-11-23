@@ -24,6 +24,7 @@ validation_gates:
   - output_artifact_exists
 paths:
   - ".git/**"
+codex_short_description: "Verify a branch and choose how to submit or finish it"
 ---
 
 # Finishing a Development Branch

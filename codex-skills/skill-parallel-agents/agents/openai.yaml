@@ -1,5 +1,5 @@
 interface:
   display_name: "Parallel Agents"
-  short_description: "Decompose large tasks across parallel agents — use for..."
+  short_description: "Coordinate multiple providers for a compound task"
 policy:
   allow_implicit_invocation: false

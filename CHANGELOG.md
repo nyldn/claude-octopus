@@ -6,6 +6,9 @@
 
 - Project initialization refuses a pre-existing `.octo` symbolic link before
   previewing or writing templates, preserving the linked destination.
+- Codex plugin listings include the existing logo artwork, complete skill
+  descriptions, and explicit starter prompts. First-use guidance explains
+  provider setup, readiness limits, and account costs.
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
 
@@ -127,6 +130,7 @@ Merged changes: [#1349](https://github.com/nyldn/claude-octopus/pull/1349),
 [#1357](https://github.com/nyldn/claude-octopus/pull/1357).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
 its broader runtime and installed-host acceptance work remains open.
+
 
 ## [11.24.2] - 2026-11-16
 

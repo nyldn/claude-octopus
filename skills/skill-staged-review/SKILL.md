@@ -13,6 +13,7 @@ execution_mode: enforced
 validation_gates:
   - stage1_complete
   - stage2_complete
+codex_short_description: "Check specification compliance, then review code quality"
 ---
 
 # Two-Stage Review Pipeline

@@ -18,6 +18,7 @@ trigger: |
   - Single execution requests
   - Manual retry requests
   - Infinite loops (require max iterations)
+codex_short_description: "Repeat implementation and checks toward a defined goal"
 ---
 
 # Iterative Loop Execution
