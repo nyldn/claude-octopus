@@ -6284,7 +6284,7 @@ council_create_run_dir() {
     fi
 
     mkdir -p "$parent" || return 1
-    parent="$(CDPATH= cd -- "$parent" && pwd -P)" || return 1
+    parent="$(CDPATH='' cd -- "$parent" && pwd -P)" || return 1
 
     local timestamp
     timestamp="$(date -u +%Y%m%d-%H%M%S)"
