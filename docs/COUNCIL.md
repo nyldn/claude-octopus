@@ -269,6 +269,17 @@ git diff --no-ext-diff --no-textconv origin/main -- > /tmp/reviewed.diff
 Counts appear in each seat's `grounding` object in `summary.json`. Set
 `OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to disable citation quote verification.
 
+## Chair fallback
+
+When the chair's answer is rejected, the council tries synthesis-capable
+personas in order. For each persona, it checks for an accepted advice response
+before dispatching that persona with the same prompt and evidence. A successful
+dispatch can finish the search before a later response would be reused. The
+default limit is one new dispatch per run. Set
+`OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to change the limit. A value of 0 disables
+new dispatches, and 5 permits up to five. `summary.json` reports the count as
+`quorum.chair_fallback_attempts`.
+
 ## Failed provider diagnostics
 
 A failed council seat retains redacted diagnostics in `stderr/<seat>.log`.

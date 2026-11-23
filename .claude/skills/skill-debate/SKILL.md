@@ -16,6 +16,7 @@ trigger: |
   Supports flags:
   - -r/--rounds N (1-10 rounds)
   - -d/--debate-style (quick, thorough, adversarial, collaborative)
+  - --mode (cross-critique, blinded)
   - -m/--moderator-style (transparent, guided, authoritative)
   - -a/--advisors (comma-separated list)
   - -o/--out-dir PATH
@@ -146,6 +147,7 @@ Users can mention files naturally - you resolve them to full paths:
 |------|-------|---------|-------------|
 | `--rounds N` | `-r N` | 1 | Number of debate rounds (1-10) |
 | `--debate-style STYLE` | `-d STYLE` | quick | Style: `quick`, `thorough`, `adversarial`, `collaborative` |
+| `--mode MODE` | | cross-critique | Advisor exchange: `cross-critique` or `blinded` |
 | `--moderator-style MODE` | `-m MODE` | guided | Mode: `transparent`, `guided`, `authoritative` |
 | `--advisors LIST` | `-a LIST` | auto | Comma-separated list |
 | `--out-dir PATH` | `-o PATH` | `debates/` | Output directory (relative to cwd) |
@@ -367,10 +369,10 @@ AskUserQuestion({
 })
 ```
 
-**After receiving answers:**
-- If user selected "Cross-critique": use `--mode cross-critique` (default ACH falsification)
-- If user selected "Independent evaluation": use `--mode blinded` (no cross-contamination)
-- Incorporate all other answers into the debate context.
+**After receiving answers:** Set `DEBATE_MODE` from an explicit `--mode` option if
+present. Otherwise, set it to `blinded` for "Independent evaluation" and
+`cross-critique` for "Cross-critique" or when no preference was given.
+Incorporate the other answers into the debate context.
 
 ### Step 3: Parse Arguments & Build Debate Fleet
 
@@ -416,13 +418,15 @@ OCTO_BASH
 
 ### Step 4: Setup Debate Folder
 
-Run this block in a fresh shell. Restore the printed fleet settings and the
-original question and clarifying answers using the literal quoting rule above.
+Run this block in a fresh shell. Restore the printed fleet settings, the mode
+from Step 2, and the original question and clarifying answers using the literal
+quoting rule above.
 
 ```bash
 QUESTION='[Original question from Step 3]'
 ROUNDS='[ROUNDS printed by Step 3]'
 STYLE='[STYLE printed by Step 3]'
+DEBATE_MODE='[DEBATE_MODE from Step 2]'
 ADVISORS='[ADVISORS printed by Step 3]'
 USER_GOAL='[Primary goal from Step 2]'
 USER_PRIORITY='[Priority factor from Step 2]'
@@ -441,6 +445,7 @@ cat > "${DEBATE_DIR}/context.md" <<EOF
 **Debate ID**: ${DEBATE_ID}
 **Rounds**: ${ROUNDS}
 **Style**: ${STYLE}
+**Mode**: ${DEBATE_MODE}
 **Advisors**: ${ADVISORS}
 **Started**: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -460,18 +465,20 @@ EOF
 
 # Encode user text as JSON data rather than shell-generated JSON syntax.
 python3 -I - "$DEBATE_DIR/state.json" "$DEBATE_ID" "$QUESTION" "$ROUNDS" \
-  "$ADVISORS" "$USER_GOAL" "$USER_PRIORITY" "$USER_CONSTRAINTS" <<'PY_DEBATE_STATE' || exit 1
+  "$DEBATE_MODE" "$ADVISORS" "$USER_GOAL" "$USER_PRIORITY" "$USER_CONSTRAINTS" <<'PY_DEBATE_STATE' || exit 1
 from datetime import datetime, timezone
 from pathlib import Path
 import json
 import sys
-path, run_id, question, rounds, advisors, goal, priority, constraints = sys.argv[1:]
+path, run_id, question, rounds, mode, advisors, goal, priority, constraints = sys.argv[1:]
 rounds = int(rounds)
-if rounds < 1:
-    raise SystemExit('Debate rounds must be positive')
+if not 1 <= rounds <= 10:
+    raise SystemExit('Debate rounds must be between 1 and 10')
+if mode not in ('blinded', 'cross-critique'):
+    raise SystemExit('Debate mode must be blinded or cross-critique')
 state = {
     'debate_id': run_id, 'question': question,
-    'rounds_total': rounds, 'rounds_completed': 0,
+    'rounds_total': rounds, 'rounds_completed': 0, 'mode': mode,
     'advisors': [seat.strip() for seat in advisors.split(',') if seat.strip()],
     'user_context': {'goal': goal, 'priority': priority, 'constraints': constraints},
     'status': 'active',
@@ -486,8 +493,27 @@ printf 'DEBATE_DIR=%s\n' "$DEBATE_DIR"
 
 ### Step 5: Conduct Rounds
 
-For each round, iterate the runtime advisor list and dispatch through Octopus. The launch
-waits for every advisor to finish, often several minutes, so run the block with
+Read the mode from this run's `state.json`. If resuming an older run without a
+saved mode, recover the original choice from the conversation and record it in
+the `mode` field before continuing. If you already read any advisor responses
+in a blinded run, tell the user that independence was lost before proceeding.
+
+#### 5.1: Save Blinded Analysis and Launch External Advisors
+
+In blinded mode, save your analysis for every round before launching any advisors.
+Use only the question and source material. Save the first note as
+`rounds/r001_claude.md` and use the corresponding round number for each later
+note. Confirm all notes are saved before launching external advisors or Sonnet.
+Keep the notes for final synthesis even if a background completion includes
+response text. During the rounds, check completion status and artifact
+presence. Keep advisor responses separate until final synthesis.
+
+In cross-critique mode, write the moderator's analysis after reading the
+current round's responses, as described in Step 5.3.
+
+For each round, iterate the runtime advisor list and dispatch through Octopus.
+The examples use round one. Use the current round number and its `rNNN` prefix
+in the prompts, paths, and calls for later rounds. The launch waits for every advisor to finish, often several minutes, so run the block with
 `run_in_background: true`; a foreground 600000 ms timeout stops it after 10 minutes, while
 the launcher waits up to `OCTOPUS_ADVISOR_WAIT_SECONDS` (default 3600 s). Each answer lands in
 `${DEBATE_DIR}/rounds/r001_<advisor>.md`, with any character other than a letter, digit,
@@ -548,6 +574,9 @@ ${CONTEXT}
 
 Write your analysis (${MAX_WORDS} words) to: ${DEBATE_DIR}/rounds/r001_sonnet.md
 
+Your final reply must contain only a completion status and the artifact path.
+Do not include any analysis, verdict, or summary in the final reply.
+
 Cover: implementation feasibility, hidden gotchas, concrete effort estimates, and what the other approaches miss from a builder's perspective."
 )
 ```
@@ -574,38 +603,61 @@ OCTO_BASH
 
 **Timing**: Launch Sonnet BEFORE or IN PARALLEL with the external advisor calls. By the time the CLI calls return, Sonnet is usually done too. Check for completion before proceeding to 5.3.
 
-#### 5.3: Write Your Analysis (Opus)
-Use the Read tool to read all advisor responses, then write your independent analysis:
+#### 5.3: Read Advisor Responses and Record the Moderator Analysis
+
+For cross-critique, run the response-reading block after the provider minimum
+passes. Then write your own analysis to `rounds/r001_claude.md` based on the
+advisor perspectives. For blinded mode, skip this step during the rounds.
+During final synthesis, use the block for each round to read advisor responses
+alongside the saved moderator notes. Keep those notes as written.
+
+Restore the run directory and use the appropriate round prefix in the block.
+
 ```bash
 DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
-# Read what all advisors said
-for response_file in "${DEBATE_DIR}"/rounds/r001_*.md; do
-  printf '\n## %s\n' "$(basename "$response_file" .md)"
-  cat "$response_file"
+ROUND_PREFIX=r001
+state_file="${DEBATE_DIR}/state.json"
+if ! mode=$(jq -er '.mode | select(. == "blinded" or . == "cross-critique")' "$state_file"); then
+    printf '%s\n' 'Recover the saved debate mode before reading advisor responses.' >&2
+    exit 1
+fi
+if [ "$mode" = blinded ]; then
+    rounds=$(jq -er '.rounds_total | select(type == "number" and . == floor and . >= 1 and . <= 10)' "$state_file") || exit 1
+    for ((round = 1; round <= rounds; round++)); do
+        moderator_file="${DEBATE_DIR}/rounds/$(printf 'r%03d_claude.md' "$round")"
+        if [ ! -f "$moderator_file" ] || [ ! -s "$moderator_file" ]; then
+            printf 'Save the blinded moderator analysis for round %s before reading advisor responses.\n' "$round" >&2
+            exit 1
+        fi
+    done
+fi
+for response_file in "${DEBATE_DIR}/rounds/${ROUND_PREFIX}_"*.md; do
+    [ -f "$response_file" ] || continue
+    [ "$response_file" = "${DEBATE_DIR}/rounds/${ROUND_PREFIX}_claude.md" ] && continue
+    printf '\n## %s\n' "$(basename "$response_file" .md)"
+    cat "$response_file" || exit 1
 done
-
-# Write your analysis as moderator
-cat > "${DEBATE_DIR}/rounds/r001_claude.md" <<EOF
-# Claude (Opus) Analysis - Round 1
-
-[Your independent analysis here, considering but not just summarizing the three advisor perspectives. Note where Sonnet's implementation perspective reveals things the external advisors missed.]
-EOF
 ```
 
 #### 5.4: Quality Gates (Claude-Octopus Enhancement)
-After each advisor responds, evaluate response quality:
+In cross-critique mode, evaluate response quality after each advisor responds.
+In blinded mode, wait until Step 6 before scoring advisor responses. Set
+`ROUND_PREFIX` to the current round's prefix for each invocation.
+
 ```bash
 DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
+ROUND_PREFIX=r001
 evaluate_response_quality() {
     local response_file="${1}"
-    local advisor="${2}"
+    local word_count has_citations has_code addresses_others score=0
 
-    word_count=$(wc -w < "$response_file")
-    has_citations=$(grep -c '\[' "$response_file" || echo 0)
-    has_code=$(grep -c '```' "$response_file" || echo 0)
-    addresses_others=$(grep -ciE '(gemini|codex|agy|antigravity|claude|sonnet)' "$response_file" || echo 0)
+    word_count=$(wc -w < "$response_file") || return 1
+    # grep -c prints 0 and exits 1 when there are no matches.
+    has_citations=$(grep -c '\[' "$response_file") || [[ $? -eq 1 ]] || return 1
+    has_code=$(grep -c '```' "$response_file") || [[ $? -eq 1 ]] || return 1
+    addresses_others=$(grep -ciE '(gemini|codex|agy|antigravity|claude|sonnet)' "$response_file") ||
+        [[ $? -eq 1 ]] || return 1
 
-    score=0
     (( word_count >= 50 && word_count <= 1000 )) && (( score += 25 ))
     (( has_citations > 0 )) && (( score += 25 ))
     (( has_code > 0 )) && (( score += 25 ))
@@ -614,9 +666,12 @@ evaluate_response_quality() {
     echo "$score"
 }
 
-for response_file in "${DEBATE_DIR}"/rounds/r001_*.md; do
-    advisor=$(basename "$response_file" .md | sed 's/^r001_//')
-    quality_score=$(evaluate_response_quality "$response_file" "$advisor")
+for response_file in "${DEBATE_DIR}/rounds/${ROUND_PREFIX}_"*.md; do
+    [ -f "$response_file" ] || continue
+    response_name=$(basename "$response_file" .md)
+    advisor="${response_name#"${ROUND_PREFIX}_"}"
+    [ "$advisor" = claude ] && continue
+    quality_score=$(evaluate_response_quality "$response_file") || exit 1
     if (( quality_score < 50 )); then
         echo "Low quality response from ${advisor} (score: $quality_score). Re-prompting..."
         # Re-prompt for more detail
@@ -626,7 +681,10 @@ done
 
 ### Step 6: Final Synthesis
 
-After all rounds complete, write a comprehensive synthesis:
+After all rounds complete, write a comprehensive synthesis. In blinded mode,
+use Steps 5.3 and 5.4 to read and score the advisor responses for each
+completed round. Use the same round prefix in both steps and cite the saved
+moderator analyses when comparing perspectives.
 
 ```bash
 DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
