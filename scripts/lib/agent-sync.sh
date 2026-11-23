@@ -1407,6 +1407,48 @@ octopus_sync_timeout_override() {
 }
 
 # Synchronous agent execution (for sequential steps within phases)
+# Council seat usage accounting. When the council sets _OCTOPUS_SEAT_USAGE_FILE,
+# claude and codex seats run with machine-readable output so their real token
+# counts and cost can be recorded; octo_seat_usage_record turns that output back
+# into the answer text before anything else reads it. Other providers, and any
+# argv this cannot recognize, run unchanged.
+octo_seat_usage_kind() {
+    local agent_type="$1"; shift
+    [[ -n "${_OCTOPUS_SEAT_USAGE_FILE:-}" && "${OCTOPUS_COUNCIL_SEAT_USAGE:-1}" != "0" ]] || return 1
+    local want="" arg prev="" found=""
+    # claude-sdk* must precede claude*: the SDK shim has its own output contract.
+    case "$agent_type" in
+        claude-sdk*) return 1 ;;
+        claude*) want=claude ;;
+        codex*) want=codex ;;
+        *) return 1 ;;
+    esac
+    for arg in "$@"; do
+        case "$arg" in
+            --output-format|--output-format=*|--json|--experimental-json) return 1 ;;
+            --print) [[ "$want" == claude ]] && found=1 ;;
+            exec) [[ "$want" == codex && "${prev##*/}" == codex ]] && found=1 ;;
+        esac
+        prev="$arg"
+    done
+    [[ -n "$found" ]] || return 1
+    printf '%s\n' "$want"
+}
+
+octo_seat_usage_record() {
+    local kind="$1" out_file="$2" model="$3" agent_type="$4" prompt="$5"
+    local pricing="" in_price="" out_price=""
+    if [[ "$kind" == codex ]] && declare -f get_model_pricing >/dev/null 2>&1; then
+        local prompt_tokens=0
+        declare -f estimate_tokens >/dev/null 2>&1 && prompt_tokens="$(estimate_tokens "$prompt" 2>/dev/null || echo 0)"
+        pricing="$(get_model_pricing "$model" "$agent_type" "$prompt_tokens" 2>/dev/null || true)"
+        [[ "$pricing" == *:* ]] && in_price="${pricing%%:*}" out_price="${pricing##*:}"
+    fi
+    python3 -I "${_agent_sync_lib_dir}/../helpers/seat-usage.py" "$kind" "$out_file" \
+        "$_OCTOPUS_SEAT_USAGE_FILE" "${_OCTOPUS_SEAT_USAGE_LABEL:-}" "$model" "$in_price" "$out_price" \
+        2>/dev/null || log DEBUG "seat usage: $kind output did not parse; left as is"
+}
+
 run_agent_sync() {
     local agent_type="$1"
     local prompt="$2"
@@ -1660,6 +1702,13 @@ ${provider_ctx}"
     else
         cmd_array=("${OCTO_DISPATCH_PLAN_ARGV[@]}")
     fi
+    local _seat_usage_kind=""
+    if _seat_usage_kind="$(octo_seat_usage_kind "$agent_type" "${cmd_array[@]}")"; then
+        case "$_seat_usage_kind" in
+            claude) cmd_array+=(--output-format json) ;;
+            codex) cmd_array+=(--json) ;;
+        esac
+    fi
 
     # Capture output and exit code separately
     local output
@@ -1761,6 +1810,7 @@ ${provider_ctx}"
         break
     done
     stop_quota_watcher "$_quota_watcher_pid"
+    [[ -n "$_seat_usage_kind" ]] && octo_seat_usage_record "$_seat_usage_kind" "$temp_out" "$model" "$agent_type" "$enhanced_prompt"
     quota_watcher_mark_after_exit "$exit_code" "$temp_err" "$temp_out" "${_provider_for_health:-}"
     local _sync_output_truncated=false
 
