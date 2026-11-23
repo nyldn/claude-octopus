@@ -78,6 +78,25 @@ if [[ "$three" == 3 && "$zero" == 0 && "$all" == 5 && "$bad" == 1 ]]; then
 else
     test_fail "max3=$three max0=$zero max9=$all invalid=$bad"
 fi
+for input in 18446744073709551616 00018446744073709551616; do
+    test_case "chair fallback clamps oversized decimal limit $input to five"
+    OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX="$input" run_fallback
+    if [[ "$CALLS" == 5 && "$COUNCIL_CHAIR_FALLBACK_ATTEMPTS" == 5 ]]; then
+        test_pass
+    else
+        test_fail "calls=$CALLS attempts=$COUNCIL_CHAIR_FALLBACK_ATTEMPTS"
+    fi
+done
+
+test_case "chair fallback accepts zero-padded decimal limits"
+OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX=0003 run_fallback; padded_three="$CALLS"
+OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX=0000 run_fallback; padded_zero="$CALLS"
+if [[ "$padded_three" == 3 && "$padded_zero" == 0 ]]; then
+    test_pass
+else
+    test_fail "max0003=$padded_three max0000=$padded_zero"
+fi
+
 OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX=0 run_fallback
 assert_summary_attempts 0
 

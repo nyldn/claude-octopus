@@ -5427,7 +5427,12 @@ council_synthesis_capable_persona() {
 council_chair_fallback_max() {
     local max="${OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX:-1}"
     [[ "$max" =~ ^[0-9]+$ ]] || max=1
-    printf '%s\n' "$((10#$max))"
+    # Remove leading zeros and clamp before Bash can overflow an integer.
+    max="${max#"${max%%[!0]*}"}"
+    case "${max:-0}" in
+        [0-5]) printf '%s\n' "${max:-0}" ;;
+        *) printf '5\n' ;;
+    esac
 }
 
 council_run_chair_fallback() {
