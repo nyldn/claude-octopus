@@ -184,12 +184,47 @@ Mark issue as resolved and move to Resolved section.
 
 #### Step 1: Validate Issue Exists
 
+Set `ISSUE_ID` to the ID supplied with `resolve`.
+
 ```bash
-# Check if issue ID exists in Open Issues
-grep "ISS-20260203-001" .octo/ISSUES.md
+ISSUE_ID="$ISSUE_ID" awk -F '|' '
+  BEGIN {
+    issue_id = ENVIRON["ISSUE_ID"]
+    split(issue_id, parts, "-")
+    if (issue_id !~ /^ISS-[0-9]+-[0-9]+$/ ||
+        length(parts[2]) != 8 || length(parts[3]) < 3) exit 1
+  }
+  { line = $(0); sub(/\r$/, "", line) }
+  !in_open {
+    if (line ~ /^##[[:blank:]]+Open Issues[[:blank:]]*$/) in_open = 1
+    next
+  }
+  !header_seen {
+    if (line ~ /^[[:blank:]]*$/) next
+    if (line !~ /^[[:blank:]]*\|[[:blank:]]*ID[[:blank:]]*\|/) exit
+    header_seen = 1
+    next
+  }
+  !separator_seen {
+    if (line !~ /^[[:blank:]]*\|([[:blank:]]*:?-+:?[[:blank:]]*\|)+[[:blank:]]*$/) exit
+    separator_seen = 1
+    next
+  }
+  NF < 3 || $(1) !~ /^[[:blank:]]*$/ { exit }
+  {
+    id = $(2)
+    gsub(/^[[:blank:]]+|[[:blank:]]+$/, "", id)
+    if (id == issue_id) {
+      found = 1
+      exit
+    }
+  }
+  END { exit !found }
+' .octo/ISSUES.md
 ```
 
-If not found, show error:
+If the check fails, stop before asking for resolution notes or editing the
+ledger. Show this error for the requested ID.
 
 ```markdown
 ❌ Issue ISS-20260203-001 not found in open issues.
@@ -207,8 +242,8 @@ Please provide resolution notes:
 
 #### Step 3: Move to Resolved Section
 
-1. Extract issue row from Open Issues table
-2. Remove from Open Issues
+1. Extract the row whose ID exactly matches `ISSUE_ID` in the contiguous Open Issues table
+2. Remove that row from Open Issues
 3. Add to Resolved Issues with resolution date and notes
 
 **Resolved Issues format:**
