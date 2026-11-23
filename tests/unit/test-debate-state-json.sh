@@ -21,18 +21,18 @@ checks = 0
 
 def render_inputs(recipe, environment):
     # The host fills the standalone block's explicit handoff assignments.
-    for name in ('QUESTION', 'ROUNDS', 'STYLE', 'ADVISORS', 'USER_GOAL', 'USER_PRIORITY', 'USER_CONSTRAINTS'):
+    for name in ('QUESTION', 'ROUNDS', 'STYLE', 'DEBATE_MODE', 'ADVISORS', 'USER_GOAL', 'USER_PRIORITY', 'USER_CONSTRAINTS'):
         recipe = re.sub(rf'(?m)^{name}=.*$',
                         lambda match: name + '=' + shlex.quote(environment[name]), recipe)
     return recipe
 
-for tree in ('.claude/skills', 'skills'):
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
     text = (root / tree / 'skill-debate/SKILL.md').read_text()
     section = text.split('### Step 4: Setup Debate Folder', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     # Run each recipe in a fresh shell with its ordinary setup, not a copy of
     # the serializer. Literal shell expressions must remain user data.
-    for advisors in ('codex, agy', ''):
+    for advisors, mode in (('codex, agy', 'blinded'), ('', 'cross-critique')):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as directory:
             home = Path(directory)
             shadow = home / 'python-path'
@@ -47,7 +47,7 @@ for tree in ('.claude/skills', 'skills'):
             question = 'Should we use "Redis"?\nCompare \\paths and tabs\there.'
             env = dict(os.environ, HOME=directory, CLAUDE_CODE_SESSION='fixture',
                        PYTHONPATH=str(shadow),
-                       QUESTION=question, ROUNDS='3', STYLE='thorough', ADVISORS=advisors,
+                       QUESTION=question, ROUNDS='3', STYLE='thorough', DEBATE_MODE=mode, ADVISORS=advisors,
                        USER_GOAL=context['goal'], USER_PRIORITY=context['priority'],
                        USER_CONSTRAINTS=context['constraints'])
             result = subprocess.run(['/bin/bash', '-eu', '-c', render_inputs(recipe, env)], cwd=home,
@@ -56,7 +56,7 @@ for tree in ('.claude/skills', 'skills'):
             assert result.returncode == 0, (tree, result.stderr)
             state_file = next(home.rglob('state.json'))
             state = json.loads(state_file.read_text(encoding='utf-8'))
-            assert state['question'] == question, (tree, state)
+            assert state['question'] == question and state['mode'] == mode, (tree, state)
             assert state['user_context'] == context, (tree, state)
             assert state['advisors'] == (['codex', 'agy'] if advisors else []), state
             assert state['rounds_total'] == 3 and type(state['rounds_total']) is int, state
@@ -65,10 +65,12 @@ for tree in ('.claude/skills', 'skills'):
             assert re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', state['created_at']), state
             assert not (home / 'SHOULD_NOT_RUN').exists()
             checks += 1
-    for rounds in ('0', '-1', 'invalid', '1.5'):
+    invalid_settings = [(rounds, 'blinded') for rounds in ('0', '-1', 'invalid', '1.5', '11')]
+    invalid_settings.append(('1', 'unknown'))
+    for rounds, mode in invalid_settings:
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as directory:
             env = dict(os.environ, HOME=directory, CLAUDE_CODE_SESSION='fixture',
-                       QUESTION='fixture', ROUNDS=rounds, STYLE='thorough', ADVISORS='codex',
+                       QUESTION='fixture', ROUNDS=rounds, STYLE='thorough', DEBATE_MODE=mode, ADVISORS='codex',
                        USER_GOAL='', USER_PRIORITY='', USER_CONSTRAINTS='')
             result = subprocess.run(['/bin/bash', '-c', render_inputs(recipe, env) + '\necho DEBATE_CONTINUED'],
                                     cwd=directory, env=env, capture_output=True, text=True, timeout=5)
@@ -120,4 +122,112 @@ if errors:
 print("21 executable debate quality scenarios passed")
 PY_QUALITY
 then test_pass; else test_fail "debate quality scoring failed"; fi
+test_case "blinded Debate keeps advisor answers unread until all moderator notes are saved"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_BLIND'
+import json
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+
+root, tmp = map(Path, sys.argv[1:])
+scenarios = (
+    ("blinded", (), False),
+    ("blinded", ("moderator round one",), False),
+    ("blinded", ("moderator round one", ""), False),
+    ("blinded", ("moderator round one", "moderator round two"), True),
+    ("cross-critique", (), True),
+    (None, (), False),
+)
+errors = []
+for tree in (".claude/skills", "skills", "codex-skills"):
+    text = (root / tree / "skill-debate/SKILL.md").read_text()
+    section = text.split("#### 5.3:", 1)[1]
+    reader = re.search(r"```bash\n(.*?)\n```", section, re.S)[1]
+    for mode, notes, allowed in scenarios:
+        with tempfile.TemporaryDirectory(dir=tmp) as directory:
+            debate = Path(directory)
+            rounds = debate / "rounds"
+            rounds.mkdir()
+            (rounds / "r001_codex.md").write_text("ADVISOR ANSWER\n", encoding="utf-8")
+            for number, analysis in enumerate(notes, 1):
+                (rounds / f"r{number:03d}_claude.md").write_text(analysis, encoding="utf-8")
+            state = {"rounds_total": 2}
+            if mode is not None:
+                state["mode"] = mode
+            (debate / "state.json").write_text(json.dumps(state), encoding="utf-8")
+            recipe = re.sub(r"^DEBATE_DIR=.*$", lambda _: "DEBATE_DIR=" + shlex.quote(directory),
+                            reader, flags=re.M)
+            result = subprocess.run(["/bin/bash", "-euo", "pipefail", "-c", recipe],
+                                    capture_output=True, text=True, timeout=5)
+            if ((result.returncode == 0) != allowed or
+                    ("ADVISOR ANSWER" in result.stdout) != allowed or
+                    "moderator round" in result.stdout):
+                errors.append(f"{tree}, {mode}, {len(notes)} notes: "
+                              f"rc={result.returncode}, stdout={result.stdout!r}")
+            for number, analysis in enumerate(notes, 1):
+                if (rounds / f"r{number:03d}_claude.md").read_text(encoding="utf-8") != analysis:
+                    errors.append(f"{tree}, {mode}: rewrote the moderator note for round {number}")
+if errors:
+    print("\n".join(errors), file=sys.stderr)
+    sys.exit(1)
+print("18 executable Debate response-order scenarios passed")
+PY_BLIND
+then test_pass; else test_fail "Debate response reading did not preserve independent analysis"; fi
+test_case "Debate scores only the selected round's advisors"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_ROUND_QUALITY'
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+
+root, tmp = map(Path, sys.argv[1:])
+errors = []
+for tree in (".claude/skills", "skills", "codex-skills"):
+    text = (root / tree / "skill-debate/SKILL.md").read_text()
+    section = text.split("#### 5.4:", 1)[1]
+    scorer = re.search(r"```bash\n(.*?)\n```", section, re.S)[1]
+    with tempfile.TemporaryDirectory(dir=tmp) as directory:
+        rounds = Path(directory) / "rounds"
+        rounds.mkdir()
+        for prefix, seat in (("r001", "codex"), ("r002", "agy"), ("r003", "sonnet")):
+            (rounds / f"{prefix}_{seat}.md").write_text("short answer", encoding="utf-8")
+            (rounds / f"{prefix}_claude.md").write_text("moderator analysis", encoding="utf-8")
+        scorer = re.sub(r"^DEBATE_DIR=.*$", lambda _: "DEBATE_DIR=" + shlex.quote(directory),
+                        scorer, flags=re.M)
+        for prefix, seat in (("r001", "codex"), ("r002", "agy"), ("r003", "sonnet")):
+            recipe = re.sub(r"^ROUND_PREFIX=.*$", "ROUND_PREFIX=" + prefix, scorer, flags=re.M)
+            result = subprocess.run(["/bin/bash", "-euo", "pipefail", "-c", recipe],
+                                    capture_output=True, text=True, timeout=5)
+            lines = result.stdout.splitlines()
+            if result.returncode or len(lines) != 1 or f"from {seat} (score: 0)" not in lines[0]:
+                errors.append(f"{tree}, {prefix}: rc={result.returncode}, "
+                              f"stdout={result.stdout!r}, stderr={result.stderr!r}")
+if errors:
+    print("\n".join(errors), file=sys.stderr)
+    sys.exit(1)
+print("9 executable Debate round-scoring scenarios passed")
+PY_ROUND_QUALITY
+then test_pass; else test_fail "Debate scored a different round or included the moderator"; fi
+test_case "blinded Debate prepares every moderator note before native advisor completions"
+if python3 -I - "$PROJECT_ROOT" <<'PY_NATIVE'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+for tree in (".claude/skills", "skills", "codex-skills"):
+    text = (root / tree / "skill-debate/SKILL.md").read_text()
+    preparation, launch = text.split("#### 5.1:", 1)[1].split("#### 5.2:", 1)
+    preparation = preparation.partition("```bash")[0]
+    assert "for every round before launching any advisors" in preparation, tree
+    native_prompt = launch.split("prompt:", 1)[1].split("After all allowed advisors finish", 1)[0]
+    assert "write your analysis" in native_prompt.lower(), tree
+    assert "final reply must contain only a completion status" in native_prompt, tree
+    assert "Do not include any analysis, verdict, or summary in the final reply" in native_prompt, tree
+PY_NATIVE
+then test_pass; else test_fail "a native completion can expose analysis before the moderator finishes"; fi
 test_summary
