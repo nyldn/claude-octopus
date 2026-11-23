@@ -16,6 +16,7 @@ trigger: |
   DO NOT activate for:
   - Converting existing markdown to PPTX (use /octo:docs instead)
   - General file conversions (use document-skills directly)
+codex_short_description: "Turn a brief and supporting evidence into a slide deck"
 ---
 
 # Slide Deck Generator

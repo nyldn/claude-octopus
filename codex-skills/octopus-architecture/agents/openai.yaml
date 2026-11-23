@@ -1,5 +1,5 @@
 interface:
   display_name: "Architecture"
-  short_description: "Review system architecture, simplify boundaries, or compare..."
+  short_description: "Compare system designs and simplify component boundaries"
 policy:
   allow_implicit_invocation: false

@@ -1,5 +1,5 @@
 interface:
   display_name: "Prototype"
-  short_description: "Prototype one risky assumption within a fixed budget, then..."
+  short_description: "Test one risky assumption within an agreed budget"
 policy:
   allow_implicit_invocation: false

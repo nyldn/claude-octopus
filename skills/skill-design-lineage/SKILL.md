@@ -17,6 +17,7 @@ paths:
   - "**/todo/**"
   - "**/specs/**"
   - "**/PRD*"
+codex_short_description: "Track design revisions and the decisions behind them"
 ---
 
 # Design Document Lineage

@@ -1,5 +1,5 @@
 interface:
   display_name: "Extract"
-  short_description: "Reverse-engineer design systems, tokens, and components..."
+  short_description: "Recover design tokens and patterns from an existing product"
 policy:
   allow_implicit_invocation: false

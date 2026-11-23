@@ -19,6 +19,7 @@ trigger: |
   - GitHub issues (use gh CLI)
   - General problem-solving without tracking
 argument-hint: "[list|add|resolve|show] [description or ID]"
+codex_short_description: "Record project blockers, defects, and gaps for follow-up"
 ---
 
 # Issue Tracking

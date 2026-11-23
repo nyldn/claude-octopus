@@ -187,4 +187,14 @@ test_case "no ledger means usage is null"
 COUNCIL_RUN_DIR="$WORK/empty-run"; mkdir -p "$COUNCIL_RUN_DIR"
 if [[ "$(council_usage_summary_json)" == null ]]; then test_pass; else test_fail "$(council_usage_summary_json)"; fi
 
+test_case "relative output directory remains visible from the seat workspace"
+if (
+    cd "$WORK" && COUNCIL_OUTPUT_DIR="relative output" council_create_run_dir &&
+        cd "$WORK/run" && [[ "$COUNCIL_RUN_DIR" = /* && -s "$COUNCIL_RUN_DIR/run-status.json" ]]
+); then
+    test_pass
+else
+    test_fail "the published run is unavailable from the seat's working directory"
+fi
+
 test_summary

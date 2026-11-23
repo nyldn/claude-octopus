@@ -13,6 +13,7 @@ pre_execution_contract:
 validation_gates:
   - orchestrate_sh_executed
   - output_artifact_exists
+codex_short_description: "Write an implementation plan another session can follow"
 ---
 
 # Writing Plans

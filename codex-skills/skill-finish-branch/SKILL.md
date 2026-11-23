@@ -221,42 +221,9 @@ Which option? (1-4)
 **Keep options concise.** Don't add explanations unless asked.
 
 
-### Step 4: Execute Choice
+### Step 6: Execute Choice
 
-#### Option 1: Merge Locally
-
-```bash
-# Get current branch name
-FEATURE_BRANCH=$(git branch --show-current)
-BASE_BRANCH="main"  # or detected base
-
-# Switch to base branch
-git checkout $BASE_BRANCH
-
-# Pull latest
-git pull origin $BASE_BRANCH
-
-# Merge feature branch
-git merge $FEATURE_BRANCH
-
-# Verify tests on merged result
-npm test  # or appropriate test command
-
-# If tests pass, delete feature branch
-git branch -d $FEATURE_BRANCH
-```
-
-**Report:**
-```
-✅ Merged $FEATURE_BRANCH into $BASE_BRANCH
-✅ Tests pass on merged result
-✅ Feature branch deleted
-
-Ready to push when you want: git push origin $BASE_BRANCH
-```
-
-
-#### Option 2: Create PR
+#### Option 1: Create PR
 
 ```bash
 # Get branch info
@@ -318,6 +285,39 @@ Branch preserved for review process.
 ```
 
 
+#### Option 2: Merge Locally
+
+```bash
+# Get current branch name
+FEATURE_BRANCH=$(git branch --show-current)
+BASE_BRANCH="main"  # or detected base
+
+# Switch to base branch
+git checkout $BASE_BRANCH
+
+# Pull latest
+git pull origin $BASE_BRANCH
+
+# Merge feature branch
+git merge $FEATURE_BRANCH
+
+# Verify tests on merged result
+npm test  # or appropriate test command
+
+# If tests pass, delete feature branch
+git branch -d $FEATURE_BRANCH
+```
+
+**Report:**
+```
+✅ Merged $FEATURE_BRANCH into $BASE_BRANCH
+✅ Tests pass on merged result
+✅ Feature branch deleted
+
+Ready to push when you want: git push origin $BASE_BRANCH
+```
+
+
 #### Option 3: Keep As-Is
 
 ```
@@ -375,7 +375,7 @@ Work has been permanently discarded.
 ```
 
 
-### Step 5: Cleanup (If Using Worktrees)
+### Step 7: Cleanup (If Using Worktrees)
 
 **For Options 1, 2, 4:** Check if in a worktree and clean up:
 
@@ -402,8 +402,8 @@ fi
 
 | Option | Merge | Push | Keep Branch | Cleanup |
 |--------|-------|------|-------------|---------|
-| 1. Merge locally | ✓ | - | Delete | ✓ |
-| 2. Create PR | - | ✓ | Keep | - |
+| 1. Create PR | - | ✓ | Keep | - |
+| 2. Merge locally | ✓ | - | Delete | ✓ |
 | 3. Keep as-is | - | - | Keep | - |
 | 4. Discard | - | - | Delete | ✓ |
 
@@ -420,7 +420,7 @@ After completing octopus workflows, use this skill:
 # → Invoke finishing-branch skill
 # → Verify tests
 # → Present options
-# → Execute Option 2 (Create PR)
+# → Execute Option 1 (Create PR)
 ```
 
 ### With Octopus Validation

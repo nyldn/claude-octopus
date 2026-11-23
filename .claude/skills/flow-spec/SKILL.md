@@ -12,6 +12,7 @@ validation_gates:
   - orchestrate_sh_executed
   - synthesis_file_exists
   - nlspec_completeness_validated
+codex_short_description: "Write a specification with testable acceptance criteria"
 ---
 
 # STOP - SKILL ALREADY LOADED

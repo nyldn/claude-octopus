@@ -6,6 +6,38 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck source=tests/helpers/test-framework.sh
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Branch completion PR publication"
+test_case "presented choices agree with execution and quick reference on every host"
+if python3 -I - "$PROJECT_ROOT" <<'PY_CHOICES'
+from pathlib import Path
+import re
+import sys
+
+root = Path(sys.argv[1])
+expected = {1: 'create pr', 2: 'merge locally', 3: 'keep as-is', 4: 'discard'}
+complete = True
+for tree in ('skills', '.claude/skills', 'codex-skills'):
+    text = (root / tree / 'skill-finish-branch/SKILL.md').read_text()
+    for label, pattern in (
+        ('menu', r'^(\d+)\. \*\*([^*]+)\*\*'),
+        ('execution', r'^#### Option (\d+): (.+)$'),
+        ('quick reference', r'^\| (\d+)\. ([^|]+) \|'),
+    ):
+        options = [(int(number), action.lower()) for number, action
+                   in re.findall(pattern, text, re.M)]
+        if dict(options) != expected or len(options) != len(expected):
+            print(f'{tree}: {label} has {options!r}', file=sys.stderr)
+            complete = False
+    if 'Execute Option 1 (Create PR)' not in text:
+        print(f'{tree}: the PR example must select option 1', file=sys.stderr)
+        complete = False
+sys.exit(not complete)
+PY_CHOICES
+then
+    test_pass
+else
+    test_fail "branch completion choices disagree"
+fi
+
 if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" > "$TEST_TMP_DIR/controls.tsv" <<'PY'
 import os
 from pathlib import Path
@@ -19,10 +51,14 @@ root = Path(sys.argv[1])
 real_git = shutil.which('git')
 failures = []
 controls = 0
-for tree in ('.claude/skills', 'skills'):
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
     text = (root / tree / 'skill-finish-branch/SKILL.md').read_text()
-    section = text.split('#### Option 2: Create PR', 1)[1]
-    recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+    pr_option = re.search(r'^(\d+)\. \*\*Create PR\*\*', text, re.M)[1]
+    section = text.split(f'#### Option {pr_option}: Create PR', 1)
+    if len(section) != 2:
+        failures.append(f'{tree}: displayed PR choice has no matching recipe')
+        continue
+    recipe = re.search(r'```bash\n(.*?)\n```', section[1], re.S)[1]
     for scenario in ('success', 'push failed', 'detached', 'branch lookup failed',
                      'repository lookup failed', 'empty repository',
                      'empty title', 'empty summary', 'empty reason', 'PR write failed'):

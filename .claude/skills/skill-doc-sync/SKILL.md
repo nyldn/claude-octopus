@@ -7,6 +7,7 @@ paths:
 version: 1.0.0
 aliases: [doc-sync, sync-docs, document-release]
 description: "Post-ship doc sync across project markdown. Use when: sync docs, update docs, document changes, release notes."
+codex_short_description: "Update project documentation to match completed changes"
 ---
 
 # Post-Ship Documentation Synchronization

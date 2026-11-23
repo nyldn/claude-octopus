@@ -1,5 +1,5 @@
 interface:
   display_name: "Native Escalation Routing"
-  short_description: "Use when choosing native or multi-LLM handling for init,..."
+  short_description: "Choose host tools or external providers for a task"
 policy:
   allow_implicit_invocation: false

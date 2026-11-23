@@ -1568,9 +1568,11 @@ ${provider_ctx}"
     enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase" "$_sync_seat_id")
     local _budget_rc=$?
     if [[ $_budget_rc -ne 0 ]]; then
+        local budget_reason="Prompt exceeded context budget"
+        octo_capture_seat_failure "$agent_type" "$_budget_rc" "$budget_reason" /dev/null /dev/null
         run_contract_transition "$_sync_seat_id" failed \
-            "reason=Prompt exceeded context budget" >/dev/null 2>&1 || true
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "$role" "$_sync_seat_id" failed none || true
+            "reason=$budget_reason" >/dev/null 2>&1 || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "$budget_reason" 0 "" "$role" "$_sync_seat_id" failed none || true
         return "$_budget_rc"
     fi
 
