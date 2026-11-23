@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- When the Council chair's answer is rejected, Council dispatches at most one
+  fallback by default. Set `OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to choose a limit
+  from zero to five. The run summary reports how many attempts were dispatched.
+
 ## [11.26.1] - 2026-11-23
 
 ### Fixed
