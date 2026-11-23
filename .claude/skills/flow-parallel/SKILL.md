@@ -15,6 +15,7 @@ validation_gates:
   - instructions_written
   - processes_launched
   - all_work_packages_complete
+codex_short_description: "Run a large implementation in coordinated work packages"
 ---
 
 # STOP - SKILL ALREADY LOADED

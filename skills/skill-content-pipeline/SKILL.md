@@ -19,6 +19,7 @@ trigger: |
   - General web research (use flow-discover)
   - Simple URL summarization
   - Fact-checking or verification
+codex_short_description: "Extract recurring patterns from supplied web content"
 ---
 
 # Content Pipeline Skill

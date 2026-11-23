@@ -1,5 +1,5 @@
 interface:
   display_name: "Audit"
-  short_description: "Audit codebases for quality, consistency, and broken patterns..."
+  short_description: "Check a codebase for defects and inconsistent patterns"
 policy:
   allow_implicit_invocation: false

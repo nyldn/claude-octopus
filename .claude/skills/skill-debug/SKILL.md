@@ -13,6 +13,7 @@ pre_execution_contract:
 validation_gates:
   - root_cause_supported_by_evidence
   - original_scenario_verified
+codex_short_description: "Reproduce a failure, test a cause, and verify the fix"
 ---
 
 # Debugging

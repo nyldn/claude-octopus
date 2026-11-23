@@ -3,6 +3,7 @@ name: skill-context-detection
 disable-model-invocation: true
 effort: low
 description: "Auto-detect work context (Dev vs Knowledge) — use to tailor workflows based on current task type"
+codex_short_description: "Choose guidance for coding, research, or writing work"
 ---
 
 # Context Detection - Internal Skill

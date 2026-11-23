@@ -16,6 +16,7 @@ trigger: |
   - Research questions (use flow-probe)
   - Technical ecosystem research (use flow-probe)
   - Implementation questions (use flow-tangle)
+codex_short_description: "Compare options and their trade-offs before choosing"
 ---
 
 # Decision Support & Options Presentation

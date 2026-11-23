@@ -24,6 +24,7 @@ paths:
   - "**/docs/**"
   - "**/*.md"
   - "**/README*"
+codex_short_description: "Export written content to Office documents or PDF"
 ---
 
 # Document Delivery for Knowledge Workers
