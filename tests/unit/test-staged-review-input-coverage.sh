@@ -29,7 +29,14 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      'gitlink added', 'gitlink removed', 'gitlink updated',
                      'oversized', 'transport marker', 'external diff', 'textconv',
                      'relative config', 'shadow stdlib', 'unstaged excluded',
-                     'forced text hidden NUL', 'forced text trailing NUL', 'unmerged', 'index race'):
+                     'forced text hidden NUL', 'forced text trailing NUL', 'unmerged', 'index race',
+                     'staged stub', 'staged comments', 'staged deletion',
+                     'staged block comments', 'staged block then code',
+                     'staged exported declarations', 'staged reexports', 'staged private fields',
+                     'staged multiline reexports', 'staged comment after code', 'staged nested Rust comment',
+                     'staged comment delimiter in string', 'staged Python module docstring',
+                     'staged Python nested docstrings', 'staged Python from imports',
+                     'staged multiline JS imports'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             project = Path(temporary)
             environment = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
@@ -41,7 +48,11 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                                                env=environment, stderr=subprocess.DEVNULL, text=True).strip()
             git('init', '-q', '-b', 'main')
             git('config', 'core.hooksPath', os.devnull)
-            source = project / 'change.txt'
+            source = project / ('source with spaces.ts' if scenario.startswith('staged ') else 'change.txt')
+            if scenario == 'staged nested Rust comment':
+                source = source.with_suffix('.rs')
+            elif scenario.startswith('staged Python '):
+                source = source.with_suffix('.py')
             source.write_text('original\n')
             if scenario in ('forced text hidden NUL', 'forced text trailing NUL'):
                 lines = b''.join(f'line {i}\n'.encode() for i in range(200))
@@ -80,6 +91,41 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 (project / 'asset.bin').write_bytes(b'forced\0binary')
             elif scenario == 'shadow stdlib':
                 (project / 'subprocess.py').write_text('raise RuntimeError("shadow executed")\n')
+            elif scenario == 'staged stub':
+                source.write_text('// TODO: implement\nconst value = 1;\n')
+            elif scenario == 'staged comments':
+                source.write_text('// A comment with no substantive lines\n')
+            elif scenario == 'staged deletion':
+                source.unlink()
+            elif scenario in ('staged block comments', 'staged block then code'):
+                closing = '*/ export const answer = 42;' if scenario.endswith('then code') else '*/'
+                source.write_text('/*\n' + 'comment line\n' * 6 + closing + '\n')
+            elif scenario == 'staged exported declarations':
+                source.write_text(''.join(f'export const value{i} = {i};\n' for i in range(5)))
+            elif scenario == 'staged reexports':
+                source.write_text("export * from './values';\nexport { value };\nexport type { Model };\n")
+            elif scenario == 'staged private fields':
+                source.write_text('class Settings {\n' + ''.join(f'  #field{i} = {i};\n' for i in range(4)) + '}\n')
+            elif scenario == 'staged multiline reexports':
+                source.write_text('export type {\n' + ''.join(f'  Type{i},\n' for i in range(5)) + "} from './types';\n")
+            elif scenario == 'staged comment after code':
+                source.write_text('const value = 1; /*\n' + 'comment line\n' * 6 + '*/\n')
+            elif scenario == 'staged nested Rust comment':
+                source.write_text('/* outer\n/* nested */\n' + 'comment line\n' * 6 + '*/\n')
+            elif scenario == 'staged comment delimiter in string':
+                source.write_text('const delimiter = "/*";\n' + 'const value = 1;\n' * 4)
+            elif scenario == 'staged Python module docstring':
+                source.write_text('"""\n' + 'documentation line\n' * 5 + '"""\n')
+            elif scenario == 'staged Python nested docstrings':
+                source.write_text('class Placeholder:\n    """\n' + '    class documentation\n' * 4 +
+                                  '    """\n    def run(self):\n        """\n' +
+                                  '        function documentation\n' * 4 + '        """\n')
+            elif scenario == 'staged Python from imports':
+                source.write_text('from .helpers import (\n' + ''.join(f'    helper{i},\n' for i in range(5)) +
+                                  ')\nfrom .extras import extra\n')
+            elif scenario == 'staged multiline JS imports':
+                source.write_text('import defaultThing, {\n' + ''.join(f'  helper{i},\n' for i in range(5)) +
+                                  "} from './helpers';\n")
             if scenario in ('external diff', 'textconv'):
                 command = project / '.git/unsafe-diff'
                 command.write_text('#!/bin/sh\ntouch "' + str(project / 'executed') + '"\necho OMITTED\n')
@@ -98,6 +144,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 git('update-index', '--add', '--cacheinfo', '160000,' + git('rev-parse', 'HEAD') + ',nested')
             if scenario == 'unstaged excluded':
                 source.write_text('UNSTAGED_MUST_NOT_BE_REVIEWED\n')
+            if scenario.startswith('staged '):
+                source.write_text('working_tree_only = True\n' * 5)
             cwd = project
             if scenario == 'relative config':
                 git('config', 'diff.relative', 'true')
@@ -144,6 +192,25 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             if not blocked and capture.exists():
                 valid = valid and capture.read_text() == expected
                 valid = valid and 'UNSTAGED_MUST_NOT_BE_REVIEWED' not in capture.read_text()
+            if scenario == 'staged stub':
+                valid = valid and '1 TODO/FIXME markers' in result.stderr
+            elif scenario == 'staged comments':
+                valid = valid and 'only 0 substantive lines' in result.stderr
+                valid = valid and 'TODO/FIXME markers' not in result.stderr
+            elif scenario == 'staged deletion':
+                valid = valid and '0 source files scanned' in result.stderr
+            elif scenario in ('staged block comments', 'staged reexports',
+                              'staged multiline reexports', 'staged nested Rust comment',
+                              'staged Python module docstring', 'staged Python from imports',
+                              'staged multiline JS imports'):
+                valid = valid and 'only 0 substantive lines' in result.stderr
+            elif scenario == 'staged Python nested docstrings':
+                valid = valid and 'only 2 substantive lines' in result.stderr
+            elif scenario in ('staged block then code', 'staged comment after code'):
+                valid = valid and 'only 1 substantive lines' in result.stderr
+            elif scenario in ('staged exported declarations', 'staged private fields',
+                              'staged comment delimiter in string'):
+                valid = valid and '1 source files scanned, 0 issues found' in result.stderr
             if not valid:
                 failures.append(f'{tree}: {scenario}: exit={result.returncode} {result.stderr}')
             controls += 1
