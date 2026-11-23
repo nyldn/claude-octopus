@@ -29,7 +29,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      'gitlink added', 'gitlink removed', 'gitlink updated',
                      'oversized', 'transport marker', 'external diff', 'textconv',
                      'relative config', 'shadow stdlib', 'unstaged excluded',
-                     'forced text hidden NUL', 'forced text trailing NUL', 'unmerged', 'index race'):
+                     'forced text hidden NUL', 'forced text trailing NUL', 'unmerged', 'index race',
+                     'staged stub', 'staged comments', 'staged deletion'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             project = Path(temporary)
             environment = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
@@ -41,7 +42,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                                                env=environment, stderr=subprocess.DEVNULL, text=True).strip()
             git('init', '-q', '-b', 'main')
             git('config', 'core.hooksPath', os.devnull)
-            source = project / 'change.txt'
+            source = project / ('source with spaces.py' if scenario.startswith('staged ') else 'change.txt')
             source.write_text('original\n')
             if scenario in ('forced text hidden NUL', 'forced text trailing NUL'):
                 lines = b''.join(f'line {i}\n'.encode() for i in range(200))
@@ -80,6 +81,12 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 (project / 'asset.bin').write_bytes(b'forced\0binary')
             elif scenario == 'shadow stdlib':
                 (project / 'subprocess.py').write_text('raise RuntimeError("shadow executed")\n')
+            elif scenario == 'staged stub':
+                source.write_text('# TODO: implement\nvalue = 1\n')
+            elif scenario == 'staged comments':
+                source.write_text('# A comment with no substantive lines\n')
+            elif scenario == 'staged deletion':
+                source.unlink()
             if scenario in ('external diff', 'textconv'):
                 command = project / '.git/unsafe-diff'
                 command.write_text('#!/bin/sh\ntouch "' + str(project / 'executed') + '"\necho OMITTED\n')
@@ -98,6 +105,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 git('update-index', '--add', '--cacheinfo', '160000,' + git('rev-parse', 'HEAD') + ',nested')
             if scenario == 'unstaged excluded':
                 source.write_text('UNSTAGED_MUST_NOT_BE_REVIEWED\n')
+            if scenario in ('staged stub', 'staged comments', 'staged deletion'):
+                source.write_text('working_tree_only = True\n' * 5)
             cwd = project
             if scenario == 'relative config':
                 git('config', 'diff.relative', 'true')
@@ -144,6 +153,13 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             if not blocked and capture.exists():
                 valid = valid and capture.read_text() == expected
                 valid = valid and 'UNSTAGED_MUST_NOT_BE_REVIEWED' not in capture.read_text()
+            if scenario == 'staged stub':
+                valid = valid and '1 TODO/FIXME markers' in result.stderr
+            elif scenario == 'staged comments':
+                valid = valid and 'only 0 substantive lines' in result.stderr
+                valid = valid and 'TODO/FIXME markers' not in result.stderr
+            elif scenario == 'staged deletion':
+                valid = valid and '0 source files scanned' in result.stderr
             if not valid:
                 failures.append(f'{tree}: {scenario}: exit={result.returncode} {result.stderr}')
             controls += 1

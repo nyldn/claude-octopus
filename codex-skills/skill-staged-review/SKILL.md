@@ -111,77 +111,24 @@ For each boundary in the intent contract:
 
 Runs stub detection and full code quality review.
 
-### Step 1: Stub Detection
+### Step 1: Admit the staged snapshot and check for stubs
 
-Run 5 checks on all changed files:
-
-```bash
-# Get changed files
-if git diff --cached --name-only 2>/dev/null | head -1 > /dev/null; then
-  changed_files=$(git diff --cached --name-only)
-elif git diff --name-only HEAD~1..HEAD 2>/dev/null | head -1 > /dev/null; then
-  changed_files=$(git diff --name-only HEAD~1..HEAD)
-else
-  changed_files=$(git diff --name-only)
-fi
-
-# Filter source files
-source_files=$(echo "$changed_files" | grep -E "\.(ts|tsx|js|jsx|py|go|rs|sh)$" || true)
-
-STUB_ISSUES=0
-
-for file in $source_files; do
-  [[ -f "$file" ]] || continue
-
-  # Check 1: TODO/FIXME/PLACEHOLDER markers
-  todo_count=$(grep -cE "(TODO|FIXME|PLACEHOLDER|XXX)" "$file" 2>/dev/null || echo "0")
-  if [[ "$todo_count" -gt 0 ]]; then
-    echo "WARNING: $file has $todo_count TODO/FIXME markers"
-    STUB_ISSUES=$((STUB_ISSUES + 1))
-  fi
-
-  # Check 2: Empty function bodies
-  empty_fn=$(grep -cE "function.*\{\s*\}|=>\s*\{\s*\}" "$file" 2>/dev/null || echo "0")
-  if [[ "$empty_fn" -gt 0 ]]; then
-    echo "ERROR: $file has $empty_fn empty functions"
-    STUB_ISSUES=$((STUB_ISSUES + 1))
-  fi
-
-  # Check 3: Suspicious null/undefined returns
-  null_ret=$(grep -cE "return (null|undefined);" "$file" 2>/dev/null || echo "0")
-  if [[ "$null_ret" -gt 0 ]]; then
-    echo "WARNING: $file has $null_ret null/undefined returns — verify intentional"
-    STUB_ISSUES=$((STUB_ISSUES + 1))
-  fi
-
-  # Check 4: Substantive line count
-  subst_lines=$(grep -cvE "^\s*(//|/\*|\*|#|import|export|$)" "$file" 2>/dev/null || echo "0")
-  if [[ "$subst_lines" -lt 5 ]]; then
-    echo "WARNING: $file has only $subst_lines substantive lines"
-    STUB_ISSUES=$((STUB_ISSUES + 1))
-  fi
-
-  # Check 5: Mock/test data in production code
-  mock_count=$(grep -cE "const.*(mock|test|dummy|fake).*=" "$file" 2>/dev/null || echo "0")
-  if [[ "$mock_count" -gt 0 ]]; then
-    echo "WARNING: $file has $mock_count mock/test data references"
-    STUB_ISSUES=$((STUB_ISSUES + 1))
-  fi
-done
-
-echo "Stub detection complete: $STUB_ISSUES issues found"
-```
+Capture one immutable staged tree. The admission block below checks its
+changed source files for stubs, placeholders and short files, then returns
+the complete staged diff for the quality review. Deleted files remain in
+the diff and have no staged file to scan.
 
 ### Step 2: Multi-LLM Quality Review (RECOMMENDED)
 
-**After stub detection, dispatch code to multiple providers for parallel quality review.** A Claude-only review pipeline misses what external models catch — Codex excels at logic errors and correctness, while Antigravity provides an independent security and edge-case analysis. Using both produces higher-confidence findings.
+**After admitting and scanning the staged snapshot, dispatch its diff for parallel quality review.** A Claude-only review pipeline misses what external models catch — Codex excels at logic errors and correctness, while Antigravity provides an independent security and edge-case analysis. Using both produces higher-confidence findings.
 
-**Check provider availability and dispatch in parallel:**
+**Admit the staged snapshot before checking provider availability:**
 
 ```bash
 # Admit the complete staged text before any review. Do not substitute another
 # range when staged input is empty or cannot be read.
 DIFF_CONTENT=$(python3 -I - <<'PY_STAGED_DIFF'
+import os
 import re
 import subprocess
 import sys
@@ -207,13 +154,16 @@ if any(line.split(b'\t', 2)[:2] == [b'-', b'-'] for line in numstat.splitlines()
     sys.exit('Review incomplete: staged binary content needs separate complete review.')
 raw = subprocess.check_output(command + ['--raw', '--no-abbrev', '-z', base, staged, '--'])
 blobs = set()
-for header in raw.split(b'\0')[::2]:
-    if not header:
-        continue
-    old_mode, new_mode, old_oid, new_oid, status = header.split()
+sources = []
+source_suffixes = (b'.ts', b'.tsx', b'.js', b'.jsx', b'.py', b'.go', b'.rs', b'.sh')
+fields = raw.split(b'\0')
+for header, path in zip(fields[::2], fields[1::2]):
+    old_mode, new_mode, old_oid, new_oid, _ = header.split()
     if old_mode == b':160000' or new_mode == b'160000':
         sys.exit('Review incomplete: staged submodules need separate complete source review.')
     blobs.update(oid for oid in (old_oid, new_oid) if oid.strip(b'0'))
+    if new_mode in (b'100644', b'100755') and path.endswith(source_suffixes):
+        sources.append((path, new_oid))
 # Forced-text attributes can hide NUL bytes outside the patch context. Inspect
 # both affected revisions in bounded chunks, including deleted file content.
 for oid in sorted(blobs):
@@ -234,6 +184,38 @@ if not diff:
     sys.exit('Review incomplete: no staged changes. Select the intended review range explicitly.')
 if len(diff) > 60000:
     sys.exit('Review incomplete: staged input exceeds the 60000-byte quick-review limit. Arrange complete file-based review.')
+# Scan the postimage blobs from the admitted tree. Never reopen worktree paths.
+checks = (
+    (re.compile(rb'TODO|FIXME|PLACEHOLDER|XXX'), 'TODO/FIXME markers'),
+    (re.compile(rb'(function.*\{\s*\}|=>\s*\{\s*\})'), 'empty functions'),
+    (re.compile(rb'return (null|undefined);'), 'null/undefined returns'),
+    (re.compile(rb'const.*(mock|test|dummy|fake).*='), 'mock/test data references'),
+)
+non_substantive = re.compile(rb'^\s*(//|/\*|\*|#|import|export|$)')
+issues = 0
+for path, oid in sources:
+    counts = [0] * len(checks)
+    substantive = 0
+    with subprocess.Popen(['git', 'cat-file', 'blob', oid.decode('ascii')],
+                          stdout=subprocess.PIPE) as blob:
+        for line in blob.stdout:
+            for index, (pattern, _) in enumerate(checks):
+                if pattern.search(line):
+                    counts[index] += 1
+            if not non_substantive.match(line):
+                substantive += 1
+        if blob.wait() != 0:
+            sys.exit('Review incomplete: could not scan a staged source blob.')
+    label = ascii(os.fsdecode(path))
+    for count, (_, description) in zip(counts, checks):
+        if count:
+            print(f'WARNING: {label} has {count} {description}', file=sys.stderr)
+            issues += 1
+    if substantive < 5:
+        print(f'WARNING: {label} has only {substantive} substantive lines', file=sys.stderr)
+        issues += 1
+print(f'Stub detection complete: {len(sources)} source files scanned, {issues} issues found',
+      file=sys.stderr)
 print(f'Review snapshot: base tree {base}, staged tree {staged}', file=sys.stderr)
 sys.stdout.buffer.write(diff)
 PY_STAGED_DIFF
