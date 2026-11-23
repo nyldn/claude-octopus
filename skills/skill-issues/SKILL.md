@@ -188,12 +188,16 @@ Set `ISSUE_ID` to the ID supplied with `resolve`.
 
 ```bash
 ISSUE_ID="$ISSUE_ID" awk -F '|' '
+  BEGIN {
+    issue_id = ENVIRON["ISSUE_ID"]
+    if (issue_id !~ /^ISS-[0-9]{8}-[0-9]{3,}$/) exit 1
+  }
   /^##[[:blank:]]+Open Issues[[:blank:]]*$/ { in_open = 1; next }
   /^##?[[:blank:]]/ { in_open = 0 }
   in_open && NF >= 3 && $(1) ~ /^[[:blank:]]*$/ {
     id = $(2)
     gsub(/^[[:blank:]]+|[[:blank:]]+$/, "", id)
-    if (id != "" && id == ENVIRON["ISSUE_ID"]) {
+    if (id == issue_id) {
       found = 1
       exit
     }
