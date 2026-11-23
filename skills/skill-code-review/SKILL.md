@@ -11,6 +11,7 @@ pre_execution_contract:
 validation_gates:
   - orchestrate_sh_executed
   - review_output_exists
+codex_short_description: "Review a code diff and prepare actionable PR feedback"
 ---
 
 # Code Review Skill

@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Failed provider configuration saves preserve the last working settings.
+- Codex plugin listings include the existing logo artwork, complete skill
+  descriptions, and explicit starter prompts. First-use guidance explains
+  provider setup, readiness limits, and account costs.
 - A council whose chair answer is rejected dispatches one fallback chair attempt
   instead of up to five, each re-sending the full prompt and evidence. A live
   quick council spent $0.77 of $1.23 on five rejected attempts that never
@@ -11,6 +15,11 @@
   limit; `summary.json` reports `quorum.chair_fallback_attempts`.
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
+- The Tangle quality gate counts a subtask as blocked when its own output says
+  the work is incomplete or blocked, for example a verification section that
+  opens with "Incomplete due to an environment blocker:" or "Blocked by
+  environment setup:". Such subtasks had launched successfully, so the gate
+  scored them as 100% success.
 
 ## [11.26.0] - 2026-11-18
 
@@ -130,6 +139,7 @@ Merged changes: [#1349](https://github.com/nyldn/claude-octopus/pull/1349),
 [#1357](https://github.com/nyldn/claude-octopus/pull/1357).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
 its broader runtime and installed-host acceptance work remains open.
+
 
 ## [11.24.2] - 2026-11-16
 

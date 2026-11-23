@@ -1,5 +1,5 @@
 interface:
   display_name: "Finish Branch"
-  short_description: "Wrap up a branch — run tests, create PR, merge or discard..."
+  short_description: "Verify a branch and choose how to submit or finish it"
 policy:
   allow_implicit_invocation: false

@@ -24,6 +24,7 @@ trigger: |
   - -w/--max-words N
   - -t/--topic NAME
   - -s/--synthesize (generate deliverable from consensus)
+codex_short_description: "Compare competing approaches through a provider debate"
 ---
 
 # AI Debate Hub Skill v4.8

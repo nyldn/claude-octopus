@@ -12,6 +12,7 @@ trigger: |
   - "resume" or "continue" or "pick up where I left off"
   - "what was I doing" or "restore session"
   - Detecting persistent workflow state exists but no prior context in memory
+codex_short_description: "Restore recorded project context and continue the next step"
 ---
 
 # Session Restoration

@@ -10,6 +10,7 @@ aliases:
 trigger: |
   Use this skill when user says "quick fix", "ad-hoc task", or explicitly
   requests fast execution without full workflow overhead.
+codex_short_description: "Complete a small task without the full phase workflow"
 ---
 
 # Quick Mode - Lightweight Task Execution ⚡
