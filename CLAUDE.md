@@ -383,3 +383,5 @@ handoff files to this repository. At session start, read this file,
 model-routing work, also read `docs/MODEL-ROUTING-STRATEGY.md`. Before handoff,
 record verified tests and the exact commit or pull request state in the
 conversation or pull request description.
+
+For Codex listing or onboarding changes, apply [the delivery checks](docs/DELIVERY.md).

@@ -1,5 +1,5 @@
 interface:
   display_name: "Context Detection"
-  short_description: "Auto-detect work context (Dev vs Knowledge) — use to tailor..."
+  short_description: "Choose guidance for coding, research, or writing work"
 policy:
   allow_implicit_invocation: false

@@ -87,6 +87,9 @@ instructions belong in skills and hooks, not that maintainer file.
 
 ## Codex
 
+Start with [the Codex getting-started guide](CODEX-START.md) for setup checks,
+workflow selection, and provider account costs.
+
 Generated Codex skills carry `policy.allow_implicit_invocation: false` for the
 same methods. Shared references, notices, setup helpers, and routing-preview
 helpers ship in the package. Native discovery proves installation only; it does

@@ -1,5 +1,5 @@
 interface:
-  display_name: "Tdd"
-  short_description: "Build a behavior change with observed red, minimal green, and..."
+  display_name: "Test-Driven Development"
+  short_description: "Implement a behavior through failing and passing tests"
 policy:
   allow_implicit_invocation: false

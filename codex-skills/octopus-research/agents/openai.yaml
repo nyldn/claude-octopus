@@ -1,5 +1,5 @@
 interface:
   display_name: "Research"
-  short_description: "Thorough research across multiple sources — use for complex..."
+  short_description: "Investigate a complex question across sources in depth"
 policy:
   allow_implicit_invocation: false

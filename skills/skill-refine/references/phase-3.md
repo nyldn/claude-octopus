@@ -23,6 +23,12 @@ the requested numeric target, prior scores, or author identity. Omit `target`
 from their rubric view while retaining the hash of the full frozen rubric in
 the response envelope. Do not show revision history in scoring prompts.
 
+Before each pair dispatch, inspect every field in the complete frozen blind
+prompt for credentials and private tokens, including the user-supplied rubric,
+candidate, supporting evidence, purpose, constraints, and guard evidence. Repeat
+for any new content. Stop if a selected input contains a secret; do not open
+unrelated credential files or silently redact frozen inputs to continue.
+
 Before the baseline pair, run these commands with the declared guard results
 as a JSON array. Baseline and rubric-correction calibration failures may be recorded; new
 improvement guards must pass.
@@ -39,9 +45,14 @@ as no progress. Do not overwrite its evidence or create another pair ID for it.
 
 Dispatch the two seats together through `scripts/refinement-pair.py`. It always
 uses `scripts/refinement-judge.sh`; never bypass that adapter. The adapter disables
-hidden auth retries, restricts Claude to Read/Glob/Grep without ambient MCP, and
-forces Codex read-only with configured MCP/apps/plugins disabled. An unreadable
-MCP inventory fails closed. Freeze one blind prompt containing the exact candidate,
+hidden auth retries and stages only the frozen request in a private directory.
+Claude requires restricted and safe modes with Read/Glob/Grep and no ambient MCP.
+Codex requires a scoped filesystem profile, no tool-process environment, no
+network from tools, no approval escalation, and disabled MCP/apps/plugins,
+hooks and memory. Its local sandbox probe must admit the request and reject an
+unrelated sentinel before dispatch. Unsupported enforcement or an unreadable
+MCP inventory fails closed. Authentication remains with the selected client;
+the host must not inspect unrelated credential files. Freeze one blind prompt containing the exact candidate,
 rubric without target, purpose, constraints, and guard evidence. Both seats read
 the same frozen request. Select explicit provider:model pins and efforts first.
 

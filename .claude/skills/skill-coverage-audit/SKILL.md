@@ -19,6 +19,7 @@ trigger: |
   - General code audits (use skill-audit)
   - Code review without coverage focus (use skill-code-review)
   - TDD workflow (use skill-tdd)
+codex_short_description: "Find changed code paths that lack meaningful tests"
 ---
 
 # Test Coverage Audit

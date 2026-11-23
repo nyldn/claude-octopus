@@ -1,5 +1,5 @@
 interface:
   display_name: "Quick"
-  short_description: "Quick execution for ad-hoc tasks without full workflow..."
+  short_description: "Complete a small task without the full phase workflow"
 policy:
   allow_implicit_invocation: false

@@ -21,6 +21,7 @@ trigger: |
 paths:
   - "**/.claude-octopus/**"
   - "**/analytics/**"
+codex_short_description: "Estimate remaining workflow cost from recorded usage"
 ---
 
 # Cost Projections Skill
