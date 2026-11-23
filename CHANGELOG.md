@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The deck stakeholder review uses the installed advisor selector and the
+  confirmed deck question for its static readiness check.
+
 ## [11.27.0] - 2026-11-23
 
 ### Added
