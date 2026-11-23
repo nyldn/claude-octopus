@@ -10,6 +10,9 @@
 
 - The Embrace debate gate reports why each provider seat failed, including
   quota retry guidance when available.
+- Tangle keeps its out-of-scope path list out of the environment and caps the
+  scope-contract finding at 20 paths. It writes the validation report even for
+  oversized lists and reports failed worktree snapshots explicitly.
 
 ## [11.26.1] - 2026-11-23
 
