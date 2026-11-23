@@ -189,8 +189,10 @@ if [[ "$(council_usage_summary_json)" == null ]]; then test_pass; else test_fail
 
 test_case "relative output directory remains visible from the seat workspace"
 if (
-    cd "$WORK" && COUNCIL_OUTPUT_DIR="relative output" council_create_run_dir &&
-        cd "$WORK/run" && [[ "$COUNCIL_RUN_DIR" = /* && -s "$COUNCIL_RUN_DIR/run-status.json" ]]
+    mkdir -p "$WORK/other/relative output" && cd "$WORK" &&
+        CDPATH="$WORK/other" COUNCIL_OUTPUT_DIR="relative output" council_create_run_dir &&
+        cd "$WORK/run" && [[ "$COUNCIL_RUN_DIR" == "$WORK/relative output/"* &&
+            -s "$COUNCIL_RUN_DIR/run-status.json" ]]
 ); then
     test_pass
 else
