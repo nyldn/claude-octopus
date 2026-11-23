@@ -5687,21 +5687,27 @@ tangle_validate_results_with_scope_contract() {
             integrity_violations="The parent-owned worktree state snapshot changed before final validation."
         fi
     fi
-    local scope_violations=""
+    local scope_violations="" scope_mode path
+    local -a violation_lines=() adaptive_paths=()
+    scope_mode=$(tangle_write_scope_mode)
     if scope_violations=$(tangle_changed_paths_outside_write_scopes "$subtasks" "$worktree_before_file" "$baseline_head" "$worktree_before_state_file"); then
         while IFS= read -r path; do
             [[ -n "$path" ]] || continue
-            if [[ "$(tangle_write_scope_mode)" == "adaptive" ]] && tangle_adaptive_scope_path_is_safe "$path"; then
-                adaptive_scope_evidence="${adaptive_scope_evidence}${path}"$'\n'
+            if [[ "$scope_mode" == "adaptive" ]] && tangle_adaptive_scope_path_is_safe "$path"; then
+                adaptive_paths+=("$path")
+            elif [[ "$scope_mode" == "adaptive" ]]; then
+                violation_lines+=("Unsafe adaptive scope path: ${path}.")
             else
-                [[ -z "$violations" ]] || violations="${violations}"$'\n'
-                if [[ "$(tangle_write_scope_mode)" == "adaptive" ]]; then
-                    violations="${violations}Unsafe adaptive scope path: ${path}."
-                else
-                    violations="${violations}${path}"
-                fi
+                violation_lines+=("$path")
             fi
         done <<< "$scope_violations"
+        if [[ ${#violation_lines[@]} -gt 0 ]]; then
+            printf -v violations '%s\n' "${violation_lines[@]}"
+            violations="${violations%$'\n'}"
+        fi
+        if [[ ${#adaptive_paths[@]} -gt 0 ]]; then
+            printf -v adaptive_scope_evidence '%s\n' "${adaptive_paths[@]}"
+        fi
     else
         [[ -z "$integrity_violations" ]] || integrity_violations="${integrity_violations}"$'\n'
         integrity_violations="${integrity_violations}Unable to verify final worktree changes against immutable start HEAD."
