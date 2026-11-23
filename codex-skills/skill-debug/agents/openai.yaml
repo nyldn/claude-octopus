@@ -1,5 +1,5 @@
 interface:
   display_name: "Debug"
-  short_description: "Debug a reproducible symptom with a bounded feedback loop and..."
+  short_description: "Reproduce a failure, test a cause, and verify the fix"
 policy:
   allow_implicit_invocation: false

@@ -1083,6 +1083,7 @@ test_council_contribution_record_failure_is_nonfatal() {
             printf 'attempt\n' >> "$count_file"
             return 1
         }
+        OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX=5 \
         OCTOPUS_COUNCIL_FIXTURE=full-success \
         OCTOPUS_COUNCIL_FAIL_PERSONAS='strategy-analyst' \
         OCTOPUS_COUNCIL_PROVIDER_FIXTURE='claude:available,codex:available,agy:available' \

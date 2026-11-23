@@ -146,6 +146,13 @@ preflight_check true
         scripts.mkdir()
         for name in ("refinement-pair.py", "refinement-judge.sh", "refinement-run.py", "refinement-score.py"):
             shutil.copy2(ROOT / "scripts" / name, scripts / name)
+        spec = importlib.util.spec_from_file_location('boundary_fixture', ROOT / 'tests/fixtures/refinement-boundary.py')
+        fixture = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fixture)
+        binaries = fixture.install(ROOT, scripts)
+        self.original_path = os.environ['PATH']
+        os.environ['PATH'] = binaries + os.pathsep + self.original_path
+        self.addCleanup(os.environ.__setitem__, 'PATH', self.original_path)
         # Inert orchestrator behind the real mandatory adapter. No credentials/model CLI.
         runner = scripts / "orchestrate.sh"
         runner.write_text('''#!/usr/bin/env python3

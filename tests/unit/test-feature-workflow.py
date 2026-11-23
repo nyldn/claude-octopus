@@ -447,6 +447,31 @@ done
         self.assertFalse((self.root / 'specs').exists())
         self.assertNotIn(str(self.home), (self.root / '.octopus-feature.json').read_text())
 
+    def test_explicit_spec_path_in_new_directory_persists_identity_at_prepare(self):
+        target = '.tasks/_session/export/spec.md'
+        prepared = subprocess.run(['/bin/bash', str(ADAPTER), 'prepare', 'spec', 'export', target],
+                                  cwd=self.root, env=self.env, capture_output=True, text=True)
+        self.assertEqual(prepared.returncode, 0, prepared.stderr)
+        self.assertNotIn('persistent task identity unavailable', prepared.stderr)
+        context = json.loads(prepared.stdout.splitlines()[-1])
+        self.assertEqual(context['feature'], '.tasks/_session/export')
+        self.assertEqual(context['spec_path'], target)
+        manifest_path = self.root / '.tasks/_session/export/feature.json'
+        manifest = json.loads(manifest_path.read_text())
+        self.assertEqual(manifest['feature_id'], context['feature_id'])
+        self.assertEqual(manifest['policy']['source'], 'AGENTS.md')
+        self.adapter('save', 'spec', str(self.spec), 'claude', 'unknown', 'run-explicit', target)
+        self.assertTrue((self.root / target).exists())
+        self.assertEqual(json.loads(manifest_path.read_text())['feature_id'], context['feature_id'])
+        self.assertFalse((self.root / 'specs').exists())
+        self.adapter('prepare', 'plan', 'export', '.tasks/_session/other/spec.md')
+        self.assertFalse((self.root / '.tasks/_session/other').exists())
+        outside = self.base / 'outside'
+        outside.mkdir()
+        (self.root / 'linked').symlink_to(outside)
+        self.adapter('prepare', 'spec', 'export', 'linked/escape/spec.md')
+        self.assertEqual(list(outside.iterdir()), [])
+
     def test_accepted_plan_emits_and_reconciles_portable_tasks(self):
         context = self.adapter('prepare', 'spec', 'export')
         self.adapter('save', 'spec', str(self.spec), 'claude', 'unknown', 'run-6', context['feature'])
