@@ -189,7 +189,8 @@ checks = (
     (re.compile(rb'const.*(mock|test|dummy|fake).*='), 'mock/test data references'),
 )
 non_substantive = re.compile(rb'^\s*(import\b|$)')
-reexport_group = re.compile(rb'^\s*export\b(?:\s+type\b)?\s*\{')
+js_import_or_reexport_group = re.compile(
+    rb'^\s*(?:export\b(?:\s+type\b)?\s*|import\s+(?:type\s+)?(?:[^{}(),\s]+\s*,\s*)?)\{')
 reexport_all = re.compile(rb'^\s*export\b(?:\s+type\b)?\s*\*')
 shell_export = re.compile(rb'^\s*export\b')
 ecmascript = (b'.ts', b'.tsx', b'.js', b'.jsx')
@@ -221,26 +222,30 @@ def without_c_style_comments(line, depth, block_token):
         pos = token.end()
     return b' '.join(fragments), depth
 
-def module_docstring_lines(source):
+def python_non_substantive_lines(source):
     try:
         module = ast.parse(source)
     except (SyntaxError, ValueError, RecursionError):
-        return range(0)
-    if ast.get_docstring(module, clean=False) is None:
-        return range(0)
-    body = module.body
-    start = body[0].lineno
-    end = body[0].end_lineno + 1
-    if len(body) > 1:
-        end = min(end, body[1].lineno)
-    return range(start, end)
+        return set()
+    documentable = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    statements = list(ast.walk(module))
+    docstrings = {node.body[0] for node in statements
+                  if isinstance(node, documentable) and ast.get_docstring(node, clean=False) is not None}
+    ignored = set()
+    code_starts = set()
+    for node in statements:
+        if isinstance(node, (ast.Import, ast.ImportFrom)) or node in docstrings:
+            ignored.update(range(node.lineno, node.end_lineno + 1))
+        elif isinstance(node, ast.stmt):
+            code_starts.add(node.lineno)
+    return ignored - code_starts
 
 issues = 0
 for path, oid in sources:
     counts = [0] * len(checks)
     substantive = 0
     comment_depth = 0
-    in_reexport = False
+    in_js_module_group = False
     scan_block_comments = path.endswith(block_comment_sources)
     block_token = rust_block_token if path.endswith(b'.rs') else block_end
     js_source = path.endswith(ecmascript)
@@ -249,10 +254,10 @@ for path, oid in sources:
     with subprocess.Popen(['git', 'cat-file', 'blob', oid.decode('ascii')],
                           stdout=subprocess.PIPE) as blob:
         lines = blob.stdout
-        docstring_lines = range(0)
+        python_ignored = set()
         if path.endswith(b'.py'):
             source = lines.read()
-            docstring_lines = module_docstring_lines(source)
+            python_ignored = python_non_substantive_lines(source)
             lines = io.BytesIO(source)
         for line_number, line in enumerate(lines, 1):
             for index, (pattern, _) in enumerate(checks):
@@ -260,15 +265,15 @@ for path, oid in sources:
                     counts[index] += 1
             if scan_block_comments:
                 line, comment_depth = without_c_style_comments(line, comment_depth, block_token)
-            if line_number in docstring_lines:
+            if line_number in python_ignored:
                 continue
             if (hash_comments and line.lstrip().startswith(b'#')) or (line_number == 1 and line.startswith(b'#!')):
                 continue
             if js_source:
-                if in_reexport or reexport_group.match(line):
+                if in_js_module_group or js_import_or_reexport_group.match(line):
                     _, close, remainder = line.partition(b'}')
-                    in_reexport = not close
-                    if in_reexport:
+                    in_js_module_group = not close
+                    if in_js_module_group:
                         continue
                     line = remainder.partition(b';')[2]
                 elif reexport_all.match(line):

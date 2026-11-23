@@ -34,7 +34,9 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      'staged block comments', 'staged block then code',
                      'staged exported declarations', 'staged reexports', 'staged private fields',
                      'staged multiline reexports', 'staged comment after code', 'staged nested Rust comment',
-                     'staged comment delimiter in string', 'staged Python module docstring'):
+                     'staged comment delimiter in string', 'staged Python module docstring',
+                     'staged Python nested docstrings', 'staged Python from imports',
+                     'staged multiline JS imports'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             project = Path(temporary)
             environment = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
@@ -49,7 +51,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             source = project / ('source with spaces.ts' if scenario.startswith('staged ') else 'change.txt')
             if scenario == 'staged nested Rust comment':
                 source = source.with_suffix('.rs')
-            elif scenario == 'staged Python module docstring':
+            elif scenario.startswith('staged Python '):
                 source = source.with_suffix('.py')
             source.write_text('original\n')
             if scenario in ('forced text hidden NUL', 'forced text trailing NUL'):
@@ -114,6 +116,16 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 source.write_text('const delimiter = "/*";\n' + 'const value = 1;\n' * 4)
             elif scenario == 'staged Python module docstring':
                 source.write_text('"""\n' + 'documentation line\n' * 5 + '"""\n')
+            elif scenario == 'staged Python nested docstrings':
+                source.write_text('class Placeholder:\n    """\n' + '    class documentation\n' * 4 +
+                                  '    """\n    def run(self):\n        """\n' +
+                                  '        function documentation\n' * 4 + '        """\n')
+            elif scenario == 'staged Python from imports':
+                source.write_text('from .helpers import (\n' + ''.join(f'    helper{i},\n' for i in range(5)) +
+                                  ')\nfrom .extras import extra\n')
+            elif scenario == 'staged multiline JS imports':
+                source.write_text('import defaultThing, {\n' + ''.join(f'  helper{i},\n' for i in range(5)) +
+                                  "} from './helpers';\n")
             if scenario in ('external diff', 'textconv'):
                 command = project / '.git/unsafe-diff'
                 command.write_text('#!/bin/sh\ntouch "' + str(project / 'executed') + '"\necho OMITTED\n')
@@ -189,8 +201,11 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 valid = valid and '0 source files scanned' in result.stderr
             elif scenario in ('staged block comments', 'staged reexports',
                               'staged multiline reexports', 'staged nested Rust comment',
-                              'staged Python module docstring'):
+                              'staged Python module docstring', 'staged Python from imports',
+                              'staged multiline JS imports'):
                 valid = valid and 'only 0 substantive lines' in result.stderr
+            elif scenario == 'staged Python nested docstrings':
+                valid = valid and 'only 2 substantive lines' in result.stderr
             elif scenario in ('staged block then code', 'staged comment after code'):
                 valid = valid and 'only 1 substantive lines' in result.stderr
             elif scenario in ('staged exported declarations', 'staged private fields',
