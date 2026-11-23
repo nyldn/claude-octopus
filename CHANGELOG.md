@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.26.1] - 2026-11-23
+
 ### Fixed
 
 - Project initialization refuses a pre-existing `.octo` symbolic link before
