@@ -15,6 +15,8 @@
   opens with "Incomplete due to an environment blocker:" or "Blocked by
   environment setup:". Such subtasks had launched successfully, so the gate
   scored them as 100% success.
+- Debate scores responses with no citations, code blocks, or advisor mentions
+  without Bash arithmetic errors.
 
 ## [11.26.0] - 2026-11-18
 

@@ -579,14 +579,15 @@ After each advisor responds, evaluate response quality:
 DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
 evaluate_response_quality() {
     local response_file="${1}"
-    local advisor="${2}"
+    local word_count has_citations has_code addresses_others score=0
 
-    word_count=$(wc -w < "$response_file")
-    has_citations=$(grep -c '\[' "$response_file" || echo 0)
-    has_code=$(grep -c '```' "$response_file" || echo 0)
-    addresses_others=$(grep -ciE '(gemini|codex|agy|antigravity|claude|sonnet)' "$response_file" || echo 0)
+    word_count=$(wc -w < "$response_file") || return 1
+    # grep -c prints 0 and exits 1 when there are no matches.
+    has_citations=$(grep -c '\[' "$response_file") || [[ $? -eq 1 ]] || return 1
+    has_code=$(grep -c '```' "$response_file") || [[ $? -eq 1 ]] || return 1
+    addresses_others=$(grep -ciE '(gemini|codex|agy|antigravity|claude|sonnet)' "$response_file") ||
+        [[ $? -eq 1 ]] || return 1
 
-    score=0
     (( word_count >= 50 && word_count <= 1000 )) && (( score += 25 ))
     (( has_citations > 0 )) && (( score += 25 ))
     (( has_code > 0 )) && (( score += 25 ))
@@ -597,7 +598,7 @@ evaluate_response_quality() {
 
 for response_file in "${DEBATE_DIR}"/rounds/r001_*.md; do
     advisor=$(basename "$response_file" .md | sed 's/^r001_//')
-    quality_score=$(evaluate_response_quality "$response_file" "$advisor")
+    quality_score=$(evaluate_response_quality "$response_file") || exit 1
     if (( quality_score < 50 )); then
         echo "Low quality response from ${advisor} (score: $quality_score). Re-prompting..."
         # Re-prompt for more detail
