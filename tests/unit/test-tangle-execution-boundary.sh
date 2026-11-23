@@ -895,21 +895,28 @@ if octopus_tangle_execution_boundary_probe; then
         test_skip "requires pnpm 10 to exercise its v10 store"
     else
         pnpm_seed="$PNPM_ROOT/pnpm-seed"
-        pnpm_ws="$BOUNDARY_ROOT/pnpm-ws"
+        pnpm_ws="$PNPM_ROOT/pnpm-ws"
         pnpm_home="$PNPM_ROOT/pnpm-live-home"
         pnpm_host_store="$pnpm_home/store"
-        mkdir -p "$pnpm_home"
+        mkdir -p "$pnpm_home" "$PNPM_ROOT/archive/package"
+        printf '{"name":"octo-store-fixture","version":"1.0.0"}\n' > "$PNPM_ROOT/archive/package/package.json"
+        printf 'cached package content\n' > "$PNPM_ROOT/archive/package/content.txt"
+        tar -czf "$PNPM_ROOT/fixture.tgz" -C "$PNPM_ROOT/archive" package
         for pnpm_dir in "$pnpm_seed" "$pnpm_ws"; do
             mkdir -p "$pnpm_dir/packages/a"
-            printf '{"name":"root","version":"0.0.0","private":true}\n' > "$pnpm_dir/package.json"
+            printf '{"name":"root","version":"0.0.0","private":true,"dependencies":{"octo-store-fixture":"file:../fixture.tgz"}}\n' \
+                > "$pnpm_dir/package.json"
             printf 'packages:\n  - "packages/*"\n' > "$pnpm_dir/pnpm-workspace.yaml"
             printf '{"name":"a","version":"0.0.0"}\n' > "$pnpm_dir/packages/a/package.json"
         done
         if ! (cd "$pnpm_seed" && env -i "HOME=$PNPM_TEST_HOME" "PATH=$PATH" "PNPM_HOME=$pnpm_home" \
-                 CI=true "$real_pnpm" install --lockfile-only >/dev/null 2>&1) ||
+                 CI=true "$real_pnpm" install --no-frozen-lockfile --offline --ignore-scripts >"$PNPM_ROOT/pnpm-seed.log" 2>&1) ||
            ! cp "$pnpm_seed/pnpm-lock.yaml" "$pnpm_ws/pnpm-lock.yaml"; then
-            test_skip "pnpm could not write a lockfile outside the boundary"
+            cat "$PNPM_ROOT/pnpm-seed.log"
+            test_fail "pnpm could not seed the fixture store outside the boundary"
         else
+            # pnpm checks the file: archive even with a frozen lockfile.
+            # Keep it read-only outside the sandboxed worktree.
             mkdir -p "$pnpm_host_store/v10/projects" "$pnpm_host_store/v10/tmp"
             registered_before="$(ls -A "$pnpm_host_store/v10/projects" | wc -l | tr -d ' ')"
             agent_type="claude"
@@ -923,7 +930,9 @@ if octopus_tangle_execution_boundary_probe; then
             else
                 install_status=125
             fi
-            if [[ "$install_status" -eq 0 && -d "$pnpm_ws/node_modules" ]] &&
+            if [[ "$install_status" -eq 0 ]] &&
+               grep -qx 'cached package content' "$pnpm_ws/node_modules/octo-store-fixture/content.txt" &&
+               grep -Fxq "storeDir: $pnpm_host_store/v10" "$pnpm_ws/node_modules/.modules.yaml" &&
                [[ "$(ls -A "$pnpm_host_store/v10/projects" | wc -l | tr -d ' ')" == "$registered_before" ]]; then
                 test_pass
             else

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Council `summary.json` reports real token usage and cost for Claude and
+  Codex seats: per seat, per phase and for the round. Each dispatch is also
+  appended to `usage.jsonl` in the run directory. Set
+  `OCTOPUS_COUNCIL_SEAT_USAGE=0` to keep plain text seat output.
+
 ### Fixed
 
 - When the Council chair's answer is rejected, Council dispatches at most one
@@ -19,6 +26,8 @@
 - Tangle routes coding and reasoning subtasks to providers allowed by
   `OCTO_ALLOWED_PROVIDERS`. If a required subtask type has no permitted provider,
   Tangle reports which type needs a provider before launching any subtask.
+- Design history and workflow context match the original branch name, so
+  branches with identical filename slugs keep separate revision chains.
 - Bounded Tangle lets implementers use an existing default pnpm 10 store for
   offline installs. It gives pnpm private temporary storage for bookkeeping
   and keeps the cached packages read-only. All required packages must already

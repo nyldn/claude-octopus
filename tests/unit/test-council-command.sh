@@ -2268,6 +2268,7 @@ test_council_per_session_pool_isolation() {
     test_case "council namespaces the default pool per session; --output-dir and opt-out are unaffected"
     load_council_lib || return 1
     local ws; ws="$(mktemp -d "$TEST_TMP_DIR/council-pool.XXXXXX")"
+    local physical_ws; physical_ws="$(cd -- "$ws" && pwd -P)"
 
     # slug is filesystem-safe and collision-resistant: two ids that sanitize to
     # the same prefix ("sess/A b!" and "sess?A b!") must not collapse to one pool.
@@ -2300,6 +2301,7 @@ test_council_per_session_pool_isolation() {
     # An explicit --output-dir (COUNCIL_OUTPUT_DIR) must select $out DIRECTLY —
     # the run dir's parent is $out, never $out/session-<slug>.
     local out; out="$(mktemp -d "$TEST_TMP_DIR/council-explicit.XXXXXX")"
+    local physical_out; physical_out="$(cd -- "$out" && pwd -P)"
     COUNCIL_OUTPUT_DIR="$out" council_create_run_dir >/dev/null 2>&1
     explicit="$COUNCIL_RUN_DIR"
 
@@ -2307,11 +2309,11 @@ test_council_per_session_pool_isolation() {
           && "$codex_slug1" == "codex_A-"* && "$codex_slug2" == "codex_A-"* \
           && "$codex_slug1" != "$codex_slug2" && "$codex_precedence_slug" == "$codex_slug1" \
           && "$codex_task_slug" == "task_A-"* && "$claude_host_slug" == "claude_A-"* \
-          && "$dirA" == "$ws/councils/session-sessA-"*/* \
-          && "$dirB" == "$ws/councils/session-sessB-"*/* \
+          && "$dirA" == "$physical_ws/councils/session-sessA-"*/* \
+          && "$dirB" == "$physical_ws/councils/session-sessB-"*/* \
           && "$dirA" != "$dirB" \
-          && "$shared" == "$ws/councils/"* && "$shared" != *"/session-"* \
-          && "$(dirname "$explicit")" == "$out" ]]; then
+          && "$shared" == "$physical_ws/councils/"* && "$shared" != *"/session-"* \
+          && "$(dirname "$explicit")" == "$physical_out" ]]; then
         test_pass
     else
         test_fail "pool isolation wrong: slug1=$slug1 slug2=$slug2 codex1=$codex_slug1 codex2=$codex_slug2 codex_precedence=$codex_precedence_slug codex_task=$codex_task_slug claude_host=$claude_host_slug A=$dirA B=$dirB shared=$shared explicit=$explicit"
