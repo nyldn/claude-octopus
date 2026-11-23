@@ -36,21 +36,20 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-The Codex listing shows the Octopus logo, complete skill descriptions, and
-starter prompts for common workflows. Follow the
-[Codex first-use guide](docs/CODEX-START.md) to check provider readiness and
-account costs before dispatch.
+See reported Claude and Codex token usage by seat and phase in the
+[Council run summary](docs/COUNCIL.md#token-usage-and-cost). Claude reports
+its cost and Codex uses a list-price estimate. When a Council chair's answer
+is rejected, the Council allows one fallback dispatch by default.
 
-Refine limits judges to the staged review inputs. Rollback preserves lessons in
-a private backup and keeps it available if restoration fails. Feature planning
-can start with a spec path in a new directory, and Tangle reports subtasks that
-identify themselves as blocked in its quality gate.
+Tangle assigns coding and reasoning subtasks only to providers allowed by
+`OCTO_ALLOWED_PROVIDERS`. Its validation report preserves the list of paths
+outside the declared write scopes, even when that list is large. Tangle collects large scope-violation lists in
+linear time.
 
-If a provider settings save fails, Octopus keeps the last working configuration.
-Branch completion now follows the same option numbers shown in its menu.
-Project initialization also refuses an existing `.octo` symlink to protect the
-linked directory. Debate scores responses even when they have no citations,
-code blocks, or advisor mentions.
+Staged review checks the exact files staged for commit. In blinded Debate,
+the moderator saves its independent analyses before reading advisor responses.
+Embrace names provider failures in its debate gate, and design history keeps
+branches with the same filename slug separate.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.26.1 — Protect project files and provider settings, clarify Codex setup, and report blocked work correctly.**
