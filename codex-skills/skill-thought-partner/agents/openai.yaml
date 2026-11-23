@@ -1,5 +1,5 @@
 interface:
   display_name: "Thought Partner"
-  short_description: "Brainstorm creatively with pattern spotting and paradox..."
+  short_description: "Explore an idea through questions and alternative framings"
 policy:
   allow_implicit_invocation: false

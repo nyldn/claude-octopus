@@ -75,15 +75,45 @@ expect_route "no allowlist falls back to claude-sonnet when neither agy nor code
 expect_route "no allowlist leaves [CODING] alone even when its binary is missing" \
     codex "$STUB_NONE" "" coding codex
 
-test_case "Step 2 routes both subtask kinds through tangle_route_subtask_agent"
-step2_setup=$(sed -n '/local tangle_reasoning_agent="agy"/,/fleet_dispatch_begin/p' "$WORKFLOWS")
-coding_routed=$(printf '%s\n' "$step2_setup" | grep -c 'tangle_route_subtask_agent coding' || true)
-reasoning_routed=$(printf '%s\n' "$step2_setup" | grep -c 'tangle_route_subtask_agent reasoning' || true)
-legacy_check=$(printf '%s\n' "$step2_setup" | grep -c 'command -v "\$tangle_reasoning_agent"' || true)
-if [[ "$coding_routed" -eq 1 && "$reasoning_routed" -eq 1 && "$legacy_check" -eq 0 ]]; then
+# Use the actual Step 2 setup, with a marker in place of fleet dispatch.
+step2_setup=$(sed -n '/# Step 2: Parallel execution/,/^[[:space:]]*fleet_dispatch_begin$/p' "$WORKFLOWS")
+run_step2_setup() (
+    local subtasks="$1" parseable_subtask_count="$2"
+    local task_group=fixture TMUX_MODE=false
+    local RESULTS_DIR="$TEST_TMP_DIR"
+    export OCTO_ALLOWED_PROVIDERS="$3"
+    PATH="$STUB_NONE:/usr/bin:/bin"
+    log() { printf '%s\n' "$2"; }
+    fleet_dispatch_begin() { printf 'dispatch coding=%s\n' "$tangle_coding_agent"; }
+    eval "$step2_setup"
+)
+
+test_case "Step 2 stops before dispatch when neither coding fallback is allowed"
+if output=$(run_step2_setup '1. [CODING] Implement' 1 agy); then
+    test_fail "unexpected dispatch: $output"
+elif [[ "$output" == *"No permitted provider available for Tangle coding subtasks"* &&
+        "$output" != *"dispatch coding="* ]]; then
     test_pass
 else
-    test_fail "Step 2 setup not routed (coding=$coding_routed reasoning=$reasoning_routed legacy=$legacy_check)"
+    test_fail "missing coding routing error or unexpected dispatch: $output"
+fi
+
+test_case "Step 2 validates the reasoning route before dispatching the first coding subtask"
+if output=$(run_step2_setup $'1. [CODING] Implement\n2. [REASONING] Analyze' 2 codex); then
+    test_fail "unexpected dispatch: $output"
+elif [[ "$output" == *"No permitted provider available for Tangle reasoning subtasks"* &&
+        "$output" != *"dispatch coding="* ]]; then
+    test_pass
+else
+    test_fail "missing reasoning routing error or unexpected dispatch: $output"
+fi
+
+test_case "Step 2 dispatches a coding-only plan when only the configured coding provider is eligible"
+if output=$(run_step2_setup '1. [CODING] Implement' 1 codex) &&
+    [[ "$output" == *"dispatch coding=codex"* ]]; then
+    test_pass
+else
+    test_fail "coding-only dispatch failed: $output"
 fi
 
 test_summary

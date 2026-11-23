@@ -1,5 +1,5 @@
 interface:
   display_name: "Doc Sync"
-  short_description: "Post-ship doc sync across project markdown. Use when: sync..."
+  short_description: "Update project documentation to match completed changes"
 policy:
   allow_implicit_invocation: false

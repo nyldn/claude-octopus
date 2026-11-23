@@ -19,6 +19,7 @@ trigger: |
   - Direct task execution (just do the task)
   - Simple questions (just answer)
   - Code generation (use development skills)
+codex_short_description: "Turn a rough request into a clear, structured prompt"
 ---
 
 # Meta-Prompt Generator Skill

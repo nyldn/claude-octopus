@@ -4,11 +4,19 @@
 
 ### Fixed
 
+- Codex plugin listings include the existing logo artwork, complete skill
+  descriptions, and explicit starter prompts. First-use guidance explains
+  provider setup, readiness limits, and account costs.
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
-- Tangle routes `[CODING]` and `[REASONING]` subtasks only to providers in
-  `OCTO_ALLOWED_PROVIDERS`, falling back to codex and then Claude Sonnet. An
-  installed but disallowed agy no longer aborts the run at spawn time.
+- The Tangle quality gate counts a subtask as blocked when its own output says
+  the work is incomplete or blocked, for example a verification section that
+  opens with "Incomplete due to an environment blocker:" or "Blocked by
+  environment setup:". Such subtasks had launched successfully, so the gate
+  scored them as 100% success.
+- Tangle routes coding and reasoning subtasks to providers allowed by
+  `OCTO_ALLOWED_PROVIDERS`. If a required subtask type has no permitted provider,
+  Tangle reports which type needs a provider before launching any subtask.
 
 ## [11.26.0] - 2026-11-18
 
@@ -128,6 +136,7 @@ Merged changes: [#1349](https://github.com/nyldn/claude-octopus/pull/1349),
 [#1357](https://github.com/nyldn/claude-octopus/pull/1357).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
 its broader runtime and installed-host acceptance work remains open.
+
 
 ## [11.24.2] - 2026-11-16
 

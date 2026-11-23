@@ -176,28 +176,34 @@ probe_single_agent() {
 
     # Apply persona to prompt
     local enhanced_prompt
-    enhanced_prompt=$(apply_persona "$role" "$perspective" "false" "${curated_name_early:-}")
+    if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true ]]; then
+        # Preserve the complete blind request without project/persona injection.
+        enhanced_prompt="$perspective"
+    else
+        enhanced_prompt=$(apply_persona "$role" "$perspective" "false" "${curated_name_early:-}")
 
-    # v8.21.0: Persona pack override
-    if type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
-        local pack_persona
-        pack_persona=$(get_persona_override_content "${curated_name_early:-$agent_type}" 2>/dev/null)
-        if [[ -n "$pack_persona" ]]; then
-            enhanced_prompt="${pack_persona}
+        # v8.21.0: Persona pack override
+        if type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
+            local pack_persona
+            pack_persona=$(get_persona_override_content "${curated_name_early:-$agent_type}" 2>/dev/null)
+            if [[ -n "$pack_persona" ]]; then
+                enhanced_prompt="${pack_persona}
 
 ---
 
 ${enhanced_prompt}"
+            fi
         fi
-    fi
 
-    # v9.3.0: Search spiral guard — prevent research agents from token waste (STABLE — static boilerplate)
-    enhanced_prompt="${enhanced_prompt}
+        # v9.3.0: Search spiral guard — prevent research agents from token waste (STABLE — static boilerplate)
+        enhanced_prompt="${enhanced_prompt}
 
 IMPORTANT: If you find yourself searching or grepping more than 3 times in a row without reading files or writing analysis, STOP searching. Consolidate what you've found so far and write your analysis. More searching rarely improves the output — synthesis does."
 
-    # ── VARIABLE SUFFIX ───────────────────────────────────────────────────────
-    # (probe dispatch has minimal variable content — context budget is the boundary)
+        # ── VARIABLE SUFFIX ───────────────────────────────────────────────────────
+        # (probe dispatch has minimal variable content — context budget is the boundary)
+
+    fi
 
     # v8.10.0: Enforce context budget AFTER all injections
     local tokens_in _budget_original_chars _budget_final_chars _budget_compression
@@ -211,6 +217,13 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi
         return "$_budget_rc"
+    fi
+    if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true && "$enhanced_prompt" != "$perspective" ]]; then
+        log ERROR "Refinement judge request was altered by the context budget"
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
+        return 2
     fi
     _budget_final_chars=${#enhanced_prompt}
     _budget_compression=none
@@ -4873,8 +4886,7 @@ tangle_subtask_agent_allowed() {
 # missing: without that, users without agy get an unconditional exit 127 on
 # every REASONING subtask even though the provider health check already
 # flagged agy as absent. claude-sonnet is a type resolved by get_agent_command,
-# not a bare executable, so command -v never finds it; it is the unconditional
-# last resort because the claude binary (the host process) is always present.
+# not a bare executable. Keep it as the last resort when the allowlist permits it.
 tangle_route_subtask_agent() {
     local kind="${1:-coding}" agent="${2:-}"
     if [[ "$kind" == "reasoning" ]] && ! command -v "$agent" >/dev/null 2>&1; then
@@ -4888,7 +4900,11 @@ tangle_route_subtask_agent() {
         printf '%s\n' "codex"
         return 0
     fi
-    printf '%s\n' "claude-sonnet"
+    if tangle_subtask_agent_allowed claude-sonnet; then
+        printf '%s\n' "claude-sonnet"
+        return 0
+    fi
+    return 1
 }
 
 tangle_prepare_run_worktree() {
@@ -5392,17 +5408,13 @@ $(tangle_decomposition_json_contract_guidance)"
         feature_tasks_revalidate_active_wave || return 1
     fi
 
-    # Coding providers must run behind a parent-owned filesystem boundary.
-    export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
-    export OCTOPUS_TANGLE_WORKTREE="$PROJECT_ROOT"
-    export OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
-
     # Step 2: Parallel execution with progress tracking
     log INFO "Step 2: Parallel execution..."
     local subtask_num=0
     local pids=()
     local task_ids=()
     local subtask_lines=()
+    local has_reasoning_subtask=false
 
     # Materialize parseable lines before dispatching providers. spawn helpers and
     # external CLIs may read stdin; if the dispatch loop itself reads from a
@@ -5412,6 +5424,9 @@ $(tangle_decomposition_json_contract_guidance)"
         [[ -z "$line" ]] && continue
         tangle_line_is_numbered_subtask "$line" || continue
         subtask_lines+=("$line")
+        if [[ "$line" == *'[REASONING]'* ]]; then
+            has_reasoning_subtask=true
+        fi
     done <<< "$subtasks"
 
     if [[ ${#subtask_lines[@]} -ne $parseable_subtask_count ]]; then
@@ -5440,8 +5455,20 @@ $(tangle_decomposition_json_contract_guidance)"
         tangle_reasoning_agent=$(octopus_execution_profile_provider "tangle" "reasoning" "researcher" "agy")
     fi
 
-    tangle_coding_agent=$(tangle_route_subtask_agent coding "$tangle_coding_agent")
-    tangle_reasoning_agent=$(tangle_route_subtask_agent reasoning "$tangle_reasoning_agent")
+    if ! tangle_coding_agent=$(tangle_route_subtask_agent coding "$tangle_coding_agent"); then
+        log ERROR "No permitted provider available for Tangle coding subtasks"
+        return 1
+    fi
+    if [[ "$has_reasoning_subtask" == true ]] && \
+        ! tangle_reasoning_agent=$(tangle_route_subtask_agent reasoning "$tangle_reasoning_agent"); then
+        log ERROR "No permitted provider available for Tangle reasoning subtasks"
+        return 1
+    fi
+
+    # Coding providers must run behind a parent-owned filesystem boundary.
+    export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
+    export OCTOPUS_TANGLE_WORKTREE="$PROJECT_ROOT"
+    export OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
 
     local tangle_previous_int_trap tangle_previous_term_trap
     tangle_previous_int_trap="$(trap -p INT)"

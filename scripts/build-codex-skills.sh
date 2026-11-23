@@ -6,6 +6,8 @@
 # compatible directory structure (codex-skills/<name>/SKILL.md) with adapted
 # frontmatter, host preamble, and Codex interface metadata.
 #
+# Requires Bash and Python 3 for Unicode character validation.
+#
 # Usage:
 #   ./scripts/build-codex-skills.sh [--check] [--verbose]
 #
@@ -64,7 +66,7 @@ normalize_single_line() {
 
 yaml_quote() {
     local value
-    value="$(normalize_single_line "$1")"
+    value="$(normalize_single_line "$1")" || return 1
     value=${value//\\/\\\\}
     value=${value//\"/\\\"}
     printf '"%s"' "$value"
@@ -192,7 +194,7 @@ extract_body() {
             continue
         fi
         if $past_frontmatter; then
-            echo "$line"
+            echo "$line" || return 1
         fi
     done < "$file"
 }
@@ -442,7 +444,7 @@ adapt_host_context_for_codex() {
 adapt_body_for_codex() {
     local file="$1"
     if source_has_enforced_execution "$file" && ! body_has_enforcement "$file"; then
-        generated_enforcement_block
+        generated_enforcement_block || return 1
     fi
 
     extract_body "$file" | adapt_host_context_for_codex | sed -E \
@@ -464,7 +466,7 @@ adapt_body_for_codex() {
 
 # --- Host adaptation preamble ---
 host_preamble() {
-    cat <<'PREAMBLE'
+    cat <<'PREAMBLE' || return 1
 
 > **Host: Codex CLI** — This skill was designed for Claude Code and adapted for Codex.
 > Invoke installed skills by their `$skill-name`. Known Octopus commands are mapped below. A remaining `/octo:*` reference is a Claude Code command; do not execute it in Codex or invent an equivalent.
@@ -476,7 +478,7 @@ host_preamble() {
 
 PREAMBLE
     if [[ -n "${1:-}" ]]; then
-        printf '> Invoke this entry as `$%s` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.\n\n' "$1"
+        printf '> Invoke this entry as `$%s` in Codex. Code-fenced Claude command examples are reference text, not Codex shell commands.\n\n' "$1" || return 1
     fi
 }
 
@@ -513,37 +515,49 @@ write_skill() {
     local codex_desc="$4"
     local codex_display_name="${5:-}"
     local codex_short_desc="${6:-}"
-    local disable_model
-    disable_model="$(extract_field "$file" "disable-model-invocation")"
+    local disable_model short_length quoted_desc quoted_display quoted_short
+    disable_model="$(extract_field "$file" "disable-model-invocation")" || return 1
 
     if [[ -z "$codex_display_name" ]]; then
-        codex_display_name="$(display_name "$codex_name")"
+        codex_display_name="$(display_name "$codex_name")" || return 1
     fi
     if [[ -z "$codex_short_desc" ]]; then
-        codex_short_desc="$(ui_short_description "$codex_desc" "$codex_display_name")"
+        codex_short_desc="$(ui_short_description "$codex_desc" "$codex_display_name")" || return 1
     fi
 
-    mkdir -p "$skill_dir"
+    codex_short_desc="$(normalize_single_line "$codex_short_desc")" || return 1
+    # Match the manifest validator's Unicode character count under every locale.
+    short_length="$(printf '%s' "$codex_short_desc" | python3 -c 'import sys; print(len(sys.stdin.buffer.read().decode("utf-8")))')" || return 1
+    if [[ "$short_length" -lt 25 || "$short_length" -gt 64 ]]; then
+        printf 'Invalid Codex short description for %s: expected 25-64 characters\n' "$codex_name" >&2
+        return 1
+    fi
+
+    quoted_desc="$(yaml_quote "$codex_desc")" || return 1
+    quoted_display="$(yaml_quote "$codex_display_name")" || return 1
+    quoted_short="$(yaml_quote "$codex_short_desc")" || return 1
+    mkdir -p "$skill_dir" || return 1
 
     {
-        echo "---"
-        echo "name: $codex_name"
-        printf 'description: %s\n' "$(yaml_quote "$codex_desc")"
-        [[ -n "$disable_model" ]] && echo "disable-model-invocation: $disable_model"
-        echo "---"
-        host_preamble "$codex_name"
-        adapt_body_for_codex "$file"
-    } > "$skill_dir/SKILL.md"
-
-    mkdir -p "$skill_dir/agents"
-    {
-        echo "interface:"
-        printf '  display_name: %s\n' "$(yaml_quote "$codex_display_name")"
-        printf '  short_description: %s\n' "$(yaml_quote "$codex_short_desc")"
-        if [[ "$disable_model" == true ]]; then
-            printf 'policy:\n  allow_implicit_invocation: false\n'
+        printf '%s\n' '---' "name: $codex_name" || return 1
+        printf 'description: %s\n' "$quoted_desc" || return 1
+        if [[ -n "$disable_model" ]]; then
+            printf 'disable-model-invocation: %s\n' "$disable_model" || return 1
         fi
-    } > "$skill_dir/agents/openai.yaml"
+        printf '%s\n' '---' || return 1
+        host_preamble "$codex_name" || return 1
+        adapt_body_for_codex "$file" || return 1
+    } > "$skill_dir/SKILL.md" || return 1
+
+    mkdir -p "$skill_dir/agents" || return 1
+    {
+        printf '%s\n' 'interface:' || return 1
+        printf '  display_name: %s\n' "$quoted_display" || return 1
+        printf '  short_description: %s\n' "$quoted_short" || return 1
+        if [[ "$disable_model" == true ]]; then
+            printf 'policy:\n  allow_implicit_invocation: false\n' || return 1
+        fi
+    } > "$skill_dir/agents/openai.yaml" || return 1
 }
 
 # Directories under skills/ that are hand-maintained rather than generated.
@@ -722,10 +736,15 @@ main() {
         [[ -n "$codex_display_name" ]] || codex_display_name="$(display_name "$codex_name")"
 
         local codex_short_desc
-        codex_short_desc="$(ui_short_description "$description" "$codex_display_name")"
+        codex_short_desc=$(extract_field "$file" "codex_short_description")
+        [[ -n "$codex_short_desc" ]] || codex_short_desc="$(ui_short_description "$description" "$codex_display_name")"
 
         write_native_skill "$file" "$native_target/$codex_name" "$codex_name"
-        write_skill "$file" "$target_dir/$codex_name" "$codex_name" "$codex_desc" "$codex_display_name" "$codex_short_desc"
+        write_skill "$file" "$target_dir/$codex_name" "$codex_name" "$codex_desc" "$codex_display_name" "$codex_short_desc" || return 1
+        if [[ "$codex_name" == flow-discover || "$codex_name" == skill-refine ]] &&
+           [[ -f "$NATIVE_OUTPUT_DIR/$codex_name/agents/openai.yaml" ]]; then
+            cp "$NATIVE_OUTPUT_DIR/$codex_name/agents/openai.yaml" "$target_dir/$codex_name/agents/openai.yaml"
+        fi
 
         ((count++)) || true
         $VERBOSE && echo "  OK: $basename → skills/$codex_name/SKILL.md"
@@ -743,10 +762,11 @@ main() {
             [[ -n "$alias_display_name" ]] || alias_display_name="$(display_name "$alias_name")"
 
             local alias_short_desc
-            alias_short_desc="$(ui_short_description "$alias_desc" "$alias_display_name")"
+            alias_short_desc=$(extract_field "$file" "codex_alias_short_description")
+            [[ -n "$alias_short_desc" ]] || alias_short_desc="$(ui_short_description "$alias_desc" "$alias_display_name")"
 
             write_native_skill "$file" "$native_target/$alias_name" "$alias_name"
-            write_skill "$file" "$target_dir/$alias_name" "$alias_name" "$alias_desc" "$alias_display_name" "$alias_short_desc"
+            write_skill "$file" "$target_dir/$alias_name" "$alias_name" "$alias_desc" "$alias_display_name" "$alias_short_desc" || return 1
             ((count++)) || true
             $VERBOSE && echo "  OK: $basename → skills/$alias_name/SKILL.md (compat alias)"
         fi

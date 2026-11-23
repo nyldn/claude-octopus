@@ -2,6 +2,7 @@
 name: skill-agent-topology
 disable-model-invocation: true
 description: "Audit whether a multi-agent setup earns its coordination cost — use before adding an agent, or when a workflow feels slow or agents agree without adding signal"
+codex_short_description: "Assess whether agent coordination is worth its cost"
 ---
 
 # Agent Topology Audit

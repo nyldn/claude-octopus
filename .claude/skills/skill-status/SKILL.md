@@ -11,6 +11,7 @@ trigger: |
   - "show status" or "project status"
   - "what have I been working on" or "summarize recent work"
   - "update project memory" or "update CLAUDE.md"
+codex_short_description: "Summarize project progress and identify the next action"
 ---
 
 # Project Status Dashboard
