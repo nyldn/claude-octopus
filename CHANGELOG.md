@@ -8,6 +8,9 @@
   fallback by default. Set `OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to choose a limit
   from zero to five. The run summary reports how many attempts were dispatched.
 
+- The Embrace debate gate reports why each provider seat failed, including
+  quota retry guidance when available.
+
 ## [11.26.1] - 2026-11-23
 
 ### Fixed
