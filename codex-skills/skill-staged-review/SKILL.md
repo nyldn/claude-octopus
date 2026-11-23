@@ -191,18 +191,44 @@ checks = (
     (re.compile(rb'return (null|undefined);'), 'null/undefined returns'),
     (re.compile(rb'const.*(mock|test|dummy|fake).*='), 'mock/test data references'),
 )
-non_substantive = re.compile(rb'^\s*(//|/\*|\*|#|import|export|$)')
+non_substantive = re.compile(rb'^\s*(//|/\*|\*|#|import|$)')
+reexport = re.compile(rb'^\s*export\s*(?:\*|\{|type\s*\{)')
+shell_export = re.compile(rb'^\s*export\b')
+ecmascript = (b'.ts', b'.tsx', b'.js', b'.jsx')
+block_comment_sources = ecmascript + (b'.go', b'.rs')
+
+def after_leading_block_comments(line, in_comment):
+    line = line.lstrip()
+    while in_comment or line.startswith(b'/*'):
+        if not in_comment:
+            line = line[2:]
+        _, close, remainder = line.partition(b'*/')
+        if not close:
+            return b'', True
+        in_comment = False
+        line = remainder.lstrip()
+    return line, False
+
 issues = 0
 for path, oid in sources:
     counts = [0] * len(checks)
     substantive = 0
+    in_comment = False
+    scan_block_comments = path.endswith(block_comment_sources)
+    ignored_export = None
+    if path.endswith(ecmascript):
+        ignored_export = reexport
+    elif path.endswith(b'.sh'):
+        ignored_export = shell_export
     with subprocess.Popen(['git', 'cat-file', 'blob', oid.decode('ascii')],
                           stdout=subprocess.PIPE) as blob:
         for line in blob.stdout:
             for index, (pattern, _) in enumerate(checks):
                 if pattern.search(line):
                     counts[index] += 1
-            if not non_substantive.match(line):
+            if scan_block_comments:
+                line, in_comment = after_leading_block_comments(line, in_comment)
+            if not non_substantive.match(line) and not (ignored_export and ignored_export.match(line)):
                 substantive += 1
         if blob.wait() != 0:
             sys.exit('Review incomplete: could not scan a staged source blob.')
