@@ -36,21 +36,20 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Select another OpenAI-compatible vendor through an explicit custom preset in the
-[tool-loop helper](docs/PROVIDERS.md#explicit-custom-presets-in-the-tool-loop-helper).
-Each preset keeps its own endpoint, credential and model allowlist. Orchestration
-seat registration and cost reporting are separate from this helper interface.
+The Codex listing shows the Octopus logo, complete skill descriptions, and
+starter prompts for common workflows. Follow the
+[Codex first-use guide](docs/CODEX-START.md) to check provider readiness and
+account costs before dispatch.
 
-Claude Code discovers native workflow skills, while Codex loads its adapted
-skills. Existing names, aliases and explicit invocation controls remain available.
+Refine limits judges to the staged review inputs. Rollback preserves lessons in
+a private backup and keeps it available if restoration fails. Feature planning
+can start with a spec path in a new directory, and Tangle reports subtasks that
+identify themselves as blocked in its quality gate.
 
-Debate requires two successful external advisors on Codex. An allowed native
-Sonnet task on Claude Code counts only after it completes with a usable round
-artifact. Define stops when required state saves fail, and research prompts keep
-full ticket and probe IDs in their results.
-
-See [workflow recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery)
-and [plugin compatibility](docs/PLUGIN-COMPATIBILITY.md).
+If a provider settings save fails, Octopus keeps the last working configuration.
+Branch completion now follows the same option numbers shown in its menu.
+Project initialization also refuses an existing `.octo` symlink to protect the
+linked directory.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.26.0 — Custom provider presets in the tool helper, native skills and debate advisor checks.**
