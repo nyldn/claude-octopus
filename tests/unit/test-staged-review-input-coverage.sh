@@ -32,7 +32,9 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      'forced text hidden NUL', 'forced text trailing NUL', 'unmerged', 'index race',
                      'staged stub', 'staged comments', 'staged deletion',
                      'staged block comments', 'staged block then code',
-                     'staged exported declarations', 'staged reexports'):
+                     'staged exported declarations', 'staged reexports', 'staged private fields',
+                     'staged multiline reexports', 'staged comment after code', 'staged nested Rust comment',
+                     'staged comment delimiter in string'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             project = Path(temporary)
             environment = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
@@ -45,6 +47,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             git('init', '-q', '-b', 'main')
             git('config', 'core.hooksPath', os.devnull)
             source = project / ('source with spaces.ts' if scenario.startswith('staged ') else 'change.txt')
+            if scenario == 'staged nested Rust comment':
+                source = source.with_suffix('.rs')
             source.write_text('original\n')
             if scenario in ('forced text hidden NUL', 'forced text trailing NUL'):
                 lines = b''.join(f'line {i}\n'.encode() for i in range(200))
@@ -96,6 +100,16 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 source.write_text(''.join(f'export const value{i} = {i};\n' for i in range(5)))
             elif scenario == 'staged reexports':
                 source.write_text("export * from './values';\nexport { value };\nexport type { Model };\n")
+            elif scenario == 'staged private fields':
+                source.write_text('class Settings {\n' + ''.join(f'  #field{i} = {i};\n' for i in range(4)) + '}\n')
+            elif scenario == 'staged multiline reexports':
+                source.write_text('export type {\n' + ''.join(f'  Type{i},\n' for i in range(5)) + "} from './types';\n")
+            elif scenario == 'staged comment after code':
+                source.write_text('const value = 1; /*\n' + 'comment line\n' * 6 + '*/\n')
+            elif scenario == 'staged nested Rust comment':
+                source.write_text('/* outer\n/* nested */\n' + 'comment line\n' * 6 + '*/\n')
+            elif scenario == 'staged comment delimiter in string':
+                source.write_text('const delimiter = "/*";\n' + 'const value = 1;\n' * 4)
             if scenario in ('external diff', 'textconv'):
                 command = project / '.git/unsafe-diff'
                 command.write_text('#!/bin/sh\ntouch "' + str(project / 'executed') + '"\necho OMITTED\n')
@@ -169,11 +183,13 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 valid = valid and 'TODO/FIXME markers' not in result.stderr
             elif scenario == 'staged deletion':
                 valid = valid and '0 source files scanned' in result.stderr
-            elif scenario in ('staged block comments', 'staged reexports'):
+            elif scenario in ('staged block comments', 'staged reexports',
+                              'staged multiline reexports', 'staged nested Rust comment'):
                 valid = valid and 'only 0 substantive lines' in result.stderr
-            elif scenario == 'staged block then code':
+            elif scenario in ('staged block then code', 'staged comment after code'):
                 valid = valid and 'only 1 substantive lines' in result.stderr
-            elif scenario == 'staged exported declarations':
+            elif scenario in ('staged exported declarations', 'staged private fields',
+                              'staged comment delimiter in string'):
                 valid = valid and '1 source files scanned, 0 issues found' in result.stderr
             if not valid:
                 failures.append(f'{tree}: {scenario}: exit={result.returncode} {result.stderr}')

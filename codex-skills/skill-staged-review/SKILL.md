@@ -191,44 +191,70 @@ checks = (
     (re.compile(rb'return (null|undefined);'), 'null/undefined returns'),
     (re.compile(rb'const.*(mock|test|dummy|fake).*='), 'mock/test data references'),
 )
-non_substantive = re.compile(rb'^\s*(//|/\*|\*|#|import|$)')
-reexport = re.compile(rb'^\s*export\s*(?:\*|\{|type\s*\{)')
+non_substantive = re.compile(rb'^\s*(import\b|$)')
+reexport_group = re.compile(rb'^\s*export\b(?:\s+type\b)?\s*\{')
+reexport_all = re.compile(rb'^\s*export\b(?:\s+type\b)?\s*\*')
 shell_export = re.compile(rb'^\s*export\b')
 ecmascript = (b'.ts', b'.tsx', b'.js', b'.jsx')
 block_comment_sources = ecmascript + (b'.go', b'.rs')
+code_token = re.compile(rb'''//|/\*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`''')
+block_end = re.compile(rb'\*/')
+rust_block_token = re.compile(rb'/\*|\*/')
 
-def after_leading_block_comments(line, in_comment):
-    line = line.lstrip()
-    while in_comment or line.startswith(b'/*'):
-        if not in_comment:
-            line = line[2:]
-        _, close, remainder = line.partition(b'*/')
-        if not close:
-            return b'', True
-        in_comment = False
-        line = remainder.lstrip()
-    return line, False
+def without_c_style_comments(line, depth, block_token):
+    """Keep code around comments and carry block depth into the next line."""
+    fragments = []
+    pos = 0
+    while pos < len(line):
+        if depth:
+            token = block_token.search(line, pos)
+            if not token:
+                break
+            depth += 1 if token[0] == b'/*' else -1
+        else:
+            token = code_token.search(line, pos)
+            if not token or token[0] == b'//':
+                fragments.append(line[pos:token.start()] if token else line[pos:])
+                break
+            if token[0] == b'/*':
+                fragments.append(line[pos:token.start()])
+                depth = 1
+            else:
+                fragments.append(line[pos:token.end()])
+        pos = token.end()
+    return b' '.join(fragments), depth
 
 issues = 0
 for path, oid in sources:
     counts = [0] * len(checks)
     substantive = 0
-    in_comment = False
+    comment_depth = 0
+    in_reexport = False
     scan_block_comments = path.endswith(block_comment_sources)
-    ignored_export = None
-    if path.endswith(ecmascript):
-        ignored_export = reexport
-    elif path.endswith(b'.sh'):
-        ignored_export = shell_export
+    block_token = rust_block_token if path.endswith(b'.rs') else block_end
+    js_source = path.endswith(ecmascript)
+    hash_comments = path.endswith((b'.py', b'.sh'))
+    shell_source = path.endswith(b'.sh')
     with subprocess.Popen(['git', 'cat-file', 'blob', oid.decode('ascii')],
                           stdout=subprocess.PIPE) as blob:
-        for line in blob.stdout:
+        for line_number, line in enumerate(blob.stdout, 1):
             for index, (pattern, _) in enumerate(checks):
                 if pattern.search(line):
                     counts[index] += 1
             if scan_block_comments:
-                line, in_comment = after_leading_block_comments(line, in_comment)
-            if not non_substantive.match(line) and not (ignored_export and ignored_export.match(line)):
+                line, comment_depth = without_c_style_comments(line, comment_depth, block_token)
+            if (hash_comments and line.lstrip().startswith(b'#')) or (line_number == 1 and line.startswith(b'#!')):
+                continue
+            if js_source:
+                if in_reexport or reexport_group.match(line):
+                    _, close, remainder = line.partition(b'}')
+                    in_reexport = not close
+                    if in_reexport:
+                        continue
+                    line = remainder.partition(b';')[2]
+                elif reexport_all.match(line):
+                    line = line.partition(b';')[2]
+            if not non_substantive.match(line) and not (shell_source and shell_export.match(line)):
                 substantive += 1
         if blob.wait() != 0:
             sys.exit('Review incomplete: could not scan a staged source blob.')
