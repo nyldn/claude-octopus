@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Project initialization refuses a pre-existing `.octo` symbolic link before
+  previewing or writing templates, preserving the linked destination.
 - Failed provider configuration saves preserve the last working settings.
 - Codex plugin listings include the existing logo artwork, complete skill
   descriptions, and explicit starter prompts. First-use guidance explains
