@@ -758,11 +758,20 @@ octopus_tangle_bind_pnpm_store_dirs() {
     # Bubblewrap makes the usual hardlink probe fail. Keep pnpm on the
     # same cache whose writable bookkeeping directories we overlay.
     boundary_cmd+=(--tmpfs "$layout/projects" --tmpfs "$layout/tmp")
-    if [[ "${cmd_array[0]:-}" == env && "${cmd_array[1]:-}" == -i ]]; then
-        cmd_array=(env -i "npm_config_store_dir=$real_root" "${cmd_array[@]:2}")
-    else
-        boundary_cmd+=(--setenv npm_config_store_dir "$real_root")
+    if [[ "${cmd_array[0]:-}" == env ]]; then
+        # Provider routing may prepend one or more `-u NAME` options.
+        local env_option=1
+        while [[ "${cmd_array[env_option]:-}" == -u ]]; do
+            env_option=$((env_option + 2))
+        done
+        if [[ "${cmd_array[env_option]:-}" == -i ]]; then
+            local assignment_at=$((env_option + 1))
+            cmd_array=("${cmd_array[@]:0:assignment_at}" "npm_config_store_dir=$real_root"
+                       "${cmd_array[@]:assignment_at}")
+            return 0
+        fi
     fi
+    boundary_cmd+=(--setenv npm_config_store_dir "$real_root")
 }
 
 octopus_tangle_apply_execution_boundary() {

@@ -642,6 +642,22 @@ else
     fi
 fi
 
+test_case "pnpm store selection survives both credential-removal options from the Codex env builder"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+elif (
+    source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
+    CODEX_HOME="$PNPM_TEST_HOME/codex" OPENAI_API_KEY=fixture OCTOPUS_SECURITY_V870=true \
+        KEENABLE_API_KEY=fixture MISTRAL_API_KEY=fixture build_provider_env codex &&
+        cmd_array=("${PROVIDER_ENV_ARRAY[@]}" true) &&
+        pnpm_boundary && [[ "$(pnpm_tmpfs_count)" == 2 ]] &&
+        [[ " ${cmd_array[*]} " == *" -- env -u MISTRAL_API_KEY -u KEENABLE_API_KEY -i npm_config_store_dir=$PNPM_STORE "* ]]
+); then
+    test_pass
+else
+    test_fail "the Codex credential-removal prefix stripped the pinned store"
+fi
+
 test_case "reviewers, projects that name their own pnpm store, and projects without a pnpm lockfile get no pnpm tmpfs"
 if [[ -z "$PNPM_ROOT" ]]; then
     test_skip "no fixture directory outside /tmp"
@@ -828,7 +844,7 @@ if octopus_tangle_execution_boundary_probe; then
         agent_type="claude"
         role="implementer"
         touch "$BOUNDARY_WORKTREE/pnpm-lock.yaml"
-        cmd_array=(env -i "PATH=$PATH" bash -c '
+        cmd_array=(env -u MISTRAL_API_KEY -u KEENABLE_API_KEY -i "PATH=$PATH" bash -c '
             [[ "${npm_config_store_dir:-}" == "$1" ]] &&
             touch "$1/v10/projects/private" "$1/v10/tmp/private" &&
             ! touch "$1/v10/files/read-only" 2>/dev/null
