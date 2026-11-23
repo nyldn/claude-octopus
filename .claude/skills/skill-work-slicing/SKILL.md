@@ -2,6 +2,7 @@
 name: skill-work-slicing
 disable-model-invocation: true
 description: "Break a plan or spec into vertical slices that each declare what blocks them — use when work is agreed but not yet cut into fileable pieces"
+codex_short_description: "Split an agreed plan into independently deliverable tasks"
 ---
 
 # Work Slicing

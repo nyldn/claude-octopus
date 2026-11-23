@@ -1,5 +1,5 @@
 interface:
   display_name: "Code Review"
-  short_description: "Expert multi-AI code review with inline PR comments — use..."
+  short_description: "Review a code diff and prepare actionable PR feedback"
 policy:
   allow_implicit_invocation: false

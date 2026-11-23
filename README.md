@@ -13,7 +13,7 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 <p align="center">
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <img src="https://img.shields.io/badge/Version-11.26.0-blue" alt="Version 11.26.0">
+  <img src="https://img.shields.io/badge/Version-11.26.1-blue" alt="Version 11.26.1">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.14+_required-blueviolet" alt="Requires Claude Code v2.1.14+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -36,24 +36,24 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Select another OpenAI-compatible vendor through an explicit custom preset in the
-[tool-loop helper](docs/PROVIDERS.md#explicit-custom-presets-in-the-tool-loop-helper).
-Each preset keeps its own endpoint, credential and model allowlist. Orchestration
-seat registration and cost reporting are separate from this helper interface.
+The Codex listing shows the Octopus logo, complete skill descriptions, and
+starter prompts for common workflows. Follow the
+[Codex first-use guide](docs/CODEX-START.md) to check provider readiness and
+account costs before dispatch.
 
-Claude Code discovers native workflow skills, while Codex loads its adapted
-skills. Existing names, aliases and explicit invocation controls remain available.
+Refine limits judges to the staged review inputs. Rollback preserves lessons in
+a private backup and keeps it available if restoration fails. Feature planning
+can start with a spec path in a new directory, and Tangle reports subtasks that
+identify themselves as blocked in its quality gate.
 
-Debate requires two successful external advisors on Codex. An allowed native
-Sonnet task on Claude Code counts only after it completes with a usable round
-artifact. Define stops when required state saves fail, and research prompts keep
-full ticket and probe IDs in their results.
-
-See [workflow recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery)
-and [plugin compatibility](docs/PLUGIN-COMPATIBILITY.md).
+If a provider settings save fails, Octopus keeps the last working configuration.
+Branch completion now follows the same option numbers shown in its menu.
+Project initialization also refuses an existing `.octo` symlink to protect the
+linked directory. Debate scores responses even when they have no citations,
+code blocks, or advisor mentions.
 
 <!-- BEGIN CURRENT RELEASE -->
-> 🆕 **v11.26.0 — Custom provider presets in the tool helper, native skills and debate advisor checks.**
+> 🆕 **v11.26.1 — Protect project files and provider settings, clarify Codex setup, and report blocked work correctly.**
 >
 > **Default roster:** Claude Opus 5.5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5.5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
@@ -76,7 +76,7 @@ and [plugin compatibility](docs/PLUGIN-COMPATIBILITY.md).
 
 | Version | Best Features |
 |---------|--------------|
-| **v11.26.0** (new) | Custom provider presets in the tool helper, native skills and debate advisor checks. |
+| **v11.26.1** (new) | Protect project files and provider settings, clarify Codex setup, and report blocked work correctly. |
 | **v9.50** | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (introduced with Opus 4.8 and now following the current Opus 5 default), starter skills pack, `/plugin browse` manifest with projected context cost. |
 | **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
 | **v9** | Up to 10 external provider integrations (Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OrcaRouter, OpenCode, and Grok) alongside the Claude Code host. Structured provider debates and configurable multi-LLM councils. Explicit-only activation by default, with an optional smart router. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Opt-in discipline gates and token compression. Two-stage review. Circuit breakers with automatic provider recovery inside active workflows. Cursor + OpenCode + Codex cross-compatibility. `bin/octopus` CLI. 182 Claude Code capability flags through v2.1.219, including Opus 5, Sonnet 5, and dynamic workflow awareness. |

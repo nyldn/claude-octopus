@@ -1,5 +1,5 @@
 interface:
   display_name: "Security Audit"
-  short_description: "OWASP compliance, vulnerability scanning, and adversarial red..."
+  short_description: "Review code for vulnerabilities and security weaknesses"
 policy:
   allow_implicit_invocation: false

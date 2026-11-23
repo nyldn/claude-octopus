@@ -26,10 +26,10 @@ if [[ "${OCTOPUS_CLAUDE_BIN:-}" == *--mcp-config* ]]; then
     printf '%s\n' 'ERROR: refinement rejects a Claude launcher with explicit MCP configuration' >&2
     exit 2
 fi
-claude_bin="${OCTOPUS_CLAUDE_BIN:-claude} --tools Read,Glob,Grep --strict-mcp-config"
+claude_bin="${OCTOPUS_CLAUDE_BIN:-claude} --tools Read,Glob,Grep --strict-mcp-config --restricted --safe-mode"
 exec env OCTOPUS_REFINEMENT_JUDGE=true OCTOPUS_AUTH_RETRIES=0 OCTOPUS_CODEX_SANDBOX=read-only \
     CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1 OCTOPUS_CLAUDE_ADVISOR=off \
     OCTOPUS_AGENT_TIMEOUT="$((10#$2))" \
     OCTOPUS_CLAUDE_BIN="$claude_bin" \
-    "$SCRIPT_DIR/orchestrate.sh" --timeout "$((10#$2))" \
-    probe-single "$provider" --perspective-file "$3" "$4" --output-dir "$5"
+    python3 "$SCRIPT_DIR/helpers/refinement-input-boundary.py" "$SCRIPT_DIR" \
+    "$provider" "$((10#$2))" "$3" "$4" "$5"

@@ -29,6 +29,16 @@ else
     test_fail "composerIcon should point to an existing SVG under assets/"
 fi
 
+test_case "listing logo points to the existing packaged artwork"
+logo_path=$(jq -r '.interface.logo // empty' "$PLUGIN_JSON")
+if [[ "$logo_path" == ./assets/*.svg ]] && \
+   [[ -f "$PROJECT_ROOT/${logo_path#./}" ]] && \
+   grep -q '<svg' "$PROJECT_ROOT/${logo_path#./}"; then
+    test_pass
+else
+    test_fail "listing logo must reference packaged SVG artwork"
+fi
+
 test_case "package includes assets directory"
 if jq -e '.files[] | select(. == "assets/")' "$PROJECT_ROOT/package.json" >/dev/null; then
     test_pass

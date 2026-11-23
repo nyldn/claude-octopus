@@ -20,6 +20,7 @@ paths:
   - "**/security*"
   - "**/oauth*"
   - "Dockerfile*"
+codex_short_description: "Review code for vulnerabilities and security weaknesses"
 ---
 
 # Security Audit Skill
