@@ -15,7 +15,7 @@ awk -v count="$PATH_COUNT" 'BEGIN {
     for (i = 0; i < count; i++) printf ".pnpm-store/v10/files/%02x/%040d-index.json\n", i % 256, i
 }' > "$PATHS_FILE"
 
-test_case "the pre-gate collects ${PATH_COUNT} out-of-scope paths within ${TIME_LIMIT_SECONDS}s and keeps every one"
+test_case "the pre-gate collects ${PATH_COUNT} out-of-scope paths within ${TIME_LIMIT_SECONDS}s and reports every one in order"
 if (
     source "$PROJECT_ROOT_SRC/scripts/lib/testing.sh"
     source "$PROJECT_ROOT_SRC/scripts/lib/workflows.sh"
@@ -31,13 +31,16 @@ if (
         '1. [CODING] Edit app — Files: src/app.ts — Task: edit the declared file.' 2>/dev/null || rc=$?
     elapsed=$((SECONDS - start))
     printf '%s\n' "$elapsed" > "$TEST_TMP_DIR/elapsed"
+    report="$RESULTS_DIR/tangle-validation-scaling.md"
     [[ "$rc" -ne 0 && ! -e "$TEST_TMP_DIR/base-validation-called" ]] &&
         [[ "$elapsed" -lt "$TIME_LIMIT_SECONDS" ]] &&
-        [[ "$TANGLE_SCOPE_CONTRACT_VIOLATIONS" == "$expected" ]]
+        [[ "$TANGLE_SCOPE_CONTRACT_VIOLATIONS" == "$expected" ]] &&
+        grep -Fxq '**Reason:** deterministic write-scope pre-gate' "$report" &&
+        sed -n 's/^- \(\.pnpm-store\/.*\)$/\1/p' "$report" | cmp "$PATHS_FILE" -
 ); then
     test_pass
 else
-    test_fail "pre-gate took $(cat "$TEST_TMP_DIR/elapsed" 2>/dev/null || echo '?')s or lost paths"
+    test_fail "pre-gate took $(cat "$TEST_TMP_DIR/elapsed" 2>/dev/null || echo '?')s, lost paths, or failed to write its report"
 fi
 
 test_summary
