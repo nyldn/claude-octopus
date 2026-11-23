@@ -10,6 +10,9 @@
 
 - The Embrace debate gate reports why each provider seat failed, including
   quota retry guidance when available.
+- Tangle keeps its out-of-scope path list out of the environment and caps the
+  scope-contract finding at 20 paths. It writes the validation report even for
+  oversized lists and reports failed worktree snapshots explicitly.
 - Tangle routes coding and reasoning subtasks to providers allowed by
   `OCTO_ALLOWED_PROVIDERS`. If a required subtask type has no permitted provider,
   Tangle reports which type needs a provider before launching any subtask.
