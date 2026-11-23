@@ -179,7 +179,9 @@ Set `ISSUE_ID` to the ID supplied with `resolve`.
 ISSUE_ID="$ISSUE_ID" awk -F '|' '
   BEGIN {
     issue_id = ENVIRON["ISSUE_ID"]
-    if (issue_id !~ /^ISS-[0-9]{8}-[0-9]{3,}$/) exit 1
+    split(issue_id, parts, "-")
+    if (issue_id !~ /^ISS-[0-9]+-[0-9]+$/ ||
+        length(parts[2]) != 8 || length(parts[3]) < 3) exit 1
   }
   /^##[[:blank:]]+Open Issues[[:blank:]]*$/ { in_open = 1; next }
   /^##?[[:blank:]]/ { in_open = 0 }

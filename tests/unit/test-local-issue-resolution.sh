@@ -11,6 +11,7 @@ for entry in .claude/skills/skill-issues skills/skill-issues codex-skills/skill-
     test_case "$entry resolves only an exact ID in the Open Issues table"
     if python3 - "$PROJECT_ROOT/$entry/SKILL.md" "$PROJECT_ROOT/config/templates/ISSUES.md.template" "$TEST_TMP_DIR" <<'PY'
 from pathlib import Path
+import os
 import subprocess
 import sys
 import tempfile
@@ -28,6 +29,8 @@ cases = [
     ("ID in notes", issue_id, "", f"\n## Notes\n\n| {issue_id} | Historical reference |", False),
     ("table header", "ID", "", "", False),
     ("table separator", "----", "", "", False),
+    ("short date", "ISS-2026020-001", "| ISS-2026020-001 | high | integration | Invalid date width | 2026-02-03 | Develop |", "", False),
+    ("short sequence", "ISS-20260203-01", "| ISS-20260203-01 | high | integration | Invalid sequence width | 2026-02-03 | Develop |", "", False),
 ]
 
 failed = False
@@ -40,7 +43,8 @@ with tempfile.TemporaryDirectory(dir=sys.argv[3]) as workdir:
         (state / "ISSUES.md").write_text(ledger)
         result = subprocess.run(
             ["bash", "-c", check_issue], cwd=workdir,
-            env={"ISSUE_ID": requested_id}, capture_output=True, text=True,
+            env={"ISSUE_ID": requested_id, "PATH": os.environ.get("PATH", os.defpath)},
+            capture_output=True, text=True,
         )
         if (result.returncode == 0) != should_succeed:
             print(f"{name}: unexpected status {result.returncode}", file=sys.stderr)
