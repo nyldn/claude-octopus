@@ -923,7 +923,8 @@ if octopus_tangle_execution_boundary_probe; then
             role="implementer"
             install_status=0
             cmd_array=(env -i "HOME=$PNPM_TEST_HOME" "PATH=$PATH" "CI=true"
-                       bash -c 'cd "$1" && pnpm install --frozen-lockfile --offline' _ "$pnpm_ws")
+                       bash -c '[[ "${npm_config_store_dir:-}" == "$2" ]] &&
+                                cd "$1" && pnpm install --frozen-lockfile --offline' _ "$pnpm_ws" "$pnpm_host_store")
             if PNPM_HOME="$pnpm_home" OCTOPUS_TANGLE_WORKTREE="$pnpm_ws" \
                 with_pnpm_test_config octopus_tangle_apply_execution_boundary; then
                 "${cmd_array[@]}" >"$PNPM_ROOT/pnpm-install.log" 2>&1 || install_status=$?
@@ -932,7 +933,6 @@ if octopus_tangle_execution_boundary_probe; then
             fi
             if [[ "$install_status" -eq 0 ]] &&
                grep -qx 'cached package content' "$pnpm_ws/node_modules/octo-store-fixture/content.txt" &&
-               grep -Fxq "storeDir: $pnpm_host_store/v10" "$pnpm_ws/node_modules/.modules.yaml" &&
                [[ "$(ls -A "$pnpm_host_store/v10/projects" | wc -l | tr -d ' ')" == "$registered_before" ]]; then
                 test_pass
             else
