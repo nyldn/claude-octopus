@@ -127,7 +127,11 @@ the diff and have no staged file to scan.
 ```bash
 # Admit the complete staged text before any review. Do not substitute another
 # range when staged input is empty or cannot be read.
-DIFF_CONTENT=$(python3 -I - <<'PY_STAGED_DIFF'
+# Keep the heredoc outside command substitution for Bash 3.2.
+octopus_staged_review_diff() {
+python3 -I - <<'PY_STAGED_DIFF'
+import ast
+import io
 import os
 import re
 import subprocess
@@ -224,6 +228,20 @@ def without_c_style_comments(line, depth, block_token):
         pos = token.end()
     return b' '.join(fragments), depth
 
+def module_docstring_lines(source):
+    try:
+        module = ast.parse(source)
+    except (SyntaxError, ValueError, RecursionError):
+        return range(0)
+    if ast.get_docstring(module, clean=False) is None:
+        return range(0)
+    body = module.body
+    start = body[0].lineno
+    end = body[0].end_lineno + 1
+    if len(body) > 1:
+        end = min(end, body[1].lineno)
+    return range(start, end)
+
 issues = 0
 for path, oid in sources:
     counts = [0] * len(checks)
@@ -237,12 +255,20 @@ for path, oid in sources:
     shell_source = path.endswith(b'.sh')
     with subprocess.Popen(['git', 'cat-file', 'blob', oid.decode('ascii')],
                           stdout=subprocess.PIPE) as blob:
-        for line_number, line in enumerate(blob.stdout, 1):
+        lines = blob.stdout
+        docstring_lines = range(0)
+        if path.endswith(b'.py'):
+            source = lines.read()
+            docstring_lines = module_docstring_lines(source)
+            lines = io.BytesIO(source)
+        for line_number, line in enumerate(lines, 1):
             for index, (pattern, _) in enumerate(checks):
                 if pattern.search(line):
                     counts[index] += 1
             if scan_block_comments:
                 line, comment_depth = without_c_style_comments(line, comment_depth, block_token)
+            if line_number in docstring_lines:
+                continue
             if (hash_comments and line.lstrip().startswith(b'#')) or (line_number == 1 and line.startswith(b'#!')):
                 continue
             if js_source:
@@ -271,7 +297,8 @@ print(f'Stub detection complete: {len(sources)} source files scanned, {issues} i
 print(f'Review snapshot: base tree {base}, staged tree {staged}', file=sys.stderr)
 sys.stdout.buffer.write(diff)
 PY_STAGED_DIFF
-) || exit 1
+}
+DIFF_CONTENT=$(octopus_staged_review_diff) || exit 1
 ```
 
 If this admission step fails, stop before provider dispatch or a clean-review

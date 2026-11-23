@@ -34,7 +34,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      'staged block comments', 'staged block then code',
                      'staged exported declarations', 'staged reexports', 'staged private fields',
                      'staged multiline reexports', 'staged comment after code', 'staged nested Rust comment',
-                     'staged comment delimiter in string'):
+                     'staged comment delimiter in string', 'staged Python module docstring'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             project = Path(temporary)
             environment = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
@@ -49,6 +49,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             source = project / ('source with spaces.ts' if scenario.startswith('staged ') else 'change.txt')
             if scenario == 'staged nested Rust comment':
                 source = source.with_suffix('.rs')
+            elif scenario == 'staged Python module docstring':
+                source = source.with_suffix('.py')
             source.write_text('original\n')
             if scenario in ('forced text hidden NUL', 'forced text trailing NUL'):
                 lines = b''.join(f'line {i}\n'.encode() for i in range(200))
@@ -110,6 +112,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 source.write_text('/* outer\n/* nested */\n' + 'comment line\n' * 6 + '*/\n')
             elif scenario == 'staged comment delimiter in string':
                 source.write_text('const delimiter = "/*";\n' + 'const value = 1;\n' * 4)
+            elif scenario == 'staged Python module docstring':
+                source.write_text('"""\n' + 'documentation line\n' * 5 + '"""\n')
             if scenario in ('external diff', 'textconv'):
                 command = project / '.git/unsafe-diff'
                 command.write_text('#!/bin/sh\ntouch "' + str(project / 'executed') + '"\necho OMITTED\n')
@@ -184,7 +188,8 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             elif scenario == 'staged deletion':
                 valid = valid and '0 source files scanned' in result.stderr
             elif scenario in ('staged block comments', 'staged reexports',
-                              'staged multiline reexports', 'staged nested Rust comment'):
+                              'staged multiline reexports', 'staged nested Rust comment',
+                              'staged Python module docstring'):
                 valid = valid and 'only 0 substantive lines' in result.stderr
             elif scenario in ('staged block then code', 'staged comment after code'):
                 valid = valid and 'only 1 substantive lines' in result.stderr
