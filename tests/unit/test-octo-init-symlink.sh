@@ -26,6 +26,26 @@ if root.exists():
 PY
 }
 
+run_initializer() (
+    local caller="$1" checkout="$2"
+    shift 2
+    cd "$checkout" || return $?
+    case "$caller" in
+        cli) bash "$initializer" init_project "$@" ;;
+        sourced) bash -c 'source "$1"; shift; init_project "$@"' _ "$initializer" "$@" ;;
+        conditional) bash -c '
+            source "$1"; shift
+            if init_project "$@"; then
+                exit 0
+            else
+                rc=$?
+                printf "caller retained control\n"
+                exit "$rc"
+            fi
+        ' _ "$initializer" "$@" ;;
+    esac
+)
+
 for caller in cli sourced conditional; do
     for link in relative absolute; do
         for target_state in empty partial initialized dangling; do
@@ -52,25 +72,7 @@ for caller in cli sourced conditional; do
                 [[ "$operation" != preview ]] || set -- --dry-run
                 test_case "$caller $operation refuses $link link to $target_state target"
                 rc=0
-                output="$(
-                    {
-                        cd "$checkout"
-                        case "$caller" in
-                            cli) bash "$initializer" init_project "$@" ;;
-                            sourced) bash -c 'source "$1"; shift; init_project "$@"' _ "$initializer" "$@" ;;
-                            conditional) bash -c '
-                                source "$1"; shift
-                                if init_project "$@"; then
-                                    exit 0
-                                else
-                                    rc=$?
-                                    printf "caller retained control\n"
-                                    exit "$rc"
-                                fi
-                            ' _ "$initializer" "$@" ;;
-                        esac
-                    } 2>&1
-                )" || rc=$?
+                output="$(run_initializer "$caller" "$checkout" "$@" 2>&1)" || rc=$?
                 after="$(snapshot "$destination")"
                 if [[ "$rc" -ne 0 && "$output" == *"symbolic link"* &&
                       "$after" == "$before" && -L "$checkout/.octo" &&
