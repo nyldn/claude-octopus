@@ -282,16 +282,31 @@ Use `$skill-issues list` to see all open issues.
 **Action:**
 
 ```bash
-# Create .octo directory if needed
-mkdir -p .octo
+plugin_root="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+python3 - "$plugin_root/config/templates/ISSUES.md.template" <<'PY'
+from pathlib import Path
+import os
+import sys
+import tempfile
 
-# Copy template
-cp ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/config/templates/ISSUES.md.template .octo/ISSUES.md
+template = Path(sys.argv[1]).read_text(encoding="utf-8")
+project_name = Path.cwd().name.replace("\r", " ").replace("\n", " ")
+ledger = Path(".octo/ISSUES.md")
+ledger.parent.mkdir(exist_ok=True)
 
-# Replace {{PROJECT_NAME}} with actual project name
-PROJECT_NAME=$(basename $(pwd))
-sed -i '' "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" .octo/ISSUES.md
+# Publish the complete ledger only if another invocation has not created it.
+with tempfile.TemporaryDirectory(dir=ledger.parent) as staging:
+    candidate = Path(staging) / ledger.name
+    candidate.write_text(template.replace("{{PROJECT_NAME}}", project_name), encoding="utf-8")
+    try:
+        os.link(candidate, ledger)
+    except FileExistsError:
+        if not ledger.is_file():
+            raise
+PY
 ```
+
+If initialization fails, report the error and stop before writing any issues.
 
 ### Preserve Existing Issues
 
