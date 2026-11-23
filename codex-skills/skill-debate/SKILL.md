@@ -480,13 +480,13 @@ in a blinded run, tell the user that independence was lost before proceeding.
 
 #### 5.1: Save Blinded Analysis and Launch External Advisors
 
-In blinded mode, write your analysis of the question and source material to
-`rounds/r001_claude.md` before launching either external advisors or Sonnet.
-Use the corresponding round number in later rounds. Keep each saved analysis
-for final synthesis. Do not read advisor files, inspect completion notices
-containing response text, score advisor answers, or pass one advisor's answer
-to another before finishing the last independent round. Use only completion
-status and artifact presence when checking progress.
+In blinded mode, save your analysis for every round before launching any advisors.
+Use only the question and source material. Save the first note as
+`rounds/r001_claude.md` and use the corresponding round number for each later
+note. Confirm all notes are saved before launching external advisors or Sonnet.
+Keep the notes for final synthesis even if a background completion includes
+response text. During the rounds, check completion status and artifact
+presence. Keep advisor responses separate until final synthesis.
 
 In cross-critique mode, write the moderator's analysis after reading the
 current round's responses, as described in Step 5.3.
@@ -553,6 +553,9 @@ DEBATE QUESTION: ${QUESTION}
 ${CONTEXT}
 
 Write your analysis (${MAX_WORDS} words) to: ${DEBATE_DIR}/rounds/r001_sonnet.md
+
+Your final reply must contain only a completion status and the artifact path.
+Do not include any analysis, verdict, or summary in the final reply.
 
 Cover: implementation feasibility, hidden gotchas, concrete effort estimates, and what the other approaches miss from a builder's perspective."
 )

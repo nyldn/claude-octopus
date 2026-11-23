@@ -213,4 +213,21 @@ if errors:
 print("9 executable Debate round-scoring scenarios passed")
 PY_ROUND_QUALITY
 then test_pass; else test_fail "Debate scored a different round or included the moderator"; fi
+test_case "blinded Debate prepares every moderator note before native advisor completions"
+if python3 -I - "$PROJECT_ROOT" <<'PY_NATIVE'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+for tree in (".claude/skills", "skills", "codex-skills"):
+    text = (root / tree / "skill-debate/SKILL.md").read_text()
+    preparation, launch = text.split("#### 5.1:", 1)[1].split("#### 5.2:", 1)
+    preparation = preparation.partition("```bash")[0]
+    assert "for every round before launching any advisors" in preparation, tree
+    native_prompt = launch.split("prompt:", 1)[1].split("After all allowed advisors finish", 1)[0]
+    assert "write your analysis" in native_prompt.lower(), tree
+    assert "final reply must contain only a completion status" in native_prompt, tree
+    assert "Do not include any analysis, verdict, or summary in the final reply" in native_prompt, tree
+PY_NATIVE
+then test_pass; else test_fail "a native completion can expose analysis before the moderator finishes"; fi
 test_summary
