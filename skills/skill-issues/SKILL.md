@@ -19,6 +19,7 @@ trigger: |
   - GitHub issues (use gh CLI)
   - General problem-solving without tracking
 argument-hint: "[list|add|resolve|show] [description or ID]"
+codex_short_description: "Record project blockers, defects, and gaps for follow-up"
 ---
 
 # Issue Tracking
@@ -183,12 +184,47 @@ Mark issue as resolved and move to Resolved section.
 
 #### Step 1: Validate Issue Exists
 
+Set `ISSUE_ID` to the ID supplied with `resolve`.
+
 ```bash
-# Check if issue ID exists in Open Issues
-grep "ISS-20260203-001" .octo/ISSUES.md
+ISSUE_ID="$ISSUE_ID" awk -F '|' '
+  BEGIN {
+    issue_id = ENVIRON["ISSUE_ID"]
+    split(issue_id, parts, "-")
+    if (issue_id !~ /^ISS-[0-9]+-[0-9]+$/ ||
+        length(parts[2]) != 8 || length(parts[3]) < 3) exit 1
+  }
+  { line = $(0); sub(/\r$/, "", line) }
+  !in_open {
+    if (line ~ /^##[[:blank:]]+Open Issues[[:blank:]]*$/) in_open = 1
+    next
+  }
+  !header_seen {
+    if (line ~ /^[[:blank:]]*$/) next
+    if (line !~ /^[[:blank:]]*\|[[:blank:]]*ID[[:blank:]]*\|/) exit
+    header_seen = 1
+    next
+  }
+  !separator_seen {
+    if (line !~ /^[[:blank:]]*\|([[:blank:]]*:?-+:?[[:blank:]]*\|)+[[:blank:]]*$/) exit
+    separator_seen = 1
+    next
+  }
+  NF < 3 || $(1) !~ /^[[:blank:]]*$/ { exit }
+  {
+    id = $(2)
+    gsub(/^[[:blank:]]+|[[:blank:]]+$/, "", id)
+    if (id == issue_id) {
+      found = 1
+      exit
+    }
+  }
+  END { exit !found }
+' .octo/ISSUES.md
 ```
 
-If not found, show error:
+If the check fails, stop before asking for resolution notes or editing the
+ledger. Show this error for the requested ID.
 
 ```markdown
 ❌ Issue ISS-20260203-001 not found in open issues.
@@ -206,8 +242,8 @@ Please provide resolution notes:
 
 #### Step 3: Move to Resolved Section
 
-1. Extract issue row from Open Issues table
-2. Remove from Open Issues
+1. Extract the row whose ID exactly matches `ISSUE_ID` in the contiguous Open Issues table
+2. Remove that row from Open Issues
 3. Add to Resolved Issues with resolution date and notes
 
 **Resolved Issues format:**
@@ -294,16 +330,31 @@ Use `/octo:issues list` to see all open issues.
 **Action:**
 
 ```bash
-# Create .octo directory if needed
-mkdir -p .octo
+plugin_root="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+python3 - "$plugin_root/config/templates/ISSUES.md.template" <<'PY'
+from pathlib import Path
+import os
+import sys
+import tempfile
 
-# Copy template
-cp ${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/config/templates/ISSUES.md.template .octo/ISSUES.md
+template = Path(sys.argv[1]).read_text(encoding="utf-8")
+project_name = Path.cwd().name.replace("\r", " ").replace("\n", " ")
+ledger = Path(".octo/ISSUES.md")
+ledger.parent.mkdir(exist_ok=True)
 
-# Replace {{PROJECT_NAME}} with actual project name
-PROJECT_NAME=$(basename $(pwd))
-sed -i '' "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" .octo/ISSUES.md
+# Publish the complete ledger only if another invocation has not created it.
+with tempfile.TemporaryDirectory(dir=ledger.parent) as staging:
+    candidate = Path(staging) / ledger.name
+    candidate.write_text(template.replace("{{PROJECT_NAME}}", project_name), encoding="utf-8")
+    try:
+        os.link(candidate, ledger)
+    except FileExistsError:
+        if not ledger.is_file():
+            raise
+PY
 ```
+
+If initialization fails, report the error and stop before writing any issues.
 
 ### Preserve Existing Issues
 

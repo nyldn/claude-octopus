@@ -34,6 +34,7 @@ trigger: |
   - Research tasks (use probe-workflow)
   - Requirement definition (use grasp-workflow)
   - Built-in commands (/plugin, /help, etc.)
+codex_short_description: "Review changes and assess readiness for delivery"
 ---
 
 {{PREAMBLE}}

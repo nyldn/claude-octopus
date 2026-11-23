@@ -20,6 +20,7 @@ trigger: |
   - Technical research (use flow-discover)
   - Implementation planning (use skill-writing-plans)
   - Decision making with options (use skill-decision-support)
+codex_short_description: "Explore an idea through questions and alternative framings"
 ---
 
 # Thought Partner Skill

@@ -1,5 +1,5 @@
 interface:
   display_name: "Deck"
-  short_description: "Generate slide deck presentations from briefs — use when..."
+  short_description: "Turn a brief and supporting evidence into a slide deck"
 policy:
   allow_implicit_invocation: false

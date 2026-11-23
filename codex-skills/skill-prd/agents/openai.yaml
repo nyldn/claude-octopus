@@ -1,5 +1,5 @@
 interface:
-  display_name: "Prd"
-  short_description: "Write an AI-optimized PRD using multi-AI orchestration —..."
+  display_name: "Product Requirements"
+  short_description: "Write product requirements with scope and success criteria"
 policy:
   allow_implicit_invocation: false

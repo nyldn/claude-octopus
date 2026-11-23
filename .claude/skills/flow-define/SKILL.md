@@ -32,6 +32,7 @@ trigger: |
   - Research tasks (use probe-workflow)
   - Review tasks (use ink-workflow)
   - Built-in commands (/plugin, /help, etc.)
+codex_short_description: "Turn research findings into agreed requirements"
 ---
 
 {{PREAMBLE}}
