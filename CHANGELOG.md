@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- When the Council chair's answer is rejected, Council dispatches at most one
+  fallback by default. Set `OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to choose a limit
+  from zero to five. The run summary reports how many attempts were dispatched.
+
 ## [11.26.1] - 2026-11-23
 
 ### Fixed
@@ -14,11 +20,6 @@
 - Codex plugin listings include the existing logo artwork, complete skill
   descriptions, and explicit starter prompts. First-use guidance explains
   provider setup, readiness limits, and account costs.
-- A council whose chair answer is rejected dispatches one fallback chair attempt
-  instead of up to five, each re-sending the full prompt and evidence. A live
-  quick council spent $0.77 of $1.23 on five rejected attempts that never
-  appeared in `seats[]`. Set `OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to change the
-  limit; `summary.json` reports `quorum.chair_fallback_attempts`.
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
 - Refine gives judges access to staged review inputs and stops when their
