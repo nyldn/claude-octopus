@@ -17,6 +17,14 @@ run_gate() (
     cat > "$root/codex" <<EOF
 #!/usr/bin/env bash
 cat >/dev/null
+case "$codex_mode" in
+    stdout-quote)
+        printf '%s\n' 'The provider documentation uses insufficient_quota as an example.'
+        exit 1 ;;
+    stdout-limit)
+        printf '%s\n' "You've hit your session limit - try again in 2 hours."
+        exit 1 ;;
+esac
 printf '%s\n' 'OpenAI Codex v0.150.0 (research preview)' '--------' 'user' 'review the change' >&2
 case "$codex_mode" in
     usage-limit)
@@ -54,7 +62,10 @@ EOF
     apply_persona() { printf '%s\n' "$2"; }
     load_earned_skills() { :; }
     build_provider_context() { :; }
-    enforce_context_budget() { printf '%s\n' "$1"; }
+    enforce_context_budget() {
+        [[ "$codex_mode" != budget || "$3" != codex ]] || return 2
+        printf '%s\n' "$1"
+    }
     get_agent_model() { printf 'fixture-model\n'; }
     estimate_agent_call_cost() { printf '0.000000\n'; }
     check_provider_health() { return 0; }
@@ -126,6 +137,37 @@ if [[ "$rc" -ne 0 && ! -e "$TEST_TMP_DIR/all-failed/results/embrace-gate-develop
     test_pass
 else
     test_fail "rc=$rc output=$(tr '\n' '|' < "$gate_out" 2>/dev/null)"
+fi
+
+test_case "ordinary stdout from a failed seat cannot classify it as quota-limited"
+run_gate stdout-quote stdout-quote && rc=0 || rc=$?
+artifact="$TEST_TMP_DIR/stdout-quote/results/embrace-gate-develop-deliver-stdout-quote.md"
+if [[ "$rc" -eq 0 && -s "$artifact" ]] &&
+   ! grep -Fq 'terminal quota or auth error' "$artifact"; then
+    test_pass
+else
+    test_fail "rc=$rc statuses=$(grep -F 'Provider Statuses' "$artifact" 2>/dev/null || echo missing)"
+fi
+
+test_case "a standalone terminal stdout session-limit message retains retry guidance"
+run_gate stdout-limit stdout-limit && rc=0 || rc=$?
+artifact="$TEST_TMP_DIR/stdout-limit/results/embrace-gate-develop-deliver-stdout-limit.md"
+if [[ "$rc" -eq 0 && -s "$artifact" ]] &&
+   grep -Fq 'codex=failed (usage limit reached; try again in 2 hours)' "$artifact"; then
+    test_pass
+else
+    test_fail "rc=$rc statuses=$(grep -F 'Provider Statuses' "$artifact" 2>/dev/null || echo missing)"
+fi
+
+test_case "a context-budget rejection retains its reason before provider dispatch"
+run_gate budget budget && rc=0 || rc=$?
+artifact="$TEST_TMP_DIR/budget/results/embrace-gate-develop-deliver-budget.md"
+if [[ "$rc" -eq 0 && -s "$artifact" ]] &&
+   grep -Fq 'codex=failed (Prompt exceeded context budget)' "$artifact" &&
+   grep -Fq '[no output; failure reason: Prompt exceeded context budget]' "$TEST_TMP_DIR/budget/synthesis-prompt"; then
+    test_pass
+else
+    test_fail "rc=$rc statuses=$(grep -F 'Provider Statuses' "$artifact" 2>/dev/null || echo missing)"
 fi
 
 test_summary

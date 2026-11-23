@@ -6500,8 +6500,19 @@ octo_newest_existing_file() {
 embrace_gate_failure_reason() {
     local capture="$1" line="" hint=""
     [[ -s "$capture" ]] || return 0
+    # Only the writer's stderr section is eligible for the quota pattern.
+    # A standalone stdout status is validated separately by the capture parser.
     if declare -F quota_watcher_match_line >/dev/null 2>&1 &&
-       line=$(quota_watcher_match_line "$capture" /dev/null stream 2>/dev/null ||
+       line=$(quota_watcher_match_line <(awk '
+                  NR == 1 { next }
+                  NR == 2 && $0 == "-- terminal stdout status --" { getline; next }
+                  !stderr {
+                      if ($0 != "-- stderr --") exit
+                      stderr = 1
+                      next
+                  }
+                  { print }
+              ' "$capture") /dev/null stream 2>/dev/null ||
               octo_quota_session_limit_line "$capture" capture 2>/dev/null); then
         hint=$(octo_quota_reset_hint "$line")
         if [[ -n "$hint" ]]; then
@@ -6511,7 +6522,7 @@ embrace_gate_failure_reason() {
         fi
         return 0
     fi
-    sed -n 's/^== [^ ]* [^ ]* exited [^:]*: //p' "$capture" 2>/dev/null | tail -n 1 | cut -c1-240
+    sed -n '1s/^== [^ ]* [^ ]* exited [^:]*: //p' "$capture" 2>/dev/null | cut -c1-240
 }
 
 embrace_debate_gate() {
