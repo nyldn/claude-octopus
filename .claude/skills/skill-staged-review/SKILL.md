@@ -190,7 +190,7 @@ reexport_all = re.compile(rb'^\s*export\b(?:\s+type\b)?\s*\*')
 shell_export = re.compile(rb'^\s*export\b')
 ecmascript = (b'.ts', b'.tsx', b'.js', b'.jsx')
 block_comment_sources = ecmascript + (b'.go', b'.rs')
-code_token = re.compile(rb'''//|/\*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`''')
+code_token = re.compile(rb'''//|/\*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\x60(?:[^\x60\\]|\\.)*\x60''')
 block_end = re.compile(rb'\*/')
 rust_block_token = re.compile(rb'/\*|\*/')
 
