@@ -23,6 +23,10 @@ provider use before dispatch. Keep credentials out of prompts and reports.
 
 ## Choose a task
 
+The plugin listing includes starter prompts for common workflows. You can also
+type a skill name directly in a prompt. Use Doctor to check readiness before
+starting a workflow that calls an external provider.
+
 | Need | Skill to invoke | Result |
 | --- | --- | --- |
 | Research a question | `$flow-discover` | Findings for the Discover phase |

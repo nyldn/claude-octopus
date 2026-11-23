@@ -2,8 +2,14 @@
 
 ## [Unreleased]
 
+## [11.26.1] - 2026-11-23
+
 ### Fixed
 
+- Project initialization refuses a pre-existing `.octo` symbolic link before
+  previewing or writing templates, preserving the linked destination.
+- Branch completion consistently maps option 1 to creating a pull request and
+  option 2 to merging locally across its menu, instructions, and quick reference.
 - Failed provider configuration saves preserve the last working settings.
 - Codex plugin listings include the existing logo artwork, complete skill
   descriptions, and explicit starter prompts. First-use guidance explains
@@ -15,11 +21,27 @@
   limit; `summary.json` reports `quorum.chair_fallback_attempts`.
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
-- The Tangle quality gate counts a subtask as blocked when its own output says
-  the work is incomplete or blocked, for example a verification section that
-  opens with "Incomplete due to an environment blocker:" or "Blocked by
-  environment setup:". Such subtasks had launched successfully, so the gate
-  scored them as 100% success.
+- Refine gives judges access to staged review inputs and stops when their
+  read boundary cannot be enforced.
+- Feature planning creates a missing directory for an explicit spec path and
+  saves that feature's identity when preparing the spec.
+- The Tangle quality gate counts subtasks that report incomplete or blocked
+  work as blocked, even when the provider exits successfully.
+- Debate scores responses with no citations, code blocks, or advisor mentions
+  without Bash arithmetic errors.
+
+This release includes changes from [#1374](https://github.com/nyldn/claude-octopus/pull/1374),
+[#1364](https://github.com/nyldn/claude-octopus/pull/1364),
+[#1351](https://github.com/nyldn/claude-octopus/pull/1351),
+[#1379](https://github.com/nyldn/claude-octopus/pull/1379),
+[#1381](https://github.com/nyldn/claude-octopus/pull/1381),
+[#1393](https://github.com/nyldn/claude-octopus/pull/1393),
+[#1394](https://github.com/nyldn/claude-octopus/pull/1394),
+[#1377](https://github.com/nyldn/claude-octopus/pull/1377), and
+[#1395](https://github.com/nyldn/claude-octopus/pull/1395).
+This release includes the fixes for [#1372](https://github.com/nyldn/claude-octopus/issues/1372)
+and [#1392](https://github.com/nyldn/claude-octopus/issues/1392).
+The wider runtime work is tracked in [#1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
 ## [11.26.0] - 2026-11-18
 
