@@ -271,13 +271,13 @@ Counts appear in each seat's `grounding` object in `summary.json`. Set
 
 ## Chair fallback
 
-When the chair's answer is not accepted, the council tries a synthesis-capable
-persona as the chair instead. It first reuses an accepted advice response from
-such a persona. Otherwise it dispatches a new attempt with the same prompt and
-evidence. At most one attempt is dispatched per run, because a chair rejected as
-blind is usually followed by attempts rejected the same way. Set
-`OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to change the limit (0 disables new
-attempts, 5 tries every persona). `summary.json` reports the count as
+When the chair's answer is rejected, the council tries synthesis-capable
+personas in order. For each persona, it checks for an accepted advice response
+before dispatching that persona with the same prompt and evidence. A successful
+dispatch can finish the search before a later response would be reused. The
+default limit is one new dispatch per run. Set
+`OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to change the limit. A value of 0 disables
+new dispatches, and 5 permits up to five. `summary.json` reports the count as
 `quorum.chair_fallback_attempts`.
 
 ## Failed provider diagnostics
