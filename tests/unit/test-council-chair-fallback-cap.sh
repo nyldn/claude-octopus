@@ -44,6 +44,21 @@ run_fallback() {
     ERR="$(cat "$d/err")"
 }
 
+assert_summary_attempts() {
+    local expected="$1"
+    test_case "Council summary reports $expected dispatched fallback attempt(s) in quorum"
+    if (COUNCIL_ROSTER_JSON="$COUNCIL_SEAT_RECORDS_JSON" COUNCIL_MAX_COST=1 \
+        COUNCIL_RESOLVED_MEMBERS=3 council_write_summary_json partial) &&
+        jq -e --argjson expected "$expected" \
+            '.quorum.chair_fallback_attempts == $expected' "$COUNCIL_RUN_DIR/summary.json" >/dev/null; then
+        test_pass
+    else
+        test_fail "unexpected quorum: $(jq -c .quorum "$COUNCIL_RUN_DIR/summary.json" 2>/dev/null || true)"
+    fi
+}
+
+unset OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX
+council_reset_defaults
 test_case "by default a rejected chair gets one fallback attempt, not five"
 run_fallback
 if [[ "$CALLS" == 1 && "$COUNCIL_CHAIR_FALLBACK_ATTEMPTS" == 1 && "$ERR" == *"chair fallback stopped after 1 dispatched attempt"* ]]; then
@@ -51,6 +66,7 @@ if [[ "$CALLS" == 1 && "$COUNCIL_CHAIR_FALLBACK_ATTEMPTS" == 1 && "$ERR" == *"ch
 else
     test_fail "calls=$CALLS attempts=$COUNCIL_CHAIR_FALLBACK_ATTEMPTS err=$ERR"
 fi
+assert_summary_attempts 1
 
 test_case "OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX raises, removes or rejects the cap"
 OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX=3 run_fallback; three="$CALLS"
@@ -62,6 +78,8 @@ if [[ "$three" == 3 && "$zero" == 0 && "$all" == 5 && "$bad" == 1 ]]; then
 else
     test_fail "max3=$three max0=$zero max9=$all invalid=$bad"
 fi
+OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX=0 run_fallback
+assert_summary_attempts 0
 
 test_case "with new attempts disabled, an accepted advice response is still reused"
 d="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/chair-reuse.XXXXXX")"; mkdir -p "$d/responses"

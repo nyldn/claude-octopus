@@ -6451,6 +6451,7 @@ council_write_summary_json() {
             chair_received: ($chair_received == "true"),
             chair_host_native: ($chair_host_native == "true"),
             chair_synthesis_available: ($chair_synthesis_available == "true"),
+            chair_fallback_attempts: ($chair_fallback_attempts | tonumber),
             distinct_providers: ($distinct_providers | tonumber),
             responding_providers: $responding_providers,
             distinct_approving_providers: ($distinct_approving_providers | tonumber),
@@ -6486,8 +6487,7 @@ council_write_summary_json() {
             provider_diversity_replaced: ($diversity_replaced == "true"),
             provider_diversity: (if $diversity_warning == "" then null else $diversity_warning end),
             chair_fallback: ($chair_fallback_used == "true"),
-            chair_fallback_persona: (if $chair_fallback_persona == "" then null else $chair_fallback_persona end),
-            chair_fallback_attempts: ($chair_fallback_attempts | tonumber? // 0)
+            chair_fallback_persona: (if $chair_fallback_persona == "" then null else $chair_fallback_persona end)
           },
           council: $council_roster,
           seats: $seat_records,
