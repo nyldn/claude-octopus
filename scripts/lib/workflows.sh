@@ -3167,13 +3167,10 @@ tangle_validation_signature() {
 }
 
 tangle_worktree_fingerprint() {
-    local repo_root
+    local repo_root helper
     repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
-    {
-        git -C "$repo_root" status --porcelain 2>/dev/null || true
-        git -C "$repo_root" diff --stat 2>/dev/null || true
-        git -C "$repo_root" ls-files --others --exclude-standard 2>/dev/null || true
-    } | sha256sum 2>/dev/null | awk '{print $1}'
+    helper="$(dirname -- "${BASH_SOURCE[0]}")/../helpers/tangle-worktree-fingerprint.py"
+    python3 -I "$helper" "$repo_root"
 }
 
 tangle_process_is_active_non_zombie() {
@@ -4279,25 +4276,18 @@ tangle_correction_identity_message() {
 tangle_run_review_correction() {
     local resolved_prompt="$1"
     local context_file="$2"
-    local findings_file="$3"
+    local normal_findings="$3"
     local round_num="$4"
-    local correction_agent="${5:-codex}"
-    local correction_strategy="${6:-delta}"
+    local correction_agent="$5"
+    local correction_strategy="$6"
     local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-${correction_agent//[^A-Za-z0-9._-]/_}-$(date +%s).md"
     local rc_file="${correction_file}.rc"
-    local normal_findings strategy_text before_fp after_fp last_fp last_size last_progress now
+    local strategy_text before_fp after_fp last_fp last_size last_progress now
 
     TANGLE_CORRECTION_FILE="$correction_file"
     TANGLE_CORRECTION_STATUS="unknown"
     TANGLE_CORRECTION_CHANGED="0"
     TANGLE_CORRECTION_CONTAMINATION=""
-
-    normal_findings=$(tangle_normal_findings_summary "$findings_file")
-    if [[ -z "$normal_findings" ]]; then
-        log INFO "No normal findings to correct in $findings_file"
-        TANGLE_CORRECTION_STATUS="no-findings"
-        return 0
-    fi
 
     strategy_text=$(tangle_correction_strategy_prompt "$correction_strategy")
     local correction_prompt="You are in Octopus tangle correction round ${round_num}.
@@ -4328,7 +4318,7 @@ Blocking findings to fix:
 ${normal_findings}
 "
 
-    before_fp=$(tangle_worktree_fingerprint)
+    before_fp=$(tangle_worktree_fingerprint) || before_fp=""
     last_fp="$before_fp"
     last_size=0
     last_progress=$(date +%s)
@@ -4346,8 +4336,9 @@ ${normal_findings}
     [[ -n "$correction_model" ]] || correction_model="unresolved"
     log INFO "$(tangle_correction_identity_message "$round_num" "$correction_strategy" "$stall_window" "$correction_agent" "$correction_model")"
     (
-        OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-correction-stall-watchdog" run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1
-        echo "$?" > "$rc_file"
+        local attempt_rc=0
+        OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-correction-stall-watchdog" run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1 || attempt_rc=$?
+        printf '%s\n' "$attempt_rc" > "$rc_file"
     ) &
     local correction_pid=$!
     local stalled="false"
@@ -4365,7 +4356,7 @@ ${normal_findings}
         [[ "$now" -ge "$next_probe" || ( "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ) ]] || continue
         next_probe=$((now + poll_secs))
         local current_fp current_size
-        current_fp=$(tangle_worktree_fingerprint)
+        current_fp=$(tangle_worktree_fingerprint) || current_fp="$last_fp"
         current_size=$(stat -c '%s' "$correction_file" 2>/dev/null || stat -f '%z' "$correction_file" 2>/dev/null || echo 0)
         if [[ "$current_fp" != "$last_fp" || "$current_size" != "$last_size" ]]; then
             last_fp="$current_fp"
@@ -4393,8 +4384,9 @@ ${normal_findings}
     [[ -f "$rc_file" ]] && correction_rc=$(cat "$rc_file" 2>/dev/null || echo 1)
     rm -f "$rc_file" 2>/dev/null || true
 
-    after_fp=$(tangle_worktree_fingerprint)
-    if [[ "$after_fp" != "$before_fp" ]]; then
+    after_fp=$(tangle_worktree_fingerprint) || after_fp=""
+    # An unreadable snapshot cannot prove it's safe to retry on this worktree.
+    if [[ -z "$before_fp" || -z "$after_fp" || "$after_fp" != "$before_fp" ]]; then
         TANGLE_CORRECTION_CHANGED="1"
     fi
     TANGLE_CORRECTION_CONTAMINATION=$(tangle_scope_contamination_summary)
@@ -4453,33 +4445,35 @@ ${normal_findings}
     return 1
 }
 
-tangle_correction_next_agent() {
-    local routed_agent="$1" tried="$2" candidate
-    while IFS= read -r candidate; do
-        [[ "$tried" == *"|$candidate|"* ]] && continue
-        tangle_subtask_agent_dispatchable "$candidate" || continue
-        printf '%s\n' "$candidate"
-        return 0
-    done < <(tangle_subtask_fallback_agents "$routed_agent")
-    return 1
-}
-
 tangle_apply_review_corrections() {
-    local round_num="$4" routed_agent="${5:-codex}" agent tried="|" rc
+    local findings_file="$3" round_num="$4" routed_agent="${5:-codex}"
+    local normal_findings candidate correction_rc
+
     TANGLE_CORRECTION_FILE=""
     TANGLE_CORRECTION_CHANGED="0"
     TANGLE_CORRECTION_CONTAMINATION=""
-    while agent=$(tangle_correction_next_agent "$routed_agent" "$tried"); do
-        tried+="$agent|"
-        [[ "$agent" == "$routed_agent" ]] || log WARN "Correction round ${round_num}: dispatching to $agent instead of $routed_agent (routed provider unavailable or disallowed)"
-        rc=0
-        tangle_run_review_correction "$1" "$2" "$3" "$round_num" "$agent" "${6:-delta}" || rc=$?
-        if [[ "$TANGLE_CORRECTION_STATUS" == "failed-no-progress" ]] && ! tangle_subtask_agent_dispatchable "$agent"; then
-            log WARN "Correction round ${round_num}: $agent became unavailable without writing anything; retrying on the next provider"
+
+    normal_findings=$(tangle_normal_findings_summary "$findings_file")
+    if [[ -z "$normal_findings" ]]; then
+        log INFO "No normal findings to correct in $findings_file"
+        TANGLE_CORRECTION_STATUS="no-findings"
+        return 0
+    fi
+
+    while IFS= read -r candidate; do
+        tangle_subtask_agent_dispatchable "$candidate" || continue
+        if [[ "$candidate" != "$routed_agent" ]]; then
+            log WARN "Correction round ${round_num}: dispatching to $candidate instead of $routed_agent"
+        fi
+        correction_rc=0
+        tangle_run_review_correction "$1" "$2" "$normal_findings" "$round_num" "$candidate" "${6:-delta}" || correction_rc=$?
+        if [[ "$TANGLE_CORRECTION_STATUS" == "failed-no-progress" ]] && ! tangle_subtask_agent_dispatchable "$candidate"; then
+            log WARN "Correction round ${round_num}: $candidate became unavailable without changing the worktree; trying the next provider"
             continue
         fi
-        return "$rc"
-    done
+        return "$correction_rc"
+    done < <(tangle_subtask_fallback_agents "$routed_agent")
+
     TANGLE_CORRECTION_STATUS="provider-unavailable"
     log ERROR "Correction round ${round_num}: no allowed, available provider for $routed_agent"
     return 1
@@ -5006,7 +5000,7 @@ tangle_subtask_fallback_agents() {
         [[ "$seen" == *"|$provider|"* ]] && continue
         seen+="$provider|"
         tangle_subtask_agent_allowed "$candidate" || continue
-        if [[ "$candidate" == codex && "$candidate" != "$agent" ]] && ! command -v codex >/dev/null 2>&1; then
+        if [[ "$provider" == codex ]] && ! command -v codex >/dev/null 2>&1; then
             continue
         fi
         printf '%s\n' "$candidate"
@@ -5015,7 +5009,7 @@ tangle_subtask_fallback_agents() {
 
 tangle_spawn_subtask() {
     local agent="$1" prompt="$2" task_id="$3" role="$4" pane_title="$5" active_idx="$6"
-    local candidate pid attempt=0 contract_task_id
+    local candidate pid spawn_status attempt=0 contract_task_id
     TANGLE_SPAWNED_PID=""
     while IFS= read -r candidate; do
         if ! tangle_subtask_agent_dispatchable "$candidate"; then
@@ -5031,17 +5025,19 @@ tangle_spawn_subtask() {
         if (( attempt > 1 )); then
             contract_task_id="${task_id}:attempt-$attempt"
         fi
+        spawn_status=0
         if [[ "$TMUX_MODE" == "true" ]]; then
-            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" tangle "$pane_title" "$contract_task_id" </dev/null) || pid=""
+            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" tangle "$pane_title" "$contract_task_id" </dev/null) || spawn_status=$?
         else
-            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" tangle false "$contract_task_id" </dev/null) || pid=""
+            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" tangle false "$contract_task_id" </dev/null) || spawn_status=$?
         fi
-        if [[ "$pid" =~ ^[1-9][0-9]*$ ]]; then
+        if [[ "$spawn_status" -eq 0 && "$pid" =~ ^[1-9][0-9]*$ ]]; then
             TANGLE_SPAWNED_PID="$pid"
             return 0
         fi
-        tangle_subtask_agent_dispatchable "$candidate" && return 1
-        log WARN "Tangle task $task_id: $candidate became unavailable during its spawn; trying the next provider"
+        # A failed PID handoff can leave a worker running even if the circuit opens.
+        [[ "$spawn_status" -eq 75 && -z "$pid" ]] || return 1
+        log WARN "Tangle task $task_id: $candidate refused dispatch before launch; trying the next provider"
     done < <(tangle_subtask_fallback_agents "$agent")
     return 1
 }

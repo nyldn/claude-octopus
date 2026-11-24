@@ -716,6 +716,105 @@ octopus_tangle_bind_codex_state_dirs() {
     done <<< "$codex_dirs"
 }
 
+octopus_tangle_bind_pnpm_store_dirs() {
+    local physical_worktree="$1" physical_results="$2" store real_root config layout devices
+    [[ -f "$physical_worktree/pnpm-lock.yaml" ]] || return 0
+    command -v pnpm >/dev/null 2>&1 || return 0
+    [[ -z "${npm_config_store_dir:-}${NPM_CONFIG_STORE_DIR:-}${pnpm_config_store_dir:-}${PNPM_CONFIG_STORE_DIR:-}" ]] || return 0
+    [[ -z "${npm_config_userconfig:-}${NPM_CONFIG_USERCONFIG:-}${pnpm_config_userconfig:-}${PNPM_CONFIG_USERCONFIG:-}" ]] || return 0
+    [[ -z "${npm_config_globalconfig:-}${NPM_CONFIG_GLOBALCONFIG:-}${pnpm_config_globalconfig:-}${PNPM_CONFIG_GLOBALCONFIG:-}" ]] || return 0
+    [[ -z "${npm_config_prefix:-}${NPM_CONFIG_PREFIX:-}${pnpm_config_prefix:-}${PNPM_CONFIG_PREFIX:-}${PREFIX:-}${DESTDIR:-}" ]] || return 0
+
+    # pnpm 10 can read npm's global config relative to either the selected
+    # Node path or its real executable. Never run Node or pnpm to inspect it.
+    local node_path resolved_node node_prefix resolved_prefix
+    node_path="$(type -P node)" && [[ "$node_path" == /*/* ]] || return 0
+    resolved_node="$(command -p readlink -f "$node_path" 2>/dev/null)" && [[ "$resolved_node" == /*/* ]] || return 0
+    node_prefix="${node_path%/*}"; node_prefix="${node_prefix%/*}"
+    resolved_prefix="${resolved_node%/*}"; resolved_prefix="${resolved_prefix%/*}"
+    for config in "$physical_worktree/.npmrc" "$physical_worktree/pnpm-workspace.yaml" \
+        "${HOME:-}/.npmrc" /etc/npmrc "$node_prefix/etc/npmrc" "$resolved_prefix/etc/npmrc" \
+        "$node_prefix/lib/node_modules/npm/npmrc" "$resolved_prefix/lib/node_modules/npm/npmrc" \
+        /usr/share/nodejs/npm/npmrc \
+        "${XDG_CONFIG_HOME:-${HOME:-}/.config}/pnpm/rc" \
+        "${XDG_CONFIG_HOME:-${HOME:-}/.config}/pnpm/config.yaml"; do
+        [[ "$config" == /* && ! -L "$config" ]] || return 0
+        [[ -e "$config" ]] || continue
+        [[ -f "$config" && -r "$config" ]] || return 0
+        # A redirect or config dependency makes the effective store uncertain.
+        if command -p grep -Eiq "^[[:space:]]*[\"']?(store-dir|storeDir|globalconfig|npm-globalconfig|userconfig|prefix|config-dependencies|configDependencies)[\"']?[[:space:]]*[:=]" -- "$config"; then
+            return 0
+        elif [[ "$?" -ne 1 ]]; then
+            return 0
+        fi
+    done
+
+    # Derive pnpm 10's standard Linux store without executing pnpm or its
+    # configuration hooks in the launcher.
+    if [[ -n "${PNPM_HOME:-}" ]]; then
+        store="${PNPM_HOME%/}/store"
+    elif [[ -n "${XDG_DATA_HOME:-}" ]]; then
+        store="${XDG_DATA_HOME%/}/pnpm/store"
+    elif [[ -n "${HOME:-}" ]]; then
+        store="${HOME%/}/.local/share/pnpm/store"
+    else
+        return 0
+    fi
+    [[ "$store" == /* ]] || return 0
+    real_root="$(cd "$store" 2>/dev/null && pwd -P)" || return 0
+    [[ "$real_root" == "$store" ]] || return 0
+    case "$real_root" in /|/tmp|/tmp/*) return 0 ;; esac
+    octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$real_root" || return 0
+    octopus_tangle_boundary_paths_are_disjoint "$physical_results" "$real_root" || return 0
+    # pnpm may select a filesystem-local store when the home store is on
+    # another device. Leave store selection alone in that case.
+    devices="$(command -p stat -c %d -- "$physical_worktree" "$real_root" 2>/dev/null ||
+        command -p stat -f %d -- "$physical_worktree" "$real_root" 2>/dev/null)" || return 0
+    [[ "${devices%%$'\n'*}" == "${devices#*$'\n'}" && "$devices" == *$'\n'* ]] || return 0
+    layout="$real_root/v10"
+    [[ -d "$layout" && ! -L "$layout" ]] || return 0
+    [[ -d "$layout/projects" && ! -L "$layout/projects" ]] || return 0
+    [[ -d "$layout/tmp" && ! -L "$layout/tmp" ]] || return 0
+    # Bubblewrap makes the usual hardlink probe fail. Keep pnpm on the
+    # same cache whose writable bookkeeping directories we overlay.
+    boundary_cmd+=(--tmpfs "$layout/projects" --tmpfs "$layout/tmp")
+    local provider_at=0 env_option assignment_at prompt_at
+    if [[ "${cmd_array[0]:-}" == env ]]; then
+        # Provider routing may prepend one or more `-u NAME` options.
+        env_option=1
+        while [[ "${cmd_array[env_option]:-}" == -u ]]; do
+            env_option=$((env_option + 2))
+        done
+        provider_at="$env_option"
+        if [[ "${cmd_array[env_option]:-}" == -i ]]; then
+            assignment_at=$((env_option + 1))
+            cmd_array=("${cmd_array[@]:0:assignment_at}" "npm_config_store_dir=$real_root"
+                       "${cmd_array[@]:assignment_at}")
+            provider_at="$assignment_at"
+        else
+            boundary_cmd+=(--setenv npm_config_store_dir "$real_root")
+        fi
+        while [[ "${cmd_array[provider_at]:-}" == *=* ]]; do
+            provider_at=$((provider_at + 1))
+        done
+    else
+        boundary_cmd+=(--setenv npm_config_store_dir "$real_root")
+    fi
+
+    # Keep the Codex inner sandbox enabled. Its workspace-write policy needs
+    # the two outer tmpfs directories as additional roots for pnpm bookkeeping.
+    if [[ "${cmd_array[provider_at]:-}" == */scripts/helpers/codex-run.sh ]]; then
+        provider_at=$((provider_at + 1))
+    fi
+    prompt_at=$((${#cmd_array[@]} - 1))
+    if [[ "${cmd_array[provider_at]:-}" == codex && "${cmd_array[provider_at+1]:-}" == exec &&
+          "$prompt_at" -ge $((provider_at + 4)) &&
+          "${cmd_array[prompt_at-2]}" == --sandbox && "${cmd_array[prompt_at-1]}" == workspace-write &&
+          "${cmd_array[prompt_at]}" == - ]]; then
+        cmd_array=("${cmd_array[@]:0:prompt_at}" --add-dir "$layout/projects" --add-dir "$layout/tmp" -)
+    fi
+}
+
 octopus_tangle_apply_execution_boundary() {
     # Adaptive scope expansion is never allowed to rely on the caller's
     # opt-in flag. Enforce the boundary at the provider dispatch point too,
@@ -813,6 +912,10 @@ octopus_tangle_apply_execution_boundary() {
         boundary_cmd+=(--ro-bind "$physical_results" "$physical_results")
     fi
 
+    if [[ "${role:-}" == "implementer" ]]; then
+        octopus_tangle_bind_pnpm_store_dirs "$physical_worktree" "$physical_results"
+    fi
+
     case "${agent_type:-}" in
         codex|codex-*|codex:*)
             octopus_tangle_bind_codex_state_dirs "$physical_worktree" "$physical_results" || return $?
@@ -842,6 +945,7 @@ spawn_agent() {
     local phase="${5:-}"        # Optional phase context
     local use_fork="${6:-false}" # Optional fork context (v2.1.12+)
     local contract_task_id="${7:-$task_id}" # Retry identity for the execution contract only
+    local report_prelaunch_refusal="${8:-false}" # Internal PID capture protocol
 
     # v7.25.0: Debug logging
     log "DEBUG" "spawn_agent: agent=$agent_type, task_id=$task_id, role=${role:-auto}, phase=${phase:-none}, fork=$use_fork"
@@ -1175,8 +1279,12 @@ ${heuristic_ctx}"
     if type is_provider_available &>/dev/null && ! is_provider_available "$provider_prefix"; then
         log "WARN" "Circuit open for $provider_prefix — skipping $agent_type (use fallback)"
         record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "circuit_open" "0" 2>/dev/null || true
-        octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
-            "Provider circuit is open" 1 "" >/dev/null 2>&1 || true
+        if ! octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
+            "Provider circuit is open" 1 "" >/dev/null 2>&1; then
+            log ERROR "Unable to persist skipped execution contract for background task $task_id"
+        elif [[ "$report_prelaunch_refusal" == true ]]; then
+            printf '%s\n' 'octopus: refused before worker launch'
+        fi
         return 1
     fi
 
@@ -1192,8 +1300,12 @@ ${heuristic_ctx}"
         fi
         log "WARN" "$skip_reason: $quota_provider; skipping $agent_type"
         record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "$skip_kind" "0" 2>/dev/null || true
-        octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
-            "$skip_reason" 1 "" >/dev/null 2>&1 || true
+        if ! octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
+            "$skip_reason" 1 "" >/dev/null 2>&1; then
+            log ERROR "Unable to persist skipped execution contract for background task $task_id"
+        elif [[ "$report_prelaunch_refusal" == true ]]; then
+            printf '%s\n' 'octopus: refused before worker launch'
+        fi
         return 1
     fi
 
@@ -2444,14 +2556,16 @@ spawn_agent_capture_pid() {
         printf 'capture-file:%s\n' "$pid_file" >&9
     fi
 
-    spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" "$contract_task_id" \
+    local report_prelaunch_refusal=false
+    [[ "$phase" != tangle ]] || report_prelaunch_refusal=true
+    spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" "$contract_task_id" "$report_prelaunch_refusal" \
         8>&- >"$pid_file" 2>"$err_file" &
     local wrapper_pid=$!
     if [[ "${OCTOPUS_SPAWN_PID_HANDOFF_FD:-}" == "9" ]]; then
         printf 'wrapper:%s\n' "$wrapper_pid" >&9
     fi
 
-    local pid=""
+    local pid="" wrapper_status=0
     local attempts=0
     local default_max_attempts=1200
     if declare -F _octopus_spawn_pid_wait_default_attempts >/dev/null 2>&1; then
@@ -2467,7 +2581,7 @@ spawn_agent_capture_pid() {
         pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
         [[ -n "$pid" ]] && break
         if ! kill -0 "$wrapper_pid" 2>/dev/null; then
-            wait "$wrapper_pid" 2>/dev/null || true
+            wait "$wrapper_pid" 2>/dev/null || wrapper_status=$?
             pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
             break
         fi
@@ -2477,6 +2591,13 @@ spawn_agent_capture_pid() {
 
     if [[ -z "$pid" ]]; then
         cat "$err_file" >&2 2>/dev/null || true
+        # Only the launcher's explicit, finished refusal permits replacement.
+        # Other exit codes and an expired PID wait leave launch state unknown.
+        if [[ "$phase" == tangle && "$wrapper_status" -eq 1 ]] &&
+           grep -Fxq 'octopus: refused before worker launch' "$pid_file"; then
+            rm -f "$pid_file" "$err_file"
+            return 75
+        fi
         log "ERROR" "spawn_agent produced no provider PID for $task_id; refusing to track wrapper PID $wrapper_pid" >&2
         if [[ -s "$pid_file" ]]; then
             tail -20 "$pid_file" >&2 || true

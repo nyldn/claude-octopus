@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.27.0",
-  "description": "v11.27.0 \u2014 Council seat usage and cost, Tangle provider limits, and staged review checks. Run /octo:setup.",
+  "version": "11.28.2",
+  "description": "v11.28.2 \u2014 Verify checks the current synthesis, Develop recovers from pre-launch provider outages, and Status reads saved project progress. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

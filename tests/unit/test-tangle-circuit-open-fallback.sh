@@ -17,6 +17,80 @@ mkdir -p "$STUB_BIN"
 printf '#!/bin/sh\nexit 0\n' > "$STUB_BIN/codex"
 chmod +x "$STUB_BIN/codex"
 
+missing_codex_candidates() (
+    export OCTO_ALLOWED_PROVIDERS="$2"
+    source "$PROJECT_ROOT/scripts/lib/agent-spec.sh"
+    source "$PROJECT_ROOT/scripts/lib/provider-allowlist.sh"
+    source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+    command() {
+        if [[ "$*" == "-v codex" ]]; then
+            return 1
+        fi
+        builtin command "$@"
+    }
+    tangle_subtask_fallback_agents "$1"
+)
+
+for routed_agent in codex codex-standard; do
+    test_case "$routed_agent is skipped when the Codex executable disappears"
+    if [[ "$(missing_codex_candidates "$routed_agent" 'codex claude')" == "claude-sonnet" ]] &&
+       [[ -z "$(missing_codex_candidates "$routed_agent" codex)" ]]; then
+        test_pass
+    else
+        test_fail "the missing Codex executable remained a candidate or the allowlist was ignored"
+    fi
+done
+
+run_correction() (
+    export OCTO_ALLOWED_PROVIDERS="$1"
+    PATH="$STUB_BIN:$PATH"
+    source "$PROJECT_ROOT/scripts/lib/agent-spec.sh"
+    source "$PROJECT_ROOT/scripts/lib/provider-allowlist.sh"
+    source "$PROJECT_ROOT/scripts/lib/quota-watcher.sh"
+    source "$PROJECT_ROOT/scripts/provider-router.sh"
+    source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+
+    RESULTS_DIR="$TEST_TMP_DIR/correction-$2"
+    WORKSPACE_DIR="$RESULTS_DIR/workspace"
+    _OCTO_QUOTA_RUN_DEAD=" "
+    _PROVIDER_STATE_DIR="$RESULTS_DIR/provider-state"
+    mkdir -p "$_PROVIDER_STATE_DIR"
+    case "$2" in
+        circuit) date +%s > "$_PROVIDER_STATE_DIR/codex.cooldown" ;;
+        quota|excluded) octo_quota_mark_dead codex ;;
+    esac
+    printf '%s\n' '{"findings":[{"severity":"normal","title":"Fix the fixture"}]}' > "$RESULTS_DIR/findings.json"
+    log() { :; }
+    tangle_worktree_fingerprint() { printf '%s\n' fixture; }
+    tangle_scope_contamination_summary() { :; }
+    get_agent_model() { printf '%s\n' fixture-model; }
+    run_agent_sync() {
+        printf '%s\n' "$1" > "$RESULTS_DIR/dispatched"
+        tangle_subtask_agent_dispatchable "$1"
+    }
+
+    local rc=0 dispatched="none"
+    tangle_apply_review_corrections "Implement fixture" context "$RESULTS_DIR/findings.json" 1 codex || rc=$?
+    [[ ! -f "$RESULTS_DIR/dispatched" ]] || dispatched=$(<"$RESULTS_DIR/dispatched")
+    printf '%s %s %s\n' "$rc" "$TANGLE_CORRECTION_STATUS" "$dispatched"
+)
+
+for scenario in healthy circuit quota excluded; do
+    test_case "correction dispatch selects an allowed, healthy implementer ($scenario)"
+    allowlist='codex claude'
+    case "$scenario" in
+        healthy) expected='0 completed codex' ;;
+        circuit|quota) expected='0 completed claude-sonnet' ;;
+        excluded) allowlist=codex; expected='1 provider-unavailable none' ;;
+    esac
+    got=$(run_correction "$allowlist" "$scenario")
+    if [[ "$got" == "$expected" ]]; then
+        test_pass
+    else
+        test_fail "expected '$expected', got '$got'"
+    fi
+done
+
 run_scenario() (
     local name="$1"
     SCENARIO="$2"
@@ -87,10 +161,12 @@ EOF
         attempts=$(grep -c '^attempt ' "$CAPTURE")
         if [[ "$attempts" -eq 2 && "$SCENARIO" == *-during-spawn ]]; then
             codex_dies
+            # A lost PID handoff is ambiguous even if provider health changed.
+            [[ "$SCENARIO" != circuit-lost-handoff-during-spawn ]] || return 1
         fi
         provider="$(octo_agent_spec_provider "$agent")"
-        is_provider_available "$provider" || return 1
-        octo_quota_is_dead "$provider" && return 1
+        is_provider_available "$provider" || return 75
+        octo_quota_is_dead "$provider" && return 75
         if [[ "$attempts" -eq 2 && "$SCENARIO" == refused ]]; then
             return 1
         fi
@@ -140,6 +216,13 @@ attempt task1 codex
 attempt task1 claude-sonnet
 spawned task1 claude-sonnet|implementer" \
     circuit-during-spawn circuit-during-spawn
+
+expect_scenario "a lost PID handoff does not permit another worker despite the open circuit" \
+"rc=1
+attempt task0 codex
+spawned task0 codex|implementer
+attempt task1 codex" \
+    lost-handoff circuit-lost-handoff-during-spawn
 
 expect_scenario "codex marked quota-dead while subtask 1 runs: subtask 2 moves to claude-sonnet" \
 "rc=0

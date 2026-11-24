@@ -27,8 +27,13 @@ CODEX_JSONL='{"type":"thread.started","thread_id":"t"}
 {"type":"turn.started"}
 {"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Looking at the diff."}}
 {"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"cat x"}}
+{"type":"error","message":"Retrying a disconnected transport"}
 {"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"Found nothing.\nVERDICT: APPROVE"}}
 {"type":"turn.completed","usage":{"input_tokens":10000,"cached_input_tokens":8000,"cache_write_input_tokens":0,"output_tokens":500,"reasoning_output_tokens":200}}'
+CODEX_FAILED_JSONL='{"type":"turn.started"}
+{"type":"item.completed","item":{"type":"agent_message","text":"Looking at the diff."}}
+{"type":"error","message":"Retrying a disconnected transport"}
+{"type":"turn.failed","error":{"message":"Connection lost after retries"}}'
 
 test_case "claude JSON becomes the answer text and a usage line with the CLI's own cost"
 out="$WORK/claude.out"; ledger="$WORK/claude.jsonl"
@@ -92,11 +97,11 @@ else
     test_fail "kinds=$kinds off=$off disabled=$disabled"
 fi
 
-# Drive the real run_agent_sync with a fake claude that answers in JSON only
-# when asked to, so the flag and the rewrite are both exercised end to end.
+# Drive run_agent_sync with fake CLIs that answer in JSON only when asked to.
 run_seat() (
-    local agent="$1" ledger="$2" fake="$WORK/bin/$3"
-    mkdir -p "$WORK/bin" "$WORK/results-$3"
+    local agent="$1" ledger="$2" fake="$WORK/bin-$3/$1"
+    local codex_output="${4:-$CODEX_JSONL}" fake_rc="${5:-0}"
+    mkdir -p "${fake%/*}" "$WORK/results-$3"
     export RESULTS_DIR="$WORK/results-$3"
     cat > "$fake" <<EOF
 #!/usr/bin/env bash
@@ -104,11 +109,12 @@ cat >/dev/null
 case " \$* " in
     *" --output-format json "*) printf '%s\n' '$CLAUDE_JSON' ;;
     *" --json "*) cat <<'JSONL'
-$CODEX_JSONL
+$codex_output
 JSONL
     ;;
     *) printf 'plain answer\nVERDICT: APPROVE\n' ;;
 esac
+exit $fake_rc
 EOF
     chmod 755 "$fake"
     log() { :; }
@@ -158,6 +164,40 @@ if [[ "$answer" == *"Found nothing."* && "$answer" != *turn.completed* ]] &&
     test_pass
 else
     test_fail "answer=$answer err=$(tail -c 600 "$WORK/err-codex" 2>/dev/null)"
+fi
+
+test_case "a failed Codex seat captures the terminal error after progress on stdout"
+ledger="$WORK/failed.jsonl"
+capture="$WORK/failed-diagnostic.log"
+rc=0
+answer="$(_OCTOPUS_SEAT_STDERR_FILE="$capture" run_seat codex "$ledger" codex-failed "$CODEX_FAILED_JSONL" 1)" || rc=$?
+if [[ "$rc" == 1 && -z "$answer" ]] &&
+   grep -qxF 'Connection lost after retries' "$capture" &&
+   ! grep -qF 'Looking at the diff.' "$capture" &&
+   jq -e '.provider == "codex" and .input_tokens == null and .cost_usd == null' "$ledger" >/dev/null; then
+    test_pass
+else
+    test_fail "rc=$rc answer=$answer diagnostic=$(cat "$capture" 2>/dev/null)"
+fi
+
+test_case "a detail-free Codex turn failure retains the stream error"
+out="$WORK/codex-failure.out"
+printf '%s\n' "${CODEX_FAILED_JSONL%$'\n'*}" '{"type":"turn.failed"}' > "$out"
+if python3 "$HELPER" codex "$out" "" "critique|x" m 4 20 &&
+   [[ "$(cat "$out")" == 'Retrying a disconnected transport' ]]; then
+    test_pass
+else
+    test_fail "out=$(cat "$out")"
+fi
+
+test_case "a later completed Codex turn returns its answer after a failed turn"
+out="$WORK/codex-recovered.out"
+printf '%s\n' "$CODEX_FAILED_JSONL" "$CODEX_JSONL" > "$out"
+if python3 "$HELPER" codex "$out" "" "critique|x" m 4 20 &&
+   [[ "$(cat "$out")" == $'Found nothing.\nVERDICT: APPROVE' ]]; then
+    test_pass
+else
+    test_fail "out=$(cat "$out")"
 fi
 
 test_case "without a ledger the seat runs exactly as before"

@@ -148,6 +148,20 @@ if [[ "$recovery_rc" == 0 && "$recovery_output" == *'synthesized=12345'* ]]; the
 else
     test_fail "recovery failed ($recovery_rc): $recovery_output"
 fi
+test_case "recovery reports an existing synthesis without synthesizing again"
+saved_synthesis="$RESULTS_DIR/probe-synthesis-12345.md"
+printf '# Saved synthesis\n%0600d\n' 0 > "$saved_synthesis"
+saved_checksum=$(cksum < "$saved_synthesis")
+if recovery_output="$(run_recovery 2>&1)" &&
+   [[ "$recovery_output" == *'Synthesis already exists'* &&
+      "$recovery_output" == *"$saved_synthesis"* &&
+      "$recovery_output" != *'synthesized=12345'* &&
+      "$(cksum < "$saved_synthesis")" == "$saved_checksum" ]]; then
+    test_pass
+else
+    test_fail "the recovery result did not clearly identify the existing synthesis"
+fi
+
 test_case "empty recovery emits actionable guidance"
 rm "$RESULTS_DIR/codex-probe-12345-0.md"
 recovery_rc=0

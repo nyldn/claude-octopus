@@ -39,32 +39,46 @@ run_correction() (
 
     RESULTS_DIR="$dir/results"
     WORKSPACE_DIR="$dir/workspace"
+    REPO_DIR="$dir/repo"
     _PROVIDER_STATE_DIR="$dir/provider-state"
     CAPTURE="$dir/capture"
-    WORKTREE_STATE="$dir/worktree-state"
-    mkdir -p "$RESULTS_DIR" "$WORKSPACE_DIR" "$_PROVIDER_STATE_DIR"
+    mkdir -p "$RESULTS_DIR" "$WORKSPACE_DIR" "$REPO_DIR" "$_PROVIDER_STATE_DIR"
     : > "$CAPTURE"
-    printf 'clean\n' > "$WORKTREE_STATE"
+    git -C "$REPO_DIR" init -q
+    printf 'base\n' > "$REPO_DIR/tracked"
+    git -C "$REPO_DIR" add tracked
+    git -C "$REPO_DIR" -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm base
 
     log() { :; }
     tangle_normal_findings_summary() { printf 'app.ts:1 blocking finding\n'; }
     tangle_correction_strategy_prompt() { :; }
-    tangle_worktree_fingerprint() { cat "$WORKTREE_STATE"; }
+    tangle_resolve_repo_root() { printf '%s\n' "$REPO_DIR"; }
     tangle_scope_contamination_summary() { :; }
     get_agent_model() { printf 'fixture-model\n'; }
 
     case "$SCENARIO" in
         circuit-before) date +%s > "$_PROVIDER_STATE_DIR/codex.cooldown" ;;
         quota-before) octo_quota_mark_dead codex ;;
+        quota-tracked-edit) printf 'edit\n' > "$REPO_DIR/tracked" ;;
+        quota-untracked-edit) printf 'edit\n' > "$REPO_DIR/untracked" ;;
     esac
 
     run_agent_sync() {
         local agent="$1"
         printf 'dispatch %s\n' "$agent" >> "$CAPTURE"
         if [[ "$agent" == codex ]]; then
-            if [[ "$SCENARIO" == quota-during ]]; then
-                octo_quota_mark_dead codex
-            fi
+            case "$SCENARIO" in
+                quota-during) octo_quota_mark_dead codex ;;
+                quota-tracked-edit)
+                    printf 'next\n' > "$REPO_DIR/tracked"
+                    octo_quota_mark_dead codex
+                    ;;
+                quota-untracked-edit)
+                    printf 'next\n' > "$REPO_DIR/untracked"
+                    octo_quota_mark_dead codex
+                    ;;
+                circuit-during) date +%s > "$_PROVIDER_STATE_DIR/codex.cooldown" ;;
+            esac
             if octo_quota_is_dead codex || ! is_provider_available codex; then
                 printf "ERROR: You've hit your usage limit.\n"
                 return 1
@@ -74,7 +88,7 @@ run_correction() (
                 return 1
             fi
         fi
-        printf 'edited by %s\n' "$agent" > "$WORKTREE_STATE"
+        printf 'edited by %s\n' "$agent" > "$REPO_DIR/tracked"
         printf 'fixed the finding\n'
     }
 
@@ -82,6 +96,16 @@ run_correction() (
     tangle_apply_review_corrections "prompt" "$dir/context.md" "$dir/findings.json" 1 codex delta >/dev/null 2>&1 || rc=$?
     printf 'rc=%s status=%s\n' "$rc" "${TANGLE_CORRECTION_STATUS:-}"
     cat "$CAPTURE"
+    if [[ "$SCENARIO" == quota-during && "$rc" == 0 ]]; then
+        local failures=("$RESULTS_DIR"/tangle-review-corrections-1-codex-*.md)
+        if [[ ${#failures[@]} != 1 || ! -f "${failures[0]}" ]] ||
+            ! grep -Fq 'FAILED - NO PROGRESS' "${failures[0]}"; then
+            printf 'The original failed correction transcript was not retained.\n'
+        fi
+        if ! grep -Fq 'Status: SUCCESS' "$TANGLE_CORRECTION_FILE"; then
+            printf 'The latest correction transcript did not record success.\n'
+        fi
+    fi
 )
 
 expect_correction() {
@@ -125,6 +149,24 @@ expect_correction "codex dies during the round without writing: the same round r
 dispatch codex
 dispatch claude-sonnet" \
     quota-during quota-during
+
+expect_correction "a circuit opens during a correction without writes" \
+"rc=0 status=completed
+dispatch codex
+dispatch claude-sonnet" \
+    circuit-during circuit-during
+
+for file_kind in tracked untracked; do
+    expect_correction "an equal-size edit to an existing $file_kind file keeps the partial correction" \
+"rc=0 status=failed-partial
+dispatch codex" \
+        "quota-$file_kind-edit" "quota-$file_kind-edit"
+done
+
+expect_correction "a provider lost during the round stops when the allowlist has no fallback" \
+"rc=1 status=provider-unavailable
+dispatch codex" \
+    exhausted quota-during codex
 
 expect_correction "a failure with codex still healthy is not retried elsewhere" \
 "rc=1 status=failed-no-progress

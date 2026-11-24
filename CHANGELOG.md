@@ -4,12 +4,79 @@
 
 ### Fixed
 
-- Develop can move a subtask to an allowed fallback provider when its assigned
-  provider's circuit opens or quota runs out before launch. Other spawn
-  failures still stop the run.
+- Develop can retry a review correction on an allowed fallback provider when
+  the implementer's provider becomes unavailable without changing the worktree.
 
-- Develop can retry a review correction with an allowed fallback when its
-  implementer's circuit opens or quota runs out before any edits are made.
+## [11.28.2] - 2026-11-24
+
+### Fixed
+
+- Develop can move a subtask to an allowed fallback provider when its assigned
+  provider's circuit opens or quota runs out before launch. Review corrections
+  also select an available, allowed implementer before dispatch. Other spawn
+  failures still stop the run.
+  ([#1380](https://github.com/nyldn/claude-octopus/pull/1380))
+- Verification checks the synthesis written by the current run before
+  reporting completion. Explicit reuse still checks the selected saved result.
+  ([#1413](https://github.com/nyldn/claude-octopus/pull/1413))
+- Status reads saved project state through the installed plugin, including in
+  projects without a local copy of the state helper.
+  ([#1414](https://github.com/nyldn/claude-octopus/pull/1414),
+  [#1304](https://github.com/nyldn/claude-octopus/issues/1304))
+
+## [11.28.1] - 2026-11-24
+
+### Fixed
+
+- Discover saves the synthesis summary and context before marking the phase
+  complete. If either write fails, the workflow stops for recovery.
+  ([#1410](https://github.com/nyldn/claude-octopus/pull/1410))
+- Bounded Tangle lets implementers use an existing default pnpm 10 store for
+  offline installs. It gives pnpm private temporary storage for bookkeeping
+  and keeps the cached packages read-only. All required packages must already
+  be cached. See [bounded Tangle store requirements](docs/PROVIDERS.md#codex-in-bounded-tangle-runs).
+  ([#1382](https://github.com/nyldn/claude-octopus/pull/1382))
+- The Copilot skill skips Copilot-specific steps when the CLI is missing and
+  lets the rest of the workflow continue.
+  ([#1411](https://github.com/nyldn/claude-octopus/pull/1411),
+  [#1304](https://github.com/nyldn/claude-octopus/issues/1304))
+
+## [11.28.0] - 2026-11-24
+
+### Added
+
+- Council seat prompts limit reading to files and diffs named in the task or
+  supplied by Council, plus cited files opened to check a specific finding.
+  Set `OCTOPUS_COUNCIL_BOUNDED_READING=0` to remove the instruction.
+
+### Fixed
+
+- Resume can recover an interrupted session from its saved handoff, including
+  handoffs from older installs. ([#1406](https://github.com/nyldn/claude-octopus/pull/1406))
+- Council retains the terminal error from a failed Codex seat even if the seat
+  printed progress first. ([#1407](https://github.com/nyldn/claude-octopus/pull/1407))
+- Tangle detects same-size edits during correction rounds and preserves partial
+  work when a failed round leaves changes behind. ([#1408](https://github.com/nyldn/claude-octopus/pull/1408))
+
+## [11.27.1] - 2026-11-23
+
+### Fixed
+
+- The local issue tracker initializes its ledger from the installed template
+  on Linux and macOS, including plugin paths with spaces. A repeat preserves
+  the existing ledger. ([#1402](https://github.com/nyldn/claude-octopus/pull/1402))
+- Resolving a local issue requires an exact ID in the Open Issues table, so
+  resolved issues and IDs found only in notes cannot start a new resolution.
+  ([#1400](https://github.com/nyldn/claude-octopus/pull/1400))
+- Deck stakeholder review uses the installed advisor selector and the
+  confirmed deck question for its static readiness check.
+  ([#1403](https://github.com/nyldn/claude-octopus/pull/1403))
+- Documentation sync commits only the files it changed and preserves unrelated
+  work in the index and working tree.
+  ([#1404](https://github.com/nyldn/claude-octopus/pull/1404))
+
+These fixes address parts of
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
 ## [11.27.0] - 2026-11-23
 

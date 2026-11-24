@@ -13,6 +13,7 @@ PRE_COMPACT="$PROJECT_ROOT/hooks/pre-compact.sh"
 SESSION_END="$PROJECT_ROOT/hooks/session-end.sh"
 RESUME_SKILL="$(resolve_claude_skill_path "skill-resume")"
 GENERATED_RESUME_SKILL="$PROJECT_ROOT/skills/skill-resume/SKILL.md"
+CODEX_RESUME_SKILL="$PROJECT_ROOT/codex-skills/skill-resume/SKILL.md"
 
 pass() { test_case "$1"; test_pass; }
 fail() { test_case "$1"; test_fail "${2:-$1}"; }
@@ -251,7 +252,7 @@ chmod 700 "$unsafe_state"
 
 run_as_hook "$HOOK_ROOT/project" "$HOOK_ROOT/home" "$HOOK_ROOT/plugin-data" "$HANDOFF"
 
-for skill_file in "$RESUME_SKILL" "$GENERATED_RESUME_SKILL"; do
+for skill_file in "$RESUME_SKILL" "$GENERATED_RESUME_SKILL" "$CODEX_RESUME_SKILL"; do
     label="${skill_file#"$PROJECT_ROOT"/}"
     handoff_step="$(extract_first_bash_block "$skill_file")"
 
@@ -279,6 +280,41 @@ for skill_file in "$RESUME_SKILL" "$GENERATED_RESUME_SKILL"; do
         test_pass
     else
         test_fail "legacy fallback printed: $resume_output"
+    fi
+    project_check="$(awk '
+        /^#### Step 1: Verify / { found = 1; next }
+        found && /^```bash$/ { capture = 1; next }
+        capture && /^```$/ { exit }
+        capture { print }
+    ' "$skill_file")"
+
+    test_case "$label can use handoff-only recovery in a fresh shell"
+    if project_output="$(run_as_session_shell "$legacy_root/project" "$legacy_root/home" \
+        bash -e -c "$project_check")" &&
+       [[ "$project_output" == "Project state unavailable" ]]; then
+        test_pass
+    else
+        test_fail "missing project state ended recovery or produced: $project_output"
+    fi
+
+    test_case "$label does not mistake an empty .octo directory for saved state"
+    mkdir -p "$legacy_root/project/.octo"
+    if project_output="$(run_as_session_shell "$legacy_root/project" "$legacy_root/home" \
+        bash -e -c "$project_check")" &&
+       [[ "$project_output" == "Project state unavailable" ]]; then
+        test_pass
+    else
+        test_fail "empty project state produced: $project_output"
+    fi
+
+    test_case "$label detects an initialized project"
+    printf '%s\n' '# Octo State' > "$legacy_root/project/.octo/STATE.md"
+    if project_output="$(run_as_session_shell "$legacy_root/project" "$legacy_root/home" \
+        bash -e -c "$project_check")" &&
+       [[ "$project_output" == "Project state available" ]]; then
+        test_pass
+    else
+        test_fail "initialized project state produced: $project_output"
     fi
 done
 test_summary

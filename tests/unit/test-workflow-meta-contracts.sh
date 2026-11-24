@@ -61,6 +61,47 @@ extract_bash_fence() {
         inside { print }
     '
 }
+# Status runs in a user's project. Install the real helper outside that
+# project and invoke both documented snippets in fresh shells.
+status_project="$TEST_TMP_DIR/status project"
+status_home="$TEST_TMP_DIR/status home"
+status_plugin="$status_home/.claude-octopus/plugin"
+mkdir -p "$status_project/.octo" "$status_plugin/scripts"
+ln -s "$PROJECT_ROOT/scripts/octo-state.sh" "$status_plugin/scripts/octo-state.sh"
+cat > "$status_project/.octo/STATE.md" <<'EOF'
+**Schema:** 1.0
+**Last Updated:** 2026-11-24T00:00:00Z
+**Current Phase:** 2
+**Current Position:** define-fixture
+**Status:** in_progress
+EOF
+for status_skill in .claude/skills/skill-status skills/skill-status codex-skills/skill-status; do
+    status_file="$PROJECT_ROOT/$status_skill/SKILL.md"
+    status_step=$(sed -n '/^#### Step 1: Execute octo-state.sh read_state$/,/^#### Step 2:/p' "$status_file")
+    status_example=$(sed -n '/^### 2\. Use octo-state.sh for State Reading$/,/^\*\*Poor:\*\*/p' "$status_file")
+    for status_block in "$status_step" "$status_example"; do
+        status_recipe=$(extract_bash_fence <<< "$status_block")
+        for status_source in claude codex default; do
+            test_case "$status_skill reads project state through the installed helper ($status_source)"
+            status_claude="" status_codex="" status_test_home="$TEST_TMP_DIR"
+            case "$status_source" in
+                claude) status_claude="$status_plugin" ;;
+                codex) status_codex="$status_plugin" ;;
+                default) status_test_home="$status_home" ;;
+            esac
+            if status_output=$(cd "$status_project" &&
+                HOME="$status_test_home" CLAUDE_PLUGIN_ROOT="$status_claude" CODEX_PLUGIN_ROOT="$status_codex" \
+                    bash -euc "$status_recipe" 2>&1) &&
+                grep -Fxq 'current_position=define-fixture' <<< "$status_output" &&
+                grep -Fxq 'status=in_progress' <<< "$status_output"; then
+                test_pass
+            else
+                test_fail "Installed status helper did not read project state: $status_output"
+            fi
+        done
+    done
+done
+
 test_case "Discovery delegates terminal writes to the recoverable run transaction"
 discover_post_code=$(extract_bash_fence <<< "$discover_block")
 if grep -Fq 'discovery-handoff.py" publish' <<< "$discover_post_code" &&
@@ -374,6 +415,54 @@ if [[ "$iron_law_count" -eq 1 ]]; then
 else
     test_fail "found $iron_law_count copies"
 fi
+
+synthesis_home="$TEST_TMP_DIR/verification-home"
+synthesis_results="$synthesis_home/.claude-octopus/results"
+mkdir -p "$synthesis_results"
+printf '# Earlier synthesis\nEarlier findings.\n' > "$synthesis_results/probe-synthesis-older.md"
+empty_synthesis="$synthesis_results/probe-synthesis-empty.md"
+headings_synthesis="$synthesis_results/probe-synthesis-headings.md"
+valid_synthesis="$synthesis_results/probe-synthesis-current [2].md"
+: > "$empty_synthesis"
+printf '# Current synthesis\n\n## Findings\n' > "$headings_synthesis"
+printf '# Current synthesis\n\nVerified finding without a trailing newline' > "$valid_synthesis"
+
+verification_entries=(
+    .claude/skills/skill-verification-gate
+    skills/skill-verification-gate
+    skills/skill-verify
+    codex-skills/skill-verification-gate
+    codex-skills/skill-verify
+)
+for entry in "${verification_entries[@]}"; do
+    synthesis_section=$(sed -n '/^## Multi-Provider Context$/,/^## When to Apply$/p' "$PROJECT_ROOT/$entry/SKILL.md")
+    test_case "$entry requires new synthesis for fresh completion and labels reuse"
+    if grep -Fq 'this invocation wrote a new synthesis' <<< "$synthesis_section" &&
+       grep -Fq 'Treat `Synthesis already exists`, a completed resume, and a cache hit as reuse.' <<< "$synthesis_section" &&
+       grep -Fq 'report the result as reused evidence' <<< "$synthesis_section"; then
+        test_pass
+    else
+        test_fail "the skill must distinguish a newly written synthesis from an existing result"
+    fi
+    synthesis_check=$(extract_bash_fence <<< "$synthesis_section")
+    for rejected_path in "" "$synthesis_results/probe-synthesis-missing.md" "$empty_synthesis" "$headings_synthesis"; do
+        rejected_name="${rejected_path##*/}"
+        test_case "$entry synthesis gate rejects ${rejected_name:-an unspecified path}"
+        if [[ -z "$synthesis_check" ]] ||
+           HOME="$synthesis_home" SYNTHESIS_FILE="$rejected_path" bash -euo pipefail -c "$synthesis_check" >/dev/null 2>&1; then
+            test_fail "the synthesis check was missing or accepted an invalid current path"
+        else
+            test_pass
+        fi
+    done
+    test_case "$entry synthesis gate accepts the specified result with findings"
+    if [[ -n "$synthesis_check" ]] &&
+       HOME="$synthesis_home" SYNTHESIS_FILE="$valid_synthesis" bash -euo pipefail -c "$synthesis_check" >/dev/null 2>&1; then
+        test_pass
+    else
+        test_fail "the synthesis check rejected the specified valid path"
+    fi
+done
 
 test_case "Enforcement pattern examples use language-tagged fences"
 if awk '
