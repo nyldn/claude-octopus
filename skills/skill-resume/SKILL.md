@@ -65,10 +65,10 @@ elif [[ -f ".octo-continue.md" ]]; then
 fi
 ```
 
-**If a handoff file was found**, display its contents to the user as context. Then continue
-to Phase 1 to load the full state. The handoff file provides a quick overview; `.octo/STATE.md`
-provides the authoritative state. If the legacy `.octo-continue.md` was shown, tell the user it
-is no longer updated and can be deleted from the project.
+**If a handoff file was found**, display its contents to the user as context and record
+that a handoff is available. Continue to Phase 1 to check for a portable feature
+or saved project state. If the legacy `.octo-continue.md` was shown, tell the user
+that file is no longer updated.
 
 ### Phase 1: Check Project Initialization
 
@@ -85,26 +85,32 @@ An unambiguous feature recovers intent, decisions, open markers and stable compl
 
 A feature with a spec only resumes planning. A feature with plan/tasks resumes pending implementation through the same policy, clarification, analysis and wave-validation gates. Run the returned decision batch once through the host's native question tool before the next plan/develop boundary. Keep skipped decisions open.
 
-#### Step 1: Verify .octo/ Directory Exists
+#### Step 1: Verify saved project state
+
+Run this check after the portable feature path, if that path did not restore a
+feature or request a selection.
 
 ```bash
-if [[ ! -d ".octo" ]]; then
-    echo "No project state found"
-    exit 1
+if [[ -f ".octo/STATE.md" && -r ".octo/STATE.md" ]]; then
+    printf '%s\n' "Project state available"
+else
+    printf '%s\n' "Project state unavailable"
 fi
 ```
 
-**If .octo/ does not exist but Step 0 found a handoff file**, display its contents and
-offer to start a new session based on that context.
+- **Project state available.** Continue to Phase 2 to load the saved state.
+- **Project state unavailable and Step 0 found a handoff.** Offer to start a new
+  session using the handoff as context. Stop before Phase 2.
 
-**If neither exists, display:**
+If project state is unavailable and Step 0 found no handoff, display the
+following message and stop before Phase 2.
 
 ```markdown
 ## Session Restoration Failed
 
 **No project state found.**
 
-There is no machine-local `.octo/` directory. Check the portable feature artifacts before treating this as a fresh project.
+No readable `.octo/STATE.md`, portable feature, or session handoff was found.
 
 ### Get Started
 
@@ -120,8 +126,6 @@ This will:
 2. Begin the Double Diamond workflow
 3. Create session state you can resume later
 ```
-
-**Stop here** - do not proceed to Phase 2.
 
 ---
 

@@ -188,6 +188,18 @@ disposition. Native read-only plan mode can propose a prototype but cannot write
 or launch one. A prototype choice does not authorize provider calls, deployment,
 browser login, or repository rewrites.
 
+## Tangle provider and write-scope checks
+
+Tangle selects providers for coding and reasoning subtasks from
+`OCTO_ALLOWED_PROVIDERS` when that allowlist is set. If a required subtask
+type has no permitted route, the run reports the missing type
+before dispatching any subtask.
+
+If a subtask changes paths outside its declared write scopes, the write-scope
+pre-gate records the paths in the validation report. The scope-contract finding
+quotes up to 20 paths and gives the count of the remaining paths. Use the
+validation report to inspect the complete list.
+
 ## Offline routing preview
 
 `scripts/helpers/preview-routing.py` accepts one strict JSON request:

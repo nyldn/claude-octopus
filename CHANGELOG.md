@@ -2,6 +2,52 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Bounded Tangle lets implementers use an existing default pnpm 10 store for
+  offline installs. It gives pnpm private temporary storage for bookkeeping
+  and keeps the cached packages read-only. All required packages must already
+  be cached. See [bounded Tangle store requirements](docs/PROVIDERS.md#codex-in-bounded-tangle-runs).
+
+## [11.28.0] - 2026-11-24
+
+### Added
+
+- Council seat prompts limit reading to files and diffs named in the task or
+  supplied by Council, plus cited files opened to check a specific finding.
+  Set `OCTOPUS_COUNCIL_BOUNDED_READING=0` to remove the instruction.
+
+### Fixed
+
+- Resume can recover an interrupted session from its saved handoff, including
+  handoffs from older installs. ([#1406](https://github.com/nyldn/claude-octopus/pull/1406))
+- Council retains the terminal error from a failed Codex seat even if the seat
+  printed progress first. ([#1407](https://github.com/nyldn/claude-octopus/pull/1407))
+- Tangle detects same-size edits during correction rounds and preserves partial
+  work when a failed round leaves changes behind. ([#1408](https://github.com/nyldn/claude-octopus/pull/1408))
+
+## [11.27.1] - 2026-11-23
+
+### Fixed
+
+- The local issue tracker initializes its ledger from the installed template
+  on Linux and macOS, including plugin paths with spaces. A repeat preserves
+  the existing ledger. ([#1402](https://github.com/nyldn/claude-octopus/pull/1402))
+- Resolving a local issue requires an exact ID in the Open Issues table, so
+  resolved issues and IDs found only in notes cannot start a new resolution.
+  ([#1400](https://github.com/nyldn/claude-octopus/pull/1400))
+- Deck stakeholder review uses the installed advisor selector and the
+  confirmed deck question for its static readiness check.
+  ([#1403](https://github.com/nyldn/claude-octopus/pull/1403))
+- Documentation sync commits only the files it changed and preserves unrelated
+  work in the index and working tree.
+  ([#1404](https://github.com/nyldn/claude-octopus/pull/1404))
+
+These fixes address parts of
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
+## [11.27.0] - 2026-11-23
+
 ### Added
 
 - Council `summary.json` reports real token usage and cost for Claude and
@@ -28,10 +74,22 @@
   Tangle reports which type needs a provider before launching any subtask.
 - Design history and workflow context match the original branch name, so
   branches with identical filename slugs keep separate revision chains.
-- Bounded Tangle lets implementers use an existing default pnpm 10 store for
-  offline installs. It gives pnpm private temporary storage for bookkeeping
-  and keeps the cached packages read-only. All required packages must already
-  be cached. See [bounded Tangle store requirements](docs/PROVIDERS.md#codex-in-bounded-tangle-runs).
+- Tangle collects and reports large lists of out-of-scope paths without the
+  slowdown caused by repeatedly copying the growing list.
+- In blinded Debate, the moderator saves independent analyses before reading
+  advisor responses and scores responses from the current round.
+
+Included pull requests:
+[#1390](https://github.com/nyldn/claude-octopus/pull/1390),
+[#1397](https://github.com/nyldn/claude-octopus/pull/1397),
+[#1385](https://github.com/nyldn/claude-octopus/pull/1385),
+[#1383](https://github.com/nyldn/claude-octopus/pull/1383),
+[#1398](https://github.com/nyldn/claude-octopus/pull/1398),
+[#1378](https://github.com/nyldn/claude-octopus/pull/1378),
+[#1387](https://github.com/nyldn/claude-octopus/pull/1387),
+[#1399](https://github.com/nyldn/claude-octopus/pull/1399),
+[#1384](https://github.com/nyldn/claude-octopus/pull/1384).
+Several fixes address parts of the [runtime safety work tracked in #1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
 ## [11.26.1] - 2026-11-23
 

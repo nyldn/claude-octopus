@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.26.1",
-  "description": "v11.26.1 \u2014 Protect project files and provider settings, clarify Codex setup, and report blocked work correctly. Run /octo:setup.",
+  "version": "11.28.0",
+  "description": "v11.28.0 \u2014 Council keeps reviews focused and preserves failure details, and Tangle detects partial edits. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
