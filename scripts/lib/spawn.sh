@@ -806,7 +806,7 @@ octopus_tangle_bind_pnpm_store_dirs() {
     if [[ "${cmd_array[provider_at]:-}" == */scripts/helpers/codex-run.sh ]]; then
         provider_at=$((provider_at + 1))
     fi
-    prompt_at=$(("${#cmd_array[@]}" - 1))
+    prompt_at=$((${#cmd_array[@]} - 1))
     if [[ "${cmd_array[provider_at]:-}" == codex && "${cmd_array[provider_at+1]:-}" == exec &&
           "$prompt_at" -ge $((provider_at + 4)) &&
           "${cmd_array[prompt_at-2]}" == --sandbox && "${cmd_array[prompt_at-1]}" == workspace-write &&
