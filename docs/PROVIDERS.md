@@ -404,8 +404,11 @@ temporary mounts over the default store's existing `v10/projects` and
 remain read-only. Tangle derives the Linux default from `PNPM_HOME`,
 `XDG_DATA_HOME`, or `HOME` without running pnpm before confinement. The
 worktree root must have `pnpm-lock.yaml`, and Node and `pnpm` must be on
-`PATH`. Custom store settings, configuration redirects, and stores in
-`/tmp` or overlapping the worktree or result channel skip these mounts.
+`PATH`. Tangle leaves store selection to pnpm when the home store is on a
+different filesystem from the worktree. Custom store settings, configuration
+redirects, and stores in `/tmp` or overlapping the worktree or result channel
+also skip these mounts. For Codex with the workspace-write sandbox, only the
+two private bookkeeping directories are added to its writable roots.
 
 Codex also needs permission to start its own sandbox inside Bubblewrap. An
 outer Bubblewrap probe can pass while host AppArmor policy denies the nested

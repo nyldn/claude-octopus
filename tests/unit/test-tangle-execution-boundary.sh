@@ -562,7 +562,8 @@ fi
 if [[ -n "$PNPM_ROOT" ]]; then
     PNPM_TEST_HOME="$PNPM_ROOT/pnpm-home"
     PNPM_STORE="$PNPM_TEST_HOME/.local/share/pnpm/store"
-    mkdir -p "$PNPM_ROOT/pnpm-bin" "$PNPM_STORE/v10/files" "$PNPM_STORE/v10/projects" "$PNPM_STORE/v10/tmp"
+    PNPM_WORKTREE="$PNPM_ROOT/pnpm-worktree"
+    mkdir -p "$PNPM_WORKTREE" "$PNPM_ROOT/pnpm-bin" "$PNPM_STORE/v10/files" "$PNPM_STORE/v10/projects" "$PNPM_STORE/v10/tmp"
     cat > "$PNPM_ROOT/pnpm-bin/pnpm" <<EOF
 #!/bin/sh
 printf 'called\n' > "$PNPM_ROOT/pnpm-called"
@@ -589,6 +590,7 @@ with_pnpm_test_config() {
 
 pnpm_boundary() {
     PNPM_HOME= XDG_DATA_HOME= PATH="$PNPM_ROOT/pnpm-bin:$PATH" \
+        OCTOPUS_TANGLE_WORKTREE="${pnpm_worktree:-$PNPM_WORKTREE}" \
         with_pnpm_test_config octopus_tangle_apply_execution_boundary
 }
 
@@ -609,7 +611,7 @@ if [[ -z "$PNPM_ROOT" ]]; then
 else
     agent_type="claude"
     role="implementer"
-    touch "$BOUNDARY_WORKTREE/pnpm-lock.yaml"
+    touch "$PNPM_WORKTREE/pnpm-lock.yaml"
     cmd_array=(true)
     pnpm_status=0
     set -f
@@ -686,6 +688,59 @@ else
     test_fail "a global store or redirected config was overridden"
 fi
 
+test_case "pnpm does not pin the home store for a worktree on another filesystem"
+if [[ -z "$PNPM_ROOT" ]] || ! stat -c %d -- "$PNPM_STORE" >/dev/null 2>&1 ||
+   [[ "$(stat -c %d -- "$TMP_LINK_ROOT")" == "$(stat -c %d -- "$PNPM_STORE")" ]]; then
+    test_skip "requires Linux fixtures on two filesystems"
+elif (
+    agent_type="claude"
+    role="implementer"
+    cross_device_worktree="$TMP_LINK_ROOT/pnpm-worktree"
+    mkdir -p "$cross_device_worktree"
+    touch "$cross_device_worktree/pnpm-lock.yaml"
+    cmd_array=(true)
+    pnpm_worktree="$cross_device_worktree" pnpm_boundary &&
+        [[ "$(pnpm_tmpfs_count)" == 0 ]] && ! pnpm_store_is_pinned
+); then
+    test_pass
+else
+    test_fail "a worktree on another device received the home store pin"
+fi
+
+test_case "Codex workspace-write grants only the two private pnpm directories"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+elif (
+    agent_type="codex"
+    role="implementer"
+    CODEX_HOME="$PNPM_TEST_HOME/codex"
+    mkdir -p "$CODEX_HOME"
+    for wrapper in "" "$PROJECT_ROOT/scripts/helpers/codex-run.sh"; do
+        for mode in workspace-write read-only danger-full-access; do
+            cmd_array=(env -u MISTRAL_API_KEY -i "PATH=$PATH" ${wrapper:+"$wrapper"}
+                       codex exec --skip-git-repo-check --model mock --sandbox "$mode" -)
+            pnpm_boundary && [[ "$(pnpm_tmpfs_count)" == 2 ]] || exit 1
+            writable_dirs=()
+            for ((i = 0; i + 1 < ${#cmd_array[@]}; i++)); do
+                if [[ "${cmd_array[i]}" == --add-dir ]]; then
+                    writable_dirs+=("${cmd_array[i+1]}")
+                fi
+            done
+            if [[ "$mode" == workspace-write ]]; then
+                [[ "${#writable_dirs[@]}" == 2 &&
+                   "${writable_dirs[0]}" == "$PNPM_STORE/v10/projects" &&
+                   "${writable_dirs[1]}" == "$PNPM_STORE/v10/tmp" ]] || exit 1
+            else
+                [[ "${#writable_dirs[@]}" == 0 ]] || exit 1
+            fi
+        done
+    done
+); then
+    test_pass
+else
+    test_fail "Codex sandbox roots did not match the private mounts and sandbox mode"
+fi
+
 test_case "reviewers, projects that name their own pnpm store, and projects without a pnpm lockfile get no pnpm tmpfs"
 if [[ -z "$PNPM_ROOT" ]]; then
     test_skip "no fixture directory outside /tmp"
@@ -695,10 +750,10 @@ else
     cmd_array=(true)
     pnpm_boundary && pnpm_mounts+="reviewer=$(pnpm_tmpfs_count) "
     role="implementer"
-    printf 'store-dir=.pnpm-store\n' > "$BOUNDARY_WORKTREE/.npmrc"
+    printf 'store-dir=.pnpm-store\n' > "$PNPM_WORKTREE/.npmrc"
     cmd_array=(true)
     pnpm_boundary && pnpm_mounts+="named=$(pnpm_tmpfs_count) "
-    rm -f "$BOUNDARY_WORKTREE/.npmrc" "$BOUNDARY_WORKTREE/pnpm-lock.yaml"
+    rm -f "$PNPM_WORKTREE/.npmrc" "$PNPM_WORKTREE/pnpm-lock.yaml"
     cmd_array=(true)
     pnpm_boundary && pnpm_mounts+="unlocked=$(pnpm_tmpfs_count)"
     if [[ "$pnpm_mounts" == "reviewer=0 named=0 unlocked=0" ]]; then
@@ -871,7 +926,7 @@ if octopus_tangle_execution_boundary_probe; then
     else
         agent_type="claude"
         role="implementer"
-        touch "$BOUNDARY_WORKTREE/pnpm-lock.yaml"
+        touch "$PNPM_WORKTREE/pnpm-lock.yaml"
         cmd_array=(env -u MISTRAL_API_KEY -u KEENABLE_API_KEY -i "PATH=$PATH" bash -c '
             [[ "${npm_config_store_dir:-}" == "$1" ]] &&
             touch "$1/v10/projects/private" "$1/v10/tmp/private" &&
@@ -885,7 +940,7 @@ if octopus_tangle_execution_boundary_probe; then
         else
             test_fail "store pin or filesystem permissions did not survive sandbox launch"
         fi
-        rm -f "$BOUNDARY_WORKTREE/pnpm-lock.yaml"
+        rm -f "$PNPM_WORKTREE/pnpm-lock.yaml"
     fi
 
     test_case "pnpm install --frozen-lockfile --offline runs for a worktree pnpm has never registered"

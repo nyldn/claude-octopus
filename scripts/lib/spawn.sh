@@ -717,7 +717,7 @@ octopus_tangle_bind_codex_state_dirs() {
 }
 
 octopus_tangle_bind_pnpm_store_dirs() {
-    local physical_worktree="$1" physical_results="$2" store real_root config layout
+    local physical_worktree="$1" physical_results="$2" store real_root config layout devices
     [[ -f "$physical_worktree/pnpm-lock.yaml" ]] || return 0
     command -v pnpm >/dev/null 2>&1 || return 0
     [[ -z "${npm_config_store_dir:-}${NPM_CONFIG_STORE_DIR:-}${pnpm_config_store_dir:-}${PNPM_CONFIG_STORE_DIR:-}" ]] || return 0
@@ -766,6 +766,11 @@ octopus_tangle_bind_pnpm_store_dirs() {
     case "$real_root" in /|/tmp|/tmp/*) return 0 ;; esac
     octopus_tangle_boundary_paths_are_disjoint "$physical_worktree" "$real_root" || return 0
     octopus_tangle_boundary_paths_are_disjoint "$physical_results" "$real_root" || return 0
+    # pnpm may select a filesystem-local store when the home store is on
+    # another device. Leave store selection alone in that case.
+    devices="$(command -p stat -c %d -- "$physical_worktree" "$real_root" 2>/dev/null ||
+        command -p stat -f %d -- "$physical_worktree" "$real_root" 2>/dev/null)" || return 0
+    [[ "${devices%%$'\n'*}" == "${devices#*$'\n'}" && "$devices" == *$'\n'* ]] || return 0
     layout="$real_root/v10"
     [[ -d "$layout" && ! -L "$layout" ]] || return 0
     [[ -d "$layout/projects" && ! -L "$layout/projects" ]] || return 0
@@ -773,20 +778,41 @@ octopus_tangle_bind_pnpm_store_dirs() {
     # Bubblewrap makes the usual hardlink probe fail. Keep pnpm on the
     # same cache whose writable bookkeeping directories we overlay.
     boundary_cmd+=(--tmpfs "$layout/projects" --tmpfs "$layout/tmp")
+    local provider_at=0 env_option assignment_at prompt_at
     if [[ "${cmd_array[0]:-}" == env ]]; then
         # Provider routing may prepend one or more `-u NAME` options.
-        local env_option=1
+        env_option=1
         while [[ "${cmd_array[env_option]:-}" == -u ]]; do
             env_option=$((env_option + 2))
         done
+        provider_at="$env_option"
         if [[ "${cmd_array[env_option]:-}" == -i ]]; then
-            local assignment_at=$((env_option + 1))
+            assignment_at=$((env_option + 1))
             cmd_array=("${cmd_array[@]:0:assignment_at}" "npm_config_store_dir=$real_root"
                        "${cmd_array[@]:assignment_at}")
-            return 0
+            provider_at="$assignment_at"
+        else
+            boundary_cmd+=(--setenv npm_config_store_dir "$real_root")
         fi
+        while [[ "${cmd_array[provider_at]:-}" == *=* ]]; do
+            provider_at=$((provider_at + 1))
+        done
+    else
+        boundary_cmd+=(--setenv npm_config_store_dir "$real_root")
     fi
-    boundary_cmd+=(--setenv npm_config_store_dir "$real_root")
+
+    # Keep the Codex inner sandbox enabled. Its workspace-write policy needs
+    # the two outer tmpfs directories as additional roots for pnpm bookkeeping.
+    if [[ "${cmd_array[provider_at]:-}" == */scripts/helpers/codex-run.sh ]]; then
+        provider_at=$((provider_at + 1))
+    fi
+    prompt_at=$(("${#cmd_array[@]}" - 1))
+    if [[ "${cmd_array[provider_at]:-}" == codex && "${cmd_array[provider_at+1]:-}" == exec &&
+          "$prompt_at" -ge $((provider_at + 4)) &&
+          "${cmd_array[prompt_at-2]}" == --sandbox && "${cmd_array[prompt_at-1]}" == workspace-write &&
+          "${cmd_array[prompt_at]}" == - ]]; then
+        cmd_array=("${cmd_array[@]:0:prompt_at}" --add-dir "$layout/projects" --add-dir "$layout/tmp" -)
+    fi
 }
 
 octopus_tangle_apply_execution_boundary() {
