@@ -1279,9 +1279,10 @@ ${heuristic_ctx}"
     if type is_provider_available &>/dev/null && ! is_provider_available "$provider_prefix"; then
         log "WARN" "Circuit open for $provider_prefix — skipping $agent_type (use fallback)"
         record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "circuit_open" "0" 2>/dev/null || true
-        octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
-            "Provider circuit is open" 1 "" >/dev/null 2>&1 || true
-        if [[ "$report_prelaunch_refusal" == true ]]; then
+        if ! octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
+            "Provider circuit is open" 1 "" >/dev/null 2>&1; then
+            log ERROR "Unable to persist skipped execution contract for background task $task_id"
+        elif [[ "$report_prelaunch_refusal" == true ]]; then
             printf '%s\n' 'octopus: refused before worker launch'
         fi
         return 1
@@ -1299,9 +1300,10 @@ ${heuristic_ctx}"
         fi
         log "WARN" "$skip_reason: $quota_provider; skipping $agent_type"
         record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "$skip_kind" "0" 2>/dev/null || true
-        octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
-            "$skip_reason" 1 "" >/dev/null 2>&1 || true
-        if [[ "$report_prelaunch_refusal" == true ]]; then
+        if ! octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
+            "$skip_reason" 1 "" >/dev/null 2>&1; then
+            log ERROR "Unable to persist skipped execution contract for background task $task_id"
+        elif [[ "$report_prelaunch_refusal" == true ]]; then
             printf '%s\n' 'octopus: refused before worker launch'
         fi
         return 1
