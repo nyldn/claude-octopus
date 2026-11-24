@@ -5,7 +5,8 @@
 ### Fixed
 
 - Develop can move a subtask to an allowed fallback provider when its assigned
-  provider's circuit opens or quota runs out before launch. Other spawn
+  provider's circuit opens or quota runs out before launch. Review corrections
+  also select an available, allowed implementer before dispatch. Other spawn
   failures still stop the run.
 - Bounded Tangle lets implementers use an existing default pnpm 10 store for
   offline installs. It gives pnpm private temporary storage for bookkeeping

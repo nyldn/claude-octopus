@@ -41,6 +41,56 @@ for routed_agent in codex codex-standard; do
     fi
 done
 
+run_correction() (
+    export OCTO_ALLOWED_PROVIDERS="$1"
+    PATH="$STUB_BIN:$PATH"
+    source "$PROJECT_ROOT/scripts/lib/agent-spec.sh"
+    source "$PROJECT_ROOT/scripts/lib/provider-allowlist.sh"
+    source "$PROJECT_ROOT/scripts/lib/quota-watcher.sh"
+    source "$PROJECT_ROOT/scripts/provider-router.sh"
+    source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+
+    RESULTS_DIR="$TEST_TMP_DIR/correction-$2"
+    WORKSPACE_DIR="$RESULTS_DIR/workspace"
+    _OCTO_QUOTA_RUN_DEAD=" "
+    _PROVIDER_STATE_DIR="$RESULTS_DIR/provider-state"
+    mkdir -p "$_PROVIDER_STATE_DIR"
+    case "$2" in
+        circuit) date +%s > "$_PROVIDER_STATE_DIR/codex.cooldown" ;;
+        quota|excluded) octo_quota_mark_dead codex ;;
+    esac
+    printf '%s\n' '{"findings":[{"severity":"normal","title":"Fix the fixture"}]}' > "$RESULTS_DIR/findings.json"
+    log() { :; }
+    tangle_worktree_fingerprint() { printf '%s\n' fixture; }
+    tangle_scope_contamination_summary() { :; }
+    get_agent_model() { printf '%s\n' fixture-model; }
+    run_agent_sync() {
+        printf '%s\n' "$1" > "$RESULTS_DIR/dispatched"
+        tangle_subtask_agent_dispatchable "$1"
+    }
+
+    local rc=0 dispatched="none"
+    tangle_apply_review_corrections "Implement fixture" context "$RESULTS_DIR/findings.json" 1 codex || rc=$?
+    [[ ! -f "$RESULTS_DIR/dispatched" ]] || dispatched=$(<"$RESULTS_DIR/dispatched")
+    printf '%s %s %s\n' "$rc" "$TANGLE_CORRECTION_STATUS" "$dispatched"
+)
+
+for scenario in healthy circuit quota excluded; do
+    test_case "correction dispatch selects an allowed, healthy implementer ($scenario)"
+    allowlist='codex claude'
+    case "$scenario" in
+        healthy) expected='0 completed codex' ;;
+        circuit|quota) expected='0 completed claude-sonnet' ;;
+        excluded) allowlist=codex; expected='1 provider-unavailable none' ;;
+    esac
+    got=$(run_correction "$allowlist" "$scenario")
+    if [[ "$got" == "$expected" ]]; then
+        test_pass
+    else
+        test_fail "expected '$expected', got '$got'"
+    fi
+done
+
 run_scenario() (
     local name="$1"
     SCENARIO="$2"

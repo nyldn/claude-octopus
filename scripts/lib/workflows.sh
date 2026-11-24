@@ -4278,7 +4278,8 @@ tangle_apply_review_corrections() {
     local context_file="$2"
     local findings_file="$3"
     local round_num="$4"
-    local correction_agent="${5:-codex}"
+    local routed_agent="${5:-codex}"
+    local correction_agent="" candidate
     local correction_strategy="${6:-delta}"
     local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-$(date +%s).md"
     local rc_file="${correction_file}.rc"
@@ -4294,6 +4295,22 @@ tangle_apply_review_corrections() {
         log INFO "No normal findings to correct in $findings_file"
         TANGLE_CORRECTION_STATUS="no-findings"
         return 0
+    fi
+
+    # The subtask provider can go offline before the review calls for edits.
+    while IFS= read -r candidate; do
+        tangle_subtask_agent_dispatchable "$candidate" || continue
+        correction_agent="$candidate"
+        break
+    done < <(tangle_subtask_fallback_agents "$routed_agent")
+    if [[ -z "$correction_agent" ]]; then
+        TANGLE_CORRECTION_FILE=""
+        TANGLE_CORRECTION_STATUS="provider-unavailable"
+        log ERROR "Correction round ${round_num}: no allowed, available provider for $routed_agent"
+        return 1
+    fi
+    if [[ "$correction_agent" != "$routed_agent" ]]; then
+        log WARN "Correction round ${round_num}: dispatching to $correction_agent instead of $routed_agent"
     fi
 
     strategy_text=$(tangle_correction_strategy_prompt "$correction_strategy")
