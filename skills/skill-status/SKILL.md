@@ -88,9 +88,12 @@ This will:
 
 #### Step 1: Execute octo-state.sh read_state
 
+Run the installed helper from the project directory. If it cannot read state,
+report the error and stop before displaying a dashboard.
+
 ```bash
 # Read current state from STATE.md
-./scripts/octo-state.sh read_state
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" read_state
 ```
 
 **Expected output format:**
@@ -444,7 +447,7 @@ cat .octo/STATE.md
 
 **Good:**
 ```bash
-./scripts/octo-state.sh read_state
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" read_state
 ```
 
 **Poor:**
