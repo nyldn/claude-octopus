@@ -76,6 +76,10 @@ For each doc file, check whether any paths, function names, counts, or version n
 
 Fix paths, counts, table entries, and version numbers automatically. These are mechanical changes that do not alter meaning.
 
+Before editing any doc in Steps 3–8, inspect its staged and unstaged changes.
+Skip files with existing edits and tell the user which files were skipped.
+Keep a list of the exact paths you change for the commit in Step 9.
+
 **Auto-update targets:**
 - File paths that were renamed or moved in the diff
 - Numeric counts (e.g., "42 tests" when the number changed)
@@ -207,27 +211,23 @@ fi
 
 ## Step 9: Commit Doc Changes
 
-Commit all documentation changes to the current branch and update the PR body with a doc-sync summary.
+Commit the files recorded during this run. Add each repository-relative file
+path as a separately quoted argument after `set --`. Leave the list empty if
+this run made no edits.
 
 ```bash
-# Stage only .md files that were modified by this skill
-git add *.md docs/*.md 2>/dev/null || true
-
-# Check if there are staged changes
-if git diff --cached --quiet; then
-  echo "No documentation changes needed — all docs are up to date."
+set --
+if [ "$#" -eq 0 ]; then
+  printf '%s\n' 'No documentation changes needed.'
 else
-  git commit -m "docs: post-ship documentation sync
-
-  - Auto-updated paths, counts, and version references
-  - CHANGELOG entries polished for user benefit
-  - Cross-doc consistency verified
-  - Discoverability check passed
-  "
-
-  echo "Documentation sync committed."
+  git --literal-pathspecs add -- "$@" || exit 1
+  git --literal-pathspecs commit --only -m "docs: post-ship documentation sync" -- "$@" || exit 1
+  printf '%s\n' 'Documentation sync committed.'
 fi
 ```
+
+If staging or committing fails, report the failure and preserve the edits for
+recovery. Continue to the PR summary only after a successful commit.
 
 If a PR exists for the current branch, update its body to include a doc-sync section:
 ```bash
