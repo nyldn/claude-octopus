@@ -60,23 +60,43 @@ echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
 **Update state:** Save up to three nonblank lines from Key Findings. If that
 section is empty or missing, use Executive Summary or the older Summary
 heading. If neither section has content, stop before updating state and
-correct the synthesis.
+correct the synthesis. A subsection heading counts as a finding when it has
+no body text.
 
 ```bash
 if ! key_findings=$(awk '
+    function save(line) {
+        if (section != "" && counts[section] < 3) {
+            snippets[section] = snippets[section] (counts[section] ? " " : "") line
+            counts[section]++
+        }
+    }
+    function flush_heading() {
+        if (pending_heading != "") save(pending_heading)
+        pending_heading = ""
+    }
     { sub(/\r$/, "") }
     /^##?[[:blank:]]/ {
+        flush_heading()
         section = ""
         if ($0 ~ /^##[[:blank:]]+Key Findings[[:blank:]]*$/) section = "findings"
         if ($0 ~ /^##[[:blank:]]+(Executive Summary|Summary)[[:blank:]]*$/) section = "summary"
         next
     }
-    /^###+[[:blank:]]/ { next }
-    section != "" && NF && counts[section] < 3 {
-        snippets[section] = snippets[section] (counts[section] ? " " : "") $0
-        counts[section]++
+    /^###+[[:blank:]]/ {
+        flush_heading()
+        pending_heading = $0
+        sub(/^###+[[:blank:]]+/, "", pending_heading)
+        next
     }
-    END { print counts["findings"] ? snippets["findings"] : snippets["summary"] }
+    NF {
+        pending_heading = ""
+        save($0)
+    }
+    END {
+        flush_heading()
+        print counts["findings"] ? snippets["findings"] : snippets["summary"]
+    }
 ' < "$SYNTHESIS_FILE"); then
   echo "VALIDATION FAILED: Could not read synthesis context" >&2
   exit 1

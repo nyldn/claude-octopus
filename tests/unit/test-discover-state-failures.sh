@@ -32,6 +32,12 @@ reports = {
     'subsections': ('## Key Findings\n### Latency\nrequests got faster\n'
                     '### Cost\nless compute\n## Sources\nsource only\n',
                     'requests got faster less compute'),
+    'heading_only': ('## Key Findings\n### Latency fell by 30% [inference]\n'
+                     '### Cost fell by 20% [inference]\n',
+                     'Latency fell by 30% [inference] Cost fell by 20% [inference]'),
+    'mixed_subsections': ('## Key Findings\n### Latency fell by 30% [inference]\n'
+                          '### Cost\nless compute\n## Sources\nsource only\n',
+                          'Latency fell by 30% [inference] less compute'),
     'no_context': ('## Sources\nsource only\n', None),
     'blank_context': ('## Key Findings\n  \n## Sources\nsource only\n', None),
 }
