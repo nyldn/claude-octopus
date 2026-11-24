@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.27.1"
+    "version": "11.28.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.27.1 - Safer local issue tracking, documentation commits, and deck readiness. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.27.1",
+      "description": "v11.28.0 - Council keeps reviews focused and preserves failure details, and Tangle detects partial edits. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.28.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
