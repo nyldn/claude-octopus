@@ -88,9 +88,13 @@ In Claude Octopus workflows, verification is especially critical because:
 - **Synthesis files may belong to earlier runs** — use the path from this invocation
 - **orchestrate.sh exit code 0 ≠ quality** — the script ran, but did it produce good output?
 
-If the workflow produces a synthesis, set `SYNTHESIS_FILE` to the exact path
-reported or written by the current invocation. If you cannot identify the file,
-stop before claiming completion.
+For fresh completion of a workflow that produces a synthesis, set
+`SYNTHESIS_FILE` to the exact path after confirming this invocation wrote a new synthesis.
+Stop the fresh completion check if no new synthesis was written or the path is unknown.
+
+Treat `Synthesis already exists`, a completed resume, and a cache hit as reuse.
+For an explicit resume or cache reuse, review the saved evidence for the
+identified run and report the result as reused evidence.
 
 ```bash
 synthesis_file="${SYNTHESIS_FILE:-}"

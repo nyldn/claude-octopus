@@ -394,8 +394,16 @@ verification_entries=(
     codex-skills/skill-verify
 )
 for entry in "${verification_entries[@]}"; do
-    synthesis_check=$(sed -n '/^## Multi-Provider Context$/,/^## When to Apply$/p' "$PROJECT_ROOT/$entry/SKILL.md" |
-        extract_bash_fence)
+    synthesis_section=$(sed -n '/^## Multi-Provider Context$/,/^## When to Apply$/p' "$PROJECT_ROOT/$entry/SKILL.md")
+    test_case "$entry requires new synthesis for fresh completion and labels reuse"
+    if grep -Fq 'this invocation wrote a new synthesis' <<< "$synthesis_section" &&
+       grep -Fq 'Treat `Synthesis already exists`, a completed resume, and a cache hit as reuse.' <<< "$synthesis_section" &&
+       grep -Fq 'report the result as reused evidence' <<< "$synthesis_section"; then
+        test_pass
+    else
+        test_fail "the skill must distinguish a newly written synthesis from an existing result"
+    fi
+    synthesis_check=$(extract_bash_fence <<< "$synthesis_section")
     for rejected_path in "" "$synthesis_results/probe-synthesis-missing.md" "$empty_synthesis" "$headings_synthesis"; do
         rejected_name="${rejected_path##*/}"
         test_case "$entry synthesis gate rejects ${rejected_name:-an unspecified path}"
