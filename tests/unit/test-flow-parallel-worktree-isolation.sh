@@ -24,6 +24,7 @@ test_suite "flow-parallel worktree isolation"
 SKILL_FILES=(
     "$(resolve_claude_skill_path flow-parallel)"
     "$PROJECT_ROOT/skills/flow-parallel/SKILL.md"
+    "$PROJECT_ROOT/codex-skills/flow-parallel/SKILL.md"
 )
 
 # The launch template lives in a fenced heredoc inside the skill. Render it the
@@ -77,7 +78,11 @@ if [[ -z "$bad" ]]; then test_pass; else test_fail "agent failure can skip the m
 
 FIXTURE="$TEST_TMP_DIR/repo"
 STUB_BIN="$TEST_TMP_DIR/bin"
-mkdir -p "$FIXTURE" "$STUB_BIN"
+PLUGIN_FIXTURE="$TEST_TMP_DIR/installed octopus"
+mkdir -p "$FIXTURE" "$STUB_BIN" "$PLUGIN_FIXTURE/.claude-plugin"
+cp "$PROJECT_ROOT/.claude-plugin/plugin.json" "$PLUGIN_FIXTURE/.claude-plugin/plugin.json"
+unset CLAUDE_PLUGIN_ROOT
+export CODEX_PLUGIN_ROOT="$PLUGIN_FIXTURE"
 
 git -C "$FIXTURE" init --quiet -b main
 git -C "$FIXTURE" config user.email octo@example.com
@@ -107,6 +112,44 @@ run_package() {
     render_launch "$skill" "$root" "$wp_id" "$branch" "$base" "$dir/launch.sh"
     ( PATH="$STUB_BIN:$PATH" HOME="$TEST_TMP_DIR/home" bash "$dir/launch.sh" ) >/dev/null 2>&1 || true
 }
+
+test_case "Claude and Codex launchers load the selected Octopus plugin explicitly"
+make_stub 'printf "%s\n" "$@"'
+for index in "${!SKILL_FILES[@]}"; do
+    skill="${SKILL_FILES[$index]}"
+    wp="WP-PLUGIN-$index"
+    case "$skill" in
+        */.claude/skills/*)
+            CLAUDE_PLUGIN_ROOT="$PLUGIN_FIXTURE" CODEX_PLUGIN_ROOT="$TEST_TMP_DIR/missing" \
+                run_package "$wp" "octo/$wp" "$FIXTURE" main "$skill"
+            ;;
+        *)
+            run_package "$wp" "octo/$wp" "$FIXTURE" main "$skill"
+            ;;
+    esac
+    if [[ "$(cat "$TEST_TMP_DIR/$wp/output.md" 2>/dev/null)" == "-p"$'\n'"--plugin-dir"$'\n'"$PLUGIN_FIXTURE" ]]; then
+        test_pass
+    else
+        test_fail "launch did not pass the selected plugin root as one argument: $skill"
+    fi
+done
+
+test_case "a missing or unrelated plugin fails before worker launch"
+WRONG_PLUGIN="$TEST_TMP_DIR/unrelated"
+mkdir -p "$WRONG_PLUGIN/.claude-plugin"
+printf '{"name":"unrelated"}\n' > "$WRONG_PLUGIN/.claude-plugin/plugin.json"
+make_stub 'echo AGENT_RAN'
+for plugin_root in "$TEST_TMP_DIR/missing" "$WRONG_PLUGIN"; do
+    wp="WP-BAD-PLUGIN-${plugin_root##*/}"
+    CODEX_PLUGIN_ROOT="$plugin_root" run_package "$wp" "octo/$wp"
+    dir="$TEST_TMP_DIR/$wp"
+    if [[ "$(cat "$dir/exit-code" 2>/dev/null)" == 1 && -e "$dir/.done" && ! -e "$dir/output.md" ]] &&
+       ! git -C "$FIXTURE" show-ref --verify --quiet "refs/heads/octo/$wp"; then
+        test_pass
+    else
+        test_fail "invalid plugin allowed a worker or branch to start: $plugin_root"
+    fi
+done
 
 test_case "workers refuse a mutable base before starting an agent"
 make_stub 'echo AGENT_RAN'

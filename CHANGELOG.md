@@ -6,6 +6,8 @@
 
 - Debate gives each run its own folder so a second debate in the same session
   preserves the first debate's context, state, and round notes.
+- Parallel explicitly loads Octopus in each Claude Code worker, including
+  workers started from a Codex installation.
 
 ## [11.28.2] - 2026-11-24
 
