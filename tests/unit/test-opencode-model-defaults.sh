@@ -35,30 +35,30 @@ source "$MODEL_RESOLVER"
 source "$MODEL_CATALOG"
 
 test_case "opencode default uses opencode namespace"
-if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opencode-default" resolve_octopus_model opencode opencode 2>/dev/null)" == "opencode/deepseek-v4-flash-free" ]]; then
+if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opencode-default" resolve_octopus_model opencode opencode 2>/dev/null)" == "opencode/deepseek-v4.1-flash-free" ]]; then
     test_pass
 else
-    test_fail "expected opencode/deepseek-v4-flash-free"
+    test_fail "expected opencode/deepseek-v4.1-flash-free"
 fi
 
 test_case "opencode-fast default uses opencode namespace"
-if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opencode-fast" resolve_octopus_model opencode opencode-fast 2>/dev/null)" == "opencode/deepseek-v4-flash-free" ]]; then
+if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opencode-fast" resolve_octopus_model opencode opencode-fast 2>/dev/null)" == "opencode/deepseek-v4.1-flash-free" ]]; then
     test_pass
 else
-    test_fail "expected opencode/deepseek-v4-flash-free"
+    test_fail "expected opencode/deepseek-v4.1-flash-free"
 fi
 
 test_case "opencode-research default uses opencode namespace"
-if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opencode-research" resolve_octopus_model opencode opencode-research 2>/dev/null)" == "opencode/glm-5.1" ]]; then
+if [[ "$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opencode-research" resolve_octopus_model opencode opencode-research 2>/dev/null)" == "opencode/glm-5.3" ]]; then
     test_pass
 else
-    test_fail "expected opencode/glm-5.1"
+    test_fail "expected opencode/glm-5.3"
 fi
 
 test_case "model catalog includes current opencode namespace"
-if is_known_model "opencode/deepseek-v4-flash-free" &&
-   is_known_model "opencode/glm-5.1" &&
-   [[ "$(get_model_capability "opencode/glm-5.1" provider)" == "opencode" ]]; then
+if is_known_model "opencode/deepseek-v4.1-flash-free" &&
+   is_known_model "opencode/glm-5.3" &&
+   [[ "$(get_model_capability "opencode/glm-5.3" provider)" == "opencode" ]]; then
     test_pass
 else
     test_fail "expected opencode namespaced models in catalog"
@@ -97,7 +97,10 @@ if jq -e '
     .providers.codex.mini == "gpt-5.6-luna" and
     .providers.claude.default == "claude-sonnet-5" and
     .providers.claude.opus == "claude-opus-5" and
-    (.providers.claude | has("fable") | not)
+    (.providers.claude | has("fable") | not) and
+    .providers.opencode.default == "opencode/deepseek-v4.1-flash-free" and
+    .providers.opencode.fast == "opencode/deepseek-v4.1-flash-free" and
+    .providers.opencode.research == "opencode/glm-5.3"
 ' "$fresh_config" >/dev/null; then
     test_pass
 else
@@ -105,12 +108,14 @@ else
 fi
 
 test_case "existing model config pins are not silently migrated"
-jq '.providers.codex.default = "gpt-5.5" | .providers.claude.default = "claude-sonnet-4.6"' \
+jq '.providers.codex.default = "gpt-5.5" | .providers.claude.default = "claude-sonnet-4.6" | .providers.opencode.default = "opencode/deepseek-v4-flash-free" | .providers.opencode.research = "opencode/glm-5.1"' \
     "$fresh_config" > "${fresh_config}.tmp" && mv "${fresh_config}.tmp" "$fresh_config"
 HOME="$TEST_HOME" USER="octo-test-$$" "$MODEL_CONFIG" list >/dev/null
 if jq -e '
     .providers.codex.default == "gpt-5.5" and
-    .providers.claude.default == "claude-sonnet-4.6"
+    .providers.claude.default == "claude-sonnet-4.6" and
+    .providers.opencode.default == "opencode/deepseek-v4-flash-free" and
+    .providers.opencode.research == "opencode/glm-5.1"
 ' "$fresh_config" >/dev/null; then
     test_pass
 else
@@ -119,11 +124,45 @@ fi
 
 test_case "model config catalog does not expose stale opencode metadata"
 catalog_output=$(HOME="$TEST_HOME" USER="octo-test-$$" CLAUDE_CODE_SESSION="opencode-catalog" "$MODEL_CONFIG" models opencode 2>/dev/null)
-if assert_contains "$catalog_output" "opencode/deepseek-v4-flash-free" "opencode default should be listed" &&
-   assert_contains "$catalog_output" "opencode/glm-5.1" "opencode research model should be listed" &&
+if assert_contains "$catalog_output" "opencode/deepseek-v4.1-flash-free" "opencode default should be listed" &&
+   assert_contains "$catalog_output" "opencode/glm-5.3" "opencode research model should be listed" &&
    assert_not_contains "$catalog_output" "google/gemini-2.5-flash" "stale google model should not be listed as opencode" &&
    assert_not_contains "$catalog_output" "z-ai/glm-5.1" "stale openrouter namespace should not be listed as opencode"; then
     test_pass
+fi
+
+test_case "pre-upgrade resolver caches cannot restore retired shipped defaults"
+if (
+    source "$PROJECT_ROOT/scripts/lib/provider-registry.sh"
+    source "$PROJECT_ROOT/scripts/lib/model-cache-path.sh"
+    export HOME="$TEST_TMP_DIR/cache-home" TMPDIR="$TEST_TMP_DIR/cache-tmp" USER="octo-cache-$$"
+    mkdir -p "$HOME" "$TMPDIR"
+    unset OCTOPUS_OPENCODE_MODEL OCTOPUS_OPENROUTER_MODEL OCTOPUS_PROVIDERS_CONFIG
+    export OCTOPUS_COST_MODE=standard OCTOPUS_ROUTING_POLICY=off
+    for seat in openrouter opencode opencode-fast opencode-research; do
+        export CLAUDE_CODE_SESSION="$seat-upgrade"
+        provider=opencode
+        old=opencode/deepseek-v4-flash-free
+        expected=opencode/deepseek-v4.1-flash-free
+        case "$seat" in
+            openrouter) provider=openrouter; old=anthropic/claude-sonnet-4; expected=anthropic/claude-sonnet-4.6 ;;
+            opencode-research) old=opencode/glm-5.1; expected=opencode/glm-5.3 ;;
+        esac
+        initial="$(resolve_octopus_model "$provider" "$seat")" || exit 1
+        [[ "$initial" == "$expected" ]] || exit 1
+        cache="$(octo_model_cache_file)" || exit 1
+        [[ -f "$cache" ]] || exit 1
+        # Before this upgrade the key had no defaults revision component.
+        jq --arg old "$old" 'with_entries(.key |= sub("^MC_V[0-9]+_"; "MC_") | .value = $old)' \
+            "$cache" > "$cache.old" || exit 1
+        mv "$cache.old" "$cache" || exit 1
+        actual="$(resolve_octopus_model "$provider" "$seat")"
+        [[ "$actual" == "$expected" ]] || { echo "$seat restored $actual"; exit 1; }
+    done
+); then
+    test_pass
+else
+    test_fail "pre-upgrade cached default survived the catalog update"
 fi
 
 test_summary

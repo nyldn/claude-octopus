@@ -55,7 +55,7 @@ OpenCode routes to multiple backends via a single CLI using `-m provider/model` 
 | `github-copilot/` | GitHub Copilot | `claude-opus-4.6`, `gpt-5.4` |
 | `github-models/` | GitHub Models | `meta/llama-3.1-70b-instruct` |
 | `minimax/` | MiniMax | (MiniMax catalog) |
-| `opencode/` | OpenCode built-in | `gpt-5-nano` (free) |
+| `opencode/` | OpenCode Models | `deepseek-v4.1-flash-free`, `glm-5.3`, `gpt-5.4`, `gpt-5.4-mini` |
 
 The same model can be routed through different backends (e.g., `z-ai/glm-5` direct vs `openrouter/z-ai/glm-5` proxied) for cost, latency, or availability reasons.
 
@@ -69,8 +69,16 @@ Run `opencode models` for the full model catalog.
 
 # Set capability-specific models (dot syntax)
 /octo:model-config opencode.fast google/gemini-2.5-flash
-/octo:model-config opencode.research z-ai/glm-5.1
+/octo:model-config opencode.research opencode/glm-5.3
 ```
+
+Fresh configurations use `opencode/deepseek-v4.1-flash-free` for default and
+fast work. This is a limited-time free route. Research uses the paid
+`opencode/glm-5.3` route. Existing saved pins are preserved. If an old pin stops
+working, choose a replacement explicitly with `/octo:model-config`.
+
+See [the November catalog review](../../../docs/MODEL-CATALOG-20261124.md) for
+verified limits, prices and the retired defaults.
 
 ## Dispatch Pattern
 

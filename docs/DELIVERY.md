@@ -5,6 +5,25 @@ marketplaces and packaged repository. The existing release and installation
 contract is in [RELEASING.md](../RELEASING.md#delivery-contract-for-workflow-methods).
 This document adds checks for Codex listing and first-use changes.
 
+## Model catalog checks
+
+For model IDs, capabilities, pricing or default-route changes, run:
+
+```bash
+bash tests/unit/test-model-catalog-refresh.sh
+bash tests/unit/test-opencode-model-defaults.sh
+bash tests/unit/test-shipped-state-model-resolution.sh
+bash tests/unit/test-resolve-model.sh
+bash tests/unit/test-cost-pricing.sh
+make sync
+make ci-quick
+```
+
+Verify provider IDs, current public availability, limits and prices against
+first-party listings. Preserve saved user pins. Record free-access terms and
+paid-route changes. Offline checks do not establish account entitlement or
+successful authenticated inference.
+
 ## Codex presentation checks
 
 Run from the public repository root on a supported local macOS or Linux host:

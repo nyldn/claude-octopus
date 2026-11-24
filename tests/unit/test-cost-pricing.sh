@@ -91,6 +91,31 @@ else
     test_fail "DeepSeek Flash retained the unrelated generic fallback rate"
 fi
 
+test_case "OpenCode paid routes record token costs while the free route stays zero"
+opencode_costs_ok=true
+for model in opencode/glm-5.3 opencode/gpt-5.4 opencode/gpt-5.4-mini opencode/deepseek-v4.1-flash-free; do
+    case "$model" in
+        opencode/glm-5.3) expected=0.00408 ;;
+        opencode/gpt-5.4) expected=0.0325 ;;
+        opencode/gpt-5.4-mini) expected=0.00975 ;;
+        *) expected=0 ;;
+    esac
+    opencode_id="$(record_agent_start opencode "$model" x pricing)"
+    record_agent_call opencode "$model" x pricing reviewer 0 "$opencode_id"
+    record_agent_complete "$opencode_id" opencode "$model" "" pricing 3000 0 1 1000 2000
+    report="$(generate_usage_json)"
+    if ! jq -e --arg id "$opencode_id" --argjson expected "$expected" \
+        '.calls[] | select(.call_id == $id) | .cost_usd == $expected' >/dev/null <<<"$report"; then
+        echo "unexpected recorded cost for $model"
+        opencode_costs_ok=false
+    fi
+done
+if [[ "$opencode_costs_ok" == true ]]; then
+    test_pass
+else
+    test_fail "OpenCode token usage did not use its model tariff"
+fi
+
 test_case "provider overrides bypass model request rules in every Bash billing path"
 override_ok=true
 for provider in grok-agent copilot cursor-agent-preview; do

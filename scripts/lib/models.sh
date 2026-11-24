@@ -83,11 +83,12 @@ _octo_get_model_catalog_raw() {
         anthropic/claude-sonnet-4.6) echo "1000|yes|yes|no|orcarouter|standard|active" ;;
         anthropic/claude-opus-4.8)   echo "1000|yes|yes|yes|orcarouter|premium|active" ;;
         anthropic/claude-haiku-4.5)  echo "200|yes|yes|yes|orcarouter|budget|active" ;;
-        # OpenCode (multi-provider router — models use opencode/<model> namespace)
-        opencode/deepseek-v4-flash-free) echo "128|yes|no|no|opencode|budget|active" ;;
-        opencode/gpt-5.4)       echo "400|yes|yes|no|opencode|premium|active" ;;
+        # OpenCode limits and capabilities: https://opencode.ai/inference/v1/models
+        # Checked 2026-11-24; context_k is the provider context, not a CLI ceiling.
+        opencode/deepseek-v4.1-flash-free) echo "200|yes|yes|yes|opencode|budget|active" ;;
+        opencode/gpt-5.4)       echo "1050|yes|yes|yes|opencode|premium|active" ;;
         opencode/gpt-5.4-mini)  echo "400|yes|yes|yes|opencode|budget|active" ;;
-        opencode/glm-5.1)       echo "203|yes|no|no|opencode|standard|active" ;;
+        opencode/glm-5.3)       echo "1000|yes|no|yes|opencode|standard|active" ;;
         # Perplexity
         sonar-pro)              echo "128|no|no|no|perplexity|standard|active" ;;
         sonar)                  echo "128|no|no|no|perplexity|budget|active" ;;
@@ -150,6 +151,18 @@ get_model_catalog() {
         printf '%s\n' "$raw"
         return 0
     fi
+
+    # Routing preferences keep the gateway's limits. Canonicalizing first
+    # would discard a gateway override in favor of the native model record.
+    case "$model" in
+        *:nitro|*:floor)
+            raw="$(_octo_get_model_catalog_raw "${model%:*}")"
+            if [[ "$raw" != *"|unknown" ]]; then
+                printf '%s\n' "$raw"
+                return 0
+            fi
+            ;;
+    esac
 
     model="$(octo_model_canonical_id "$model")" || return 1
     _octo_get_model_catalog_raw "$model"
@@ -330,10 +343,10 @@ z-ai/glm-5
 moonshotai/kimi-k2.5
 deepseek/deepseek-v4-pro
 deepseek/deepseek-r1-0528
-opencode/deepseek-v4-flash-free
+opencode/deepseek-v4.1-flash-free
 opencode/gpt-5.4
 opencode/gpt-5.4-mini
-opencode/glm-5.1
+opencode/glm-5.3
 sonar-pro
 sonar
 EOF
