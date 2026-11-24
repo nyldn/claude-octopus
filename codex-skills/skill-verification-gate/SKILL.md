@@ -83,17 +83,32 @@ In Claude Octopus workflows, verification is especially critical because:
 
 - **Provider outputs can be hallucinated** — Codex, Antigravity, Copilot, and other providers may claim success without evidence
 - **Consensus ≠ correctness** — three models agreeing doesn't mean they're right
-- **Synthesis files may be stale** — check timestamps, don't assume freshness
+- **Synthesis files may belong to earlier runs** — use the path from this invocation
 - **orchestrate.sh exit code 0 ≠ quality** — the script ran, but did it produce good output?
 
-After any multi-provider workflow:
-```bash
-# Verify synthesis file exists and is recent
-ls -la ~/.claude-octopus/results/*-synthesis-*.md | tail -1
+If the workflow produces a synthesis, set `SYNTHESIS_FILE` to the exact path
+reported or written by the current invocation. If you cannot identify the file,
+stop before claiming completion.
 
-# Verify it has content (not just headers)
-wc -l ~/.claude-octopus/results/*-synthesis-*.md | tail -1
+```bash
+synthesis_file="${SYNTHESIS_FILE:-}"
+if [[ ! -f "$synthesis_file" || ! -r "$synthesis_file" ]]; then
+  printf '%s\n' 'Verification failed. The current run has no readable synthesis file.' >&2
+  exit 1
+fi
+
+if ! awk '
+  /[^[:space:]]/ && !/^[[:space:]]*#+([[:space:]]|$)/ { found = 1; exit }
+  END { exit !found }
+' < "$synthesis_file"; then
+  printf 'Verification failed. The synthesis has no findings to review in %s.\n' "$synthesis_file" >&2
+  exit 1
+fi
+printf 'Synthesis has content in %s.\n' "$synthesis_file"
 ```
+
+Read the checked file and verify its findings against the workflow's evidence
+before reporting success.
 
 ## When to Apply
 
