@@ -87,10 +87,12 @@ EOF
         attempts=$(grep -c '^attempt ' "$CAPTURE")
         if [[ "$attempts" -eq 2 && "$SCENARIO" == *-during-spawn ]]; then
             codex_dies
+            # A lost PID handoff is ambiguous even if provider health changed.
+            [[ "$SCENARIO" != circuit-lost-handoff-during-spawn ]] || return 1
         fi
         provider="$(octo_agent_spec_provider "$agent")"
-        is_provider_available "$provider" || return 1
-        octo_quota_is_dead "$provider" && return 1
+        is_provider_available "$provider" || return 75
+        octo_quota_is_dead "$provider" && return 75
         if [[ "$attempts" -eq 2 && "$SCENARIO" == refused ]]; then
             return 1
         fi
@@ -140,6 +142,13 @@ attempt task1 codex
 attempt task1 claude-sonnet
 spawned task1 claude-sonnet|implementer" \
     circuit-during-spawn circuit-during-spawn
+
+expect_scenario "a lost PID handoff does not permit another worker despite the open circuit" \
+"rc=1
+attempt task0 codex
+spawned task0 codex|implementer
+attempt task1 codex" \
+    lost-handoff circuit-lost-handoff-during-spawn
 
 expect_scenario "codex marked quota-dead while subtask 1 runs: subtask 2 moves to claude-sonnet" \
 "rc=0

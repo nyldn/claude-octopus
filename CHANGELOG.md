@@ -8,6 +8,26 @@
   provider's circuit opens or quota runs out before launch. Other spawn
   failures still stop the run.
 
+## [11.27.1] - 2026-11-23
+
+### Fixed
+
+- The local issue tracker initializes its ledger from the installed template
+  on Linux and macOS, including plugin paths with spaces. A repeat preserves
+  the existing ledger. ([#1402](https://github.com/nyldn/claude-octopus/pull/1402))
+- Resolving a local issue requires an exact ID in the Open Issues table, so
+  resolved issues and IDs found only in notes cannot start a new resolution.
+  ([#1400](https://github.com/nyldn/claude-octopus/pull/1400))
+- Deck stakeholder review uses the installed advisor selector and the
+  confirmed deck question for its static readiness check.
+  ([#1403](https://github.com/nyldn/claude-octopus/pull/1403))
+- Documentation sync commits only the files it changed and preserves unrelated
+  work in the index and working tree.
+  ([#1404](https://github.com/nyldn/claude-octopus/pull/1404))
+
+These fixes address parts of
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
 ## [11.27.0] - 2026-11-23
 
 ### Added

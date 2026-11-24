@@ -4983,7 +4983,7 @@ tangle_subtask_fallback_agents() {
 
 tangle_spawn_subtask() {
     local agent="$1" prompt="$2" task_id="$3" role="$4" pane_title="$5" active_idx="$6"
-    local candidate pid attempt=0 contract_task_id
+    local candidate pid spawn_status attempt=0 contract_task_id
     TANGLE_SPAWNED_PID=""
     while IFS= read -r candidate; do
         if ! tangle_subtask_agent_dispatchable "$candidate"; then
@@ -4999,17 +4999,19 @@ tangle_spawn_subtask() {
         if (( attempt > 1 )); then
             contract_task_id="${task_id}:attempt-$attempt"
         fi
+        spawn_status=0
         if [[ "$TMUX_MODE" == "true" ]]; then
-            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" tangle "$pane_title" "$contract_task_id" </dev/null) || pid=""
+            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" tangle "$pane_title" "$contract_task_id" </dev/null) || spawn_status=$?
         else
-            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" tangle false "$contract_task_id" </dev/null) || pid=""
+            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" tangle false "$contract_task_id" </dev/null) || spawn_status=$?
         fi
-        if [[ "$pid" =~ ^[1-9][0-9]*$ ]]; then
+        if [[ "$spawn_status" -eq 0 && "$pid" =~ ^[1-9][0-9]*$ ]]; then
             TANGLE_SPAWNED_PID="$pid"
             return 0
         fi
-        tangle_subtask_agent_dispatchable "$candidate" && return 1
-        log WARN "Tangle task $task_id: $candidate became unavailable during its spawn; trying the next provider"
+        # A failed PID handoff can leave a worker running even if the circuit opens.
+        [[ "$spawn_status" -eq 75 && -z "$pid" ]] || return 1
+        log WARN "Tangle task $task_id: $candidate refused dispatch before launch; trying the next provider"
     done < <(tangle_subtask_fallback_agents "$agent")
     return 1
 }

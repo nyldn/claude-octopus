@@ -214,4 +214,95 @@ if [[ -f "$DELIVER_SKILL" ]]; then
 else
   fail "flow-deliver references doc-sync step" "flow-deliver SKILL.md not found"
 fi
+
+test_case "shipped doc-sync commit recipes preserve unrelated work"
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PYTHON'
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+import unittest
+
+root = Path(sys.argv[1])
+trees = ('.claude/skills', 'skills', 'codex-skills')
+
+
+class DocSyncCommit(unittest.TestCase):
+    def test_recipes(self):
+        for tree in trees:
+            text = (root / tree / 'skill-doc-sync/SKILL.md').read_text()
+            step = text.split('## Step 9: Commit Doc Changes', 1)[1]
+            recipe = re.search(r'```bash\n(.*?)\n```', step, re.S)[1]
+            for scenario in ('updated', 'new', 'no edits', 'rejected'):
+                with self.subTest(tree=tree, scenario=scenario):
+                    self.check_recipe(recipe, scenario)
+
+    def check_recipe(self, recipe, scenario):
+        with tempfile.TemporaryDirectory(dir=sys.argv[2]) as directory:
+            repo = Path(directory)
+            env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
+                       GIT_AUTHOR_NAME='Fixture', GIT_AUTHOR_EMAIL='fixture@example.invalid',
+                       GIT_COMMITTER_NAME='Fixture', GIT_COMMITTER_EMAIL='fixture@example.invalid')
+
+            def git(*args):
+                return subprocess.check_output(['git', *args], cwd=repo, env=env, text=True).strip()
+
+            git('init', '-q', '-b', 'main')
+            filename = 'docs/guide [1].md'
+            draft = repo / 'docs/guide 1.md'
+            staged = repo / 'work.txt'
+            target = repo / filename
+            draft.parent.mkdir()
+            for path in (draft, staged):
+                path.write_text('baseline\n')
+            if scenario != 'new':
+                target.write_text('baseline\n')
+            git('add', '.')
+            git('commit', '-qm', 'base')
+            before = git('rev-parse', 'HEAD')
+            staged.write_text('user staged change\n')
+            git('add', '--', staged.name)
+            staged.write_text('user unstaged change\n')
+            draft.write_text('unrelated doc changes\n')
+            if scenario != 'no edits':
+                target.write_text('doc-sync change\n')
+                recipe = recipe.replace('set --\n', f'set -- {shlex.quote(filename)}\n', 1)
+            if scenario == 'rejected':
+                hook = repo / '.git/hooks/pre-commit'
+                hook.write_text('#!/bin/sh\nexit 1\n')
+                hook.chmod(0o755)
+
+            result = subprocess.run(
+                ['bash', '-uc', recipe + '\nprintf continued > reached-state'],
+                cwd=repo, env=env, capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(git('show', ':work.txt'), 'user staged change')
+            self.assertEqual(staged.read_text(), 'user unstaged change\n')
+            self.assertEqual(draft.read_text(), 'unrelated doc changes\n')
+            if scenario == 'rejected':
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertEqual(git('rev-parse', 'HEAD'), before)
+                self.assertFalse((repo / 'reached-state').exists())
+                self.assertEqual(target.read_text(), 'doc-sync change\n')
+            elif scenario == 'no edits':
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(git('rev-parse', 'HEAD'), before)
+            else:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'), filename)
+                self.assertEqual(git('show', f'HEAD:{filename}'), 'doc-sync change')
+                self.assertEqual(git('diff', '--cached', '--name-only'), 'work.txt')
+
+
+unittest.main(argv=['doc-sync-commit'])
+PYTHON
+then
+  test_pass
+else
+  test_fail "doc-sync included unrelated changes or mishandled its commit outcome"
+fi
+
 test_summary
