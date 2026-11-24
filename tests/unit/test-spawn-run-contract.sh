@@ -512,6 +512,77 @@ run_watched_fixture() {
     )
 }
 
+run_tangle_spawn_retry_fixture() (
+    local mode="$1" refusal="${2:-circuit}" persist="${3:-true}"
+    local task="tangle-contract-$mode-$refusal-$persist"
+    local refusal_marker="$TEST_TMP_DIR/$task.refused"
+    mock_command codex 'exit 0'
+    source "$PROJECT_ROOT/scripts/async-tmux-features.sh"
+    TMUX_MODE="$mode"
+    FAKE_SCENARIO=success
+    CODEX_SUBAGENT_PREAMBLE=""
+    OCTO_ALLOWED_PROVIDERS="codex claude"
+    OCTOPUS_ACTIVE_TANGLE_AGENTS=()
+    tmux_spawn_pane() { :; }
+    is_provider_available() {
+        [[ "$refusal" != circuit || "$1" != codex || ! -e "$refusal_marker" ]]
+    }
+    octo_quota_is_dead() {
+        [[ "$refusal" == quota && "$1" == codex && -e "$refusal_marker" ]]
+    }
+    enforce_context_budget() {
+        # Spawn has already written "planned" when it prepares the prompt.
+        [[ "$3" != codex ]] || touch "$refusal_marker"
+        printf '%s\n' "$1"
+    }
+
+    if [[ "$persist" == false ]]; then
+        # Inject a terminal write failure after the real planned record.
+        octo_run_contract_finish_background() { return 74; }
+        log() { printf '%s\n' "$*" >&2; }
+        local rc=0
+        tangle_spawn_subtask codex "Implement the fixture" "$task" reviewer "Subtask" 0 || rc=$?
+        [[ "$rc" == 1 && -z "$TANGLE_SPAWNED_PID" &&
+           "$(transitions_for "spawn-$task")" == planned &&
+           -z "$(transitions_for "spawn-${task}:attempt-2")" ]] &&
+            grep -Fq "Unable to persist skipped execution contract for background task $task" "$TEST_TMP_DIR/$task.log"
+        return
+    fi
+
+    tangle_spawn_subtask codex "Implement the fixture" "$task" reviewer "Subtask" 0 || return 1
+    [[ "$TANGLE_SPAWNED_PID" =~ ^[1-9][0-9]*$ &&
+       "${OCTOPUS_ACTIVE_TANGLE_AGENTS[0]}" == claude-sonnet &&
+       "$(transitions_for "spawn-$task")" == planned,skipped ]] || return 1
+
+    local deadline=$((SECONDS + 10))
+    while (( SECONDS < deadline )); do
+        if [[ "$(run_contract_latest_transition "spawn-${task}:attempt-2")" == contributed ]]; then
+            [[ -f "$RESULTS_DIR/claude-sonnet-$task.md" ]]
+            return
+        fi
+        sleep 0.1
+    done
+    return 1
+)
+
+for tmux_mode in false true; do
+    test_case "Tangle retries a refused spawn with a new contract seat (tmux=$tmux_mode)"
+    if run_tangle_spawn_retry_fixture "$tmux_mode"; then
+        test_pass
+    else
+        test_fail "Tangle lost the worker PID, logical task ID, or distinct contract records"
+    fi
+done
+
+for refusal in circuit quota; do
+    test_case "Tangle stops when recording a $refusal refusal fails"
+    if run_tangle_spawn_retry_fixture false "$refusal" false 2>"$TEST_TMP_DIR/tangle-contract-false-$refusal-false.log"; then
+        test_pass
+    else
+        test_fail "Tangle retried without a persisted terminal record or failed to report the write error"
+    fi
+done
+
 test_case "environment failure terminates the seat before provider launch"
 if run_external_fixture environment-fail environment-fail; then
     test_fail "spawn ignored failed environment construction"

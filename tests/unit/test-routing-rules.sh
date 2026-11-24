@@ -76,7 +76,9 @@ test_routing_graceful_no_file() {
 test_routing_in_spawn_agent() {
     test_case "Routing rules checked in spawn_agent"
 
-    if grep -A 60 "spawn_agent()" "$ALL_SRC" | grep -q "match_routing_rule"; then
+    local spawn_body
+    spawn_body=$(sed -n '/^spawn_agent() {$/,/^}$/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")
+    if grep -Fq '$(match_routing_rule ' <<< "$spawn_body"; then
         test_pass
     else
         test_fail "Routing rules not checked in spawn_agent"

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Develop can move a subtask to an allowed fallback provider when its assigned
+  provider's circuit opens or quota runs out before launch. Review corrections
+  also select an available, allowed implementer before dispatch. Other spawn
+  failures still stop the run.
+
 ## [11.28.1] - 2026-11-24
 
 ### Fixed
