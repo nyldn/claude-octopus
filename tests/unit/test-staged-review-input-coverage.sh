@@ -265,4 +265,81 @@ for failure in failures:
 sys.exit(bool(failures))
 PY_CONTROLS
 then test_pass; else test_fail "staged review admitted incomplete input or omitted source"; fi
+
+test_case "production spawn preserves fitting input and refuses oversized staged reviews before dispatch"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_SPAWN'
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+import time
+
+root = Path(sys.argv[1])
+skill = (root / '.claude/skills/skill-staged-review/SKILL.md').read_text()
+section = skill.split('### Step 2: Multi-LLM Quality Review', 1)[1]
+recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+for oversized in (False, True):
+    with tempfile.TemporaryDirectory(dir=sys.argv[2]) as location:
+        project = Path(location)
+        for directory in ('bin', 'home', 'tmp'):
+            (project / directory).mkdir()
+        for provider, capture_prompt in {
+            'codex': '[[ "$1" == exec ]] || exit 0\ncat > "$capture.tmp"\n',
+            'agy': '''while [[ $# -gt 1 && "$1" != --print ]]; do shift; done
+[[ "$1" == --print ]] || exit 0
+printf '%s' "$2" > "$capture.tmp"
+''',
+        }.items():
+            stub = project / 'bin' / provider
+            capture = shlex.quote(str(project / f'{provider}.prompt'))
+            stub.write_text(
+                '#!/bin/bash\n'
+                'case "$1" in --version|-v|version) echo "0.160.0"; exit 0;; esac\n'
+                f'capture={capture}\n' + capture_prompt +
+                'mv "$capture.tmp" "$capture"\n'
+                'echo "Fixture reviewer inspected the supplied text."\n'
+            )
+            stub.chmod(0o755)
+        environment = dict(
+            PATH=str(project / 'bin') + ':' + os.environ['PATH'],
+            HOME=str(project / 'home'), TMPDIR=str(project / 'tmp'),
+            CLAUDE_PLUGIN_ROOT=str(root), GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1',
+            OPENAI_API_KEY='fixture-unusable', OCTO_ALLOWED_PROVIDERS='codex,agy',
+            OCTOPUS_CONTEXT_BUDGET='4000', OCTOPUS_OVERSIZE_STRATEGY='truncate',
+            OCTOPUS_HEURISTIC_LEARNING='off', OCTOPUS_PERSONA_PACKS='off',
+        )
+        for args in (('init', '-q'), ('config', 'core.hooksPath', os.devnull)):
+            subprocess.run(['git', *args], cwd=project, env=environment, check=True)
+        (project / 'change.txt').write_text(
+            'START_STAGED_EVIDENCE\n' + 'x' * (50000 if oversized else 10) + '\nEND_STAGED_EVIDENCE\n'
+        )
+        subprocess.run(['git', 'add', 'change.txt'], cwd=project, env=environment, check=True)
+        expected = subprocess.check_output(['git', 'diff', '--cached', '--binary'], cwd=project,
+                                           env=environment, text=True).rstrip('\n')
+        result = subprocess.run(['bash', '-c', recipe], cwd=project, env=environment,
+                                capture_output=True, text=True, timeout=45)
+        snapshot, = (project / 'tmp').glob('octopus-staged-review.*/staged.diff')
+        assert snapshot.read_text() == expected + '\n'
+        assert result.returncode == int(oversized), (oversized, result.stderr)
+        for provider in ('codex', 'agy'):
+            capture = project / f'{provider}.prompt'
+            diagnostic = (snapshot.parent / f'{provider}.log').read_text()
+            if oversized:
+                assert not capture.exists(), (provider, 'oversized dispatch')
+                assert 'Context budget: prompt for ' + provider in diagnostic, diagnostic
+                assert f'External review incomplete for {provider}.' in result.stderr, result.stderr
+            else:
+                # The Codex CLI launch returns its worker PID before it completes.
+                for _ in range(100):
+                    if capture.exists():
+                        break
+                    time.sleep(0.1)
+                assert capture.exists(), (provider, diagnostic)
+                assert '\nDIFF:\n' + expected in capture.read_text(), (provider, 'incomplete prompt')
+print('2/2 staged review production spawn controls passed')
+PY_SPAWN
+then test_pass; else test_fail "production spawn changed or omitted staged-review input"; fi
 test_summary

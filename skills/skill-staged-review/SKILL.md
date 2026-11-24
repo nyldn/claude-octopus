@@ -306,8 +306,10 @@ providers=()
 command -v codex >/dev/null 2>&1 && providers+=(codex)
 command -v agy >/dev/null 2>&1 && providers+=(agy)
 
+launch_pids=()
 for provider in "${providers[@]}"; do
-  "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
+  OCTOPUS_OVERSIZE_STRATEGY=fail \
+    "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
     "Review this code diff for LOGIC, CORRECTNESS, and SECURITY issues. Focus on:
 1. Logic bugs and off-by-one errors
 2. Unhandled error paths
@@ -319,11 +321,25 @@ Report ONLY high-confidence issues. Do NOT flag style preferences.
 
 DIFF:
 ${DIFF_CONTENT}" > "$REVIEW_DIR/$provider.md" 2>"$REVIEW_DIR/$provider.log" &
+  launch_pids+=("$!")
 done
+
+launch_failed=0
+for index in "${!launch_pids[@]}"; do
+  if ! wait "${launch_pids[$index]}"; then
+    provider=${providers[$index]}
+    printf 'External review incomplete for %s. See %s/%s.log\n' "$provider" "$REVIEW_DIR" "$provider" >&2
+    launch_failed=1
+  fi
+done
+[[ "$launch_failed" == 0 ]] || exit 1
 ```
 
 If snapshot admission fails, stop before provider dispatch or a clean-review
 claim. Binary and submodule changes require a separate complete content review.
+If a reviewer cannot fit the complete prompt, the launch rejects it before
+dispatch. Report failed launches as incomplete and keep the admitted snapshot
+for the local review.
 Read the complete `staged.diff` from the printed path for the local review.
 Later staging requires a fresh review.
 
