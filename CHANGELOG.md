@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Debate gives each run its own folder so a second debate in the same session
+  preserves the first debate's context, state, and round notes.
+
 ## [11.28.2] - 2026-11-24
 
 ### Fixed

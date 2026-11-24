@@ -362,11 +362,16 @@ for source in ('.claude/skills/skill-debate/SKILL.md', 'skills/skill-debate/SKIL
     setup = re.sub(r'(?m)^DEBATE_BASE_DIR=.*$', lambda match: 'DEBATE_BASE_DIR=' + shlex.quote(str(directory)), setup)
     result = subprocess.run(['bash', '-c', setup], env=environment, capture_output=True, text=True)
     assert result.returncode == 0, (source, result.stderr)
-    state = json.loads((directory / '042-redis-vs-memcached/state.json').read_text())
+    handoff, separator, path = result.stdout.strip().partition('=')
+    assert (handoff, separator) == ('DEBATE_DIR', '='), (source, result.stdout)
+    debate = Path(path)
+    assert debate.parent == directory, (source, debate)
+    state = json.loads((debate / 'state.json').read_text())
+    assert state['debate_id'] == debate.name, (source, state)
     assert state['rounds_total'] == 3 and state['question'] == inputs['QUESTION'], (source, state)
     assert state['mode'] == 'blinded', (source, state)
     assert state['advisors'] == ['codex', 'agy'] and state['user_context']['goal'] == 'choose', (source, state)
-    context = (directory / '042-redis-vs-memcached/context.md').read_text()
+    context = (debate / 'context.md').read_text()
     assert '**Style**: thorough' in context and '**Mode**: blinded' in context
 PY_HANDOFF
 then

@@ -235,7 +235,7 @@ When running debates in claude-octopus, the following enhancements are automatic
 **Enhanced behavior** (when `CLAUDE_CODE_SESSION` is set):
 ```
 ~/.claude-octopus/debates/${SESSION_ID}/
-└── NNN-topic-slug/
+└── debate-<unique-id>/
     ├── context.md
     ├── state.json
     ├── synthesis.md
@@ -431,15 +431,15 @@ ADVISORS='[ADVISORS printed by Step 3]'
 USER_GOAL='[Primary goal from Step 2]'
 USER_PRIORITY='[Priority factor from Step 2]'
 USER_CONSTRAINTS='[Constraints from Step 2]'
-# Create debate directory structure
+# Allocate a new directory even when several debates share a session.
 DEBATE_BASE_DIR="${HOME}/.claude-octopus/debates/${CLAUDE_CODE_SESSION:-./debates}"
-DEBATE_ID="042-redis-vs-memcached"
-DEBATE_DIR="${DEBATE_BASE_DIR}/${DEBATE_ID}"
-
-mkdir -p "${DEBATE_DIR}/rounds"
+mkdir -p "$DEBATE_BASE_DIR" || exit 1
+DEBATE_DIR=$(mktemp -d "${DEBATE_BASE_DIR}/debate-XXXXXXXX") || exit 1
+DEBATE_ID=${DEBATE_DIR##*/}
+mkdir "$DEBATE_DIR/rounds" || exit 1
 
 # Write context.md
-cat > "${DEBATE_DIR}/context.md" <<EOF
+cat > "${DEBATE_DIR}/context.md" <<EOF || exit 1
 # Debate: ${QUESTION}
 
 **Debate ID**: ${DEBATE_ID}
@@ -757,7 +757,7 @@ IMPORTANT: The deliverable is a PROPOSAL. Never auto-apply changes without user 
 User: /octo:debate Should we use Redis or in-memory cache?
 
 Claude:
-1. Creates debate folder at ~/.claude-octopus/debates/${SESSION_ID}/042-redis-vs-memcached/
+1. Creates a unique debate folder under ~/.claude-octopus/debates/${SESSION_ID}/
 2. Writes context.md with question
 3. Round 1:
    - Launches Sonnet via Agent(model: sonnet, run_in_background: true) when the provider allowlist permits it
