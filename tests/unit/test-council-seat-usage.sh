@@ -162,7 +162,7 @@ EOF
     stop_quota_watcher() { :; }
     update_agent_status() { :; }
     octo_estimate_tokens_for_file() { printf '0\n'; }
-    write_agent_status() { :; }
+    write_agent_status() { printf '%s\n' "$5" >> "$RESULTS_DIR/status-reasons"; }
     CODEX_SUBAGENT_PREAMBLE=""
     wrap_cli_output() { printf '%s\n' "$2"; }
     _OCTOPUS_SEAT_USAGE_FILE="$ledger" _OCTOPUS_SEAT_USAGE_LABEL="independent-advice|seat-$3" \
@@ -275,6 +275,21 @@ if [[ "$rc" == 7 && -z "$answer" ]] &&
     test_pass
 else
     test_fail "rc=$rc diagnostic=$(cat "$capture")"
+fi
+
+test_case "a Claude error envelope keeps CLI detail out of the shared status reason"
+ledger="$WORK/claude-status-error.jsonl"
+capture="$WORK/claude-status-error.log"
+rc=0
+answer="$(OCTO_TEST_CLAUDE_STDERR='ERROR: internal request detail' _OCTOPUS_SEAT_STDERR_FILE="$capture" \
+    run_seat claude "$ledger" status-error "" 0 "$error_result")" || rc=$?
+if [[ "$rc" == 1 && -z "$answer" ]] &&
+   grep -qxF 'Claude returned an error result' "$WORK/results-status-error/status-reasons" &&
+   ! grep -qF 'internal request detail' "$WORK/results-status-error/status-reasons" &&
+   grep -qxF 'ERROR: internal request detail' "$capture"; then
+    test_pass
+else
+    test_fail "rc=$rc status=$(cat "$WORK/results-status-error/status-reasons")"
 fi
 
 COUNCIL_RUN_DIR="$WORK/run"; mkdir -p "$COUNCIL_RUN_DIR"

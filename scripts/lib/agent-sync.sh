@@ -1916,6 +1916,8 @@ ${provider_ctx}"
         elif [[ $exit_code -eq 143 ]]; then
             # Keep termination diagnostics out of trusted status and metrics.
             _sync_reason="Provider terminated by SIGTERM"
+        elif [[ "$_status_stdout" != "$temp_out" ]]; then
+            _sync_reason="Claude returned an error result"
         elif declare -F octo_failure_reason >/dev/null 2>&1; then
             _sync_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_err" "$_status_stdout")
         fi
