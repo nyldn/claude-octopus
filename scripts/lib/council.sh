@@ -5088,7 +5088,8 @@ council_seat_quota_limited() {
         # shellcheck source=/dev/null
         source "${_council_registry_dir}/quota-watcher.sh" 2>/dev/null || return 1
     fi
-    quota_watcher_has_match "$file" /dev/null stream ||
+    # A decoded result is retained as a diagnostic, not a provider status.
+    quota_watcher_has_match <(sed '/^-- decoded Claude error --$/,$d' "$file") /dev/null stream ||
         octo_quota_session_limit_line "$file" capture >/dev/null
 }
 

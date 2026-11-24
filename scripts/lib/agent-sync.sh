@@ -1325,6 +1325,7 @@ octo_safe_diagnostic_tail() {
 # Secrets are scrubbed and the file is private.
 octo_capture_seat_failure() {
     local file="${_OCTOPUS_SEAT_STDERR_FILE:-}" agent="$1" rc="$2" reason="$3" err="$4" out="$5" body="" record=""
+    local status_out="${6:-$out}"
     local terminal_status=""
     local section="-- no stderr or stdout --"
     local scanner="${BASH_SOURCE[0]%/*}/../helpers/artifact-safety.py"
@@ -1334,8 +1335,8 @@ octo_capture_seat_failure() {
     # Only the complete stdout can establish a standalone terminal status.
     # A bounded diagnostic tail may have discarded an earlier quotation lead-in.
     if [[ "$rc" != 0 ]] && declare -F octo_quota_session_limit_line >/dev/null &&
-       octo_quota_session_limit_line "$out" >/dev/null; then
-        terminal_status="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
+       octo_quota_session_limit_line "$status_out" >/dev/null; then
+        terminal_status="$(octo_safe_diagnostic_tail "$status_out" 4096)" || return 0
     fi
     # Redact the stream first: a raw byte tail can remove a credential prefix.
     # Certify before truncation too: a tail can remove an opaque key's field name.
@@ -1346,6 +1347,7 @@ octo_capture_seat_failure() {
     elif [[ -s "$out" ]]; then
         body="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
         section="-- stdout tail (stderr was empty) --"
+        [[ "$out" == "$status_out" ]] || section="-- decoded Claude error --"
     fi
     record="$(
         printf '== %s %s exited %s: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$rc" "$reason"
@@ -1845,12 +1847,15 @@ ${provider_ctx}"
         break
     done
     stop_quota_watcher "$_quota_watcher_pid"
+    local _provider_exit_code="$exit_code" _status_stdout="$temp_out"
     if [[ -n "$_seat_usage_kind" ]] &&
-       [[ "$(octo_seat_usage_record "$_seat_usage_kind" "$temp_out" "$model" "$agent_type" "$enhanced_prompt")" == provider-error ]] &&
-       [[ "$exit_code" -eq 0 ]]; then
-        exit_code=1
+       [[ "$(octo_seat_usage_record "$_seat_usage_kind" "$temp_out" "$model" "$agent_type" "$enhanced_prompt")" == provider-error ]]; then
+        # Decoded errors can describe a single seat or tool. Keep their text
+        # for diagnostics and use the actual CLI status for provider health.
+        _status_stdout=/dev/null
+        [[ "$exit_code" -ne 0 ]] || exit_code=1
     fi
-    quota_watcher_mark_after_exit "$exit_code" "$temp_err" "$temp_out" "${_provider_for_health:-}"
+    quota_watcher_mark_after_exit "$_provider_exit_code" "$temp_err" "$_status_stdout" "${_provider_for_health:-}"
     local _sync_output_truncated=false
 
     local _elapsed_ms
@@ -1912,9 +1917,9 @@ ${provider_ctx}"
             # Keep termination diagnostics out of trusted status and metrics.
             _sync_reason="Provider terminated by SIGTERM"
         elif declare -F octo_failure_reason >/dev/null 2>&1; then
-            _sync_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_err" "$temp_out")
+            _sync_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_err" "$_status_stdout")
         fi
-        octo_capture_seat_failure "$agent_type" "$exit_code" "$_sync_reason" "$temp_err" "$temp_out"
+        octo_capture_seat_failure "$agent_type" "$exit_code" "$_sync_reason" "$temp_err" "$temp_out" "$_status_stdout"
         run_contract_transition "$_sync_seat_id" "$_sync_status" \
             "reason=$_sync_reason" "stderr_file=$_sync_signal_artifact" \
             "duration_ms=$_elapsed_ms" >/dev/null 2>&1 || true

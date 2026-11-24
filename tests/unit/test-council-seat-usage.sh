@@ -124,7 +124,7 @@ run_seat() (
     local agent="$1" ledger="$2" fake="$WORK/bin-$3/$1"
     local codex_output="${4:-$CODEX_JSONL}" fake_rc="${5:-0}" claude_output="${6:-$CLAUDE_JSON}"
     mkdir -p "${fake%/*}" "$WORK/results-$3"
-    export RESULTS_DIR="$WORK/results-$3"
+    export RESULTS_DIR="$WORK/results-$3" WORKSPACE_DIR="$WORK/workspace-$3"
     cat > "$fake" <<EOF
 #!/usr/bin/env bash
 cat >/dev/null
@@ -136,6 +136,7 @@ JSONL
     ;;
     *) printf 'plain answer\nVERDICT: APPROVE\n' ;;
 esac
+printf '%s' "\${OCTO_TEST_CLAUDE_STDERR:-}" >&2
 exit $fake_rc
 EOF
     chmod 755 "$fake"
@@ -248,6 +249,34 @@ if [[ "$answer" == *"plain answer"* ]]; then test_pass; else test_fail "answer=$
 test_case "summary.json totals the ledger by phase and attaches each seat's usage"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/council.sh"
+
+test_case "a decoded Claude seat error does not mark the provider quota-dead"
+ledger="$WORK/claude-tool-error.jsonl"
+capture="$WORK/claude-tool-error.log"
+error_result='{"type":"result","is_error":true,"errors":["Tool returned HTTP 401"],"total_cost_usd":0.017}'
+rc=0
+answer="$(_OCTOPUS_SEAT_STDERR_FILE="$capture" run_seat claude "$ledger" tool-error "" 0 "$error_result")" || rc=$?
+if [[ "$rc" == 1 && -z "$answer" && ! -e "$WORK/workspace-tool-error/state/.provider-quota-dead" ]] &&
+   grep -qxF 'Tool returned HTTP 401' "$capture" && ! council_seat_quota_limited "$capture"; then
+    test_pass
+else
+    test_fail "rc=$rc diagnostic=$(cat "$capture") quota=$(cat "$WORK/workspace-tool-error/state/.provider-quota-dead" 2>/dev/null)"
+fi
+
+test_case "a real nonzero Claude CLI authentication error on stderr still marks the provider dead"
+ledger="$WORK/claude-auth-error.jsonl"
+capture="$WORK/claude-auth-error.log"
+rc=0
+answer="$(OCTO_TEST_CLAUDE_STDERR='HTTP 401 Unauthorized' _OCTOPUS_SEAT_STDERR_FILE="$capture" \
+    run_seat claude "$ledger" auth-error "" 7 "$error_result")" || rc=$?
+if [[ "$rc" == 7 && -z "$answer" ]] &&
+   grep -qxF claude "$WORK/workspace-auth-error/state/.provider-quota-dead" &&
+   council_seat_quota_limited "$capture"; then
+    test_pass
+else
+    test_fail "rc=$rc diagnostic=$(cat "$capture")"
+fi
+
 COUNCIL_RUN_DIR="$WORK/run"; mkdir -p "$COUNCIL_RUN_DIR"
 {
     jq -c '.persona = "strategy-analyst"' "$WORK/claude.jsonl"
