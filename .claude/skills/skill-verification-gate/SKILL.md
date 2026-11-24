@@ -13,6 +13,8 @@ trigger: |
 paths:
   - "**/test*"
   - "**/*.test.*"
+codex_short_description: "Check completion claims against current execution evidence"
+codex_alias_short_description: "Verify changed behavior with tests and execution evidence"
 ---
 
 # Verification Gate

@@ -2,6 +2,7 @@
 name: skill-prototype
 disable-model-invocation: true
 description: "Prototype one risky assumption within a fixed budget, then keep or discard the result"
+codex_short_description: "Test one risky assumption within an agreed budget"
 ---
 
 # Bounded prototype

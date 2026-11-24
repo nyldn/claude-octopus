@@ -1,5 +1,5 @@
 interface:
   display_name: "Skill Authoring"
-  short_description: "Principles for writing skills that behave the same way..."
+  short_description: "Write skills with clear instructions and verification steps"
 policy:
   allow_implicit_invocation: false

@@ -1,5 +1,7 @@
 ---
 name: sys-configure
+codex_short_description: "Set up providers, accounts, and workflow preferences"
+codex_display_name: "Setup"
 disable-model-invocation: true
 effort: low
 user-invocable: true

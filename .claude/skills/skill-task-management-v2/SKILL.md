@@ -17,6 +17,7 @@ trigger: |
   - Git operations (use skill-finish-branch)
   - Simple todo list viewing
   - Task completion with push (use skill-finish-branch)
+codex_short_description: "Track tasks and dependencies using available host tools"
 ---
 
 # Task Management & Orchestration (v7.23.0+)

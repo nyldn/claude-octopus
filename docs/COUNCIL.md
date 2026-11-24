@@ -274,9 +274,44 @@ Counts appear in each seat's `grounding` object in `summary.json`. Set
 Seat prompts tell seats to read only the files and diffs named in the task or
 supplied by the council, plus a file they cite when they open it to check a
 specific finding. They are told not to list, search or explore the rest of the
-repository. The instruction is fixed text ahead of the task-specific blocks, so
-it stays in the cached prompt prefix. Set `OCTOPUS_COUNCIL_BOUNDED_READING=0`
-to drop it.
+repository. The instruction follows the task and role fields and precedes the
+research, attached files, and peer responses. Set
+`OCTOPUS_COUNCIL_BOUNDED_READING=0` to remove it.
+
+## Token usage and cost
+
+Claude and Codex seats report their real token usage. When a council runs,
+Claude seats use `--output-format json` and Codex seats use `--json`. The
+council turns that output back into the answer text and appends one line per
+dispatch to `usage.jsonl` in the run directory.
+
+`summary.json` reports:
+
+- `usage.total`: dispatches, `input_tokens`, `cache_read_tokens`,
+  `cache_write_tokens`, `output_tokens`, `reasoning_tokens`, `cost_usd` and
+  `cost_complete`.
+- `usage.by_phase`: the same totals for advice, critique, revision and chair
+  synthesis.
+- `usage.dispatches`: each recorded dispatch.
+- `seats[].usage`: the totals for that seat's persona across all phases.
+
+Token fields do not overlap: `input_tokens` excludes cache reads and writes.
+Claude reports its own `total_cost_usd`. Codex cost is estimated from list
+prices, with cached input at a tenth of the input price
+(`OCTOPUS_CODEX_CACHED_INPUT_RATIO`). Antigravity seats do not report usage, so
+the round total does not include them. Set `OCTOPUS_COUNCIL_SEAT_USAGE=0` to run
+seats with plain text output.
+
+## Chair fallback
+
+When the chair's answer is rejected, the council tries synthesis-capable
+personas in order. For each persona, it checks for an accepted advice response
+before dispatching that persona with the same prompt and evidence. A successful
+dispatch can finish the search before a later response would be reused. The
+default limit is one new dispatch per run. Set
+`OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to change the limit. A value of 0 disables
+new dispatches, and 5 permits up to five. `summary.json` reports the count as
+`quorum.chair_fallback_attempts`.
 
 ## Failed provider diagnostics
 

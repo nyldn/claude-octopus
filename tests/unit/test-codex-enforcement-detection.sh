@@ -192,4 +192,75 @@ for index, (ending, delimiter) in enumerate(((b'\r\n', b'---'), (b'\n', b'---  '
 PY
 then test_pass; else test_fail "native name writer changed body bytes or missed the closing delimiter"; fi
 
+test_case "authored primary and alias UI copy override automatic truncation"
+# Insert the overrides into the existing fixture frontmatter.
+sed -i.bak '/^name: skill-verification-gate/a\
+codex_short_description: "Review evidence before reporting completion"\
+codex_alias_short_description: "Verify behavior through current execution evidence"
+' "$SKILLS_DIR/skill-verification-gate/SKILL.md"
+main >/dev/null
+if grep -Fq 'short_description: "Review evidence before reporting completion"' "$OUTPUT_DIR/skill-verification-gate/agents/openai.yaml" && \
+   grep -Fq 'short_description: "Verify behavior through current execution evidence"' "$OUTPUT_DIR/skill-verify/agents/openai.yaml"; then
+    test_pass
+else
+    test_fail "authored UI copy was ignored"
+fi
+
+test_case "invalid authored UI copy fails generation instead of silent truncation"
+sed -i.bak 's/Review evidence before reporting completion/short/' "$SKILLS_DIR/skill-verification-gate/SKILL.md"
+if ( main ) > "$TEST_TMP_DIR/invalid-ui.log" 2>&1; then
+    test_fail "invalid UI copy was accepted"
+elif grep -q 'Invalid Codex short description' "$TEST_TMP_DIR/invalid-ui.log"; then
+    test_pass
+else
+    test_fail "invalid UI copy failed without its validation diagnostic"
+fi
+
+
+test_case "authored UI copy uses Unicode character bounds in the C locale"
+if python3 - "$PROJECT_ROOT/scripts/build-codex-skills.sh" <<'PY_UNICODE'
+from pathlib import Path
+import os, subprocess, sys, tempfile
+with tempfile.TemporaryDirectory() as temporary:
+    root = Path(temporary)
+    source = root/'source.md'
+    source.write_text('---\nname: fixture\ndescription: Fixture\ndisable-model-invocation: true\n---\nBody\n')
+    valid = 'Review résumé metadata before completing this release checklist'
+    assert len(valid) == 63 and len(valid.encode()) == 65
+    program = 'source "$1"; if write_skill "$2" "$3" fixture "Fixture description" Fixture "$4"; then exit 0; else exit $?; fi'
+    for label, description, accepted in [('valid', valid, True), ('short', 'é'*24, False), ('long', 'é'*65, False)]:
+        result = subprocess.run(['bash','-c',program,'fixture',sys.argv[1],str(source),str(root/label),description],
+            env=dict(os.environ, LC_ALL='C'), capture_output=True)
+        assert (result.returncode == 0) == accepted, (label, result.returncode, result.stderr)
+PY_UNICODE
+then test_pass; else test_fail "Unicode copy was validated by byte length"; fi
+
+test_case "guarded skill writes propagate generation and filesystem failures"
+if python3 - "$PROJECT_ROOT/scripts/build-codex-skills.sh" <<'PY_WRITES'
+from pathlib import Path
+import subprocess, sys, tempfile
+program = r'''
+source "$1"
+if [[ "$4" == body ]]; then adapt_body_for_codex() { return 17; }; fi
+if write_skill "$2" "$3" fixture "Fixture description" Fixture "Review evidence before reporting completion"; then
+    exit 0
+else
+    exit $?
+fi
+'''
+with tempfile.TemporaryDirectory() as temporary:
+    root = Path(temporary)
+    source = root/'source.md'; source.write_text('---\nname: fixture\ndescription: Fixture\n---\nBody\n')
+    for mode in ('body', 'mkdir', 'header', 'metadata'):
+        output = root/mode
+        if mode == 'mkdir': output.write_text('block directory creation')
+        if mode == 'header': (output/'SKILL.md').mkdir(parents=True)
+        if mode == 'metadata': (output/'agents/openai.yaml').mkdir(parents=True)
+        result = subprocess.run(['bash','-c',program,'fixture',sys.argv[1],str(source),str(output),mode],capture_output=True)
+        assert result.returncode != 0, (mode, 'partial output was reported as success')
+        if mode in ('body', 'header'):
+            assert not (output/'agents/openai.yaml').exists(), mode
+PY_WRITES
+then test_pass; else test_fail "partial skill generation was reported as success"; fi
+
 test_summary

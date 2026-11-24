@@ -176,4 +176,61 @@ assert_not_contains "$SKILL_CONTENT" "gstack" "no attribution: does not referenc
 assert_not_contains "$SKILL_CONTENT" "office-hours" "no attribution: does not reference office-hours"
 
 assert_not_contains "$SKILL_CONTENT" "github\.com/[a-z].*source" "no attribution: no source repo references"
+# Execute the actual revision-selection recipe with two distinct branches
+# whose legacy filename slugs are identical.
+fixture="$TEST_TMP_DIR/branch-identity"
+mkdir -p "$fixture/project" "$fixture/home"
+git -C "$fixture/project" init -q
+git -C "$fixture/project" symbolic-ref HEAD refs/heads/feature/auth
+git -C "$fixture/project" -c user.name=Test -c user.email=test@example.invalid \
+    -c commit.gpgsign=false -c core.hooksPath=/dev/null \
+    commit -q --allow-empty -m "Initial commit"
+designs_dir="$fixture/home/.claude-octopus/designs/project"
+mkdir -p "$designs_dir"
+write_design() {
+    printf '%s\n' '---' "branch: $2" '---' "$3" > "$designs_dir/$1"
+}
+older="reviewer-feature-auth-design-20260101-010101.md"
+current="reviewer-feature-auth-design-20260102-010101.md"
+other="reviewer-feature-auth-design-20260103-010101.md"
+write_design "$older" 'feature/auth' 'Older design'
+write_design "$current" 'feature/auth' 'Latest matching design'
+write_design "$other" 'feature-auth' $'Unrelated design\nbranch: feature/auth'
+touch -t 202601010101 "$designs_dir/$older"
+touch -t 202601020101 "$designs_dir/$current"
+touch -t 202601030101 "$designs_dir/$other"
+
+design_recipe() {
+    awk -v step="$2" '
+        index($0, "## Step " step ":") == 1 { section = 1 }
+        section && /^```bash$/ { block = 1; next }
+        block && /^```$/ { exit }
+        block { print }
+    ' "$1"
+}
+
+for tree in skills .claude/skills codex-skills; do
+    skill="$PROJECT_ROOT/$tree/skill-design-lineage/SKILL.md"
+    lookup=$(design_recipe "$skill" 3)
+    discovery=$(design_recipe "$skill" 4)
+
+    test_case "$tree links the newest design on the exact branch"
+    if chosen=$(cd "$fixture/project" &&
+        HOME="$fixture/home" DESIGNS_DIR="$designs_dir" bash -c "$lookup"$'\nprintf "%s" "${SUPERSEDES:-}"') &&
+        [[ "$chosen" == "$current" ]]; then
+        test_pass
+    else
+        test_fail "expected $current, got ${chosen:-<none>}"
+    fi
+
+    test_case "$tree reads only same-branch design context in newest-first order"
+    if discovered=$(cd "$fixture/project" &&
+        HOME="$fixture/home" bash -c "$lookup"$'\n'"$discovery"$'\nprintf "%s" "${DESIGN_CONTEXT:-}"') &&
+        [[ "$discovered" == *"$current"*"$older"*'Latest matching design'* && "$discovered" != *"$other"* ]]; then
+        test_pass
+    else
+        test_fail "workflow context included the wrong designs"
+    fi
+done
+
 test_summary

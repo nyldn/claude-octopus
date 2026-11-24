@@ -1,5 +1,5 @@
 interface:
-  display_name: "Configure"
-  short_description: "Configure Claude Octopus — redirects to /octo:setup..."
+  display_name: "Setup"
+  short_description: "Set up providers, accounts, and workflow preferences"
 policy:
   allow_implicit_invocation: false

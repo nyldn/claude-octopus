@@ -5,6 +5,7 @@ import itertools
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -275,9 +276,51 @@ class DocumentRendererTest(unittest.TestCase):
                                    "maximum call count", "estimated spend", "Unknown costs"):
                     self.assertIn(identifier, gate)
                 self.assertLess(gate.index("obtain consent"), gate.index("Use real"))
-                self.assertIn('OCTOPUS_PREFLIGHT_PROBE=0 "$ADVISOR_SELECTOR"', gate)
                 self.assertLess(gate.index("OCTOPUS_PREFLIGHT_PROBE=0"),
                                 gate.index("obtain consent"))
+
+    def test_deck_static_readiness_in_a_fresh_shell(self):
+        plugin = self.base / "plugin [fixture]"
+        selector = plugin / "scripts/helpers/select-fleet-advisors.sh"
+        selector.parent.mkdir(parents=True)
+        selector.write_text(
+            '#!/bin/sh\n'
+            '[ "$OCTOPUS_PREFLIGHT_PROBE" = 0 ] || exit 7\n'
+            '[ "$OCTO_ALLOWED_PROVIDERS" = "codex agy" ] || exit 8\n'
+            'printf "%s\\n" "$@" > "$DECK_ARGS"\n'
+            'exit "${SELECTOR_EXIT:-0}"\n'
+        )
+        selector.chmod(0o755)
+        capture = self.base / "deck-args"
+        question = "What's acceptable?\nKeep $HOME and `printf no` literal."
+        environment = {"PATH": os.environ["PATH"], "OCTOPUS_PREFLIGHT_PROBE": "1",
+                       "DECK_ARGS": str(capture)}
+        inputs = {"OCTO_ROOT": str(plugin), "DECK_QUESTION": question,
+                  "OCTO_ALLOWED_PROVIDERS": "codex agy"}
+
+        def run(shell, recipe, values, **overrides):
+            assignments = "\n".join(f"{key}={shlex.quote(value)}" for key, value in values.items())
+            return subprocess.run([shell, "-uc", f"{assignments}\n{recipe}"],
+                                  env=dict(environment, **overrides), capture_output=True,
+                                  text=True, timeout=5)
+
+        for tree in (".claude/skills", "skills", "codex-skills"):
+            text = (ROOT / tree / "skill-deck/SKILL.md").read_text()
+            blocks = re.findall(r"```bash\n(.*?)\n\s*```", text, re.S)
+            recipe = next((block for block in blocks if "OCTOPUS_PREFLIGHT_PROBE=0" in block), "")
+            self.assertTrue(recipe, f"missing executable static readiness recipe in {tree}")
+            for shell in ("bash", "sh"):
+                with self.subTest(tree=tree, shell=shell):
+                    result = run(shell, recipe, inputs)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(capture.read_text(), f"debate\nstandard\n{question}\n")
+                    self.assertEqual(run(shell, recipe, inputs, SELECTOR_EXIT="21").returncode, 21)
+                    for missing in ("OCTO_ROOT", "DECK_QUESTION"):
+                        capture.unlink(missing_ok=True)
+                        result = run(shell, recipe, {k: v for k, v in inputs.items() if k != missing})
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn(missing, result.stderr)
+                        self.assertFalse(capture.exists())
 
     def test_deck_command_exposes_optional_red_team(self):
         text = (ROOT / "commands/deck.md").read_text()

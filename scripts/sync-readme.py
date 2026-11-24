@@ -590,7 +590,6 @@ def main() -> int:
             root / "docs/COMMAND-REFERENCE.md": sync_command_reference,
             root / "docs/README.md": sync_docs_index,
             root / ".claude-plugin/plugin-manifest.json": sync_plugin_manifest,
-            root / ".codex-plugin/plugin.json": sync_component_counts,
             root / ".factory-plugin/plugin.json": sync_component_counts,
             root / ".factory-plugin/marketplace.json": sync_component_counts,
         }

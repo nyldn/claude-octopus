@@ -21,7 +21,8 @@ How was this tested? Which test suites were run?
 
 For installation, setup, or package changes, record the applicable checks from
 the [delivery contract](../RELEASING.md#delivery-contract-for-workflow-methods),
-including the host version and any user paths that remain unverified.
+including the host version and any user paths that remain unverified. For Codex
+listing changes, also use [the presentation checks](../docs/DELIVERY.md).
 
 ```bash
 # Run pre-push suite
