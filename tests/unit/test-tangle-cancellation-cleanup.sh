@@ -240,6 +240,30 @@ else
     test_fail "provider survived cancellation before PID ledger handoff"
 fi
 
+test_case "cancellation recognizes both verified workers when a replacement reuses the task ID"
+if (
+    task_id=tangle-900003-0
+    OCTOPUS_ACTIVE_TANGLE_TASK_GROUP=900003
+    OCTOPUS_ACTIVE_TANGLE_TMUX=false
+    OCTOPUS_ACTIVE_TANGLE_PIDS=(42001)
+    OCTOPUS_ACTIVE_TANGLE_AGENTS=(claude-sonnet)
+    OCTOPUS_ACTIVE_TANGLE_TASK_IDS=("$task_id")
+    octopus_pid_verified_rows() {
+        printf '42001:codex:%s:old-identity\n42002:claude-sonnet:%s:new-identity\n' "$task_id" "$task_id"
+    }
+    review_kill_process_tree_frozen() {
+        printf '%s %s\n' "$1" "$2" >> "$TEST_TMP_DIR/replacement-cancelled"
+    }
+    review_kill_descendants_frozen() { :; }
+    : > "$PID_FILE"
+    octopus_tangle_cancel_active TERM &&
+        [[ "$(cat "$TEST_TMP_DIR/replacement-cancelled")" == $'42001 old-identity\n42002 new-identity' ]]
+); then
+    test_pass
+else
+    test_fail "a verified replacement or previous worker was missing from cancellation"
+fi
+
 test_case "exited group leader is not authority to signal an orphan group"
 group_child_pid_file="$TEST_TMP_DIR/group-child.pid"
 group_late_write="$TEST_TMP_DIR/group-late-write"

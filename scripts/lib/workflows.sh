@@ -3189,18 +3189,23 @@ tangle_process_is_active_non_zombie() {
 # own the pids/task_ids arrays and signal traps; provider stall supervision stays
 # in spawn_agent. Completion uses launcher markers, with bounded grace for exited
 # workers and reconciliation of late successful artifacts.
+tangle_subtask_wait_deadline() {
+    local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-0}"
+    if [[ "$_tangle_max_wait" =~ ^[0-9]+$ && "$_tangle_max_wait" -gt 0 ]]; then
+        printf '%s\n' "$(( $(date +%s) + _tangle_max_wait ))"
+    else
+        printf '0\n'
+    fi
+}
+
 tangle_wait_for_subtasks() {
     local task_group="$1"
+    local _deadline="${2:-}"
     local i
     local _done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
-    local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-0}"
-    [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=0
+    [[ -n "$_deadline" ]] || _deadline=$(tangle_subtask_wait_deadline)
     local _missing_marker_grace="${OCTOPUS_TANGLE_MISSING_MARKER_GRACE:-180}"
     [[ "$_missing_marker_grace" =~ ^[0-9]+$ ]] || _missing_marker_grace=180
-    local _deadline=0
-    if [[ "$_tangle_max_wait" -gt 0 ]]; then
-        _deadline=$(( $(date +%s) + _tangle_max_wait ))
-    fi
     local completed=0
     local _terminal_task_ids=""
     local _missing_marker_since=()
@@ -3215,7 +3220,7 @@ tangle_wait_for_subtasks() {
                 ((completed++)) || true
             else
                 local _worker_pid="${pids[$i]:-}"
-                if [[ "$_tangle_max_wait" -gt 0 ]] && (( $(date +%s) > _deadline )); then
+                if [[ "$_deadline" -gt 0 ]] && (( $(date +%s) > _deadline )); then
                     log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
                     if [[ -n "$_worker_pid" ]] && tangle_process_is_active_non_zombie "$_worker_pid"; then
                         # Resolve ownership from the PID ledger before signaling.
@@ -3365,7 +3370,7 @@ octopus_tangle_cancel_active() {
     local -a cancel_agents=("${OCTOPUS_ACTIVE_TANGLE_AGENTS[@]+"${OCTOPUS_ACTIVE_TANGLE_AGENTS[@]}"}")
     local -a cancel_tasks=("${OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]+"${OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]}"}")
     local -a cancel_identities=()
-    local ledger_pid ledger_agent ledger_task ledger_identity idx found found_idx verified_rows
+    local ledger_pid ledger_agent ledger_task ledger_identity idx found_idx verified_rows
     for idx in "${!cancel_tasks[@]}"; do cancel_identities[$idx]=""; done
 
     # The ledger closes the race between spawn_agent's append and the caller's
@@ -3382,22 +3387,20 @@ octopus_tangle_cancel_active() {
         while IFS=: read -r ledger_pid ledger_agent ledger_task ledger_identity; do
             [[ -z "$ledger_identity" ]] || ledger_agent="$(octopus_pid_agent_name "$ledger_agent")"
             [[ "$ledger_task" == "tangle-${task_group}-"* ]] || continue
-            found=false
             found_idx=""
             for idx in "${!cancel_tasks[@]}"; do
-                if [[ "${cancel_tasks[$idx]:-}" == "$ledger_task" ]]; then
-                    found=true
-                    found_idx="$idx"
-                    break
-                fi
+                [[ "${cancel_tasks[$idx]:-}" == "$ledger_task" ]] || continue
+                [[ -z "${cancel_pids[$idx]:-}" || "${cancel_pids[$idx]}" == "$ledger_pid" ]] || continue
+                found_idx="$idx"
+                break
             done
-            if [[ "$found" == "true" ]]; then
-                [[ -n "${cancel_pids[$found_idx]:-}" ]] || cancel_pids[$found_idx]="$ledger_pid"
-                [[ -n "${cancel_agents[$found_idx]:-}" ]] || cancel_agents[$found_idx]="$ledger_agent"
-                if [[ "${cancel_pids[$found_idx]:-}" == "$ledger_pid" ]]; then
-                    cancel_identities[$found_idx]="$ledger_identity"
-                fi
+            if [[ -n "$found_idx" ]]; then
+                cancel_pids[$found_idx]="$ledger_pid"
+                cancel_agents[$found_idx]="$ledger_agent"
+                cancel_identities[$found_idx]="$ledger_identity"
             else
+                # A replacement can register under the same task before its
+                # PID has replaced the previous attempt in the active slot.
                 cancel_pids+=("$ledger_pid")
                 cancel_agents+=("$ledger_agent")
                 cancel_tasks+=("$ledger_task")
@@ -4273,212 +4276,6 @@ tangle_correction_identity_message() {
 
 # Apply verified normal findings within the correction budget. Track worktree
 # progress and completion separately so progress reporting cannot delay reaping.
-tangle_run_review_correction() {
-    local resolved_prompt="$1"
-    local context_file="$2"
-    local findings_file="$3"
-    local round_num="$4"
-    local routed_agent="${5:-codex}"
-    local correction_agent="" candidate
-    local correction_strategy="${6:-delta}"
-    local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-${correction_agent//[^A-Za-z0-9._-]/_}-$(date +%s).md"
-    local rc_file="${correction_file}.rc"
-    local normal_findings strategy_text before_fp after_fp last_fp last_size last_progress now
-
-    TANGLE_CORRECTION_FILE="$correction_file"
-    TANGLE_CORRECTION_STATUS="unknown"
-    TANGLE_CORRECTION_CHANGED="0"
-    TANGLE_CORRECTION_CONTAMINATION=""
-
-    normal_findings=$(tangle_normal_findings_summary "$findings_file")
-    if [[ -z "$normal_findings" ]]; then
-        log INFO "No normal findings to correct in $findings_file"
-        TANGLE_CORRECTION_STATUS="no-findings"
-        return 0
-    fi
-
-    # The subtask provider can go offline before the review calls for edits.
-    while IFS= read -r candidate; do
-        tangle_subtask_agent_dispatchable "$candidate" || continue
-        correction_agent="$candidate"
-        break
-    done < <(tangle_subtask_fallback_agents "$routed_agent")
-    if [[ -z "$correction_agent" ]]; then
-        TANGLE_CORRECTION_FILE=""
-        TANGLE_CORRECTION_STATUS="provider-unavailable"
-        log ERROR "Correction round ${round_num}: no allowed, available provider for $routed_agent"
-        return 1
-    fi
-    if [[ "$correction_agent" != "$routed_agent" ]]; then
-        log WARN "Correction round ${round_num}: dispatching to $correction_agent instead of $routed_agent"
-    fi
-
-    strategy_text=$(tangle_correction_strategy_prompt "$correction_strategy")
-    local correction_prompt="You are in Octopus tangle correction round ${round_num}.
-
-Do not reimplement the whole plan.
-Do not expand scope.
-Do not restart from scratch.
-Preserve existing working-tree changes unless a change is necessary to fix a blocking finding.
-Fix blocking severity=normal findings using the requested strategy.
-After editing, report files changed and tests/checks run.
-
-${strategy_text}
-
-Hard rules:
-- Do not declare success unless the intended edits were actually written.
-- Do not leave backup/scratch files in the worktree.
-- Prefer exact edits and tests over prose.
-
-Original task contract:
-\`\`\`markdown
-${resolved_prompt}
-\`\`\`
-
-Review context file for reference:
-${context_file}
-
-Blocking findings to fix:
-${normal_findings}
-"
-
-    before_fp=$(tangle_worktree_fingerprint) || before_fp=""
-    last_fp="$before_fp"
-    last_size=0
-    last_progress=$(date +%s)
-    : > "$correction_file"
-    rm -f "$rc_file" 2>/dev/null || true
-
-    local stall_window="${OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW:-1800}"
-    local poll_secs="${OCTOPUS_TANGLE_CORRECTION_POLL_SECS:-30}"
-    [[ "$stall_window" =~ ^[0-9]+$ ]] || stall_window=1800
-    [[ "$poll_secs" =~ ^[0-9]+$ ]] || poll_secs=30
-    [[ "$poll_secs" -lt 1 ]] && poll_secs=1
-
-    local correction_model
-    correction_model=$(get_agent_model "$correction_agent" "tangle" "implementer" 2>/dev/null || true)
-    [[ -n "$correction_model" ]] || correction_model="unresolved"
-    log INFO "$(tangle_correction_identity_message "$round_num" "$correction_strategy" "$stall_window" "$correction_agent" "$correction_model")"
-    (
-        OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-correction-stall-watchdog" run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1
-        echo "$?" > "$rc_file"
-    ) &
-    local correction_pid=$!
-    local stalled="false"
-    local next_probe=$((last_progress + poll_secs))
-
-    while true; do
-        [[ -f "$rc_file" ]] && break
-        if ! tangle_process_is_active_non_zombie "$correction_pid"; then
-            break
-        fi
-        sleep 1
-        [[ -f "$rc_file" ]] && break
-        tangle_process_is_active_non_zombie "$correction_pid" || break
-        now=$(date +%s)
-        [[ "$now" -ge "$next_probe" || ( "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ) ]] || continue
-        next_probe=$((now + poll_secs))
-        local current_fp current_size
-        current_fp=$(tangle_worktree_fingerprint) || current_fp="$last_fp"
-        current_size=$(stat -c '%s' "$correction_file" 2>/dev/null || stat -f '%z' "$correction_file" 2>/dev/null || echo 0)
-        if [[ "$current_fp" != "$last_fp" || "$current_size" != "$last_size" ]]; then
-            last_fp="$current_fp"
-            last_size="$current_size"
-            last_progress=$(date +%s)
-            log INFO "Correction round ${round_num}: progress observed (worktree/output changed)"
-        fi
-        now=$(date +%s)
-        if [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
-            [[ -f "$rc_file" ]] && break
-            tangle_process_is_active_non_zombie "$correction_pid" || break
-            stalled="true"
-            log WARN "Correction round ${round_num}: no observable progress for ${stall_window}s — stopping agent and preserving partial writes"
-            pkill -TERM -P "$correction_pid" 2>/dev/null || true
-            kill -TERM "$correction_pid" 2>/dev/null || true
-            sleep 2
-            pkill -KILL -P "$correction_pid" 2>/dev/null || true
-            kill -KILL "$correction_pid" 2>/dev/null || true
-            break
-        fi
-    done
-
-    wait "$correction_pid" 2>/dev/null || true
-    local correction_rc="1"
-    [[ -f "$rc_file" ]] && correction_rc=$(cat "$rc_file" 2>/dev/null || echo 1)
-    rm -f "$rc_file" 2>/dev/null || true
-
-    after_fp=$(tangle_worktree_fingerprint) || after_fp=""
-    # An unreadable snapshot cannot prove it's safe to retry on this worktree.
-    if [[ -z "$before_fp" || -z "$after_fp" || "$after_fp" != "$before_fp" ]]; then
-        TANGLE_CORRECTION_CHANGED="1"
-    fi
-    TANGLE_CORRECTION_CONTAMINATION=$(tangle_scope_contamination_summary)
-
-    if [[ "$stalled" == "true" ]]; then
-        TANGLE_CORRECTION_STATUS="stalled-partial"
-        {
-            echo ""
-            echo "## Status: STALLED - PARTIAL RESULTS"
-            echo "# Completed: $(date)"
-        } >> "$correction_file"
-        log WARN "Correction round ${round_num} stalled; partial writes changed=${TANGLE_CORRECTION_CHANGED}; result: $correction_file"
-        return 0
-    fi
-
-    if [[ "$correction_rc" == "0" ]]; then
-        TANGLE_CORRECTION_STATUS="completed"
-        {
-            echo ""
-            echo "## Status: SUCCESS"
-            echo "# Completed: $(date)"
-        } >> "$correction_file"
-        log INFO "Correction round ${round_num} result: $correction_file"
-        return 0
-    fi
-
-    if [[ "$correction_rc" == "130" || "$correction_rc" == "137" || "$correction_rc" == "143" ]]; then
-        TANGLE_CORRECTION_STATUS="interrupted-partial"
-        {
-            echo ""
-            echo "## Status: INTERRUPTED - PARTIAL WRITES PRESERVED"
-            echo "# Completed: $(date)"
-        } >> "$correction_file"
-        log WARN "Correction round ${round_num} was interrupted (rc=${correction_rc}); preserving partial writes but stopping correction loop: $correction_file"
-        return 1
-    fi
-
-    if [[ "$TANGLE_CORRECTION_CHANGED" == "1" ]]; then
-        TANGLE_CORRECTION_STATUS="failed-partial"
-        {
-            echo ""
-            echo "## Status: FAILED - PARTIAL WRITES PRESERVED"
-            echo "# Completed: $(date)"
-        } >> "$correction_file"
-        log WARN "Correction round ${round_num} failed but left partial writes; validation/review should continue: $correction_file"
-        return 0
-    fi
-
-    TANGLE_CORRECTION_STATUS="failed-no-progress"
-    {
-        echo ""
-        echo "## Status: FAILED - NO PROGRESS"
-        echo "# Completed: $(date)"
-    } >> "$correction_file"
-    log WARN "Correction round ${round_num} failed with no observable worktree change: $correction_file"
-    return 1
-}
-
-tangle_correction_next_agent() {
-    local routed_agent="$1" tried="$2" candidate
-    while IFS= read -r candidate; do
-        [[ "$tried" == *"|$candidate|"* ]] && continue
-        tangle_subtask_agent_dispatchable "$candidate" || continue
-        printf '%s\n' "$candidate"
-        return 0
-    done < <(tangle_subtask_fallback_agents "$routed_agent")
-    return 1
-}
-
 tangle_apply_review_corrections() {
     local resolved_prompt="$1"
     local context_file="$2"
@@ -5204,9 +5001,11 @@ tangle_subtask_fallback_agents() {
 
 tangle_spawn_subtask() {
     local agent="$1" prompt="$2" task_id="$3" role="$4" pane_title="$5" active_idx="$6"
+    local recovery="${7:-0}" tried="${8:-|}"
     local candidate pid spawn_status attempt=0 contract_task_id
     TANGLE_SPAWNED_PID=""
     while IFS= read -r candidate; do
+        [[ "$tried" != *"|$candidate|"* ]] || continue
         if ! tangle_subtask_agent_dispatchable "$candidate"; then
             log WARN "Tangle task $task_id: $candidate is unavailable (circuit open or quota exhausted); trying the next provider"
             continue
@@ -5217,7 +5016,9 @@ tangle_spawn_subtask() {
         # Keep completion markers and PID tracking on the logical task.
         # Each retry needs a new contract seat after the prior seat terminates.
         contract_task_id="$task_id"
-        if (( attempt > 1 )); then
+        if (( recovery > 0 )); then
+            contract_task_id="${task_id}:recovery-$recovery-attempt-$attempt"
+        elif (( attempt > 1 )); then
             contract_task_id="${task_id}:attempt-$attempt"
         fi
         spawn_status=0
@@ -5238,16 +5039,22 @@ tangle_spawn_subtask() {
 }
 
 tangle_rerun_dead_provider_subtasks() {
-    local task_group="$1"
+    local task_group="$1" deadline="$2"
     local done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
     local results_dir="${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
-    local i ran_on next candidate result prompt rerun
-    local -a tried=()
+    local i ran_on next candidate result prompt rerun task_id
+    local -a tried=() recoveries=()
     while :; do
         rerun=false
         for i in "${!task_ids[@]}"; do
-            [[ "$(cat "${done_dir}/${task_ids[$i]}.done" 2>/dev/null)" != 0 ]] || continue
+            task_id="${task_ids[$i]}"
+            # Provider health is shared across tasks. Require the trusted
+            # terminal marker and result from this specific attempt.
+            [[ "$(cat "$done_dir/$task_id.done" 2>/dev/null || true)" == 75 ]] || continue
             ran_on="${OCTOPUS_ACTIVE_TANGLE_AGENTS[$i]:-}"
+            [[ -n "$ran_on" ]] || continue
+            result="$results_dir/$(octo_agent_spec_slug "$ran_on")-$task_id.md"
+            [[ "$(octo_result_launcher_status "$result" || true)" == "## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)" ]] || continue
             tangle_subtask_agent_dispatchable "$ran_on" && continue
             tried[$i]="${tried[$i]:-|}${ran_on}|"
             next=""
@@ -5258,14 +5065,17 @@ tangle_rerun_dead_provider_subtasks() {
                 break
             done < <(tangle_subtask_fallback_agents "${subtask_agents[$i]}")
             [[ -n "$next" ]] || continue
-            log WARN "Tangle task ${task_ids[$i]}: $ran_on became unavailable while it ran; rerunning it on $next"
-            for result in "$results_dir"/*-"${task_ids[$i]}".md; do
-                [[ ! -f "$result" ]] || mv "$result" "${result}.provider-unavailable" || return 1
-            done
-            rm -f "${done_dir}/${task_ids[$i]}.done"
+            # Recovery shares Step 2's original wait budget.
+            if [[ "$deadline" -gt 0 ]] && (( $(date +%s) >= deadline )); then
+                break
+            fi
+            log WARN "Tangle task $task_id: $ran_on became unavailable while it ran; rerunning it on $next"
+            mv "$result" "${result}.provider-unavailable" || return 1
+            rm -f "$done_dir/$task_id.done" || return 1
+            recoveries[$i]=$(( ${recoveries[$i]:-0} + 1 ))
             prompt="A previous attempt at this subtask stopped when its provider (${ran_on}) became unavailable. Any edits it made are still in the worktree: review them and finish the subtask from there instead of starting over."$'\n\n'"${subtask_prompts[$i]}"
-            if ! tangle_spawn_subtask "$next" "$prompt" "${task_ids[$i]}" "${subtask_roles[$i]}" "${subtask_pane_titles[$i]}" "$i"; then
-                log ERROR "Failed to rerun Tangle task ${task_ids[$i]}"
+            if ! tangle_spawn_subtask "$next" "$prompt" "$task_id" "${subtask_roles[$i]}" "${subtask_pane_titles[$i]}" "$i" "${recoveries[$i]}" "${tried[$i]}"; then
+                log ERROR "Failed to rerun Tangle task $task_id"
                 return 1
             fi
             pids[$i]="$TANGLE_SPAWNED_PID"
@@ -5273,7 +5083,7 @@ tangle_rerun_dead_provider_subtasks() {
             rerun=true
         done
         [[ "$rerun" == true ]] || return 0
-        tangle_wait_for_subtasks "$task_group" || return 1
+        tangle_wait_for_subtasks "$task_group" "$deadline" || return 1
     done
 }
 
@@ -5791,10 +5601,11 @@ $(tangle_decomposition_json_contract_guidance)"
         return 1
     fi
 
-    # Coding providers must run behind a parent-owned filesystem boundary.
-    export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
-    export OCTOPUS_TANGLE_WORKTREE="$PROJECT_ROOT"
-    export OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
+    # Keep the parent-owned filesystem boundary through both first dispatch
+    # and any recovery or validation retries in this worktree.
+    local -x OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
+    local -x OCTOPUS_TANGLE_WORKTREE="$PROJECT_ROOT"
+    local -x OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
 
     local tangle_previous_int_trap tangle_previous_term_trap
     tangle_previous_int_trap="$(trap -p INT)"
@@ -5853,7 +5664,6 @@ $(tangle_decomposition_json_contract_guidance)"
         ((subtask_num++)) || true
     done
     fleet_dispatch_end
-    unset OCTOPUS_TANGLE_EXECUTION_BOUNDARY OCTOPUS_TANGLE_WORKTREE OCTOPUS_TANGLE_RESULTS_DIR
 
     # Future-proof fail-closed guard: the current loop increments once per
     # retained line, but this catches any later continue/break/error path before
@@ -5869,7 +5679,10 @@ $(tangle_decomposition_json_contract_guidance)"
 
     local _done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
     local _failed_tasks=()
-    if ! tangle_wait_for_subtasks "$task_group" || ! tangle_rerun_dead_provider_subtasks "$task_group"; then
+    local subtask_deadline
+    subtask_deadline=$(tangle_subtask_wait_deadline)
+    if ! tangle_wait_for_subtasks "$task_group" "$subtask_deadline" ||
+       ! tangle_rerun_dead_provider_subtasks "$task_group" "$subtask_deadline"; then
         octopus_tangle_cancel_active TERM
         _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
         return 1

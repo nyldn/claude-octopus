@@ -35,6 +35,7 @@ load_fixture() {
     source "$PROJECT_ROOT/scripts/provider-router.sh"
     source "$PROJECT_ROOT/scripts/lib/agent-utils.sh"
     source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+    source "$PROJECT_ROOT/scripts/lib/spawn.sh"
 
     git -C "$dir/repo" init -q
     printf 'fixture\n' > "$dir/repo/README.md"
@@ -87,6 +88,9 @@ run_develop() (
     fleet_dispatch_begin() { :; }
     fleet_dispatch_end() { :; }
     validate_tangle_results() { :; }
+    if [[ "$SCENARIO" == deadline ]]; then
+        tangle_subtask_wait_deadline() { printf '1\n'; }
+    fi
 
     run_agent_sync() {
         if [[ "${OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED:-}" == "tangle-decomposition-adequacy" ]]; then
@@ -111,7 +115,7 @@ EOF
     }
 
     spawn_agent_capture_pid() {
-        local agent="$1" task_id="$3" role="$4" provider spawned
+        local agent="$1" task_id="$3" role="$4" phase="$5" provider spawned
         cat >/dev/null || true
         printf 'attempt %s %s\n' "$task_id" "$agent" >> "$CAPTURE"
         [[ "$task_id" != *-0 || "$2" == *"Add the two org scopes."* ]] || printf 'lost prompt %s\n' "$task_id" >> "$CAPTURE"
@@ -120,12 +124,25 @@ EOF
         octo_quota_is_dead "$provider" && return 1
         spawned=$(grep -c '^spawned ' "$CAPTURE" || true)
         printf 'spawned %s %s|%s\n' "$task_id" "$agent" "$role" >> "$CAPTURE"
+        if [[ "$SCENARIO" == boundary && "$agent" == claude-sonnet ]]; then
+            if octopus_tangle_execution_boundary_required &&
+               [[ "${OCTOPUS_TANGLE_WORKTREE:-}" == "$PROJECT_ROOT" &&
+                  "${OCTOPUS_TANGLE_RESULTS_DIR:-}" == "$RESULTS_DIR" ]]; then
+                printf 'boundary configured\n' >> "$CAPTURE"
+            else
+                printf 'boundary missing\n' >> "$CAPTURE"
+            fi
+            printf 'contract %s\n' "${7#"$task_id"}" >> "$CAPTURE"
+        fi
         mkdir -p src
         if attempt_dies "$agent" "$task_id" "$spawned"; then
             printf 'partial by %s\n' "$agent" >> src/scopes.ts
-            if [[ "$SCENARIO" == healthy-failure ]]; then
+            if [[ "$SCENARIO" == healthy-failure || "$SCENARIO" == unrelated-quota ]]; then
                 write_result "$agent" "$task_id" "FAILED (exit code: 1)"
                 printf '1\n' > "$WORKSPACE_DIR/.octo/agents/${task_id}.done"
+            elif [[ "$SCENARIO" == ordinary-75 ]]; then
+                write_result "$agent" "$task_id" "FAILED (exit code: 75)"
+                printf '75\n' > "$WORKSPACE_DIR/.octo/agents/${task_id}.done"
             else
                 [[ "$agent" != claude-sonnet ]] || kill_provider claude
                 write_result "$agent" "$task_id" "FAILED - QUOTA OR AUTH ERROR (exit code: 75)"
@@ -139,7 +156,7 @@ EOF
         if [[ "$spawned" -eq 1 ]]; then
             case "$SCENARIO" in
                 circuit) kill_provider circuit ;;
-                quota|replacement-dies|codex-only) kill_provider quota ;;
+                quota|replacement-dies|codex-only|boundary|unrelated-quota|ordinary-75|deadline) kill_provider quota ;;
             esac
         fi
         printf '12345\n'
@@ -239,6 +256,33 @@ spawned task1 codex|implementer
 partial by codex
 results: codex-task0 codex-task1" \
     run_develop healthy-failure healthy-failure
+
+for scenario in unrelated-quota ordinary-75 deadline; do
+    expect_output "a task is eligible for recovery only with provider-failure evidence and time left ($scenario)" \
+"rc=0
+attempt task0 codex
+spawned task0 codex|implementer
+attempt task1 codex
+spawned task1 codex|implementer
+partial by codex
+results: codex-task0 codex-task1" \
+        run_develop "$scenario" "$scenario"
+done
+
+expect_output "a replacement retains the boundary and gets a new execution contract seat" \
+"rc=0
+attempt task0 codex
+spawned task0 codex|implementer
+attempt task1 codex
+spawned task1 codex|implementer
+attempt task0 claude-sonnet
+spawned task0 claude-sonnet|implementer
+boundary configured
+contract :recovery-1-attempt-1
+partial by codex
+finished by claude-sonnet
+results: claude-sonnet-task0 codex-task1" \
+    run_develop boundary boundary
 
 expect_output "allowlist 'codex' has no replacement, so the failed subtask stays failed" \
 "rc=0

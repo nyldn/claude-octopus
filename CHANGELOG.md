@@ -6,6 +6,8 @@
 
 - Debate gives each run its own folder so a second debate in the same session
   preserves the first debate's context, state, and round notes.
+- Develop can retry a subtask on an allowed provider after a quota or
+  authentication failure, keeping partial edits in the same worktree.
 
 ## [11.28.2] - 2026-11-24
 
