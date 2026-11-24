@@ -69,6 +69,18 @@ run_correction() (
         if [[ "$agent" == codex ]]; then
             case "$SCENARIO" in
                 quota-during) octo_quota_mark_dead codex ;;
+                quota-interrupted-wrapper|quota-missing-record)
+                    octo_quota_mark_dead codex
+                    if [[ "$SCENARIO" == quota-interrupted-wrapper ]]; then
+                        exec bash -c 'kill -KILL "$$"'
+                    fi
+                    exit 0
+                    ;;
+                quota-invalid-record)
+                    octo_quota_mark_dead codex
+                    printf() { builtin printf 'invalid\n'; }
+                    return 1
+                    ;;
                 quota-tracked-edit)
                     printf 'next\n' > "$REPO_DIR/tracked"
                     octo_quota_mark_dead codex
@@ -176,5 +188,12 @@ dispatch codex" \
 expect_correction "allowlist 'codex' with codex dead dispatches nothing and stops the loop" \
 "rc=1 status=provider-unavailable" \
     allowlist-codex-only quota-before "codex"
+
+for scenario in quota-interrupted-wrapper quota-missing-record quota-invalid-record; do
+    expect_correction "$scenario stops the round without launching a fallback" \
+"rc=1 status=interrupted-partial
+dispatch codex" \
+        "$scenario" "$scenario"
+done
 
 test_summary

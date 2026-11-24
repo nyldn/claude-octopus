@@ -4281,7 +4281,7 @@ tangle_run_review_correction() {
     local correction_agent="$5"
     local correction_strategy="$6"
     local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-${correction_agent//[^A-Za-z0-9._-]/_}-$(date +%s).md"
-    local rc_file="${correction_file}.rc"
+    local rc_file
     local strategy_text before_fp after_fp last_fp last_size last_progress now
 
     TANGLE_CORRECTION_FILE="$correction_file"
@@ -4323,7 +4323,11 @@ ${normal_findings}
     last_size=0
     last_progress=$(date +%s)
     : > "$correction_file"
-    rm -f "$rc_file" 2>/dev/null || true
+    if ! rc_file=$(mktemp "${correction_file}.rc.XXXXXX"); then
+        TANGLE_CORRECTION_STATUS="interrupted-partial"
+        log ERROR "Correction round ${round_num}: could not create the completion record"
+        return 1
+    fi
 
     local stall_window="${OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW:-1800}"
     local poll_secs="${OCTOPUS_TANGLE_CORRECTION_POLL_SECS:-30}"
@@ -4345,12 +4349,12 @@ ${normal_findings}
     local next_probe=$((last_progress + poll_secs))
 
     while true; do
-        [[ -f "$rc_file" ]] && break
+        [[ -s "$rc_file" ]] && break
         if ! tangle_process_is_active_non_zombie "$correction_pid"; then
             break
         fi
         sleep 1
-        [[ -f "$rc_file" ]] && break
+        [[ -s "$rc_file" ]] && break
         tangle_process_is_active_non_zombie "$correction_pid" || break
         now=$(date +%s)
         [[ "$now" -ge "$next_probe" || ( "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ) ]] || continue
@@ -4366,7 +4370,7 @@ ${normal_findings}
         fi
         now=$(date +%s)
         if [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
-            [[ -f "$rc_file" ]] && break
+            [[ -s "$rc_file" ]] && break
             tangle_process_is_active_non_zombie "$correction_pid" || break
             stalled="true"
             log WARN "Correction round ${round_num}: no observable progress for ${stall_window}s — stopping agent and preserving partial writes"
@@ -4379,9 +4383,17 @@ ${normal_findings}
         fi
     done
 
-    wait "$correction_pid" 2>/dev/null || true
-    local correction_rc="1"
-    [[ -f "$rc_file" ]] && correction_rc=$(cat "$rc_file" 2>/dev/null || echo 1)
+    local correction_rc="unconfirmed"
+    # A reaped wrapper without a valid completion record cannot establish
+    # that its provider stopped writing to the worktree.
+    if wait "$correction_pid" 2>/dev/null; then
+        local recorded_rc
+        if recorded_rc=$(cat "$rc_file" 2>/dev/null) &&
+           [[ "$recorded_rc" =~ ^(0|[1-9][0-9]{0,2})$ ]] &&
+           [[ "$recorded_rc" -le 255 ]]; then
+            correction_rc="$recorded_rc"
+        fi
+    fi
     rm -f "$rc_file" 2>/dev/null || true
 
     after_fp=$(tangle_worktree_fingerprint) || after_fp=""
@@ -4413,7 +4425,8 @@ ${normal_findings}
         return 0
     fi
 
-    if [[ "$correction_rc" == "130" || "$correction_rc" == "137" || "$correction_rc" == "143" ]]; then
+    if [[ "$correction_rc" == "unconfirmed" || "$correction_rc" == "130" ||
+          "$correction_rc" == "137" || "$correction_rc" == "143" ]]; then
         TANGLE_CORRECTION_STATUS="interrupted-partial"
         {
             echo ""
