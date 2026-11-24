@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.28.1] - 2026-11-24
+
 ### Fixed
 
 - Discover saves the synthesis summary and context before marking the phase
