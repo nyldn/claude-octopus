@@ -49,7 +49,7 @@ render_launch() {
     chmod +x "$out"
 }
 
-test_case "the launch template is extractable from both skill copies"
+test_case "the launch template is extractable from each skill copy"
 missing=""
 for f in "${SKILL_FILES[@]}"; do
     [[ -s "$f" ]] || { missing="$missing ${f#"$PROJECT_ROOT"/}"; continue; }
@@ -57,7 +57,7 @@ for f in "${SKILL_FILES[@]}"; do
 done
 if [[ -z "$missing" ]]; then test_pass; else test_fail "no launch template in:$missing"; fi
 
-test_case "neither copy pins work packages to the session branch"
+test_case "no copy pins work packages to the session branch"
 bad=""
 for f in "${SKILL_FILES[@]}"; do
     tpl="$(extract_launch_template "$f")"
@@ -66,7 +66,7 @@ for f in "${SKILL_FILES[@]}"; do
 done
 if [[ -z "$bad" ]]; then test_pass; else test_fail "session-branch reuse:$bad"; fi
 
-test_case "neither copy aborts before recording exit-code and .done"
+test_case "no copy aborts before recording exit-code and .done"
 bad=""
 for f in "${SKILL_FILES[@]}"; do
     tpl="$(extract_launch_template "$f")"
@@ -78,9 +78,12 @@ if [[ -z "$bad" ]]; then test_pass; else test_fail "agent failure can skip the m
 
 FIXTURE="$TEST_TMP_DIR/repo"
 STUB_BIN="$TEST_TMP_DIR/bin"
-PLUGIN_FIXTURE="$TEST_TMP_DIR/installed octopus"
-mkdir -p "$FIXTURE" "$STUB_BIN" "$PLUGIN_FIXTURE/.claude-plugin"
-cp "$PROJECT_ROOT/.claude-plugin/plugin.json" "$PLUGIN_FIXTURE/.claude-plugin/plugin.json"
+PLUGIN_DIR="$TEST_TMP_DIR/installed octopus"
+PLUGIN_FIXTURE="$TEST_TMP_DIR/octopus link"
+mkdir -p "$FIXTURE" "$STUB_BIN" "$PLUGIN_DIR/.claude-plugin"
+cp "$PROJECT_ROOT/.claude-plugin/plugin.json" "$PLUGIN_DIR/.claude-plugin/plugin.json"
+ln -s "$PLUGIN_DIR" "$PLUGIN_FIXTURE"
+PLUGIN_PHYSICAL="$(cd "$PLUGIN_DIR" && pwd -P)"
 unset CLAUDE_PLUGIN_ROOT
 export CODEX_PLUGIN_ROOT="$PLUGIN_FIXTURE"
 
@@ -127,7 +130,7 @@ for index in "${!SKILL_FILES[@]}"; do
             run_package "$wp" "octo/$wp" "$FIXTURE" main "$skill"
             ;;
     esac
-    if [[ "$(cat "$TEST_TMP_DIR/$wp/output.md" 2>/dev/null)" == "-p"$'\n'"--plugin-dir"$'\n'"$PLUGIN_FIXTURE" ]]; then
+    if [[ "$(cat "$TEST_TMP_DIR/$wp/output.md" 2>/dev/null)" == "-p"$'\n'"--plugin-dir"$'\n'"$PLUGIN_PHYSICAL" ]]; then
         test_pass
     else
         test_fail "launch did not pass the selected plugin root as one argument: $skill"
