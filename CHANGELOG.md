@@ -6,6 +6,8 @@
 
 - Debate gives each run its own folder so a second debate in the same session
   preserves the first debate's context, state, and round notes.
+- Parallel stops at work breakdown validation when the file is missing or
+  unreadable, or contains invalid JSON.
 
 ## [11.28.2] - 2026-11-24
 
