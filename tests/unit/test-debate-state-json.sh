@@ -65,6 +65,40 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             assert re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', state['created_at']), state
             assert not (home / 'SHOULD_NOT_RUN').exists()
             checks += 1
+    # Two invocations from the same session must not reuse state or evidence.
+    for session in ('same-session', ''):
+        with tempfile.TemporaryDirectory(dir=sys.argv[2]) as directory:
+            env = dict(os.environ, HOME=directory, CLAUDE_CODE_SESSION=session,
+                       QUESTION='first question', ROUNDS='3', STYLE='thorough',
+                       DEBATE_MODE='blinded', ADVISORS='codex', USER_GOAL='',
+                       USER_PRIORITY='', USER_CONSTRAINTS='')
+
+            def setup():
+                result = subprocess.run(['/bin/bash', '-c', render_inputs(recipe, env)],
+                                        cwd=directory, env=env, capture_output=True,
+                                        text=True, timeout=5, check=True)
+                label, separator, value = result.stdout.strip().partition('=')
+                assert (label, separator) == ('DEBATE_DIR', '='), (tree, result.stdout)
+                return Path(value)
+
+            first = setup()
+            first_state = (first / 'state.json').read_bytes()
+            first_context = (first / 'context.md').read_bytes()
+            first_note = first / 'rounds' / 'r001_claude.md'
+            first_note.write_text('first moderator evidence', encoding='utf-8')
+
+            env['QUESTION'] = 'second question'
+            second = setup()
+            assert first != second, (tree, session, first)
+            assert first.parent == second.parent, (tree, first, second)
+            assert (first / 'state.json').read_bytes() == first_state, tree
+            assert (first / 'context.md').read_bytes() == first_context, tree
+            assert first_note.read_text() == 'first moderator evidence', tree
+            assert list((second / 'rounds').iterdir()) == [], tree
+            second_state = json.loads((second / 'state.json').read_text())
+            assert second_state['debate_id'] == second.name, tree
+            assert second_state['question'] == 'second question', tree
+            checks += 1
     invalid_settings = [(rounds, 'blinded') for rounds in ('0', '-1', 'invalid', '1.5', '11')]
     invalid_settings.append(('1', 'unknown'))
     for rounds, mode in invalid_settings:

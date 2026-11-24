@@ -26,7 +26,12 @@ export CLAUDE_CONFIG_DIR="$WORK/config"
 mkdir -p "$CLAUDE_CONFIG_DIR"
 printf '{"enabledPlugins":{"x@y":true}}\n' > "$CLAUDE_CONFIG_DIR/settings.json"
 
-args() { octo_council_claude_isolation_args "$@" | tr '\n' ' '; }
+args() { OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS=0 octo_council_claude_isolation_args "$@" | tr '\n' ' '; }
+
+test_case "default keeps user plugins and MCP servers in the seat"
+rc_default=0
+_OCTOPUS_COUNCIL_SEAT=1 octo_council_claude_isolation_args claude claude --print >/dev/null || rc_default=$?
+if [[ "$rc_default" == 1 ]]; then test_pass; else test_fail "rc=$rc_default"; fi
 
 test_case "a council claude seat gets project/local settings and no MCP servers"
 got="$(_OCTOPUS_COUNCIL_SEAT=1 args claude claude --print --model m)"
@@ -43,9 +48,9 @@ fi
 
 test_case "non-council dispatches, other providers and the opt-out run unchanged"
 rc_none=0; args claude claude --print >/dev/null || rc_none=$?
-rc_sdk=0; _OCTOPUS_COUNCIL_SEAT=1 octo_council_claude_isolation_args claude-sdk claude --print >/dev/null || rc_sdk=$?
-rc_codex=0; _OCTOPUS_COUNCIL_SEAT=1 octo_council_claude_isolation_args codex codex exec >/dev/null || rc_codex=$?
-rc_noprint=0; _OCTOPUS_COUNCIL_SEAT=1 octo_council_claude_isolation_args claude claude --version >/dev/null || rc_noprint=$?
+rc_sdk=0; _OCTOPUS_COUNCIL_SEAT=1 args claude-sdk claude --print >/dev/null || rc_sdk=$?
+rc_codex=0; _OCTOPUS_COUNCIL_SEAT=1 args codex codex exec >/dev/null || rc_codex=$?
+rc_noprint=0; _OCTOPUS_COUNCIL_SEAT=1 args claude claude --version >/dev/null || rc_noprint=$?
 rc_opt=0; _OCTOPUS_COUNCIL_SEAT=1 OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS=1 octo_council_claude_isolation_args claude claude --print >/dev/null || rc_opt=$?
 if [[ "$rc_none$rc_sdk$rc_codex$rc_noprint$rc_opt" == 11111 ]]; then
     test_pass
@@ -60,12 +65,12 @@ for settings in '{"apiKeyHelper":"/bin/key"}' '{"env":{"CLAUDE_CODE_USE_BEDROCK"
                 '{"env":{"MAX_THINKING_TOKENS":"1000"}}' '{"permissions":{"deny":["Write"]}}' \
                 '{"hooks":{"PreToolUse":[]}}' 'not json' '{} {}' ''; do
     printf '%s\n' "$settings" > "$CLAUDE_CONFIG_DIR/settings.json"
-    _OCTOPUS_COUNCIL_SEAT=1 octo_council_claude_isolation_args claude claude --print >/dev/null && kept+=n || kept+=y
+    _OCTOPUS_COUNCIL_SEAT=1 args claude claude --print >/dev/null && kept+=n || kept+=y
 done
 printf '{}\n' > "$CLAUDE_CONFIG_DIR/settings.json"
-plain=0; _OCTOPUS_COUNCIL_SEAT=1 octo_council_claude_isolation_args claude claude --print >/dev/null || plain=$?
+plain=0; _OCTOPUS_COUNCIL_SEAT=1 args claude claude --print >/dev/null || plain=$?
 rm -f "$CLAUDE_CONFIG_DIR/settings.json"
-missing=0; _OCTOPUS_COUNCIL_SEAT=1 octo_council_claude_isolation_args claude claude --print >/dev/null || missing=$?
+missing=0; _OCTOPUS_COUNCIL_SEAT=1 args claude claude --print >/dev/null || missing=$?
 if [[ "$kept" == yyyyyyyyyy && "$plain" == 0 && "$missing" == 0 ]]; then
     test_pass
 else
@@ -102,7 +107,8 @@ EOF
     update_agent_status() { :; }
     octo_estimate_tokens_for_file() { printf '0\n'; }
     write_agent_status() { :; }
-    _OCTOPUS_COUNCIL_SEAT=1 OCTOPUS_PERSISTENCE_AVAILABLE=true _OCTOPUS_SEAT_USAGE_FILE="$WORK/usage.jsonl" \
+    _OCTOPUS_COUNCIL_SEAT=1 OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS=0 \
+        OCTOPUS_PERSISTENCE_AVAILABLE=true _OCTOPUS_SEAT_USAGE_FILE="$WORK/usage.jsonl" \
         run_agent_sync claude 'review this change' 30 reviewer council >/dev/null 2>&1
 )
 expected=$'--print\n--model\nm\n--setting-sources\nproject,local\n--strict-mcp-config\n--output-format\njson'

@@ -1410,7 +1410,7 @@ octopus_sync_timeout_override() {
 # environment values, credential helpers, permission rules, or policy hooks.
 octo_council_claude_isolation_args() {
     local agent_type="$1"; shift
-    [[ "${_OCTOPUS_COUNCIL_SEAT:-}" == 1 && "${OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS:-0}" != 1 ]] || return 1
+    [[ "${_OCTOPUS_COUNCIL_SEAT:-}" == 1 && "${OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS:-1}" == 0 ]] || return 1
     case "$agent_type" in
         claude-sdk*) return 1 ;;
         claude*) ;;
@@ -1475,7 +1475,7 @@ octo_seat_usage_record() {
     fi
     python3 -I "${_agent_sync_lib_dir}/../helpers/seat-usage.py" "$kind" "$out_file" \
         "$_OCTOPUS_SEAT_USAGE_FILE" "${_OCTOPUS_SEAT_USAGE_LABEL:-}" "$model" "$in_price" "$out_price" \
-        2>/dev/null || log DEBUG "seat usage: $kind output did not parse; left as is"
+        2>/dev/null || log DEBUG "seat usage: could not finish recording $kind output" >&2
 }
 
 # Synchronous agent execution (for sequential steps within phases)
@@ -1845,7 +1845,11 @@ ${provider_ctx}"
         break
     done
     stop_quota_watcher "$_quota_watcher_pid"
-    [[ -n "$_seat_usage_kind" ]] && octo_seat_usage_record "$_seat_usage_kind" "$temp_out" "$model" "$agent_type" "$enhanced_prompt"
+    if [[ -n "$_seat_usage_kind" ]] &&
+       [[ "$(octo_seat_usage_record "$_seat_usage_kind" "$temp_out" "$model" "$agent_type" "$enhanced_prompt")" == provider-error ]] &&
+       [[ "$exit_code" -eq 0 ]]; then
+        exit_code=1
+    fi
     quota_watcher_mark_after_exit "$exit_code" "$temp_err" "$temp_out" "${_provider_for_health:-}"
     local _sync_output_truncated=false
 

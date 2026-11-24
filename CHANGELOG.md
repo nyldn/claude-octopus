@@ -4,18 +4,32 @@
 
 ### Added
 
-- Council improves prompt cache reuse for native Claude seats by isolating
-  user plugins and MCP servers when user settings can be safely excluded.
+- Council offers opt-in prompt cache isolation for native Claude seats.
 
 ### Fixed
 
-- Council records Claude token usage and cost when an error result contains
-  usage but no answer.
+- Council records available Claude usage and cost for error results and
+  excludes failed seats from the round's answers.
+
+- Debate gives each run its own folder so a second debate in the same session
+  preserves the first debate's context, state, and round notes.
+
+## [11.28.2] - 2026-11-24
+
+### Fixed
 
 - Develop can move a subtask to an allowed fallback provider when its assigned
   provider's circuit opens or quota runs out before launch. Review corrections
   also select an available, allowed implementer before dispatch. Other spawn
   failures still stop the run.
+  ([#1380](https://github.com/nyldn/claude-octopus/pull/1380))
+- Verification checks the synthesis written by the current run before
+  reporting completion. Explicit reuse still checks the selected saved result.
+  ([#1413](https://github.com/nyldn/claude-octopus/pull/1413))
+- Status reads saved project state through the installed plugin, including in
+  projects without a local copy of the state helper.
+  ([#1414](https://github.com/nyldn/claude-octopus/pull/1414),
+  [#1304](https://github.com/nyldn/claude-octopus/issues/1304))
 
 ## [11.28.1] - 2026-11-24
 

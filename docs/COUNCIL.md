@@ -305,17 +305,18 @@ seats with plain text output.
 
 ## Claude seat prompt caching
 
-Native Claude Council seats can reuse a prompt prefix more often when their
-user plugins and MCP servers are excluded. If the user settings file is
-absent or contains only plugin and marketplace settings, Council uses
-`--setting-sources project,local` and `--strict-mcp-config`. Explicit
-settings-source and MCP arguments take precedence.
+Set `OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS=0` to opt eligible native Claude seats
+into prompt cache isolation. If the user settings file is absent or contains
+only plugin and marketplace settings, Council adds
+`--setting-sources project,local` and `--strict-mcp-config`. This can exclude
+user plugins, their hooks, and configured MCP servers. Leave the setting unset
+if your seats rely on those integrations. Explicit settings-source and MCP
+arguments take precedence.
 
 Council keeps user settings when the file contains environment variables,
 credential helpers, permission rules, hooks, or any other settings it cannot
-safely exclude. Set `OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS=1` to opt out of
-Council's added settings and MCP isolation. Claude seats launched under a
-Codex host still follow that host's project/local settings policy.
+safely exclude. Claude seats launched under a Codex host still follow that
+host's project/local settings policy.
 
 ## Chair fallback
 

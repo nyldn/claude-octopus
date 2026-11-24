@@ -122,14 +122,14 @@ fi
 # Drive run_agent_sync with fake CLIs that answer in JSON only when asked to.
 run_seat() (
     local agent="$1" ledger="$2" fake="$WORK/bin-$3/$1"
-    local codex_output="${4:-$CODEX_JSONL}" fake_rc="${5:-0}"
+    local codex_output="${4:-$CODEX_JSONL}" fake_rc="${5:-0}" claude_output="${6:-$CLAUDE_JSON}"
     mkdir -p "${fake%/*}" "$WORK/results-$3"
     export RESULTS_DIR="$WORK/results-$3"
     cat > "$fake" <<EOF
 #!/usr/bin/env bash
 cat >/dev/null
 case " \$* " in
-    *" --output-format json "*) printf '%s\n' '$CLAUDE_JSON' ;;
+    *" --output-format json "*) printf '%s\n' '$claude_output' ;;
     *" --json "*) cat <<'JSONL'
 $codex_output
 JSONL
@@ -187,6 +187,25 @@ if [[ "$answer" == *"Found nothing."* && "$answer" != *turn.completed* ]] &&
 else
     test_fail "answer=$answer err=$(tail -c 600 "$WORK/err-codex" 2>/dev/null)"
 fi
+
+for provider_rc in 0 7; do
+    test_case "a Claude error result preserves usage and fails the seat with wrapper exit $provider_rc"
+    ledger="$WORK/claude-failed-$provider_rc.jsonl"
+    capture="$WORK/claude-failed-$provider_rc.log"
+    error_result='{"type":"result","is_error":true,"errors":["Budget limit reached"],"total_cost_usd":0.017}'
+    rc=0
+    answer="$(_OCTOPUS_SEAT_STDERR_FILE="$capture" run_seat claude "$ledger" "claude-failed-$provider_rc" \
+        "" "$provider_rc" "$error_result")" || rc=$?
+    expected_rc="$provider_rc"
+    [[ "$expected_rc" != 0 ]] || expected_rc=1
+    if [[ "$rc" == "$expected_rc" && -z "$answer" ]] &&
+       grep -qxF 'Budget limit reached' "$capture" &&
+       jq -e '.provider == "claude" and .cost_usd == 0.017' "$ledger" >/dev/null; then
+        test_pass
+    else
+        test_fail "rc=$rc answer=$answer diagnostic=$(cat "$capture" 2>/dev/null)"
+    fi
+done
 
 test_case "a failed Codex seat captures the terminal error after progress on stdout"
 ledger="$WORK/failed.jsonl"
