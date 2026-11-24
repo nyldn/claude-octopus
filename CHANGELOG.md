@@ -8,6 +8,14 @@
   provider's circuit opens or quota runs out before launch. Review corrections
   also select an available, allowed implementer before dispatch. Other spawn
   failures still stop the run.
+  ([#1380](https://github.com/nyldn/claude-octopus/pull/1380))
+- Verification checks the synthesis written by the current run before
+  reporting completion. Explicit reuse still checks the selected saved result.
+  ([#1413](https://github.com/nyldn/claude-octopus/pull/1413))
+- Status reads saved project state through the installed plugin, including in
+  projects without a local copy of the state helper.
+  ([#1414](https://github.com/nyldn/claude-octopus/pull/1414),
+  [#1304](https://github.com/nyldn/claude-octopus/issues/1304))
 
 ## [11.28.1] - 2026-11-24
 

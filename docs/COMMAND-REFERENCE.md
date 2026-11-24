@@ -1611,7 +1611,9 @@ it as a source. Ordinary natural-language prompts do not auto-activate them.
 
 ### `Status`
 
-Show where you are in the workflow and what to do next.
+Show where you are in the workflow and what to do next. Status uses the
+installed plugin to read `.octo/STATE.md` in the current project. If state
+cannot be read, it reports the error before displaying a dashboard.
 
 **Invocation:** Select the skill explicitly; example requests include "show status", "where am I", "what's next", "progress", and "what have I been working on".
 

@@ -85,6 +85,10 @@ symlinked Sonnet artifacts stop a claimed host success from satisfying the gate.
 
 ## Review and compaction recovery
 
+Verification checks the synthesis file returned by the current run. A missing,
+empty, or headings-only synthesis stops completion. When you explicitly reuse
+a saved result, verification checks that selected result.
+
 Branch completion dispatches the configured `code-reviewer` persona and waits
 for its completed answer. The quick review covers the complete committed text
 patch within its transport limit. Binary, submodule and oversized changes leave
@@ -193,6 +197,11 @@ or launch one. A prototype choice does not authorize provider calls, deployment,
 browser login, or repository rewrites.
 
 ## Tangle provider and write-scope checks
+
+Develop can try the next allowed provider when a subtask's assigned provider
+is unavailable before launch. A launch without a confirmed worker ID stops
+the run unless the launcher confirms a refusal before starting a worker.
+Review corrections select an available implementer from the allowed providers.
 
 Tangle selects providers for coding and reasoning subtasks from
 `OCTO_ALLOWED_PROVIDERS` when that allowlist is set. If a required subtask

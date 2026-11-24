@@ -36,14 +36,12 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-The [local issue tracker](docs/COMMAND-REFERENCE.md#issues) creates its ledger
-from the installed template even when the plugin path contains spaces. Resolving
-an issue requires its exact ID in the Open Issues table.
-
-[Delivery's documentation sync](docs/COMMAND-REFERENCE.md#octodeliver) commits
-only the files it changed and preserves unrelated staged work.
-[Deck stakeholder review](docs/COMMAND-REFERENCE.md#octodeck) checks advisor
-readiness using the confirmed deck question before asking for dispatch consent.
+The [verification gate](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery)
+checks the synthesis from the current run before reporting completion.
+[Develop](docs/WORKFLOW-METHODS.md#tangle-provider-and-write-scope-checks) can
+switch a subtask to an allowed provider when its assigned provider becomes
+unavailable before launch. [Status](docs/COMMAND-REFERENCE.md#status) reads
+saved progress in projects where Octopus is installed as a plugin.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.28.1 — Discover saves synthesis context, bounded Tangle installs cached pnpm packages, and Copilot checks skip a missing CLI.**
