@@ -269,6 +269,15 @@ git diff --no-ext-diff --no-textconv origin/main -- > /tmp/reviewed.diff
 Counts appear in each seat's `grounding` object in `summary.json`. Set
 `OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to disable citation quote verification.
 
+## Bounded seat reading
+
+Seat prompts tell seats to read only the files and diffs named in the task or
+supplied by the council, plus a file they cite when they open it to check a
+specific finding. They are told not to list, search or explore the rest of the
+repository. The instruction follows the task and role fields and precedes the
+research, attached files, and peer responses. Set
+`OCTOPUS_COUNCIL_BOUNDED_READING=0` to remove it.
+
 ## Token usage and cost
 
 Claude and Codex seats report their real token usage. When a council runs,
@@ -286,7 +295,8 @@ dispatch to `usage.jsonl` in the run directory.
 - `usage.dispatches`: each recorded dispatch.
 - `seats[].usage`: the totals for that seat's persona across all phases.
 
-Token fields do not overlap: `input_tokens` excludes cache reads and writes.
+`input_tokens` excludes cache reads and writes. For Codex, `reasoning_tokens`
+is included in `output_tokens`.
 Claude reports its own `total_cost_usd`. Codex cost is estimated from list
 prices, with cached input at a tenth of the input price
 (`OCTOPUS_CODEX_CACHED_INPUT_RATIO`). Antigravity seats do not report usage, so

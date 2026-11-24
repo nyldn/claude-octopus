@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- Council seat prompts limit reading to files and diffs named in the task or
+  supplied by Council, plus cited files opened to check a specific finding.
+  Set `OCTOPUS_COUNCIL_BOUNDED_READING=0` to remove the instruction.
+
 ### Fixed
 
 - Tangle detects same-size edits during correction rounds and preserves partial
