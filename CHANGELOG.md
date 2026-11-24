@@ -7,6 +7,9 @@
 - Develop can retry a review correction on an allowed fallback provider when
   the implementer's provider becomes unavailable without changing the worktree.
 
+- Debate gives each run its own folder so a second debate in the same session
+  preserves the first debate's context, state, and round notes.
+
 ## [11.28.2] - 2026-11-24
 
 ### Fixed
