@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.28.2] - 2026-11-24
+
 ### Fixed
 
 - Develop can move a subtask to an allowed fallback provider when its assigned
