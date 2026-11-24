@@ -36,20 +36,14 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-See reported Claude and Codex token usage by seat and phase in the
-[Council run summary](docs/COUNCIL.md#token-usage-and-cost). Claude reports
-its cost and Codex uses a list-price estimate. When a Council chair's answer
-is rejected, the Council allows one fallback dispatch by default.
+The [local issue tracker](docs/COMMAND-REFERENCE.md#issues) creates its ledger
+from the installed template even when the plugin path contains spaces. Resolving
+an issue requires its exact ID in the Open Issues table.
 
-Tangle assigns coding and reasoning subtasks only to providers allowed by
-`OCTO_ALLOWED_PROVIDERS`. Its validation report preserves the list of paths
-outside the declared write scopes, even when that list is large. Tangle collects large scope-violation lists in
-linear time.
-
-Staged review checks the exact files staged for commit. In blinded Debate,
-the moderator saves its independent analyses before reading advisor responses.
-Embrace names provider failures in its debate gate, and design history keeps
-branches with the same filename slug separate.
+[Delivery's documentation sync](docs/COMMAND-REFERENCE.md#octodeliver) commits
+only the files it changed and preserves unrelated staged work.
+[Deck stakeholder review](docs/COMMAND-REFERENCE.md#octodeck) checks advisor
+readiness using the confirmed deck question before asking for dispatch consent.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.27.0 — Council seat usage and cost, Tangle provider limits, and staged review checks.**
