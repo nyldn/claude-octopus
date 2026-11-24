@@ -295,7 +295,8 @@ dispatch to `usage.jsonl` in the run directory.
 - `usage.dispatches`: each recorded dispatch.
 - `seats[].usage`: the totals for that seat's persona across all phases.
 
-Token fields do not overlap: `input_tokens` excludes cache reads and writes.
+`input_tokens` excludes cache reads and writes. For Codex, `reasoning_tokens`
+is included in `output_tokens`.
 Claude reports its own `total_cost_usd`. Codex cost is estimated from list
 prices, with cached input at a tenth of the input price
 (`OCTOPUS_CODEX_CACHED_INPUT_RATIO`). Antigravity seats do not report usage, so
