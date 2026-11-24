@@ -114,6 +114,38 @@ assert_contains "$SKILL_CONTENT" "command -v copilot" \
 assert_contains "$SKILL_CONTENT" "not installed" \
   "Detection: handles copilot not installed"
 
+for recipe in "$PROJECT_ROOT/skills/skill-copilot-provider/SKILL.md" \
+              "$SKILL_FILE" "$PROJECT_ROOT/codex-skills/skill-copilot-provider/SKILL.md"; do
+  detection=$(awk '
+    /^## Detection$/ { section = 1; next }
+    section && /^```bash$/ { block = 1; next }
+    block && /^```$/ { exit }
+    block { print }
+  ' "$recipe")
+  for availability in present absent; do
+    test_case "Detection shell continues with Copilot $availability (${recipe#"$PROJECT_ROOT/"})"
+    if [[ "$availability" == present ]]; then
+      expected=true
+      fixture_path="$TEST_TMP_DIR/copilot-bin"
+      mkdir -p "$fixture_path"
+      printf '#!/bin/sh\nexit 1\n' > "$fixture_path/copilot"
+      chmod +x "$fixture_path/copilot"
+    else
+      expected=false
+      fixture_path="$TEST_TMP_DIR/empty-bin"
+      mkdir -p "$fixture_path"
+    fi
+    actual=""
+    if [[ -n "$detection" ]] && actual=$(BASH_ENV=/dev/null PATH="$fixture_path" "$BASH" --noprofile --norc -eu \
+      -c "$detection"$'\nprintf "%s:continued" "$copilot_available"' 2>&1) &&
+      [[ "$actual" == "$expected:continued" ]]; then
+      test_pass
+    else
+      test_fail "expected '$expected:continued', got '$actual'"
+    fi
+  done
+done
+
 # ── 6. Available roles ────────────────────────────────────────────────────────
 
 echo ""

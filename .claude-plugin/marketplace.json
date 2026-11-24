@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.28.0"
+    "version": "11.28.1"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.28.0 - Council keeps reviews focused and preserves failure details, and Tangle detects partial edits. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.28.0",
+      "description": "v11.28.1 - Discover saves synthesis context, bounded Tangle installs cached pnpm packages, and Copilot checks skip a missing CLI. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.28.1",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
