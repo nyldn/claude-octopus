@@ -944,6 +944,8 @@ spawn_agent() {
     local role="${4:-}"         # Optional role override
     local phase="${5:-}"        # Optional phase context
     local use_fork="${6:-false}" # Optional fork context (v2.1.12+)
+    local contract_task_id="${7:-$task_id}" # Retry identity for the execution contract only
+    local report_prelaunch_refusal="${8:-false}" # Internal PID capture protocol
 
     # v7.25.0: Debug logging
     log "DEBUG" "spawn_agent: agent=$agent_type, task_id=$task_id, role=${role:-auto}, phase=${phase:-none}, fork=$use_fork"
@@ -1016,8 +1018,8 @@ spawn_agent() {
     fi
 
     local _contract_seat_id
-    _contract_seat_id="$(octo_spawn_contract_seat_id "$task_id")"
-    if ! octo_spawn_contract_plan "$task_id" "$agent_type" \
+    _contract_seat_id="$(octo_spawn_contract_seat_id "$contract_task_id")"
+    if ! octo_spawn_contract_plan "$contract_task_id" "$agent_type" \
         "${OCTOPUS_REQUESTED_MODEL:-}" "${OCTOPUS_REQUESTED_EFFORT:-}" \
         "${phase:-unknown}" "${role:-none}"; then
         log ERROR "Unable to persist planned execution contract for background task $task_id"
@@ -1277,8 +1279,12 @@ ${heuristic_ctx}"
     if type is_provider_available &>/dev/null && ! is_provider_available "$provider_prefix"; then
         log "WARN" "Circuit open for $provider_prefix — skipping $agent_type (use fallback)"
         record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "circuit_open" "0" 2>/dev/null || true
-        octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
-            "Provider circuit is open" 1 "" >/dev/null 2>&1 || true
+        if ! octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
+            "Provider circuit is open" 1 "" >/dev/null 2>&1; then
+            log ERROR "Unable to persist skipped execution contract for background task $task_id"
+        elif [[ "$report_prelaunch_refusal" == true ]]; then
+            printf '%s\n' 'octopus: refused before worker launch'
+        fi
         return 1
     fi
 
@@ -1294,8 +1300,12 @@ ${heuristic_ctx}"
         fi
         log "WARN" "$skip_reason: $quota_provider; skipping $agent_type"
         record_outcome "$provider_prefix" "$agent_type" "skipped" "${phase:-unknown}" "$skip_kind" "0" 2>/dev/null || true
-        octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
-            "$skip_reason" 1 "" >/dev/null 2>&1 || true
+        if ! octo_spawn_contract_finish "$_contract_seat_id" skipped "" "" \
+            "$skip_reason" 1 "" >/dev/null 2>&1; then
+            log ERROR "Unable to persist skipped execution contract for background task $task_id"
+        elif [[ "$report_prelaunch_refusal" == true ]]; then
+            printf '%s\n' 'octopus: refused before worker launch'
+        fi
         return 1
     fi
 
@@ -2533,6 +2543,7 @@ spawn_agent_capture_pid() {
     local role="${4:-}"
     local phase="${5:-}"
     local use_fork="${6:-false}"
+    local contract_task_id="${7:-$task_id}"
     local pid_file err_file
     if ! pid_file=$(mktemp "${TMPDIR:-/tmp}/octo-spawn-pid.XXXXXX"); then
         return 1
@@ -2545,14 +2556,16 @@ spawn_agent_capture_pid() {
         printf 'capture-file:%s\n' "$pid_file" >&9
     fi
 
-    spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" \
+    local report_prelaunch_refusal=false
+    [[ "$phase" != tangle ]] || report_prelaunch_refusal=true
+    spawn_agent "$agent_type" "$prompt" "$task_id" "$role" "$phase" "$use_fork" "$contract_task_id" "$report_prelaunch_refusal" \
         8>&- >"$pid_file" 2>"$err_file" &
     local wrapper_pid=$!
     if [[ "${OCTOPUS_SPAWN_PID_HANDOFF_FD:-}" == "9" ]]; then
         printf 'wrapper:%s\n' "$wrapper_pid" >&9
     fi
 
-    local pid=""
+    local pid="" wrapper_status=0
     local attempts=0
     local default_max_attempts=1200
     if declare -F _octopus_spawn_pid_wait_default_attempts >/dev/null 2>&1; then
@@ -2568,7 +2581,7 @@ spawn_agent_capture_pid() {
         pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
         [[ -n "$pid" ]] && break
         if ! kill -0 "$wrapper_pid" 2>/dev/null; then
-            wait "$wrapper_pid" 2>/dev/null || true
+            wait "$wrapper_pid" 2>/dev/null || wrapper_status=$?
             pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
             break
         fi
@@ -2578,6 +2591,13 @@ spawn_agent_capture_pid() {
 
     if [[ -z "$pid" ]]; then
         cat "$err_file" >&2 2>/dev/null || true
+        # Only the launcher's explicit, finished refusal permits replacement.
+        # Other exit codes and an expired PID wait leave launch state unknown.
+        if [[ "$phase" == tangle && "$wrapper_status" -eq 1 ]] &&
+           grep -Fxq 'octopus: refused before worker launch' "$pid_file"; then
+            rm -f "$pid_file" "$err_file"
+            return 75
+        fi
         log "ERROR" "spawn_agent produced no provider PID for $task_id; refusing to track wrapper PID $wrapper_pid" >&2
         if [[ -s "$pid_file" ]]; then
             tail -20 "$pid_file" >&2 || true

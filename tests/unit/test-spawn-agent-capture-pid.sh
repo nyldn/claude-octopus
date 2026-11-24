@@ -137,6 +137,30 @@ else
     test_pass
 fi
 
+test_case "returns the Tangle pre-launch refusal status without a PID"
+spawn_agent() {
+    printf '%s\n' 'octopus: refused before worker launch'
+    return 1
+}
+pid=""
+rc=0
+pid=$(spawn_agent_capture_pid codex prompt refused-task implementer tangle 2>/dev/null) || rc=$?
+if [[ "$rc" -eq 75 && -z "$pid" ]]; then
+    test_pass
+else
+    test_fail "expected pre-launch refusal 75 without a PID, got status $rc, PID '$pid'"
+fi
+
+test_case "a wrapper exit code alone cannot authorize replacement"
+spawn_agent() { return 75; }
+rc=0
+pid=$(spawn_agent_capture_pid codex prompt failed-task implementer tangle 2>/dev/null) || rc=$?
+if [[ "$rc" -eq 1 && -z "$pid" ]]; then
+    test_pass
+else
+    test_fail "expected ambiguous launch failure, got status $rc, PID '$pid'"
+fi
+
 # Regression for #661: two concurrent spawns with no explicit task_id must not
 # collide on the same-second `date +%s` value, or their result/temp files
 # interleave and get attributed to the wrong provider. Tests the real,
