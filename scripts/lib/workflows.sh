@@ -5043,7 +5043,7 @@ tangle_rerun_dead_provider_subtasks() {
     local done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
     local results_dir="${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
     local i ran_on next candidate result prompt rerun task_id
-    local -a tried=() recoveries=()
+    local -a tried=() recoveries=() attempt_results=()
     while :; do
         rerun=false
         for i in "${!task_ids[@]}"; do
@@ -5053,7 +5053,11 @@ tangle_rerun_dead_provider_subtasks() {
             [[ "$(cat "$done_dir/$task_id.done" 2>/dev/null || true)" == 75 ]] || continue
             ran_on="${OCTOPUS_ACTIVE_TANGLE_AGENTS[$i]:-}"
             [[ -n "$ran_on" ]] || continue
-            result="$results_dir/$(octo_agent_spec_slug "$ran_on")-$task_id.md"
+            # The launcher can normalize a legacy executor's name. Previous
+            # attempts have been archived, so require one result for this task.
+            attempt_results=("$results_dir"/*-"$task_id".md)
+            [[ ${#attempt_results[@]} -eq 1 && -f "${attempt_results[0]}" ]] || continue
+            result="${attempt_results[0]}"
             [[ "$(octo_result_launcher_status "$result" || true)" == "## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)" ]] || continue
             tangle_subtask_agent_dispatchable "$ran_on" && continue
             tried[$i]="${tried[$i]:-|}${ran_on}|"

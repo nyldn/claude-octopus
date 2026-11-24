@@ -71,6 +71,7 @@ kill_provider() {
 
 write_result() {
     local agent="$1" task_id="$2" status="$3"
+    [[ "$agent" != claude-opus-fast ]] || agent=claude-opus
     printf '%s\n' "# Agent: $agent" "# Task ID: $task_id" "# Role: implementer" \
         "# Prompt: Add the two org scopes." "# Started: fixture" "" "## Output" "fixture" "" \
         "## Status: $status" > "$RESULTS_DIR/${agent}-${task_id}.md"
@@ -90,6 +91,9 @@ run_develop() (
     validate_tangle_results() { :; }
     if [[ "$SCENARIO" == deadline ]]; then
         tangle_subtask_wait_deadline() { printf '1\n'; }
+    fi
+    if [[ "$SCENARIO" == legacy-fast ]]; then
+        octopus_execution_profile_provider() { printf 'claude-opus-fast\n'; }
     fi
 
     run_agent_sync() {
@@ -157,6 +161,7 @@ EOF
             case "$SCENARIO" in
                 circuit) kill_provider circuit ;;
                 quota|replacement-dies|codex-only|boundary|unrelated-quota|ordinary-75|deadline) kill_provider quota ;;
+                legacy-fast) kill_provider claude ;;
             esac
         fi
         printf '12345\n'
@@ -283,6 +288,19 @@ partial by codex
 finished by claude-sonnet
 results: claude-sonnet-task0 codex-task1" \
     run_develop boundary boundary
+
+expect_output "the legacy Claude fast executor recovers using the result written under its normalized identity" \
+"rc=0
+attempt task0 claude-opus-fast
+spawned task0 claude-opus-fast|implementer
+attempt task1 claude-opus-fast
+spawned task1 claude-opus-fast|implementer
+attempt task0 codex
+spawned task0 codex|implementer
+partial by claude-opus-fast
+finished by codex
+results: claude-opus-task1 codex-task0" \
+    run_develop legacy-fast legacy-fast
 
 expect_output "allowlist 'codex' has no replacement, so the failed subtask stays failed" \
 "rc=0
