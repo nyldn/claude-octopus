@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.27.1] - 2026-11-23
+
 ### Fixed
 
 - The local issue tracker initializes its ledger from the installed template
