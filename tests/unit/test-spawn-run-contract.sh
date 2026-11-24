@@ -514,6 +514,7 @@ run_watched_fixture() {
 
 run_tangle_spawn_retry_fixture() (
     local mode="$1" task="tangle-contract-${1}" circuit="$TEST_TMP_DIR/tangle-circuit-${1}"
+    mock_command codex 'exit 0'
     source "$PROJECT_ROOT/scripts/async-tmux-features.sh"
     TMUX_MODE="$mode"
     FAKE_SCENARIO=success

@@ -17,6 +17,30 @@ mkdir -p "$STUB_BIN"
 printf '#!/bin/sh\nexit 0\n' > "$STUB_BIN/codex"
 chmod +x "$STUB_BIN/codex"
 
+missing_codex_candidates() (
+    export OCTO_ALLOWED_PROVIDERS="$2"
+    source "$PROJECT_ROOT/scripts/lib/agent-spec.sh"
+    source "$PROJECT_ROOT/scripts/lib/provider-allowlist.sh"
+    source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+    command() {
+        if [[ "$*" == "-v codex" ]]; then
+            return 1
+        fi
+        builtin command "$@"
+    }
+    tangle_subtask_fallback_agents "$1"
+)
+
+for routed_agent in codex codex-standard; do
+    test_case "$routed_agent is skipped when the Codex executable disappears"
+    if [[ "$(missing_codex_candidates "$routed_agent" 'codex claude')" == "claude-sonnet" ]] &&
+       [[ -z "$(missing_codex_candidates "$routed_agent" codex)" ]]; then
+        test_pass
+    else
+        test_fail "the missing Codex executable remained a candidate or the allowlist was ignored"
+    fi
+done
+
 run_scenario() (
     local name="$1"
     SCENARIO="$2"

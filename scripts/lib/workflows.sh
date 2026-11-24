@@ -4974,7 +4974,7 @@ tangle_subtask_fallback_agents() {
         [[ "$seen" == *"|$provider|"* ]] && continue
         seen+="$provider|"
         tangle_subtask_agent_allowed "$candidate" || continue
-        if [[ "$candidate" == codex && "$candidate" != "$agent" ]] && ! command -v codex >/dev/null 2>&1; then
+        if [[ "$provider" == codex ]] && ! command -v codex >/dev/null 2>&1; then
             continue
         fi
         printf '%s\n' "$candidate"
