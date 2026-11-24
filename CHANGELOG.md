@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Factory stops with an error if it cannot write its report or record the run
+  as completed.
+
 - Debate gives each run its own folder so a second debate in the same session
   preserves the first debate's context, state, and round notes.
 
