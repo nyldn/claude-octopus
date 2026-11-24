@@ -59,6 +59,34 @@ else
     test_fail "the fingerprint missed a changed entry or changed without an edit"
 fi
 
+test_case "Tangle fingerprints deleted paths behind file and symlink replacements"
+if (
+    repo="$TMP_DIR/fingerprint-replacements"
+    git init -q "$repo" || exit 1
+    cd "$repo" || exit 1
+    mkdir parent "$TMP_DIR/outside-directory" || exit 1
+    printf 'base\n' > parent/tracked
+    git add parent/tracked && git -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm base || exit 1
+    source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+    tangle_resolve_repo_root() { printf '%s\n' "$repo"; }
+    clean=$(tangle_worktree_fingerprint) || exit 1
+
+    rm parent/tracked && rmdir parent || exit 1
+    printf 'replacement\n' > parent
+    file=$(tangle_worktree_fingerprint) || exit 1
+    [[ -n "$file" && "$file" != "$clean" && "$file" == "$(tangle_worktree_fingerprint)" ]] || exit 1
+
+    rm parent && ln -s ../outside-directory parent || exit 1
+    printf 'outside\n' > "$TMP_DIR/outside-directory/tracked"
+    link=$(tangle_worktree_fingerprint) || exit 1
+    printf 'updated\n' > "$TMP_DIR/outside-directory/tracked"
+    [[ -n "$link" && "$link" != "$file" && "$link" == "$(tangle_worktree_fingerprint)" ]]
+); then
+    test_pass
+else
+    test_fail "a parent replacement invalidated the fingerprint or followed a symlink"
+fi
+
 # ── Harness ────────────────────────────────────────────────────────────────
 # run_gate <blocker-count-sequence...>
 # Each stubbed review round pops the next count from the sequence. Correction

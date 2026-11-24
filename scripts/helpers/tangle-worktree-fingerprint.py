@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fingerprint Tangle correction changes without following worktree symlinks."""
 
+import errno
 import hashlib
 import os
 import stat
@@ -17,7 +18,13 @@ def worktree_entry(root_fd, path):
     directory = os.dup(root_fd)
     try:
         for part in parts[:-1]:
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            try:
+                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+            except OSError as error:
+                # A replacement ancestor makes this deleted entry unreachable.
+                if error.errno in (errno.ENOTDIR, errno.ELOOP):
+                    return b"blocked"
+                raise
             os.close(directory)
             directory = child
         name = parts[-1]
