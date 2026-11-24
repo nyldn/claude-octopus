@@ -32,6 +32,7 @@ trigger: |
   - Reading or reviewing code (use Read/review skills)
   - Built-in commands (/plugin, /help, etc.)
   - Trivial single-file changes
+codex_short_description: "Implement an agreed plan and verify the changes"
 ---
 
 {{PREAMBLE}}

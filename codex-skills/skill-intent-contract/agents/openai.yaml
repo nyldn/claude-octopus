@@ -1,5 +1,5 @@
 interface:
   display_name: "Intent Contract"
-  short_description: "Use when starting a complex or ambiguous task that risks..."
+  short_description: "Agree on outcomes and boundaries before starting a task"
 policy:
   allow_implicit_invocation: false

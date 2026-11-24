@@ -105,6 +105,11 @@ expect_correction "a healthy codex runs the correction round itself" \
 dispatch codex" \
     healthy healthy
 
+expect_correction "a stale codex route does not override the claude-only allowlist" \
+"rc=0 status=completed
+dispatch claude-sonnet" \
+    stale-route healthy claude
+
 expect_correction "codex quota-dead before the round: the round runs on claude-sonnet" \
 "rc=0 status=completed
 dispatch claude-sonnet" \

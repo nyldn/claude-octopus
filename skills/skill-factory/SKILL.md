@@ -12,6 +12,7 @@ validation_gates:
   - spec_file_validated
   - orchestrate_sh_executed
   - factory_report_exists
+codex_short_description: "Build from a specification with validation and retry gates"
 ---
 
 # STOP - SKILL ALREADY LOADED

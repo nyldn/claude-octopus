@@ -3,6 +3,7 @@ name: skill-authoring
 disable-model-invocation: true
 description: "Principles for writing skills that behave the same way every run — use when adding, editing, or reviewing a skill in this plugin"
 codex_display_name: "Skill Authoring"
+codex_short_description: "Write skills with clear instructions and verification steps"
 ---
 
 # Skill Authoring

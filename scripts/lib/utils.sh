@@ -391,7 +391,7 @@ _validate_claude_agent_command() {
         [[ $i -lt ${#parts[@]} && "${parts[$i]}" == "$configured_token" ]] || return 1
         if [[ $configured_index -gt 0 ]]; then
             case "$configured_token" in
-                --strict-mcp-config) ;;
+                --strict-mcp-config|--restricted|--safe-mode) ;;
                 --tools)
                     [[ $((configured_index + 1)) -lt ${#configured_parts[@]} ]] || return 1
                     [[ "${configured_parts[$((configured_index + 1))]}" == "Read,Glob,Grep" ]] || return 1

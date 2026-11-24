@@ -1,5 +1,5 @@
 interface:
   display_name: "Content Pipeline"
-  short_description: "Extract patterns and anatomy from URLs — use to..."
+  short_description: "Extract recurring patterns from supplied web content"
 policy:
   allow_implicit_invocation: false

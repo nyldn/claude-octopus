@@ -2,6 +2,7 @@
 name: skill-native-escalation-routing
 disable-model-invocation: true
 description: "Use when choosing native or multi-LLM handling for init, review, or security requests"
+codex_short_description: "Choose host tools or external providers for a task"
 ---
 
 # Native-First Escalation Routing

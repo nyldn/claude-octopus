@@ -733,6 +733,7 @@ AI Debate Hub — structured debates between Claude and available external provi
 |------|-------------|
 | `-r N`, `--rounds N` | Number of debate rounds (default: 2) |
 | `-d STYLE`, `--debate-style STYLE` | `quick`, `thorough`, `adversarial`, `collaborative` |
+| `--mode MODE` | `cross-critique` or `blinded`. In blinded mode, the moderator saves independent analyses before reading advisor responses. |
 
 **What it does:**
 - Claude, Antigravity CLI, and Codex CLI debate the topic

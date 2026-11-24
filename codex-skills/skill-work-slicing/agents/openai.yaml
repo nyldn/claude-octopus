@@ -1,5 +1,5 @@
 interface:
   display_name: "Work Slicing"
-  short_description: "Break a plan or spec into vertical slices that each declare..."
+  short_description: "Split an agreed plan into independently deliverable tasks"
 policy:
   allow_implicit_invocation: false
