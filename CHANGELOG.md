@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.28.0] - 2026-11-24
+
 ### Added
 
 - Council seat prompts limit reading to files and diffs named in the task or
@@ -10,8 +12,12 @@
 
 ### Fixed
 
+- Resume can recover an interrupted session from its saved handoff, including
+  handoffs from older installs. ([#1406](https://github.com/nyldn/claude-octopus/pull/1406))
+- Council retains the terminal error from a failed Codex seat even if the seat
+  printed progress first. ([#1407](https://github.com/nyldn/claude-octopus/pull/1407))
 - Tangle detects same-size edits during correction rounds and preserves partial
-  work when a failed round leaves changes behind.
+  work when a failed round leaves changes behind. ([#1408](https://github.com/nyldn/claude-octopus/pull/1408))
 
 ## [11.27.1] - 2026-11-23
 
