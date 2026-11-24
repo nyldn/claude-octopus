@@ -59,6 +59,17 @@ else
     test_fail "Claude error text or usage was lost"
 fi
 
+test_case "claude error without diagnostic text retains the CLI subtype and cost"
+out="$WORK/claude-subtype.out"; ledger="$WORK/claude-subtype.jsonl"
+printf '%s\n' '{"type":"result","is_error":true,"subtype":"error_max_budget_usd","result":"","errors":[],"total_cost_usd":0.02}' > "$out"
+if python3 "$HELPER" claude "$out" "$ledger" "critique|analyst" fixture "" "" &&
+   grep -Fq 'error_max_budget_usd' "$out" &&
+   jq -e '.cost_usd == 0.02' "$ledger" >/dev/null; then
+    test_pass
+else
+    test_fail "Claude error subtype or cost was lost"
+fi
+
 test_case "codex JSONL keeps the last agent message and prices cached input at a tenth"
 out="$WORK/codex.out"; ledger="$WORK/codex.jsonl"
 printf '%s\n' "$CODEX_JSONL" > "$out"

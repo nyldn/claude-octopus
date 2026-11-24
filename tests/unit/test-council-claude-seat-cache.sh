@@ -22,7 +22,6 @@ source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 source "$PROJECT_ROOT/scripts/lib/secure.sh"
 
 WORK="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/seat-cache.XXXXXX")"
-trap 'rm -rf -- "$WORK"' EXIT
 export CLAUDE_CONFIG_DIR="$WORK/config"
 mkdir -p "$CLAUDE_CONFIG_DIR"
 printf '{"enabledPlugins":{"x@y":true}}\n' > "$CLAUDE_CONFIG_DIR/settings.json"

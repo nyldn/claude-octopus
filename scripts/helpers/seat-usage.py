@@ -31,12 +31,18 @@ def parse_claude(raw):
     if not isinstance(doc, dict) or doc.get("type") != "result":
         raise ValueError("not a claude result object")
     text = doc.get("result")
-    if not isinstance(text, str):
-        if doc.get("is_error") is not True:
+    is_error = doc.get("is_error") is True
+    if not isinstance(text, str) or (is_error and not text):
+        if not is_error:
             raise ValueError("claude result has no text")
         errors = doc.get("errors")
         text = "\n".join(error for error in errors if isinstance(error, str)) if isinstance(errors, list) else ""
-        text = text or "Claude returned an error without a message."
+        if not text:
+            subtype = doc.get("subtype")
+            text = "Claude returned an error without a message"
+            if isinstance(subtype, str) and subtype:
+                text += f" ({subtype})"
+            text += "."
     usage = doc.get("usage") if isinstance(doc.get("usage"), dict) else {}
     models = doc.get("modelUsage") if isinstance(doc.get("modelUsage"), dict) else {}
     if models:
