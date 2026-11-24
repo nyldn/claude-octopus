@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Bounded Tangle lets implementers use an existing default pnpm 10 store for
+  offline installs. It gives pnpm private temporary storage for bookkeeping
+  and keeps the cached packages read-only. All required packages must already
+  be cached. See [bounded Tangle store requirements](docs/PROVIDERS.md#codex-in-bounded-tangle-runs).
+
 ## [11.28.0] - 2026-11-24
 
 ### Added
