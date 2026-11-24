@@ -4,10 +4,18 @@
 
 ### Fixed
 
+- Discover saves the synthesis summary and context before marking the phase
+  complete. If either write fails, the workflow stops for recovery.
+  ([#1410](https://github.com/nyldn/claude-octopus/pull/1410))
 - Bounded Tangle lets implementers use an existing default pnpm 10 store for
   offline installs. It gives pnpm private temporary storage for bookkeeping
   and keeps the cached packages read-only. All required packages must already
   be cached. See [bounded Tangle store requirements](docs/PROVIDERS.md#codex-in-bounded-tangle-runs).
+  ([#1382](https://github.com/nyldn/claude-octopus/pull/1382))
+- The Copilot skill skips Copilot-specific steps when the CLI is missing and
+  lets the rest of the workflow continue.
+  ([#1411](https://github.com/nyldn/claude-octopus/pull/1411),
+  [#1304](https://github.com/nyldn/claude-octopus/issues/1304))
 
 ## [11.28.0] - 2026-11-24
 

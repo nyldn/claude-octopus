@@ -547,7 +547,7 @@ Four structured phases adapted from the UK Design Council's methodology:
 
 | Phase | Command | What happens |
 |-------|---------|-------------|
-| Discover | `/octo:discover` | Multi-AI research and broad exploration |
+| Discover | `/octo:discover` | Multi-AI research with a saved synthesis for later phases |
 | Define | `/octo:define` | Requirements clarification with consensus |
 | Develop | `/octo:develop` | Implementation with quality gates |
 | Deliver | `/octo:deliver` | Adversarial review and go/no-go scoring |

@@ -53,6 +53,10 @@ Architecture is named `octopus-architecture`; the other direct methods include
 
 ## Completion and publication recovery
 
+Discover saves the synthesis summary and context before recording completion.
+If a write fails, inspect the reported state operation and keep the synthesis
+artifact for recovery before retrying the phase.
+
 Develop stops at the first failed implementation decision, context or metrics
 write. It also stops if the post-development checkpoint or either completion
 state write fails. Inspect earlier successful writes and any existing checkpoint
