@@ -529,12 +529,13 @@ Focus on fixing the failing scenarios. Do NOT restart from scratch — improve t
     # ── Phase 7: Generate report ─────────────────────────────────────────
     echo ""
     echo -e "${YELLOW}[7/7]${NC} Generating factory report..."
-    generate_factory_report "$run_dir" "$satisfaction_target"
+    # Provider dispatch is complete even if report publication fails.
+    unset OCTOPUS_FACTORY_MODE OCTOPUS_SKIP_PHASE_COST_PROMPT
+    generate_factory_report "$run_dir" "$satisfaction_target" || {
+        log ERROR "Failed to publish the Factory report and completion state in $run_dir"
+        return 1
+    }
     echo -e "${GREEN}  ✓${NC} Report: $run_dir/factory-report.md"
-
-    # Clean up exported flags
-    unset OCTOPUS_FACTORY_MODE
-    unset OCTOPUS_SKIP_PHASE_COST_PROMPT
 
     # ── Final summary ────────────────────────────────────────────────────
     echo ""
