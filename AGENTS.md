@@ -65,3 +65,5 @@ request. Run the focused checks for the files you change and `make ci-quick` bef
 push. Require the exact-commit hosted gates before merge or release; use
 `make ci-local` as the offline fallback, not an additional mandatory repeat. Keep local tracker databases, generated session state,
 credentials, and private handoff files out of this repository.
+
+For Codex listing or onboarding changes, apply [the delivery checks](docs/DELIVERY.md).

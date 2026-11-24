@@ -555,6 +555,214 @@ EOF
     fi
 fi
 
+PNPM_ROOT="${OUTSIDE_TMP_ROOT:-$CODEX_ROOT}"
+if [[ "$PNPM_ROOT/" == /tmp/* ]]; then
+    PNPM_ROOT=""
+fi
+if [[ -n "$PNPM_ROOT" ]]; then
+    PNPM_TEST_HOME="$PNPM_ROOT/pnpm-home"
+    PNPM_STORE="$PNPM_TEST_HOME/.local/share/pnpm/store"
+    PNPM_WORKTREE="$PNPM_ROOT/pnpm-worktree"
+    mkdir -p "$PNPM_WORKTREE" "$PNPM_ROOT/pnpm-bin" "$PNPM_STORE/v10/files" "$PNPM_STORE/v10/projects" "$PNPM_STORE/v10/tmp"
+    cat > "$PNPM_ROOT/pnpm-bin/pnpm" <<EOF
+#!/bin/sh
+printf 'called\n' > "$PNPM_ROOT/pnpm-called"
+printf '%s\n' "$PNPM_STORE/v10"
+EOF
+    chmod 755 "$PNPM_ROOT/pnpm-bin/pnpm"
+    printf '#!/bin/sh\nexit 1\n' > "$PNPM_ROOT/pnpm-bin/node"
+    chmod 755 "$PNPM_ROOT/pnpm-bin/node"
+fi
+pnpm_tmpfs_count() {
+    local count=0
+    boundary_private_tmpfs "$PNPM_STORE/v10/projects" && count=$((count + 1))
+    boundary_private_tmpfs "$PNPM_STORE/v10/tmp" && count=$((count + 1))
+    printf '%s\n' "$count"
+}
+
+with_pnpm_test_config() {
+    HOME="$PNPM_TEST_HOME" XDG_CONFIG_HOME="$PNPM_TEST_HOME/.config" \
+        npm_config_store_dir= NPM_CONFIG_STORE_DIR= pnpm_config_store_dir= PNPM_CONFIG_STORE_DIR= \
+        npm_config_userconfig= NPM_CONFIG_USERCONFIG= pnpm_config_userconfig= PNPM_CONFIG_USERCONFIG= \
+        npm_config_globalconfig= NPM_CONFIG_GLOBALCONFIG= pnpm_config_globalconfig= PNPM_CONFIG_GLOBALCONFIG= \
+        npm_config_prefix= NPM_CONFIG_PREFIX= pnpm_config_prefix= PNPM_CONFIG_PREFIX= PREFIX= DESTDIR= "$@"
+}
+
+pnpm_boundary() {
+    PNPM_HOME= XDG_DATA_HOME= PATH="$PNPM_ROOT/pnpm-bin:$PATH" \
+        OCTOPUS_TANGLE_WORKTREE="${pnpm_worktree:-$PNPM_WORKTREE}" \
+        with_pnpm_test_config octopus_tangle_apply_execution_boundary
+}
+
+pnpm_store_is_pinned() {
+    local i
+    for ((i = 0; i + 2 < ${#cmd_array[@]}; i++)); do
+        if [[ "${cmd_array[i]}" == --setenv && "${cmd_array[i+1]}" == npm_config_store_dir ]]; then
+            [[ "${cmd_array[i+2]}" == "$PNPM_STORE" ]]
+            return
+        fi
+    done
+    return 1
+}
+
+test_case "a pnpm implementer gets private runtime mounts and a pinned default store without invoking pnpm"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+else
+    agent_type="claude"
+    role="implementer"
+    touch "$PNPM_WORKTREE/pnpm-lock.yaml"
+    cmd_array=(true)
+    pnpm_status=0
+    set -f
+    pnpm_boundary || pnpm_status=$?
+    set +f
+    if [[ "$pnpm_status" -eq 0 && "$(pnpm_tmpfs_count)" == 2 && ! -e "$PNPM_ROOT/pnpm-called" ]] &&
+       pnpm_store_is_pinned && ! boundary_binds_rw "$PNPM_STORE/v10/files"; then
+        test_pass
+    else
+        test_fail "expected two private mounts, a pinned store, and no pre-boundary pnpm invocation"
+    fi
+fi
+
+test_case "pnpm store mounts cannot overlap the sealed result channel"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+else
+    mkdir -p "$PNPM_STORE/v10/projects/results"
+    cmd_array=(true)
+    pnpm_status=0
+    OCTOPUS_TANGLE_RESULTS_DIR="$PNPM_STORE/v10/projects/results" pnpm_boundary || pnpm_status=$?
+    if [[ "$pnpm_status" -eq 0 && "$(pnpm_tmpfs_count)" == 0 ]] && ! pnpm_store_is_pinned; then
+        test_pass
+    else
+        test_fail "overlapping store was mounted or pinned: status=$pnpm_status mounts=$(pnpm_tmpfs_count)"
+    fi
+    rmdir "$PNPM_STORE/v10/projects/results"
+fi
+
+test_case "pnpm store selection survives the provider credential filter"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+else
+    cmd_array=(env -i "PATH=$PATH" true)
+    if pnpm_boundary && [[ "$(pnpm_tmpfs_count)" == 2 ]] &&
+       [[ " ${cmd_array[*]} " == *" -- env -i npm_config_store_dir=$PNPM_STORE PATH="* ]]; then
+        test_pass
+    else
+        test_fail "the isolated provider did not receive the pinned store"
+    fi
+fi
+
+test_case "pnpm store selection survives both credential-removal options from the Codex env builder"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+elif (
+    source "$PROJECT_ROOT/scripts/lib/provider-routing.sh"
+    CODEX_HOME="$PNPM_TEST_HOME/codex" OPENAI_API_KEY=fixture OCTOPUS_SECURITY_V870=true \
+        KEENABLE_API_KEY=fixture MISTRAL_API_KEY=fixture build_provider_env codex &&
+        cmd_array=("${PROVIDER_ENV_ARRAY[@]}" true) &&
+        pnpm_boundary && [[ "$(pnpm_tmpfs_count)" == 2 ]] &&
+        [[ " ${cmd_array[*]} " == *" -- env -u MISTRAL_API_KEY -u KEENABLE_API_KEY -i npm_config_store_dir=$PNPM_STORE "* ]]
+); then
+    test_pass
+else
+    test_fail "the Codex credential-removal prefix stripped the pinned store"
+fi
+
+test_case "pnpm skips the default store when the Node prefix selects or redirects a global store"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+elif (
+    umask 077
+    mkdir -p "$PNPM_ROOT/etc"
+    trap 'rm -f "$PNPM_ROOT/etc/npmrc"' EXIT
+    for setting in 'store-dir=/custom/pnpm/store' 'globalconfig=/custom/npmrc'; do
+        printf '%s\n' "$setting" > "$PNPM_ROOT/etc/npmrc"
+        cmd_array=(true)
+        pnpm_boundary && [[ "$(pnpm_tmpfs_count)" == 0 ]] && ! pnpm_store_is_pinned || exit 1
+    done
+); then
+    test_pass
+else
+    test_fail "a global store or redirected config was overridden"
+fi
+
+test_case "pnpm does not pin the home store for a worktree on another filesystem"
+if [[ -z "$PNPM_ROOT" ]] || ! stat -c %d -- "$PNPM_STORE" >/dev/null 2>&1 ||
+   [[ "$(stat -c %d -- "$TMP_LINK_ROOT")" == "$(stat -c %d -- "$PNPM_STORE")" ]]; then
+    test_skip "requires Linux fixtures on two filesystems"
+elif (
+    agent_type="claude"
+    role="implementer"
+    cross_device_worktree="$TMP_LINK_ROOT/pnpm-worktree"
+    mkdir -p "$cross_device_worktree"
+    touch "$cross_device_worktree/pnpm-lock.yaml"
+    cmd_array=(true)
+    pnpm_worktree="$cross_device_worktree" pnpm_boundary &&
+        [[ "$(pnpm_tmpfs_count)" == 0 ]] && ! pnpm_store_is_pinned
+); then
+    test_pass
+else
+    test_fail "a worktree on another device received the home store pin"
+fi
+
+test_case "Codex workspace-write grants only the two private pnpm directories"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+elif (
+    agent_type="codex"
+    role="implementer"
+    CODEX_HOME="$PNPM_TEST_HOME/codex"
+    mkdir -p "$CODEX_HOME"
+    for wrapper in "" "$PROJECT_ROOT/scripts/helpers/codex-run.sh"; do
+        for mode in workspace-write read-only danger-full-access; do
+            cmd_array=(env -u MISTRAL_API_KEY -i "PATH=$PATH" ${wrapper:+"$wrapper"}
+                       codex exec --skip-git-repo-check --model mock --sandbox "$mode" -)
+            pnpm_boundary && [[ "$(pnpm_tmpfs_count)" == 2 ]] || exit 1
+            writable_dirs=()
+            for ((i = 0; i + 1 < ${#cmd_array[@]}; i++)); do
+                if [[ "${cmd_array[i]}" == --add-dir ]]; then
+                    writable_dirs+=("${cmd_array[i+1]}")
+                fi
+            done
+            if [[ "$mode" == workspace-write ]]; then
+                [[ "${#writable_dirs[@]}" == 2 &&
+                   "${writable_dirs[0]}" == "$PNPM_STORE/v10/projects" &&
+                   "${writable_dirs[1]}" == "$PNPM_STORE/v10/tmp" ]] || exit 1
+            else
+                [[ "${#writable_dirs[@]}" == 0 ]] || exit 1
+            fi
+        done
+    done
+); then
+    test_pass
+else
+    test_fail "Codex sandbox roots did not match the private mounts and sandbox mode"
+fi
+
+test_case "reviewers, projects that name their own pnpm store, and projects without a pnpm lockfile get no pnpm tmpfs"
+if [[ -z "$PNPM_ROOT" ]]; then
+    test_skip "no fixture directory outside /tmp"
+else
+    pnpm_mounts=""
+    role="reviewer"
+    cmd_array=(true)
+    pnpm_boundary && pnpm_mounts+="reviewer=$(pnpm_tmpfs_count) "
+    role="implementer"
+    printf 'store-dir=.pnpm-store\n' > "$PNPM_WORKTREE/.npmrc"
+    cmd_array=(true)
+    pnpm_boundary && pnpm_mounts+="named=$(pnpm_tmpfs_count) "
+    rm -f "$PNPM_WORKTREE/.npmrc" "$PNPM_WORKTREE/pnpm-lock.yaml"
+    cmd_array=(true)
+    pnpm_boundary && pnpm_mounts+="unlocked=$(pnpm_tmpfs_count)"
+    if [[ "$pnpm_mounts" == "reviewer=0 named=0 unlocked=0" ]]; then
+        test_pass
+    else
+        test_fail "unexpected pnpm mounts: $pnpm_mounts"
+    fi
+fi
+
 eval "$saved_probe"
 CODEX_HOME="$CODEX_STATE_HOME"
 
@@ -709,6 +917,84 @@ if octopus_tangle_execution_boundary_probe; then
         fi
         OCTOPUS_TANGLE_WORKTREE="$BOUNDARY_WORKTREE"
         CODEX_HOME="$CODEX_STATE_HOME"
+    fi
+fi
+if octopus_tangle_execution_boundary_probe; then
+    test_case "a real boundary retains the provider's pinned pnpm store and isolates runtime writes"
+    if [[ -z "$PNPM_ROOT" ]]; then
+        test_skip "no fixture directory outside /tmp"
+    else
+        agent_type="claude"
+        role="implementer"
+        touch "$PNPM_WORKTREE/pnpm-lock.yaml"
+        cmd_array=(env -u MISTRAL_API_KEY -u KEENABLE_API_KEY -i "PATH=$PATH" bash -c '
+            [[ "${npm_config_store_dir:-}" == "$1" ]] &&
+            touch "$1/v10/projects/private" "$1/v10/tmp/private" &&
+            ! touch "$1/v10/files/read-only" 2>/dev/null
+        ' _ "$PNPM_STORE")
+        if pnpm_boundary && "${cmd_array[@]}" &&
+           [[ ! -e "$PNPM_STORE/v10/projects/private" &&
+              ! -e "$PNPM_STORE/v10/tmp/private" &&
+              ! -e "$PNPM_STORE/v10/files/read-only" ]]; then
+            test_pass
+        else
+            test_fail "store pin or filesystem permissions did not survive sandbox launch"
+        fi
+        rm -f "$PNPM_WORKTREE/pnpm-lock.yaml"
+    fi
+
+    test_case "pnpm install --frozen-lockfile --offline runs for a worktree pnpm has never registered"
+    if [[ -z "$PNPM_ROOT" ]] || ! real_pnpm="$(command -v pnpm)"; then
+        test_skip "pnpm or a fixture directory outside /tmp is unavailable"
+    elif [[ "$(cd "$PNPM_ROOT" && env -i "HOME=$PNPM_TEST_HOME" "PATH=$PATH" "$real_pnpm" --version)" != 10.* ]]; then
+        test_skip "requires pnpm 10 to exercise its v10 store"
+    else
+        pnpm_seed="$PNPM_ROOT/pnpm-seed"
+        pnpm_ws="$PNPM_ROOT/pnpm-ws"
+        pnpm_home="$PNPM_ROOT/pnpm-live-home"
+        pnpm_host_store="$pnpm_home/store"
+        mkdir -p "$pnpm_home" "$PNPM_ROOT/archive/package"
+        printf '{"name":"octo-store-fixture","version":"1.0.0"}\n' > "$PNPM_ROOT/archive/package/package.json"
+        printf 'cached package content\n' > "$PNPM_ROOT/archive/package/content.txt"
+        tar -czf "$PNPM_ROOT/fixture.tgz" -C "$PNPM_ROOT/archive" package
+        for pnpm_dir in "$pnpm_seed" "$pnpm_ws"; do
+            mkdir -p "$pnpm_dir/packages/a"
+            printf '{"name":"root","version":"0.0.0","private":true,"dependencies":{"octo-store-fixture":"file:../fixture.tgz"}}\n' \
+                > "$pnpm_dir/package.json"
+            printf 'packages:\n  - "packages/*"\n' > "$pnpm_dir/pnpm-workspace.yaml"
+            printf '{"name":"a","version":"0.0.0"}\n' > "$pnpm_dir/packages/a/package.json"
+        done
+        if ! (cd "$pnpm_seed" && env -i "HOME=$PNPM_TEST_HOME" "PATH=$PATH" "PNPM_HOME=$pnpm_home" \
+                 CI=true "$real_pnpm" install --no-frozen-lockfile --offline --ignore-scripts >"$PNPM_ROOT/pnpm-seed.log" 2>&1) ||
+           ! cp "$pnpm_seed/pnpm-lock.yaml" "$pnpm_ws/pnpm-lock.yaml"; then
+            cat "$PNPM_ROOT/pnpm-seed.log"
+            test_fail "pnpm could not seed the fixture store outside the boundary"
+        else
+            # pnpm checks the file: archive even with a frozen lockfile.
+            # Keep it read-only outside the sandboxed worktree.
+            mkdir -p "$pnpm_host_store/v10/projects" "$pnpm_host_store/v10/tmp"
+            registered_before="$(ls -A "$pnpm_host_store/v10/projects" | wc -l | tr -d ' ')"
+            agent_type="claude"
+            role="implementer"
+            install_status=0
+            cmd_array=(env -i "HOME=$PNPM_TEST_HOME" "PATH=$PATH" "CI=true"
+                       bash -c '[[ "${npm_config_store_dir:-}" == "$2" ]] &&
+                                cd "$1" && pnpm install --frozen-lockfile --offline' _ "$pnpm_ws" "$pnpm_host_store")
+            if PNPM_HOME="$pnpm_home" OCTOPUS_TANGLE_WORKTREE="$pnpm_ws" \
+                with_pnpm_test_config octopus_tangle_apply_execution_boundary; then
+                "${cmd_array[@]}" >"$PNPM_ROOT/pnpm-install.log" 2>&1 || install_status=$?
+            else
+                install_status=125
+            fi
+            if [[ "$install_status" -eq 0 ]] &&
+               grep -qx 'cached package content' "$pnpm_ws/node_modules/octo-store-fixture/content.txt" &&
+               [[ "$(ls -A "$pnpm_host_store/v10/projects" | wc -l | tr -d ' ')" == "$registered_before" ]]; then
+                test_pass
+            else
+                cat "$PNPM_ROOT/pnpm-install.log" 2>/dev/null || true
+                test_fail "status=$install_status"
+            fi
+        fi
     fi
 fi
 unset agent_type CODEX_HOME

@@ -4,21 +4,160 @@
 
 ### Fixed
 
+- Debate gives each run its own folder so a second debate in the same session
+  preserves the first debate's context, state, and round notes.
+
+## [11.28.2] - 2026-11-24
+
+### Fixed
+
+- Develop can move a subtask to an allowed fallback provider when its assigned
+  provider's circuit opens or quota runs out before launch. Review corrections
+  also select an available, allowed implementer before dispatch. Other spawn
+  failures still stop the run.
+  ([#1380](https://github.com/nyldn/claude-octopus/pull/1380))
+- Verification checks the synthesis written by the current run before
+  reporting completion. Explicit reuse still checks the selected saved result.
+  ([#1413](https://github.com/nyldn/claude-octopus/pull/1413))
+- Status reads saved project state through the installed plugin, including in
+  projects without a local copy of the state helper.
+  ([#1414](https://github.com/nyldn/claude-octopus/pull/1414),
+  [#1304](https://github.com/nyldn/claude-octopus/issues/1304))
+
+## [11.28.1] - 2026-11-24
+
+### Fixed
+
+- Discover saves the synthesis summary and context before marking the phase
+  complete. If either write fails, the workflow stops for recovery.
+  ([#1410](https://github.com/nyldn/claude-octopus/pull/1410))
+- Bounded Tangle lets implementers use an existing default pnpm 10 store for
+  offline installs. It gives pnpm private temporary storage for bookkeeping
+  and keeps the cached packages read-only. All required packages must already
+  be cached. See [bounded Tangle store requirements](docs/PROVIDERS.md#codex-in-bounded-tangle-runs).
+  ([#1382](https://github.com/nyldn/claude-octopus/pull/1382))
+- The Copilot skill skips Copilot-specific steps when the CLI is missing and
+  lets the rest of the workflow continue.
+  ([#1411](https://github.com/nyldn/claude-octopus/pull/1411),
+  [#1304](https://github.com/nyldn/claude-octopus/issues/1304))
+
+## [11.28.0] - 2026-11-24
+
+### Added
+
+- Council seat prompts limit reading to files and diffs named in the task or
+  supplied by Council, plus cited files opened to check a specific finding.
+  Set `OCTOPUS_COUNCIL_BOUNDED_READING=0` to remove the instruction.
+
+### Fixed
+
+- Resume can recover an interrupted session from its saved handoff, including
+  handoffs from older installs. ([#1406](https://github.com/nyldn/claude-octopus/pull/1406))
+- Council retains the terminal error from a failed Codex seat even if the seat
+  printed progress first. ([#1407](https://github.com/nyldn/claude-octopus/pull/1407))
+- Tangle detects same-size edits during correction rounds and preserves partial
+  work when a failed round leaves changes behind. ([#1408](https://github.com/nyldn/claude-octopus/pull/1408))
+
+## [11.27.1] - 2026-11-23
+
+### Fixed
+
+- The local issue tracker initializes its ledger from the installed template
+  on Linux and macOS, including plugin paths with spaces. A repeat preserves
+  the existing ledger. ([#1402](https://github.com/nyldn/claude-octopus/pull/1402))
+- Resolving a local issue requires an exact ID in the Open Issues table, so
+  resolved issues and IDs found only in notes cannot start a new resolution.
+  ([#1400](https://github.com/nyldn/claude-octopus/pull/1400))
+- Deck stakeholder review uses the installed advisor selector and the
+  confirmed deck question for its static readiness check.
+  ([#1403](https://github.com/nyldn/claude-octopus/pull/1403))
+- Documentation sync commits only the files it changed and preserves unrelated
+  work in the index and working tree.
+  ([#1404](https://github.com/nyldn/claude-octopus/pull/1404))
+
+These fixes address parts of
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
+## [11.27.0] - 2026-11-23
+
+### Added
+
+- Council `summary.json` reports real token usage and cost for Claude and
+  Codex seats: per seat, per phase and for the round. Each dispatch is also
+  appended to `usage.jsonl` in the run directory. Set
+  `OCTOPUS_COUNCIL_SEAT_USAGE=0` to keep plain text seat output.
+
+### Fixed
+
+- When the Council chair's answer is rejected, Council dispatches at most one
+  fallback by default. Set `OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to choose a limit
+  from zero to five. The run summary reports how many attempts were dispatched.
+
+- Staged review checks the staged versions of source files for placeholders
+  and short files, even when unstaged edits differ.
+
+- The Embrace debate gate reports why each provider seat failed, including
+  quota retry guidance when available.
+- Tangle keeps its out-of-scope path list out of the environment and caps the
+  scope-contract finding at 20 paths. It writes the validation report even for
+  oversized lists and reports failed worktree snapshots explicitly.
+- Tangle routes coding and reasoning subtasks to providers allowed by
+  `OCTO_ALLOWED_PROVIDERS`. If a required subtask type has no permitted provider,
+  Tangle reports which type needs a provider before launching any subtask.
+- Design history and workflow context match the original branch name, so
+  branches with identical filename slugs keep separate revision chains.
+- Tangle collects and reports large lists of out-of-scope paths without the
+  slowdown caused by repeatedly copying the growing list.
+- In blinded Debate, the moderator saves independent analyses before reading
+  advisor responses and scores responses from the current round.
+
+Included pull requests:
+[#1390](https://github.com/nyldn/claude-octopus/pull/1390),
+[#1397](https://github.com/nyldn/claude-octopus/pull/1397),
+[#1385](https://github.com/nyldn/claude-octopus/pull/1385),
+[#1383](https://github.com/nyldn/claude-octopus/pull/1383),
+[#1398](https://github.com/nyldn/claude-octopus/pull/1398),
+[#1378](https://github.com/nyldn/claude-octopus/pull/1378),
+[#1387](https://github.com/nyldn/claude-octopus/pull/1387),
+[#1399](https://github.com/nyldn/claude-octopus/pull/1399),
+[#1384](https://github.com/nyldn/claude-octopus/pull/1384).
+Several fixes address parts of the [runtime safety work tracked in #1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
+## [11.26.1] - 2026-11-23
+
+### Fixed
+
+- Project initialization refuses a pre-existing `.octo` symbolic link before
+  previewing or writing templates, preserving the linked destination.
+- Branch completion consistently maps option 1 to creating a pull request and
+  option 2 to merging locally across its menu, instructions, and quick reference.
+- Failed provider configuration saves preserve the last working settings.
+- Codex plugin listings include the existing logo artwork, complete skill
+  descriptions, and explicit starter prompts. First-use guidance explains
+  provider setup, readiness limits, and account costs.
 - Rollback preserves lessons in a private temporary backup, carries its exact
   path across shell calls, and retains recovery data when restoration fails.
-- Tangle moves a subtask to codex, then claude-sonnet, when its provider's
-  circuit opens or its quota dies mid-run, instead of aborting the whole
-  Develop run on the first refused spawn. A refusal from a healthy provider
-  still aborts.
-- Tangle's review correction round moves to codex, then claude-sonnet, when
-  its implementer's circuit is open or its quota is dead, and reruns the round
-  there when the implementer dies without writing anything. With no provider
-  left, the correction loop stops at once instead of retrying the dead one.
-- Tangle reruns a Step 2 subtask on codex, then claude-sonnet, when its
-  provider's circuit opens or its quota dies while the subtask runs, keeping
-  the partial edits it left in the run worktree. A `--loop` retry also moves
-  off a dead provider instead of stopping the run. A failure from a healthy
-  provider is not moved.
+- Refine gives judges access to staged review inputs and stops when their
+  read boundary cannot be enforced.
+- Feature planning creates a missing directory for an explicit spec path and
+  saves that feature's identity when preparing the spec.
+- The Tangle quality gate counts subtasks that report incomplete or blocked
+  work as blocked, even when the provider exits successfully.
+- Debate scores responses with no citations, code blocks, or advisor mentions
+  without Bash arithmetic errors.
+
+This release includes changes from [#1374](https://github.com/nyldn/claude-octopus/pull/1374),
+[#1364](https://github.com/nyldn/claude-octopus/pull/1364),
+[#1351](https://github.com/nyldn/claude-octopus/pull/1351),
+[#1379](https://github.com/nyldn/claude-octopus/pull/1379),
+[#1381](https://github.com/nyldn/claude-octopus/pull/1381),
+[#1393](https://github.com/nyldn/claude-octopus/pull/1393),
+[#1394](https://github.com/nyldn/claude-octopus/pull/1394),
+[#1377](https://github.com/nyldn/claude-octopus/pull/1377), and
+[#1395](https://github.com/nyldn/claude-octopus/pull/1395).
+This release includes the fixes for [#1372](https://github.com/nyldn/claude-octopus/issues/1372)
+and [#1392](https://github.com/nyldn/claude-octopus/issues/1392).
+The wider runtime work is tracked in [#1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
 ## [11.26.0] - 2026-11-18
 
@@ -138,6 +277,7 @@ Merged changes: [#1349](https://github.com/nyldn/claude-octopus/pull/1349),
 [#1357](https://github.com/nyldn/claude-octopus/pull/1357).
 These address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304);
 its broader runtime and installed-host acceptance work remains open.
+
 
 ## [11.24.2] - 2026-11-16
 

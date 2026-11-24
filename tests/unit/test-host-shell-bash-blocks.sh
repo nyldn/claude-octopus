@@ -352,19 +352,27 @@ for source in ('.claude/skills/skill-debate/SKILL.md', 'skills/skill-debate/SKIL
     assert result.returncode == 0, (source, result.stderr)
     settings = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
     assert settings.get('ROUNDS') == '3' and settings.get('STYLE') == 'thorough', (source, settings)
-    inputs = dict(settings, QUESTION="What's the cache?\nKeep $HOME literal", USER_GOAL='choose',
+    inputs = dict(settings, DEBATE_MODE='blinded', QUESTION="What's the cache?\nKeep $HOME literal", USER_GOAL='choose',
                   USER_PRIORITY='correctness', USER_CONSTRAINTS='offline')
-    for name in ('QUESTION', 'ROUNDS', 'STYLE', 'ADVISORS', 'USER_GOAL', 'USER_PRIORITY', 'USER_CONSTRAINTS'):
+    for name in ('QUESTION', 'ROUNDS', 'STYLE', 'DEBATE_MODE', 'ADVISORS',
+                 'USER_GOAL', 'USER_PRIORITY', 'USER_CONSTRAINTS'):
         assert re.search(rf'(?m)^{name}=', setup), (source, 'missing handoff', name)
         setup = re.sub(rf'(?m)^{name}=.*$', lambda match: name + '=' + shlex.quote(inputs[name]), setup)
     directory = scratch / ('setup-native' if source.startswith('.claude') else 'setup-generated')
     setup = re.sub(r'(?m)^DEBATE_BASE_DIR=.*$', lambda match: 'DEBATE_BASE_DIR=' + shlex.quote(str(directory)), setup)
     result = subprocess.run(['bash', '-c', setup], env=environment, capture_output=True, text=True)
     assert result.returncode == 0, (source, result.stderr)
-    state = json.loads((directory / '042-redis-vs-memcached/state.json').read_text())
+    handoff, separator, path = result.stdout.strip().partition('=')
+    assert (handoff, separator) == ('DEBATE_DIR', '='), (source, result.stdout)
+    debate = Path(path)
+    assert debate.parent == directory, (source, debate)
+    state = json.loads((debate / 'state.json').read_text())
+    assert state['debate_id'] == debate.name, (source, state)
     assert state['rounds_total'] == 3 and state['question'] == inputs['QUESTION'], (source, state)
+    assert state['mode'] == 'blinded', (source, state)
     assert state['advisors'] == ['codex', 'agy'] and state['user_context']['goal'] == 'choose', (source, state)
-    assert '**Style**: thorough' in (directory / '042-redis-vs-memcached/context.md').read_text()
+    context = (debate / 'context.md').read_text()
+    assert '**Style**: thorough' in context and '**Mode**: blinded' in context
 PY_HANDOFF
 then
     test_pass
@@ -393,8 +401,9 @@ for tree in ('.claude/skills', 'skills'):
 PY_ALLOWLIST
 then test_pass; else test_fail "the Bash child lost the explicit provider allowlist"; fi
 
-test_case "debate analysis quality and synthesis restore their directory in fresh shells"
+test_case "debate response reading, quality and synthesis restore their directory in fresh shells"
 if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_ROUNDS'
+import json
 import os
 from pathlib import Path
 import re
@@ -411,6 +420,7 @@ for tree in ('.claude/skills', 'skills'):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             directory = Path(temporary) / "quoted ' debate"
             (directory / 'rounds').mkdir(parents=True)
+            (directory / 'state.json').write_text(json.dumps({'mode': 'cross-critique', 'rounds_total': 1}))
             (directory / 'rounds/r001_codex.md').write_text('codex [source]\n```code\nanswer\n```\n')
             question = "What's the cache? Keep $HOME literal"
             for name, value in [('DEBATE_DIR', str(directory)), ('QUESTION', question)]:
@@ -424,7 +434,8 @@ for tree in ('.claude/skills', 'skills'):
                                     capture_output=True, text=True, timeout=5)
             assert result.returncode == 0, (tree, kind, result.stderr)
             if kind == 'analysis':
-                assert 'codex [source]' in result.stdout and (directory / 'rounds/r001_claude.md').is_file(), (tree, kind)
+                assert 'codex [source]' in result.stdout, (tree, kind, result.stdout)
+                assert not (directory / 'rounds/r001_claude.md').exists(), (tree, kind)
             elif kind == 'quality':
                 assert 'quality=75' in result.stdout, (tree, kind, result.stdout, result.stderr)
             else:

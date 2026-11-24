@@ -22,45 +22,70 @@ assert len(blocks) == 2, 'Expected the actual validation and state-write recipes
 recipe = '\n'.join(blocks)
 operations = ['update_context:discover', 'update_metrics:provider:agy',
               'update_metrics:provider:codex', 'update_metrics:phases_completed']
+reports = {
+    'valid': ('## Key Findings\nverified findings\n', 'verified findings'),
+    'late_findings': ('## Executive Summary\nsummary\n' + 'intro\n' * 52
+                      + '## Key Findings\n\nfirst\nsecond\nthird\nfourth\n'
+                      + '## Themes & Patterns\nother section\n', 'first second third'),
+    'legacy_summary': ('## Summary\nlegacy result\n## Sources\nsource\n', 'legacy result'),
+    'executive_summary': ('## Executive Summary\nexecutive result\n', 'executive result'),
+    'subsections': ('## Key Findings\n### Latency\nrequests got faster\n'
+                    '### Cost\nless compute\n## Sources\nsource only\n',
+                    'requests got faster less compute'),
+    'heading_only': ('## Key Findings\n### Latency fell by 30% [inference]\n'
+                     '### Cost fell by 20% [inference]\n',
+                     'Latency fell by 30% [inference] Cost fell by 20% [inference]'),
+    'mixed_subsections': ('## Key Findings\n### Latency fell by 30% [inference]\n'
+                          '### Cost\nless compute\n## Sources\nsource only\n',
+                          'Latency fell by 30% [inference] less compute'),
+    'no_context': ('## Sources\nsource only\n', None),
+    'blank_context': ('## Key Findings\n  \n## Sources\nsource only\n', None),
+}
+scenarios = [('valid', value) for value in ['none'] + operations] + [
+    (kind, 'none') for kind in reports if kind != 'valid'
+] + [('missing', 'none'), ('empty', 'none'), ('directory', 'none')]
 failures = []
 checked = 0
 for strict in (False, True):
     for conditional in (False, True):
-        for synthesis_kind, failing in [('valid', value) for value in ['none'] + operations] + [
-                ('missing', 'none'), ('empty', 'none'), ('directory', 'none')]:
+        for synthesis_kind, failing in scenarios:
             with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
                 temporary = Path(temporary)
                 plugin = temporary / 'plugin'
                 (plugin / 'scripts').mkdir(parents=True)
                 calls = temporary / 'calls'
                 saved = temporary / 'saved'
+                context = temporary / 'context'
                 helper = plugin / 'scripts/state-manager.sh'
                 helper.write_text('#!/bin/sh\n'
                                   'operation="$1:$2"\n'
                                   '[ "$operation" != update_metrics:provider ] || operation="$operation:$3"\n'
                                   'printf "%s\\n" "$operation" >> "$STATE_CALLS"\n'
                                   '[ "$operation" != "$FAIL_OPERATION" ] || exit 23\n'
+                                  'if [ "$operation" = update_context:discover ]; then printf "%s" "$3" > "$STATE_CONTEXT"; fi\n'
                                   'printf "%s\\n" "$operation" >> "$STATE_SAVED"\n')
                 helper.chmod(0o755)
                 synthesis = temporary / 'synthesis.md'
-                if synthesis_kind == 'valid':
-                    synthesis.write_text('## Key Findings\nverified findings\n')
+                report, expected_context = reports.get(synthesis_kind, (None, None))
+                if report is not None:
+                    synthesis.write_text(report)
                 elif synthesis_kind == 'empty':
                     synthesis.touch()
                 elif synthesis_kind == 'directory':
                     synthesis.mkdir()
                 env = dict(os.environ, OCTO_ROOT=str(plugin), SYNTHESIS_FILE=str(synthesis),
-                           STATE_CALLS=str(calls), STATE_SAVED=str(saved), FAIL_OPERATION=failing,
+                           STATE_CALLS=str(calls), STATE_SAVED=str(saved), STATE_CONTEXT=str(context),
+                           FAIL_OPERATION=failing,
                            FLEET_OUTPUT='codex|coding\nagy|research\ncodex|duplicate')
                 program = recipe + '\nprintf "presentation reached\\n"'
                 if conditional:
                     program = '(\n' + program + '\n) && exit 0; exit $?'
-                result = subprocess.run(['bash', '-euc' if strict else '-c', program],
+                result = subprocess.run(['bash', '-euo', 'pipefail', '-c', program] if strict else ['bash', '-c', program],
                                         env=env, cwd=temporary, capture_output=True, text=True, timeout=10)
                 observed = calls.read_text().splitlines() if calls.exists() else []
                 persisted = saved.read_text().splitlines() if saved.exists() else []
-                success = synthesis_kind == 'valid' and failing == 'none'
-                if synthesis_kind != 'valid':
+                success = expected_context is not None and failing == 'none'
+                if expected_context is None:
                     expected = []
                     expected_saved = []
                 elif failing == 'none':
@@ -70,10 +95,14 @@ for strict in (False, True):
                     index = operations.index(failing)
                     expected = operations[:index + 1]
                     expected_saved = operations[:index]
+                actual_context = context.read_text() if context.exists() else None
+                if failing == 'update_context:discover':
+                    expected_context = None
                 if not ((result.returncode == 0) == success and observed == expected and
-                        persisted == expected_saved and ('presentation reached' in result.stdout) == success):
+                        persisted == expected_saved and actual_context == expected_context and
+                        ('presentation reached' in result.stdout) == success):
                     failures.append(f'{synthesis_kind=} {failing=} {strict=} {conditional=} '
-                                    f'exit={result.returncode} writes={observed} saved={persisted}')
+                                    f'exit={result.returncode} writes={observed} saved={persisted} context={actual_context!r}')
                 checked += 1
 print(f'{checked - len(failures)}/{checked} actual Discover recipe controls passed')
 for failure in failures:

@@ -2,6 +2,7 @@
 name: skill-extract
 disable-model-invocation: true
 description: "Reverse-engineer design systems, tokens, and components from live products or screenshots"
+codex_short_description: "Recover design tokens and patterns from an existing product"
 ---
 
 # Extract Skill - Implementation Guide

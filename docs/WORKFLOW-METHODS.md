@@ -53,6 +53,10 @@ Architecture is named `octopus-architecture`; the other direct methods include
 
 ## Completion and publication recovery
 
+Discover saves the synthesis summary and context before recording completion.
+If a write fails, inspect the reported state operation and keep the synthesis
+artifact for recovery before retrying the phase.
+
 Develop stops at the first failed implementation decision, context or metrics
 write. It also stops if the post-development checkpoint or either completion
 state write fails. Inspect earlier successful writes and any existing checkpoint
@@ -80,6 +84,10 @@ Sonnet model name cannot substitute for that native route. Missing, empty or
 symlinked Sonnet artifacts stop a claimed host success from satisfying the gate.
 
 ## Review and compaction recovery
+
+Verification checks the synthesis file returned by the current run. A missing,
+empty, or headings-only synthesis stops completion. When you explicitly reuse
+a saved result, verification checks that selected result.
 
 Branch completion dispatches the configured `code-reviewer` persona and waits
 for its completed answer. The quick review covers the complete committed text
@@ -187,6 +195,23 @@ hypothesis, artifact path, source revision, observations, verdict, and artifact
 disposition. Native read-only plan mode can propose a prototype but cannot write
 or launch one. A prototype choice does not authorize provider calls, deployment,
 browser login, or repository rewrites.
+
+## Tangle provider and write-scope checks
+
+Develop can try the next allowed provider when a subtask's assigned provider
+is unavailable before launch. A launch without a confirmed worker ID stops
+the run unless the launcher confirms a refusal before starting a worker.
+Review corrections select an available implementer from the allowed providers.
+
+Tangle selects providers for coding and reasoning subtasks from
+`OCTO_ALLOWED_PROVIDERS` when that allowlist is set. If a required subtask
+type has no permitted route, the run reports the missing type
+before dispatching any subtask.
+
+If a subtask changes paths outside its declared write scopes, the write-scope
+pre-gate records the paths in the validation report. The scope-contract finding
+quotes up to 20 paths and gives the count of the remaining paths. Use the
+validation report to inspect the complete list.
 
 ## Offline routing preview
 

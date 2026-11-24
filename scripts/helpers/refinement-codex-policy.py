@@ -1,16 +1,41 @@
 #!/usr/bin/env python3
 """Emit per-server disable overrides without reading or exposing credentials."""
 import json
+import hashlib
 import re
+import os
+import shlex
+from pathlib import Path
 import subprocess
 import sys
+
+
+def profile_name(directory):
+    """Keep this invocation's profile separate from ambient named profiles."""
+    return "octopus_refine_" + hashlib.sha256(str(directory).encode()).hexdigest()[:24]
 
 
 def flags(servers):
     """Build disable overrides from safely named MCP inventory entries."""
     if not isinstance(servers, list):
         raise ValueError("invalid MCP inventory")
-    result = ["-c", "features.apps=false", "-c", "features.plugins=false"]
+    directory = Path(os.environ["OCTOPUS_REFINEMENT_INPUT_DIR"]).resolve(strict=True)
+    if not directory.is_dir():
+        raise ValueError("missing private judge input directory")
+    profile = '{":minimal"="read",' + json.dumps(str(directory)) + '="read"}'
+    name = profile_name(directory)
+    settings = [
+        'default_permissions=' + json.dumps(name),
+        'permissions.' + name + '={filesystem=' + profile + ',network={enabled=false}}',
+        'approval_policy="never"', 'project_doc_max_bytes=0',
+        'shell_environment_policy.inherit="none"',
+        'shell_environment_policy.exclude=["*"]', 'shell_environment_policy.set={}', 'web_search="disabled"',
+    ]
+    settings += [f"features.{name}=false" for name in (
+        "apps", "plugins", "hooks", "memories", "multi_agent", "multi_agent_v2",
+        "browser_use", "computer_use", "in_app_browser", "code_mode", "code_mode_host",
+        "request_permissions_tool", "shell_snapshot", "view_image")]
+    result = [part for setting in settings for part in ("-c", setting)]
     for server in servers:
         name = server.get("name") if isinstance(server, dict) else None
         if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", name):
@@ -25,8 +50,8 @@ def main():
         result = subprocess.run(["codex", "mcp", "list", "--json", "-c", "features.apps=false",
                                  "-c", "features.plugins=false"],
                                 capture_output=True, text=True, timeout=15, check=True)
-        print(" ".join(flags(json.loads(result.stdout))))
-    except (ValueError, OSError, subprocess.SubprocessError):
+        print(shlex.join(flags(json.loads(result.stdout))))
+    except (KeyError, ValueError, OSError, subprocess.SubprocessError):
         # Inventory output may contain credential configuration. Never echo it.
         print("ERROR: cannot establish a Codex judge MCP boundary", file=sys.stderr)
         return 2

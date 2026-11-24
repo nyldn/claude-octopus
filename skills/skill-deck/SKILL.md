@@ -16,6 +16,7 @@ trigger: |
   DO NOT activate for:
   - Converting existing markdown to PPTX (use /octo:docs instead)
   - General file conversions (use document-skills directly)
+codex_short_description: "Turn a brief and supporting evidence into a slide deck"
 ---
 
 # Slide Deck Generator
@@ -232,12 +233,21 @@ minimum slide count.
 Without `--red-team`, skip this pass and continue to outline approval. With the
 flag, run it against the draft skeleton before requesting approval or rendering:
 
-1. Load the installed `skill-debate` readiness selector and provider allowlist.
-   Use static readiness only before consent: invoke the installed
-   `scripts/helpers/select-fleet-advisors.sh` as
-   `OCTOPUS_PREFLIGHT_PROBE=0 "$ADVISOR_SELECTOR" debate standard "$QUESTION"`.
-   Scope that override to the selector process, even if the inherited setting
-   enables live probes. Do not use `--live` or make readiness inference requests.
+1. In the current shell, bind `OCTO_ROOT` to the verified installed plugin root
+   and `DECK_QUESTION` to the exact governing question confirmed in Step 3. Pass
+   the question as a quoted shell value. Run the installed selector for static
+   readiness before consent. The selector respects the provider allowlist:
+
+   ```bash
+   : "${OCTO_ROOT:?Bind OCTO_ROOT to the verified installed plugin root}"
+   : "${DECK_QUESTION:?Bind DECK_QUESTION to the confirmed governing question}"
+   OCTO_ALLOWED_PROVIDERS="${OCTO_ALLOWED_PROVIDERS:-}" OCTOPUS_PREFLIGHT_PROBE=0 \
+     "$OCTO_ROOT/scripts/helpers/select-fleet-advisors.sh" debate standard "$DECK_QUESTION"
+   ```
+
+   Use the returned provider list only if the selector succeeds. If it fails,
+   report that readiness could not be established and stop the red-team pass.
+   Do not use `--live` or make readiness inference requests before consent.
    Before dispatch, prepare a seat plan with stakeholder, provider/transport,
    resolved model and effort, estimated input tokens, and an output allowance
    that includes reasoning tokens. Estimate each seat and the total using the

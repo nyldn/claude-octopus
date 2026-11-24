@@ -1,5 +1,5 @@
 interface:
   display_name: "Deliver"
-  short_description: "Multi-AI validation, scoring, and review using available..."
+  short_description: "Review changes and assess readiness for delivery"
 policy:
   allow_implicit_invocation: false

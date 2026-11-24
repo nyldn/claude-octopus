@@ -13,6 +13,8 @@ trigger: |
 paths:
   - "**/test*"
   - "**/*.test.*"
+codex_short_description: "Check completion claims against current execution evidence"
+codex_alias_short_description: "Verify changed behavior with tests and execution evidence"
 ---
 
 # Verification Gate
@@ -83,17 +85,36 @@ In Claude Octopus workflows, verification is especially critical because:
 
 - **Provider outputs can be hallucinated** — Codex, Antigravity, Copilot, and other providers may claim success without evidence
 - **Consensus ≠ correctness** — three models agreeing doesn't mean they're right
-- **Synthesis files may be stale** — check timestamps, don't assume freshness
+- **Synthesis files may belong to earlier runs** — use the path from this invocation
 - **orchestrate.sh exit code 0 ≠ quality** — the script ran, but did it produce good output?
 
-After any multi-provider workflow:
-```bash
-# Verify synthesis file exists and is recent
-ls -la ~/.claude-octopus/results/*-synthesis-*.md | tail -1
+For fresh completion of a workflow that produces a synthesis, set
+`SYNTHESIS_FILE` to the exact path after confirming this invocation wrote a new synthesis.
+Stop the fresh completion check if no new synthesis was written or the path is unknown.
 
-# Verify it has content (not just headers)
-wc -l ~/.claude-octopus/results/*-synthesis-*.md | tail -1
+Treat `Synthesis already exists`, a completed resume, and a cache hit as reuse.
+For an explicit resume or cache reuse, review the saved evidence for the
+identified run and report the result as reused evidence.
+
+```bash
+synthesis_file="${SYNTHESIS_FILE:-}"
+if [[ ! -f "$synthesis_file" || ! -r "$synthesis_file" ]]; then
+  printf '%s\n' 'Verification failed. The current run has no readable synthesis file.' >&2
+  exit 1
+fi
+
+if ! awk '
+  /[^[:space:]]/ && !/^[[:space:]]*#+([[:space:]]|$)/ { found = 1; exit }
+  END { exit !found }
+' < "$synthesis_file"; then
+  printf 'Verification failed. The synthesis has no findings to review in %s.\n' "$synthesis_file" >&2
+  exit 1
+fi
+printf 'Synthesis has content in %s.\n' "$synthesis_file"
 ```
+
+Read the checked file and verify its findings against the workflow's evidence
+before reporting success.
 
 ## When to Apply
 

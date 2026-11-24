@@ -11,6 +11,7 @@ trigger: |
 paths:
   - "**/.github/copilot*"
   - "**/.copilot*"
+codex_short_description: "Use an available GitHub Copilot CLI as an external provider"
 ---
 
 # GitHub Copilot Provider Skill
@@ -32,12 +33,14 @@ premium request against your subscription quota.
 ## Detection
 
 ```bash
-# Check copilot CLI is available
-if ! command -v copilot &>/dev/null; then
-  # Copilot CLI not installed — silently skip
-  return 0
+# Check whether the Copilot CLI is installed.
+copilot_available=false
+if command -v copilot >/dev/null 2>&1; then
+  copilot_available=true
 fi
 ```
+
+Run the Copilot-specific steps only when `copilot_available` is `true`.
 
 **Graceful degradation:** When Copilot CLI is unavailable or unauthenticated, silently skip.
 Other providers continue to operate normally.

@@ -611,6 +611,10 @@ Delivery phase — Validation, quality assurance, and PR comment posting.
 - **Auto-posts review findings as PR comments** when an open PR is detected (v8.44.0+)
 - Shows visual indicator: 🐙 ✅
 
+When delivery runs documentation sync, the doc-sync commit contains only the
+files changed during that run. Files with pre-existing edits are skipped.
+Unrelated staged changes stay in the index.
+
 **Natural language triggers:**
 - `octo validate X`
 - `octo audit Z`
@@ -733,6 +737,7 @@ AI Debate Hub — structured debates between Claude and available external provi
 |------|-------------|
 | `-r N`, `--rounds N` | Number of debate rounds (default: 2) |
 | `-d STYLE`, `--debate-style STYLE` | `quick`, `thorough`, `adversarial`, `collaborative` |
+| `--mode MODE` | `cross-critique` or `blinded`. In blinded mode, the moderator saves independent analyses before reading advisor responses. |
 
 **What it does:**
 - Claude, Antigravity CLI, and Codex CLI debate the topic
@@ -1122,6 +1127,10 @@ Slide deck generator from briefs, research, or topic descriptions.
 2. **Research** — Optional context gathering (or bring your own content)
 3. **Outline** — Slide-by-slide structure for your approval
 4. **PPTX** — Rendered PowerPoint file
+
+Add `--red-team` for a stakeholder objection pass before outline approval.
+The readiness check uses your confirmed deck question and allowed provider
+list. Advisor calls require your consent.
 
 **Tip:** Run `/octo:discover [topic]` first for research-heavy presentations, then pipe the output to `/octo:deck`.
 
@@ -1602,7 +1611,9 @@ it as a source. Ordinary natural-language prompts do not auto-activate them.
 
 ### `Status`
 
-Show where you are in the workflow and what to do next.
+Show where you are in the workflow and what to do next. Status uses the
+installed plugin to read `.octo/STATE.md` in the current project. If state
+cannot be read, it reports the error before displaying a dashboard.
 
 **Invocation:** Select the skill explicitly; example requests include "show status", "where am I", "what's next", "progress", and "what have I been working on".
 
@@ -1656,6 +1667,10 @@ Track blockers, bugs, and gaps across sessions.
 - Show details: `show <id>`
 
 **Issue ID format:** `ISS-YYYYMMDD-NNN`
+
+The skill creates `.octo/ISSUES.md` from the installed template on first use
+and preserves an existing ledger. Pass the exact ID from Open Issues to
+`resolve` to move that issue into the Resolved table.
 
 **Severity levels:** critical, high, medium, low
 

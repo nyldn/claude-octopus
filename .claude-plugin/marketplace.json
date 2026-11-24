@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.26.0"
+    "version": "11.28.2"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.26.0 - Custom provider presets in the tool helper, native skills and debate advisor checks. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.26.0",
+      "description": "v11.28.2 - Verify checks the current synthesis, Develop recovers from pre-launch provider outages, and Status reads saved project progress. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.28.2",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

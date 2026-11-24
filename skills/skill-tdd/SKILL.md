@@ -18,6 +18,8 @@ pre_execution_contract:
 validation_gates:
   - focused_red_observed
   - focused_and_affected_suites_green
+codex_short_description: "Implement a behavior through failing and passing tests"
+codex_display_name: "Test-Driven Development"
 ---
 
 # Test-driven development
