@@ -16,6 +16,49 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 export RESULTS_DIR="$TMP_DIR/results"
 mkdir -p "$RESULTS_DIR"
 
+test_case "Tangle detects same-size edits to already dirty, staged, and untracked files"
+if (
+    repo="$TMP_DIR/fingerprint"
+    git init -q "$repo" || exit 1
+    cd "$repo" || exit 1
+    printf 'base\n' > tracked
+    git add tracked && git -c user.name=Fixture -c user.email=fixture@example.invalid commit -qm base || exit 1
+    source "$PROJECT_ROOT/scripts/lib/workflows.sh"
+    tangle_resolve_repo_root() { printf '%s\n' "$repo"; }
+
+    printf 'edit\n' > tracked
+    before=$(tangle_worktree_fingerprint) || exit 1
+    printf 'next\n' > tracked
+    after=$(tangle_worktree_fingerprint) || exit 1
+    [[ -n "$before" && -n "$after" && "$before" != "$after" ]] || exit 1
+
+    git add tracked || exit 1
+    before=$(tangle_worktree_fingerprint) || exit 1
+    printf 'done\n' > tracked
+    git add tracked || exit 1
+    after=$(tangle_worktree_fingerprint) || exit 1
+    [[ "$before" != "$after" ]] || exit 1
+
+    unusual_path=$'untracked\nfile'
+    printf 'one\n' > "$unusual_path"
+    before=$(tangle_worktree_fingerprint) || exit 1
+    printf 'two\n' > "$unusual_path"
+    after=$(tangle_worktree_fingerprint) || exit 1
+    [[ "$before" != "$after" && "$after" == "$(tangle_worktree_fingerprint)" ]] || exit 1
+
+    printf 'outside\n' > "$TMP_DIR/outside"
+    ln -s ../outside link || exit 1
+    before=$(tangle_worktree_fingerprint) || exit 1
+    printf 'updated\n' > "$TMP_DIR/outside"
+    [[ "$before" == "$(tangle_worktree_fingerprint)" ]] || exit 1
+    ln -snf ../different link || exit 1
+    [[ "$before" != "$(tangle_worktree_fingerprint)" ]]
+); then
+    test_pass
+else
+    test_fail "the fingerprint missed a changed entry or changed without an edit"
+fi
+
 # ── Harness ────────────────────────────────────────────────────────────────
 # run_gate <blocker-count-sequence...>
 # Each stubbed review round pops the next count from the sequence. Correction

@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Tangle detects same-size edits during correction rounds and preserves partial
+  work when a failed round leaves changes behind.
+
 ## [11.27.1] - 2026-11-23
 
 ### Fixed

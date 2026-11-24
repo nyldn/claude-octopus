@@ -3167,13 +3167,10 @@ tangle_validation_signature() {
 }
 
 tangle_worktree_fingerprint() {
-    local repo_root
+    local repo_root helper
     repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
-    {
-        git -C "$repo_root" status --porcelain 2>/dev/null || true
-        git -C "$repo_root" diff --stat 2>/dev/null || true
-        git -C "$repo_root" ls-files --others --exclude-standard 2>/dev/null || true
-    } | sha256sum 2>/dev/null | awk '{print $1}'
+    helper="$(dirname -- "${BASH_SOURCE[0]}")/../helpers/tangle-worktree-fingerprint.py"
+    python3 -I "$helper" "$repo_root"
 }
 
 tangle_process_is_active_non_zombie() {
@@ -4328,7 +4325,7 @@ Blocking findings to fix:
 ${normal_findings}
 "
 
-    before_fp=$(tangle_worktree_fingerprint)
+    before_fp=$(tangle_worktree_fingerprint) || before_fp=""
     last_fp="$before_fp"
     last_size=0
     last_progress=$(date +%s)
@@ -4365,7 +4362,7 @@ ${normal_findings}
         [[ "$now" -ge "$next_probe" || ( "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ) ]] || continue
         next_probe=$((now + poll_secs))
         local current_fp current_size
-        current_fp=$(tangle_worktree_fingerprint)
+        current_fp=$(tangle_worktree_fingerprint) || current_fp="$last_fp"
         current_size=$(stat -c '%s' "$correction_file" 2>/dev/null || stat -f '%z' "$correction_file" 2>/dev/null || echo 0)
         if [[ "$current_fp" != "$last_fp" || "$current_size" != "$last_size" ]]; then
             last_fp="$current_fp"
@@ -4393,8 +4390,9 @@ ${normal_findings}
     [[ -f "$rc_file" ]] && correction_rc=$(cat "$rc_file" 2>/dev/null || echo 1)
     rm -f "$rc_file" 2>/dev/null || true
 
-    after_fp=$(tangle_worktree_fingerprint)
-    if [[ "$after_fp" != "$before_fp" ]]; then
+    after_fp=$(tangle_worktree_fingerprint) || after_fp=""
+    # An unreadable snapshot cannot prove it's safe to retry on this worktree.
+    if [[ -z "$before_fp" || -z "$after_fp" || "$after_fp" != "$before_fp" ]]; then
         TANGLE_CORRECTION_CHANGED="1"
     fi
     TANGLE_CORRECTION_CONTAMINATION=$(tangle_scope_contamination_summary)
