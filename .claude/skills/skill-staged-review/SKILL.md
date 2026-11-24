@@ -115,7 +115,8 @@ the diff and have no staged file to scan.
 
 **After admitting and scanning the staged snapshot, dispatch its diff for parallel quality review.** A Claude-only review pipeline misses what external models catch — Codex excels at logic errors and correctness, while Antigravity provides an independent security and edge-case analysis. Using both produces higher-confidence findings.
 
-**Admit the staged snapshot before checking provider availability:**
+Run this entire block in one Bash call. It admits the staged snapshot before
+checking provider availability and sends the same diff to each available reviewer.
 
 ```bash
 # Admit the complete staged text before any review. Do not substitute another
@@ -297,22 +298,15 @@ sys.stdout.buffer.write(diff)
 PY_STAGED_DIFF
 }
 DIFF_CONTENT=$(octopus_staged_review_diff) || exit 1
-```
+REVIEW_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-staged-review.XXXXXX") || exit 1
+printf '%s\n' "$DIFF_CONTENT" > "$REVIEW_DIR/staged.diff" || exit 1
+printf 'Staged review input: %s/staged.diff\n' "$REVIEW_DIR"
 
-If this admission step fails, stop before provider dispatch or a clean-review
-claim. Binary and submodule changes require a separate complete content review;
-their Git notices and object IDs do not establish source coverage. Keep the
-entire admitted text in the prompt, including its final lines. Review covers
-the printed immutable staged snapshot; later staging requires a fresh review.
-
-**If external providers are available — dispatch focused reviews through Octopus routing:**
-```bash
 providers=()
 command -v codex >/dev/null 2>&1 && providers+=(codex)
 command -v agy >/dev/null 2>&1 && providers+=(agy)
 
 for provider in "${providers[@]}"; do
-  safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
   "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
     "Review this code diff for LOGIC, CORRECTNESS, and SECURITY issues. Focus on:
 1. Logic bugs and off-by-one errors
@@ -324,11 +318,19 @@ for provider in "${providers[@]}"; do
 Report ONLY high-confidence issues. Do NOT flag style preferences.
 
 DIFF:
-${DIFF_CONTENT}" > "/tmp/octopus-review-${safe_provider}.md" 2>/dev/null &
+${DIFF_CONTENT}" > "$REVIEW_DIR/$provider.md" 2>"$REVIEW_DIR/$provider.log" &
 done
 ```
 
-**Wait for external reviews to complete, then synthesize all findings from Claude plus available external providers into a unified quality assessment.** If external providers are unavailable, fall back to the Claude-only review below.
+If snapshot admission fails, stop before provider dispatch or a clean-review
+claim. Binary and submodule changes require a separate complete content review.
+Read the complete `staged.diff` from the printed path for the local review.
+Later staging requires a fresh review.
+
+**Wait for the dispatched reviews to complete before combining their findings
+with yours.** Use the directory containing `staged.diff` to identify this
+invocation's dispatches. If no external providers are available, perform the
+local review below.
 
 **Claude (you) performs the full quality review regardless:**
 

@@ -30,6 +30,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      'oversized', 'transport marker', 'external diff', 'textconv',
                      'relative config', 'shadow stdlib', 'unstaged excluded',
                      'forced text hidden NUL', 'forced text trailing NUL', 'unmerged', 'index race',
+                     'unavailable output directory',
                      'staged stub', 'staged comments', 'staged deletion',
                      'staged block comments', 'staged block then code',
                      'staged exported declarations', 'staged reexports', 'staged private fields',
@@ -162,7 +163,24 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             expected = subprocess.check_output(['git', 'diff', '--cached', '--no-ext-diff',
                 '--no-textconv', '--no-renames', '--no-relative', '--ignore-submodules=none',
                 '--no-color', '--binary', '--'], cwd=project, env=environment, text=True).rstrip('\n')
-            call_environment = dict(environment, CAPTURE=str(project / '.git/prompt'))
+            fixture = project / '.git'
+            plugin = fixture / 'plugin root'
+            (plugin / 'scripts').mkdir(parents=True)
+            launcher = plugin / 'scripts/orchestrate.sh'
+            launcher.write_text(
+                '#!/bin/bash\n'
+                '[[ "$1" == spawn && $# == 3 ]] || exit 2\n'
+                'printf "%s" "$3" > "$REVIEW_FIXTURE/$2-prompt"\n'
+            )
+            launcher.chmod(0o755)
+            has_providers = scenario in ('long text', 'index race', 'empty',
+                                         'unavailable output directory')
+            temp_root = fixture
+            if scenario == 'unavailable output directory':
+                temp_root = fixture / 'not-a-directory'
+                temp_root.touch()
+            call_environment = dict(environment, CLAUDE_PLUGIN_ROOT=str(plugin), TMPDIR=str(temp_root),
+                                    REVIEW_FIXTURE=str(fixture), REVIEW_PROVIDERS=str(int(has_providers)))
             expected_index = before
             if scenario == 'index race':
                 binary_dir = project / '.git/bin'
@@ -179,19 +197,46 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 call_environment.update(PATH=str(binary_dir) + ':' + environment['PATH'],
                                         REAL_GIT=shutil.which('git'), RACE_HEAD=race_head)
                 expected_index += f'160000 {race_head} 0\tnested\0'
-            result = subprocess.run(['bash', '-c', recipe + '\nprintf "%s" "$DIFF_CONTENT" > "$CAPTURE"'],
+            # Give the recipe two inert providers only for the dispatch controls.
+            provider_lookup = '''
+command() {
+    if [[ "$1" == -v && ( "$2" == codex || "$2" == agy ) ]]; then
+        [[ "$REVIEW_PROVIDERS" == 1 ]]
+    else
+        builtin command "$@"
+    fi
+}
+'''
+            result = subprocess.run(['bash', '-c', provider_lookup + recipe + '\nwait'],
                                     cwd=cwd, env=call_environment,
                                     capture_output=True, text=True, timeout=5)
             blocked = scenario.startswith(('binary', 'gitlink')) or scenario in (
                 'empty', 'forced text binary', 'oversized', 'transport marker',
-                'forced text hidden NUL', 'forced text trailing NUL', 'unmerged')
-            capture = project / '.git/prompt'
+                'forced text hidden NUL', 'forced text trailing NUL', 'unmerged',
+                'unavailable output directory')
             valid = ((result.returncode != 0) == blocked and
-                     capture.exists() != blocked and not (project / 'executed').exists() and
+                     not (project / 'executed').exists() and
                      git('ls-files', '--stage', '-z') == expected_index)
-            if not blocked and capture.exists():
-                valid = valid and capture.read_text() == expected
-                valid = valid and 'UNSTAGED_MUST_NOT_BE_REVIEWED' not in capture.read_text()
+            output_dirs = list(fixture.glob('octopus-staged-review.*'))
+            valid = valid and len(output_dirs) == (0 if blocked else 1)
+            if blocked:
+                valid = valid and result.stdout == ''
+            elif output_dirs:
+                staged_diff = output_dirs[0] / 'staged.diff'
+                files = {'staged.diff'}
+                if has_providers:
+                    files.update(('codex.md', 'codex.log', 'agy.md', 'agy.log'))
+                valid = (valid and result.stdout == f'Staged review input: {staged_diff}\n' and
+                         {path.name for path in output_dirs[0].iterdir()} == files and
+                         staged_diff.read_text() == expected + '\n')
+            for provider in ('codex', 'agy'):
+                prompt = fixture / f'{provider}-prompt'
+                if has_providers and not blocked:
+                    valid = valid and prompt.is_file()
+                    if prompt.is_file():
+                        valid = valid and prompt.read_text().partition('\nDIFF:\n')[2] == expected
+                else:
+                    valid = valid and not prompt.exists()
             if scenario == 'staged stub':
                 valid = valid and '1 TODO/FIXME markers' in result.stderr
             elif scenario == 'staged comments':
