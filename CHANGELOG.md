@@ -8,6 +8,11 @@
   supplied by Council, plus cited files opened to check a specific finding.
   Set `OCTOPUS_COUNCIL_BOUNDED_READING=0` to remove the instruction.
 
+### Fixed
+
+- Tangle detects same-size edits during correction rounds and preserves partial
+  work when a failed round leaves changes behind.
+
 ## [11.27.1] - 2026-11-23
 
 ### Fixed
