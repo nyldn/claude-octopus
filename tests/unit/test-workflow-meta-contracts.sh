@@ -375,6 +375,54 @@ else
     test_fail "found $iron_law_count copies"
 fi
 
+synthesis_home="$TEST_TMP_DIR/verification-home"
+synthesis_results="$synthesis_home/.claude-octopus/results"
+mkdir -p "$synthesis_results"
+printf '# Earlier synthesis\nEarlier findings.\n' > "$synthesis_results/probe-synthesis-older.md"
+empty_synthesis="$synthesis_results/probe-synthesis-empty.md"
+headings_synthesis="$synthesis_results/probe-synthesis-headings.md"
+valid_synthesis="$synthesis_results/probe-synthesis-current [2].md"
+: > "$empty_synthesis"
+printf '# Current synthesis\n\n## Findings\n' > "$headings_synthesis"
+printf '# Current synthesis\n\nVerified finding without a trailing newline' > "$valid_synthesis"
+
+verification_entries=(
+    .claude/skills/skill-verification-gate
+    skills/skill-verification-gate
+    skills/skill-verify
+    codex-skills/skill-verification-gate
+    codex-skills/skill-verify
+)
+for entry in "${verification_entries[@]}"; do
+    synthesis_section=$(sed -n '/^## Multi-Provider Context$/,/^## When to Apply$/p' "$PROJECT_ROOT/$entry/SKILL.md")
+    test_case "$entry requires new synthesis for fresh completion and labels reuse"
+    if grep -Fq 'this invocation wrote a new synthesis' <<< "$synthesis_section" &&
+       grep -Fq 'Treat `Synthesis already exists`, a completed resume, and a cache hit as reuse.' <<< "$synthesis_section" &&
+       grep -Fq 'report the result as reused evidence' <<< "$synthesis_section"; then
+        test_pass
+    else
+        test_fail "the skill must distinguish a newly written synthesis from an existing result"
+    fi
+    synthesis_check=$(extract_bash_fence <<< "$synthesis_section")
+    for rejected_path in "" "$synthesis_results/probe-synthesis-missing.md" "$empty_synthesis" "$headings_synthesis"; do
+        rejected_name="${rejected_path##*/}"
+        test_case "$entry synthesis gate rejects ${rejected_name:-an unspecified path}"
+        if [[ -z "$synthesis_check" ]] ||
+           HOME="$synthesis_home" SYNTHESIS_FILE="$rejected_path" bash -euo pipefail -c "$synthesis_check" >/dev/null 2>&1; then
+            test_fail "the synthesis check was missing or accepted an invalid current path"
+        else
+            test_pass
+        fi
+    done
+    test_case "$entry synthesis gate accepts the specified result with findings"
+    if [[ -n "$synthesis_check" ]] &&
+       HOME="$synthesis_home" SYNTHESIS_FILE="$valid_synthesis" bash -euo pipefail -c "$synthesis_check" >/dev/null 2>&1; then
+        test_pass
+    else
+        test_fail "the synthesis check rejected the specified valid path"
+    fi
+done
+
 test_case "Enforcement pattern examples use language-tagged fences"
 if awk '
     /^```/ {

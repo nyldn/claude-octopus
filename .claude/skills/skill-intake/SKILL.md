@@ -2,6 +2,7 @@
 name: skill-intake
 disable-model-invocation: true
 description: "Move incoming issues and pull requests through triage states until each is actionable or closed — use when the queue has piled up or a report arrives unsorted"
+codex_short_description: "Triage incoming issues and pull requests into actionable work"
 ---
 
 # Intake

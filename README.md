@@ -13,7 +13,7 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 <p align="center">
   <a href="https://claude.ai"><img src="https://img.shields.io/badge/Claude-Built_with_AI-c96442?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyIDJhMTAgMTAgMCAxIDAgMCAyMCAxMCAxMCAwIDAgMCAwLTIwbTAgMS44YTEuMiAxLjIgMCAwIDEgLjg1LjM1bDEuNSA0LjVhLjYuNiAwIDAgMCAuMzUuMzVsNC41IDEuNWExLjIgMS4yIDAgMCAxIDAgMi4yN2wtNC41IDEuNWEuNi42IDAgMCAwLS4zNS4zNWwtMS41IDQuNWExLjIgMS4yIDAgMCAxLTIuMjcgMGwtMS41LTQuNWEuNi42IDAgMCAwLS4zNS0uMzVsLTQuNS0xLjVhMS4yIDEuMiAwIDAgMSAwLTIuMjdsNC41LTEuNWEuNi42IDAgMCAwIC4zNS0uMzVsMS41LTQuNUExLjIgMS4yIDAgMCAxIDEyIDMuOCIvPjwvc3ZnPg==&labelColor=333" alt="Built with Claude"></a>
   <a href="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml"><img src="https://github.com/nyldn/claude-octopus/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <img src="https://img.shields.io/badge/Version-11.26.0-blue" alt="Version 11.26.0">
+  <img src="https://img.shields.io/badge/Version-11.28.1-blue" alt="Version 11.28.1">
   <img src="https://img.shields.io/badge/Claude_Code-v2.1.14+_required-blueviolet" alt="Requires Claude Code v2.1.14+">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 </p>
@@ -36,24 +36,17 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-Select another OpenAI-compatible vendor through an explicit custom preset in the
-[tool-loop helper](docs/PROVIDERS.md#explicit-custom-presets-in-the-tool-loop-helper).
-Each preset keeps its own endpoint, credential and model allowlist. Orchestration
-seat registration and cost reporting are separate from this helper interface.
+The [local issue tracker](docs/COMMAND-REFERENCE.md#issues) creates its ledger
+from the installed template even when the plugin path contains spaces. Resolving
+an issue requires its exact ID in the Open Issues table.
 
-Claude Code discovers native workflow skills, while Codex loads its adapted
-skills. Existing names, aliases and explicit invocation controls remain available.
-
-Debate requires two successful external advisors on Codex. An allowed native
-Sonnet task on Claude Code counts only after it completes with a usable round
-artifact. Define stops when required state saves fail, and research prompts keep
-full ticket and probe IDs in their results.
-
-See [workflow recovery](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery)
-and [plugin compatibility](docs/PLUGIN-COMPATIBILITY.md).
+[Delivery's documentation sync](docs/COMMAND-REFERENCE.md#octodeliver) commits
+only the files it changed and preserves unrelated staged work.
+[Deck stakeholder review](docs/COMMAND-REFERENCE.md#octodeck) checks advisor
+readiness using the confirmed deck question before asking for dispatch consent.
 
 <!-- BEGIN CURRENT RELEASE -->
-> 🆕 **v11.26.0 — Custom provider presets in the tool helper, native skills and debate advisor checks.**
+> 🆕 **v11.28.1 — Discover saves synthesis context, bounded Tangle installs cached pnpm packages, and Copilot checks skip a missing CLI.**
 >
 > **Default roster:** Claude Opus 5.5 leads architecture, planning, security reasoning, and final judgment; GPT-5.6 Sol is the independent implementation/review peer; Claude Sonnet 5.5 is the standard Claude seat; Fable 5.1 remains an opt-in judgment escalation. Existing model pins and provider configuration still win. See [the routing strategy](docs/MODEL-ROUTING-STRATEGY.md).
 <!-- END CURRENT RELEASE -->
@@ -76,7 +69,7 @@ and [plugin compatibility](docs/PLUGIN-COMPATIBILITY.md).
 
 | Version | Best Features |
 |---------|--------------|
-| **v11.26.0** (new) | Custom provider presets in the tool helper, native skills and debate advisor checks. |
+| **v11.28.1** (new) | Discover saves synthesis context, bounded Tangle installs cached pnpm packages, and Copilot checks skip a missing CLI. |
 | **v9.50** | **Claude Code 2026 compatibility layer** — routines manifest (schedule + GitHub-event automations), SubagentStop quality/cost gate, `/octo:usage` cost attribution, `worktree.bgIsolation` opt-out, Claude Agent SDK seat (introduced with Opus 4.8 and now following the current Opus 5 default), starter skills pack, `/plugin browse` manifest with projected context cost. |
 | **v9.41** | **`/octo:council`** promoted to first-class workflow — structured multi-LLM deliberation with goal modes, adversarial/red-team styles, benchmark-aware persona routing, quorum and critical-veto gates, budget preflight, and gated worktree handoff for approved implementation plans. |
 | **v9** | Up to 10 external provider integrations (Codex, Antigravity CLI, Copilot, Qwen, Ollama, Perplexity, OpenRouter, OrcaRouter, OpenCode, and Grok) alongside the Claude Code host. Structured provider debates and configurable multi-LLM councils. Explicit-only activation by default, with an optional smart router. Agent summary tables show which providers actually contributed. Provider-aware prompt preflight prevents silent oversize failures. Research breadth modes fan out light, standard, or exhaustive investigations. Setup aliases and fuzzy `/octo:*` corrections reduce command friction. Opt-in discipline gates and token compression. Two-stage review. Circuit breakers with automatic provider recovery inside active workflows. Cursor + OpenCode + Codex cross-compatibility. `bin/octopus` CLI. 182 Claude Code capability flags through v2.1.219, including Opus 5, Sonnet 5, and dynamic workflow awareness. |
@@ -554,7 +547,7 @@ Four structured phases adapted from the UK Design Council's methodology:
 
 | Phase | Command | What happens |
 |-------|---------|-------------|
-| Discover | `/octo:discover` | Multi-AI research and broad exploration |
+| Discover | `/octo:discover` | Multi-AI research with a saved synthesis for later phases |
 | Define | `/octo:define` | Requirements clarification with consensus |
 | Develop | `/octo:develop` | Implementation with quality gates |
 | Deliver | `/octo:deliver` | Adversarial review and go/no-go scoring |

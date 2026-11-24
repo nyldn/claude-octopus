@@ -269,6 +269,15 @@ git diff --no-ext-diff --no-textconv origin/main -- > /tmp/reviewed.diff
 Counts appear in each seat's `grounding` object in `summary.json`. Set
 `OCTOPUS_COUNCIL_QUOTE_VERIFY=0` to disable citation quote verification.
 
+## Bounded seat reading
+
+Seat prompts tell seats to read only the files and diffs named in the task or
+supplied by the council, plus a file they cite when they open it to check a
+specific finding. They are told not to list, search or explore the rest of the
+repository. The instruction follows the task and role fields and precedes the
+research, attached files, and peer responses. Set
+`OCTOPUS_COUNCIL_BOUNDED_READING=0` to remove it.
+
 ## Token usage and cost
 
 Claude and Codex seats report their real token usage. When a council runs,
@@ -286,7 +295,8 @@ dispatch to `usage.jsonl` in the run directory.
 - `usage.dispatches`: each recorded dispatch.
 - `seats[].usage`: the totals for that seat's persona across all phases.
 
-Token fields do not overlap: `input_tokens` excludes cache reads and writes.
+`input_tokens` excludes cache reads and writes. For Codex, `reasoning_tokens`
+is included in `output_tokens`.
 Claude reports its own `total_cost_usd`. Codex cost is estimated from list
 prices, with cached input at a tenth of the input price
 (`OCTOPUS_CODEX_CACHED_INPUT_RATIO`). Antigravity seats do not report usage, so
@@ -295,19 +305,28 @@ seats with plain text output.
 
 ## Claude seat prompt caching
 
-Council Claude seats start with `--setting-sources project,local` and
-`--strict-mcp-config`, so they load no user plugins, hooks or MCP servers.
-Those make Claude Code's system prompt differ from call to call, and every seat
-then re-writes 10-30k tokens of prompt cache. With project and local settings
-only, a later seat in the same workspace reads that prefix from cache. Values in
-the `env` block of user settings still reach seats through the inherited
-environment.
+Native Claude Council seats can reuse a prompt prefix more often when their
+user plugins and MCP servers are excluded. If the user settings file is
+absent or contains only plugin and marketplace settings, Council uses
+`--setting-sources project,local` and `--strict-mcp-config`. Explicit
+settings-source and MCP arguments take precedence.
 
-User settings stay loaded when they route Claude authentication: an
-`apiKeyHelper`, AWS credential hooks, or an `env` block that sets a base URL,
-API key, auth token, `CLAUDE_CODE_USE_*` provider or AWS or Vertex variables.
-Set `OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS=1` to keep user settings for every
-Claude seat.
+Council keeps user settings when the file contains environment variables,
+credential helpers, permission rules, hooks, or any other settings it cannot
+safely exclude. Set `OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS=1` to opt out of
+Council's added settings and MCP isolation. Claude seats launched under a
+Codex host still follow that host's project/local settings policy.
+
+## Chair fallback
+
+When the chair's answer is rejected, the council tries synthesis-capable
+personas in order. For each persona, it checks for an accepted advice response
+before dispatching that persona with the same prompt and evidence. A successful
+dispatch can finish the search before a later response would be reused. The
+default limit is one new dispatch per run. Set
+`OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX` to change the limit. A value of 0 disables
+new dispatches, and 5 permits up to five. `summary.json` reports the count as
+`quorum.chair_fallback_attempts`.
 
 ## Failed provider diagnostics
 

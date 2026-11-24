@@ -496,11 +496,8 @@ detect_tier_opencode() {
     return 0
 }
 
-# Save provider configuration to file
-save_providers_config() {
-    mkdir -p "$(dirname "$PROVIDERS_CONFIG_FILE")" || return $?
-
-    cat > "$PROVIDERS_CONFIG_FILE" << EOF || return $?
+render_providers_config() {
+    cat << EOF
 version: "2.0"
 created_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
 updated_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
@@ -549,6 +546,24 @@ providers:
 cost_optimization:
   strategy: "$COST_OPTIMIZATION_STRATEGY"
 EOF
+}
+
+# Save provider configuration to file
+save_providers_config() {
+    local temp_file status
+    mkdir -p "$(dirname "$PROVIDERS_CONFIG_FILE")" || return $?
+    if [[ -d "$PROVIDERS_CONFIG_FILE" ]]; then
+        printf 'Cannot save provider configuration to a directory: %s\n' "$PROVIDERS_CONFIG_FILE" >&2
+        return 1
+    fi
+
+    # Write beside the destination so replacement is atomic.
+    temp_file=$(mktemp "${PROVIDERS_CONFIG_FILE}.tmp.XXXXXX") || return $?
+    { render_providers_config > "$temp_file" && mv -f "$temp_file" "$PROVIDERS_CONFIG_FILE"; } || {
+        status=$?
+        rm -f "$temp_file"
+        return "$status"
+    }
 
     PROVIDERS_CONFIG_LOADED="true"
     log INFO "Providers config saved to $PROVIDERS_CONFIG_FILE"

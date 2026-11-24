@@ -1,5 +1,5 @@
 interface:
   display_name: "Parallel"
-  short_description: "Decompose and execute large changes, migrations, or..."
+  short_description: "Run a large implementation in coordinated work packages"
 policy:
   allow_implicit_invocation: false

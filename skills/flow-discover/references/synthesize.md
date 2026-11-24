@@ -57,10 +57,54 @@ fi
 echo "✅ VALIDATION PASSED: $SYNTHESIS_FILE"
 ```
 
-**Update state:**
+**Update state:** Save up to three nonblank lines from Key Findings. If that
+section is empty or missing, use Executive Summary or the older Summary
+heading. If neither section has content, stop before updating state and
+correct the synthesis. A subsection heading counts as a finding when it has
+no body text.
 
 ```bash
-key_findings=$(head -50 "$SYNTHESIS_FILE" | grep -A 3 "## Key Findings\|## Summary" | tail -3 | tr '\n' ' ')
+if ! key_findings=$(awk '
+    function save(line) {
+        if (section != "" && counts[section] < 3) {
+            snippets[section] = snippets[section] (counts[section] ? " " : "") line
+            counts[section]++
+        }
+    }
+    function flush_heading() {
+        if (pending_heading != "") save(pending_heading)
+        pending_heading = ""
+    }
+    { sub(/\r$/, "") }
+    /^##?[[:blank:]]/ {
+        flush_heading()
+        section = ""
+        if ($0 ~ /^##[[:blank:]]+Key Findings[[:blank:]]*$/) section = "findings"
+        if ($0 ~ /^##[[:blank:]]+(Executive Summary|Summary)[[:blank:]]*$/) section = "summary"
+        next
+    }
+    /^###+[[:blank:]]/ {
+        flush_heading()
+        pending_heading = $0
+        sub(/^###+[[:blank:]]+/, "", pending_heading)
+        next
+    }
+    NF {
+        pending_heading = ""
+        save($0)
+    }
+    END {
+        flush_heading()
+        print counts["findings"] ? snippets["findings"] : snippets["summary"]
+    }
+' < "$SYNTHESIS_FILE"); then
+  echo "VALIDATION FAILED: Could not read synthesis context" >&2
+  exit 1
+fi
+if [[ -z "$key_findings" ]]; then
+  echo "VALIDATION FAILED: Synthesis needs a non-empty Key Findings or Summary section" >&2
+  exit 1
+fi
 
 "${OCTO_ROOT:?}/scripts/state-manager.sh" update_context "discover" "$key_findings" || exit 1
 # Track actual providers used (dynamic — from fleet output, not hardcoded)

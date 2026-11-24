@@ -9,6 +9,8 @@
 # whole 21k prefix from cache and cost about a tenth as much.
 set -euo pipefail
 
+unset _OCTOPUS_COUNCIL_SEAT OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS OCTOPUS_COUNCIL_SEAT_USAGE _OCTOPUS_SEAT_USAGE_FILE
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
@@ -20,9 +22,10 @@ source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 source "$PROJECT_ROOT/scripts/lib/secure.sh"
 
 WORK="$(mktemp -d "${TEST_TMP_DIR:-/tmp}/seat-cache.XXXXXX")"
+trap 'rm -rf -- "$WORK"' EXIT
 export CLAUDE_CONFIG_DIR="$WORK/config"
 mkdir -p "$CLAUDE_CONFIG_DIR"
-printf '{"env":{"MAX_THINKING_TOKENS":"1000"},"enabledPlugins":{"x@y":true}}\n' > "$CLAUDE_CONFIG_DIR/settings.json"
+printf '{"enabledPlugins":{"x@y":true}}\n' > "$CLAUDE_CONFIG_DIR/settings.json"
 
 args() { octo_council_claude_isolation_args "$@" | tr '\n' ' '; }
 
@@ -51,32 +54,34 @@ else
     test_fail "rc none=$rc_none sdk=$rc_sdk codex=$rc_codex noprint=$rc_noprint opt-out=$rc_opt"
 fi
 
-test_case "user settings that route Claude auth are kept"
+test_case "user settings that affect seat behavior are kept"
 kept=""
 for settings in '{"apiKeyHelper":"/bin/key"}' '{"env":{"CLAUDE_CODE_USE_BEDROCK":"1"}}' \
-                '{"env":{"ANTHROPIC_BASE_URL":"https://proxy"}}' '{"env":{"AWS_PROFILE":"p"}}' 'not json'; do
+                '{"env":{"ANTHROPIC_BASE_URL":"https://proxy"}}' '{"env":{"AWS_PROFILE":"p"}}' \
+                '{"env":{"MAX_THINKING_TOKENS":"1000"}}' '{"permissions":{"deny":["Write"]}}' \
+                '{"hooks":{"PreToolUse":[]}}' 'not json' '{} {}' ''; do
     printf '%s\n' "$settings" > "$CLAUDE_CONFIG_DIR/settings.json"
     _OCTOPUS_COUNCIL_SEAT=1 octo_council_claude_isolation_args claude claude --print >/dev/null && kept+=n || kept+=y
 done
-printf '{"env":{"MAX_THINKING_TOKENS":"1000"}}\n' > "$CLAUDE_CONFIG_DIR/settings.json"
+printf '{}\n' > "$CLAUDE_CONFIG_DIR/settings.json"
 plain=0; _OCTOPUS_COUNCIL_SEAT=1 octo_council_claude_isolation_args claude claude --print >/dev/null || plain=$?
 rm -f "$CLAUDE_CONFIG_DIR/settings.json"
 missing=0; _OCTOPUS_COUNCIL_SEAT=1 octo_council_claude_isolation_args claude claude --print >/dev/null || missing=$?
-if [[ "$kept" == yyyyy && "$plain" == 0 && "$missing" == 0 ]]; then
+if [[ "$kept" == yyyyyyyyyy && "$plain" == 0 && "$missing" == 0 ]]; then
     test_pass
 else
     test_fail "kept=$kept plain=$plain missing=$missing"
 fi
 
-test_case "run_agent_sync passes the isolation flags to a council claude seat"
+test_case "run_agent_sync records and executes the same isolation and usage flags"
 argv_file="$WORK/argv"
 (
     fake="$WORK/claude"
     cat > "$fake" <<EOF
 #!/usr/bin/env bash
 cat >/dev/null
-printf '%s\n' "\$*" > "$argv_file"
-printf 'answer\nVERDICT: APPROVE\n'
+printf '%s\n' "\$@" > "$argv_file"
+printf '%s\n' '{"type":"result","result":"answer","total_cost_usd":0.01}'
 EOF
     chmod 755 "$fake"
     export RESULTS_DIR="$WORK/results"; mkdir -p "$RESULTS_DIR"
@@ -98,10 +103,13 @@ EOF
     update_agent_status() { :; }
     octo_estimate_tokens_for_file() { printf '0\n'; }
     write_agent_status() { :; }
-    _OCTOPUS_COUNCIL_SEAT=1 OCTOPUS_PERSISTENCE_AVAILABLE=true \
+    _OCTOPUS_COUNCIL_SEAT=1 OCTOPUS_PERSISTENCE_AVAILABLE=true _OCTOPUS_SEAT_USAGE_FILE="$WORK/usage.jsonl" \
         run_agent_sync claude 'review this change' 30 reviewer council >/dev/null 2>&1
-) || true
-if grep -q -- '--print --model m --setting-sources project,local --strict-mcp-config' "$argv_file" 2>/dev/null; then
+)
+expected=$'--print\n--model\nm\n--setting-sources\nproject,local\n--strict-mcp-config\n--output-format\njson'
+if [[ "$(cat "$argv_file")" == "$expected" && \
+      "$(jq -r '.plan.argv[1:][]' "$WORK/results/dispatch-plans.jsonl")" == "$expected" ]] && \
+   jq -e '.cost_usd == 0.01' "$WORK/usage.jsonl" >/dev/null; then
     test_pass
 else
     test_fail "argv=$(cat "$argv_file" 2>/dev/null)"

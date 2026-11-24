@@ -1,5 +1,5 @@
 interface:
   display_name: "Security Framing"
-  short_description: "URL validation and content sanitization for untrusted sources..."
+  short_description: "Handle untrusted source content with explicit safety checks"
 policy:
   allow_implicit_invocation: false

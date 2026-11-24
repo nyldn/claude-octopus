@@ -10,7 +10,8 @@ or left untouched when it does not parse, so a seat never loses its answer to
 accounting. LABEL is "phase|persona". Prices are USD per million tokens and
 price codex usage; claude reports its own total_cost_usd.
 
-Token fields are disjoint: input_tokens excludes cache reads and writes.
+Input tokens exclude cache reads and writes. Reasoning tokens are part of
+output tokens.
 """
 import json
 import os
@@ -31,7 +32,11 @@ def parse_claude(raw):
         raise ValueError("not a claude result object")
     text = doc.get("result")
     if not isinstance(text, str):
-        raise ValueError("claude result has no text")
+        if doc.get("is_error") is not True:
+            raise ValueError("claude result has no text")
+        errors = doc.get("errors")
+        text = "\n".join(error for error in errors if isinstance(error, str)) if isinstance(errors, list) else ""
+        text = text or "Claude returned an error without a message."
     usage = doc.get("usage") if isinstance(doc.get("usage"), dict) else {}
     models = doc.get("modelUsage") if isinstance(doc.get("modelUsage"), dict) else {}
     if models:
@@ -60,6 +65,7 @@ def parse_claude(raw):
 
 def parse_codex(raw, input_price, output_price):
     messages, errors = [], []
+    failed_detail = None
     tokens = {"input_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0,
               "output_tokens": 0, "reasoning_tokens": 0}
     turns = 0
@@ -77,6 +83,7 @@ def parse_codex(raw, input_price, output_price):
             if item.get("type") == "agent_message" and isinstance(item.get("text"), str):
                 messages.append(item["text"])
         elif kind == "turn.completed":
+            failed_detail = None
             usage = event.get("usage") or {}
             turns += 1
             cached = num(usage.get("cached_input_tokens"))
@@ -90,10 +97,14 @@ def parse_codex(raw, input_price, output_price):
             detail = event.get("message") or (event.get("error") or {}).get("message")
             if isinstance(detail, str):
                 errors.append(detail)
-    if not messages and not errors and not turns:
+            if kind == "turn.failed":
+                failed_detail = detail if isinstance(detail, str) else ""
+    if not messages and not errors and not turns and failed_detail is None:
         raise ValueError("no codex events")
-    # A seat's answer is its last agent message; earlier ones are progress notes.
-    text = messages[-1] if messages else "\n".join(errors)
+    if failed_detail is not None:
+        text = failed_detail or "\n".join(errors) or "Codex turn failed without an error message."
+    else:
+        text = messages[-1] if messages else "\n".join(errors)
     if turns and input_price is not None and output_price is not None:
         # Reasoning tokens are billed as output and already counted in output_tokens.
         cost = (tokens["input_tokens"] * input_price

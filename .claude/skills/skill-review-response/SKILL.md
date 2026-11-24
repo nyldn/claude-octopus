@@ -10,6 +10,7 @@ trigger: |
   - Handling changes-requested status on a PR
 paths:
   - ".git/**"
+codex_short_description: "Assess review feedback and verify which fixes are needed"
 ---
 
 # Receiving Code Review

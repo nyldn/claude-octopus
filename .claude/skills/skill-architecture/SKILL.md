@@ -2,6 +2,7 @@
 name: octopus-architecture
 disable-model-invocation: true
 description: "Review system architecture, simplify boundaries, or compare interface designs from repository evidence"
+codex_short_description: "Compare system designs and simplify component boundaries"
 ---
 
 # Architecture review

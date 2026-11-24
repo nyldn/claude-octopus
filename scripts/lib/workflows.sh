@@ -176,28 +176,34 @@ probe_single_agent() {
 
     # Apply persona to prompt
     local enhanced_prompt
-    enhanced_prompt=$(apply_persona "$role" "$perspective" "false" "${curated_name_early:-}")
+    if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true ]]; then
+        # Preserve the complete blind request without project/persona injection.
+        enhanced_prompt="$perspective"
+    else
+        enhanced_prompt=$(apply_persona "$role" "$perspective" "false" "${curated_name_early:-}")
 
-    # v8.21.0: Persona pack override
-    if type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
-        local pack_persona
-        pack_persona=$(get_persona_override_content "${curated_name_early:-$agent_type}" 2>/dev/null)
-        if [[ -n "$pack_persona" ]]; then
-            enhanced_prompt="${pack_persona}
+        # v8.21.0: Persona pack override
+        if type get_persona_override_content &>/dev/null 2>&1 && [[ "${OCTOPUS_PERSONA_PACKS:-auto}" != "off" ]]; then
+            local pack_persona
+            pack_persona=$(get_persona_override_content "${curated_name_early:-$agent_type}" 2>/dev/null)
+            if [[ -n "$pack_persona" ]]; then
+                enhanced_prompt="${pack_persona}
 
 ---
 
 ${enhanced_prompt}"
+            fi
         fi
-    fi
 
-    # v9.3.0: Search spiral guard — prevent research agents from token waste (STABLE — static boilerplate)
-    enhanced_prompt="${enhanced_prompt}
+        # v9.3.0: Search spiral guard — prevent research agents from token waste (STABLE — static boilerplate)
+        enhanced_prompt="${enhanced_prompt}
 
 IMPORTANT: If you find yourself searching or grepping more than 3 times in a row without reading files or writing analysis, STOP searching. Consolidate what you've found so far and write your analysis. More searching rarely improves the output — synthesis does."
 
-    # ── VARIABLE SUFFIX ───────────────────────────────────────────────────────
-    # (probe dispatch has minimal variable content — context budget is the boundary)
+        # ── VARIABLE SUFFIX ───────────────────────────────────────────────────────
+        # (probe dispatch has minimal variable content — context budget is the boundary)
+
+    fi
 
     # v8.10.0: Enforce context budget AFTER all injections
     local tokens_in _budget_original_chars _budget_final_chars _budget_compression
@@ -211,6 +217,13 @@ IMPORTANT: If you find yourself searching or grepping more than 3 times in a row
             research_probe_single_record "$task_id" "$agent_type" failed || true
         fi
         return "$_budget_rc"
+    fi
+    if [[ "${OCTOPUS_REFINEMENT_JUDGE:-false}" == true && "$enhanced_prompt" != "$perspective" ]]; then
+        log ERROR "Refinement judge request was altered by the context budget"
+        if declare -F research_probe_single_record >/dev/null 2>&1; then
+            research_probe_single_record "$task_id" "$agent_type" failed || true
+        fi
+        return 2
     fi
     _budget_final_chars=${#enhanced_prompt}
     _budget_compression=none
@@ -3154,13 +3167,10 @@ tangle_validation_signature() {
 }
 
 tangle_worktree_fingerprint() {
-    local repo_root
+    local repo_root helper
     repo_root=$(tangle_resolve_repo_root 2>/dev/null || git rev-parse --show-toplevel 2>/dev/null || pwd)
-    {
-        git -C "$repo_root" status --porcelain 2>/dev/null || true
-        git -C "$repo_root" diff --stat 2>/dev/null || true
-        git -C "$repo_root" ls-files --others --exclude-standard 2>/dev/null || true
-    } | sha256sum 2>/dev/null | awk '{print $1}'
+    helper="$(dirname -- "${BASH_SOURCE[0]}")/../helpers/tangle-worktree-fingerprint.py"
+    python3 -I "$helper" "$repo_root"
 }
 
 tangle_process_is_active_non_zombie() {
@@ -4315,7 +4325,7 @@ Blocking findings to fix:
 ${normal_findings}
 "
 
-    before_fp=$(tangle_worktree_fingerprint)
+    before_fp=$(tangle_worktree_fingerprint) || before_fp=""
     last_fp="$before_fp"
     last_size=0
     last_progress=$(date +%s)
@@ -4352,7 +4362,7 @@ ${normal_findings}
         [[ "$now" -ge "$next_probe" || ( "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ) ]] || continue
         next_probe=$((now + poll_secs))
         local current_fp current_size
-        current_fp=$(tangle_worktree_fingerprint)
+        current_fp=$(tangle_worktree_fingerprint) || current_fp="$last_fp"
         current_size=$(stat -c '%s' "$correction_file" 2>/dev/null || stat -f '%z' "$correction_file" 2>/dev/null || echo 0)
         if [[ "$current_fp" != "$last_fp" || "$current_size" != "$last_size" ]]; then
             last_fp="$current_fp"
@@ -4380,8 +4390,9 @@ ${normal_findings}
     [[ -f "$rc_file" ]] && correction_rc=$(cat "$rc_file" 2>/dev/null || echo 1)
     rm -f "$rc_file" 2>/dev/null || true
 
-    after_fp=$(tangle_worktree_fingerprint)
-    if [[ "$after_fp" != "$before_fp" ]]; then
+    after_fp=$(tangle_worktree_fingerprint) || after_fp=""
+    # An unreadable snapshot cannot prove it's safe to retry on this worktree.
+    if [[ -z "$before_fp" || -z "$after_fp" || "$after_fp" != "$before_fp" ]]; then
         TANGLE_CORRECTION_CHANGED="1"
     fi
     TANGLE_CORRECTION_CONTAMINATION=$(tangle_scope_contamination_summary)
@@ -4858,6 +4869,40 @@ tangle_rollback_run_worktree() {
         rollback_rc=1
     fi
     return "$rollback_rc"
+}
+
+# A provider outside OCTO_ALLOWED_PROVIDERS is as unusable for a Tangle
+# subtask as a missing binary: spawn_agent refuses it, and one refused
+# subtask aborts the whole run after design review and decomposition.
+tangle_subtask_agent_allowed() {
+    declare -f octo_provider_allowed >/dev/null 2>&1 || return 0
+    octo_provider_allowed "${1:-}"
+}
+
+# Resolve the provider for one subtask kind (coding|reasoning), falling back
+# to codex, then claude-sonnet. [REASONING] also falls back when its binary is
+# missing: without that, users without agy get an unconditional exit 127 on
+# every REASONING subtask even though the provider health check already
+# flagged agy as absent. claude-sonnet is a type resolved by get_agent_command,
+# not a bare executable. Keep it as the last resort when the allowlist permits it.
+tangle_route_subtask_agent() {
+    local kind="${1:-coding}" agent="${2:-}"
+    if [[ "$kind" == "reasoning" ]] && ! command -v "$agent" >/dev/null 2>&1; then
+        agent=""
+    fi
+    if [[ -n "$agent" ]] && tangle_subtask_agent_allowed "$agent"; then
+        printf '%s\n' "$agent"
+        return 0
+    fi
+    if command -v codex >/dev/null 2>&1 && tangle_subtask_agent_allowed codex; then
+        printf '%s\n' "codex"
+        return 0
+    fi
+    if tangle_subtask_agent_allowed claude-sonnet; then
+        printf '%s\n' "claude-sonnet"
+        return 0
+    fi
+    return 1
 }
 
 tangle_prepare_run_worktree() {
@@ -5361,17 +5406,13 @@ $(tangle_decomposition_json_contract_guidance)"
         feature_tasks_revalidate_active_wave || return 1
     fi
 
-    # Coding providers must run behind a parent-owned filesystem boundary.
-    export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
-    export OCTOPUS_TANGLE_WORKTREE="$PROJECT_ROOT"
-    export OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
-
     # Step 2: Parallel execution with progress tracking
     log INFO "Step 2: Parallel execution..."
     local subtask_num=0
     local pids=()
     local task_ids=()
     local subtask_lines=()
+    local has_reasoning_subtask=false
 
     # Materialize parseable lines before dispatching providers. spawn helpers and
     # external CLIs may read stdin; if the dispatch loop itself reads from a
@@ -5381,6 +5422,9 @@ $(tangle_decomposition_json_contract_guidance)"
         [[ -z "$line" ]] && continue
         tangle_line_is_numbered_subtask "$line" || continue
         subtask_lines+=("$line")
+        if [[ "$line" == *'[REASONING]'* ]]; then
+            has_reasoning_subtask=true
+        fi
     done <<< "$subtasks"
 
     if [[ ${#subtask_lines[@]} -ne $parseable_subtask_count ]]; then
@@ -5409,20 +5453,20 @@ $(tangle_decomposition_json_contract_guidance)"
         tangle_reasoning_agent=$(octopus_execution_profile_provider "tangle" "reasoning" "researcher" "agy")
     fi
 
-    # [REASONING] falls back through available providers. Without this, users
-    # without agy get an unconditional exit 127 on every REASONING subtask even
-    # though the provider health check already flagged agy as absent.
-    if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
-        if command -v codex >/dev/null 2>&1; then
-            tangle_reasoning_agent="codex"
-        fi
-        # claude-sonnet is a type resolved by get_agent_command, not a bare
-        # executable — command -v never finds it. Fall back unconditionally
-        # since the claude binary (the host process) is always available.
-        if ! command -v "$tangle_reasoning_agent" >/dev/null 2>&1; then
-            tangle_reasoning_agent="claude-sonnet"
-        fi
+    if ! tangle_coding_agent=$(tangle_route_subtask_agent coding "$tangle_coding_agent"); then
+        log ERROR "No permitted provider available for Tangle coding subtasks"
+        return 1
     fi
+    if [[ "$has_reasoning_subtask" == true ]] && \
+        ! tangle_reasoning_agent=$(tangle_route_subtask_agent reasoning "$tangle_reasoning_agent"); then
+        log ERROR "No permitted provider available for Tangle reasoning subtasks"
+        return 1
+    fi
+
+    # Coding providers must run behind a parent-owned filesystem boundary.
+    export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
+    export OCTOPUS_TANGLE_WORKTREE="$PROJECT_ROOT"
+    export OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
 
     local tangle_previous_int_trap tangle_previous_term_trap
     tangle_previous_int_trap="$(trap -p INT)"
@@ -5548,7 +5592,13 @@ $(tangle_decomposition_json_contract_guidance)"
     expected_subtask_ids=$(printf '%s\n' "${task_ids[@]}")
     tangle_validate_results_with_scope_contract "$task_group" "$resolved_prompt" "$worktree_before_file" "$subtasks" "$tangle_start_head" "$tangle_scope_manifest" "$worktree_before_state_file" "$expected_subtask_ids" || validation_rc=$?
 
-    if ! tangle_should_attempt_contextual_review "$validation_rc" "$worktree_before_state_file"; then
+    local contextual_review_rc=0
+    tangle_should_attempt_contextual_review "$validation_rc" "$worktree_before_state_file" || contextual_review_rc=$?
+    if [[ "$contextual_review_rc" -eq 2 ]]; then
+        log ERROR "Tangle validation failed with status ${validation_rc}; unable to snapshot the worktree to check for recoverable progress, stopping before contextual review and corrections"
+        return "$validation_rc"
+    fi
+    if [[ "$contextual_review_rc" -ne 0 ]]; then
         log ERROR "Tangle validation failed with status ${validation_rc}; no recoverable worktree progress detected, stopping before contextual review and corrections"
         return "$validation_rc"
     fi
@@ -5635,21 +5685,27 @@ tangle_validate_results_with_scope_contract() {
             integrity_violations="The parent-owned worktree state snapshot changed before final validation."
         fi
     fi
-    local scope_violations=""
+    local scope_violations="" scope_mode path
+    local -a violation_lines=() adaptive_paths=()
+    scope_mode=$(tangle_write_scope_mode)
     if scope_violations=$(tangle_changed_paths_outside_write_scopes "$subtasks" "$worktree_before_file" "$baseline_head" "$worktree_before_state_file"); then
         while IFS= read -r path; do
             [[ -n "$path" ]] || continue
-            if [[ "$(tangle_write_scope_mode)" == "adaptive" ]] && tangle_adaptive_scope_path_is_safe "$path"; then
-                adaptive_scope_evidence="${adaptive_scope_evidence}${path}"$'\n'
+            if [[ "$scope_mode" == "adaptive" ]] && tangle_adaptive_scope_path_is_safe "$path"; then
+                adaptive_paths+=("$path")
+            elif [[ "$scope_mode" == "adaptive" ]]; then
+                violation_lines+=("Unsafe adaptive scope path: ${path}.")
             else
-                [[ -z "$violations" ]] || violations="${violations}"$'\n'
-                if [[ "$(tangle_write_scope_mode)" == "adaptive" ]]; then
-                    violations="${violations}Unsafe adaptive scope path: ${path}."
-                else
-                    violations="${violations}${path}"
-                fi
+                violation_lines+=("$path")
             fi
         done <<< "$scope_violations"
+        if [[ ${#violation_lines[@]} -gt 0 ]]; then
+            printf -v violations '%s\n' "${violation_lines[@]}"
+            violations="${violations%$'\n'}"
+        fi
+        if [[ ${#adaptive_paths[@]} -gt 0 ]]; then
+            printf -v adaptive_scope_evidence '%s\n' "${adaptive_paths[@]}"
+        fi
     else
         [[ -z "$integrity_violations" ]] || integrity_violations="${integrity_violations}"$'\n'
         integrity_violations="${integrity_violations}Unable to verify final worktree changes against immutable start HEAD."
@@ -5666,7 +5722,6 @@ tangle_validate_results_with_scope_contract() {
         violations="${violations}${integrity_violations}"
     fi
     TANGLE_SCOPE_CONTRACT_VIOLATIONS="$violations"
-    export TANGLE_SCOPE_CONTRACT_VIOLATIONS
     if [[ -n "$violations" ]]; then
         mkdir -p "$(dirname "$validation_file")"
         if [[ -n "$adaptive_scope_evidence" ]]; then
@@ -5703,12 +5758,22 @@ tangle_validate_results_with_scope_contract() {
     return "$base_rc"
 }
 
+tangle_scope_violation_summary() {
+    printf '%s\n' "$1" | awk -v limit=20 '
+        $0 == "" { next }
+        ++count <= limit { summary = summary (count > 1 ? " " : "") $0 }
+        END {
+            if (count > limit) summary = summary " ... and " (count - limit) " more"
+            printf "%s", summary
+        }'
+}
+
 tangle_ensure_scope_contract_finding() {
     local findings_file="$1" violations="${2:-${TANGLE_SCOPE_CONTRACT_VIOLATIONS:-}}"
     [[ -n "$violations" && -n "$findings_file" ]] || return 0
     local first_path detail tmp
     first_path=$(printf '%s\n' "$violations" | sed '/^$/d' | head -n 1)
-    detail="Implementation changed paths outside the authorized Files:/Creates: write scopes; Reads: is context only: $(printf '%s' "$violations" | tr '\n' ' ')"
+    detail="Implementation changed paths outside the authorized Files:/Creates: write scopes; Reads: is context only: $(tangle_scope_violation_summary "$violations")"
     tmp=$(mktemp "${TMPDIR:-/tmp}/octo-scope-findings.XXXXXX") || return 1
     if [[ -f "$findings_file" ]] && jq -e '.findings | type == "array"' "$findings_file" >/dev/null 2>&1; then
         if jq -e '.findings[]? | select(.category == "scope-contract")' "$findings_file" >/dev/null 2>&1; then rm -f "$tmp"; return 0; fi
@@ -5737,7 +5802,7 @@ tangle_should_attempt_contextual_review() {
     type snapshot_tangle_worktree_state >/dev/null 2>&1 || return 1
 
     local worktree_after_state_file=""
-    worktree_after_state_file=$(mktemp "${TMPDIR:-/tmp}/octo-tangle-worktree-state-after.XXXXXX") || return 1
+    worktree_after_state_file=$(mktemp "${TMPDIR:-/tmp}/octo-tangle-worktree-state-after.XXXXXX") || return 2
     snapshot_tangle_worktree_state > "$worktree_after_state_file" 2>/dev/null || true
     if cmp -s "$worktree_before_state_file" "$worktree_after_state_file"; then
         rm -f "$worktree_after_state_file"
@@ -6484,6 +6549,34 @@ octo_newest_existing_file() {
     [[ -n "$newest" && -f "$newest" ]] && printf '%s\n' "$newest"
 }
 
+embrace_gate_failure_reason() {
+    local capture="$1" line="" hint=""
+    [[ -s "$capture" ]] || return 0
+    # Only the writer's stderr section is eligible for the quota pattern.
+    # A standalone stdout status is validated separately by the capture parser.
+    if declare -F quota_watcher_match_line >/dev/null 2>&1 &&
+       line=$(quota_watcher_match_line <(awk '
+                  NR == 1 { next }
+                  NR == 2 && $0 == "-- terminal stdout status --" { getline; next }
+                  !stderr {
+                      if ($0 != "-- stderr --") exit
+                      stderr = 1
+                      next
+                  }
+                  { print }
+              ' "$capture") /dev/null stream 2>/dev/null ||
+              octo_quota_session_limit_line "$capture" capture 2>/dev/null); then
+        hint=$(octo_quota_reset_hint "$line")
+        if [[ -n "$hint" ]]; then
+            printf 'usage limit reached; try again %s\n' "$hint"
+        else
+            printf '%s\n' 'terminal quota or auth error'
+        fi
+        return 0
+    fi
+    sed -n '1s/^== [^ ]* [^ ]* exited [^:]*: //p' "$capture" 2>/dev/null | cut -c1-240
+}
+
 embrace_debate_gate() {
     local gate="$1"
     local prompt="$2"
@@ -6555,35 +6648,46 @@ Return a concise gate review with:
 
     local codex_view="" agy_view="" claude_view="" synthesis=""
     local codex_status="failed" agy_status="failed" claude_status="failed"
+    local codex_reason="" agy_reason="" claude_reason=""
+    local seat_capture_prefix="${RESULTS_DIR}/embrace-gate-${gate_slug}-${task_group}"
     local successful=0
+    rm -f "${seat_capture_prefix}-codex.stderr.log" "${seat_capture_prefix}-agy.stderr.log" \
+        "${seat_capture_prefix}-claude.stderr.log"
 
-    if codex_view=$(run_agent_sync "codex" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
+    if codex_view=$(_OCTOPUS_SEAT_STDERR_FILE="${seat_capture_prefix}-codex.stderr.log" \
+        run_agent_sync "codex" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
         if [[ -n "$codex_view" ]]; then
             codex_status="ok"
             successful=$((successful + 1))
         fi
     fi
+    [[ "$codex_status" == ok ]] || codex_reason=$(embrace_gate_failure_reason "${seat_capture_prefix}-codex.stderr.log")
     # Antigravity (agy) is the Google seat since the Gemini CLI sunset (#524)
     if octo_provider_allowed agy && command -v agy >/dev/null 2>&1; then
-        if agy_view=$(run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
+        if agy_view=$(_OCTOPUS_SEAT_STDERR_FILE="${seat_capture_prefix}-agy.stderr.log" \
+            run_agent_sync "agy" "$gate_prompt" 120 "researcher" "embrace-gate" 2>/dev/null); then
             if [[ -n "$agy_view" ]]; then
                 agy_status="ok"
                 successful=$((successful + 1))
             fi
         fi
+        [[ "$agy_status" == ok ]] || agy_reason=$(embrace_gate_failure_reason "${seat_capture_prefix}-agy.stderr.log")
     else
         agy_status="skipped"
     fi
-    if claude_view=$(run_agent_sync "claude-sonnet" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
+    if claude_view=$(_OCTOPUS_SEAT_STDERR_FILE="${seat_capture_prefix}-claude.stderr.log" \
+        run_agent_sync "claude-sonnet" "$gate_prompt" 120 "code-reviewer" "embrace-gate" 2>/dev/null); then
         if [[ -n "$claude_view" ]]; then
             claude_status="ok"
             successful=$((successful + 1))
         fi
     fi
+    [[ "$claude_status" == ok ]] || claude_reason=$(embrace_gate_failure_reason "${seat_capture_prefix}-claude.stderr.log")
+    local provider_statuses="codex=${codex_status}${codex_reason:+ (${codex_reason})}, agy=${agy_status}${agy_reason:+ (${agy_reason})}, claude=${claude_status}${claude_reason:+ (${claude_reason})}"
 
     if [[ "$successful" -eq 0 ]]; then
-        log ERROR "Embrace debate gate '${gate_slug}' produced no provider output"
-        echo -e "${RED:-}✗${NC:-} Debate gate ${title} produced no provider output"
+        log ERROR "Embrace debate gate '${gate_slug}' produced no provider output: ${provider_statuses}"
+        echo -e "${RED:-}✗${NC:-} Debate gate ${title} produced no provider output: ${provider_statuses}"
         return 1
     fi
 
@@ -6591,16 +6695,16 @@ Return a concise gate review with:
 
 Task: ${prompt}
 Gate style: ${style}
-Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
+Provider statuses: ${provider_statuses}
 
 Codex:
-${codex_view:-[no output]}
+${codex_view:-[no output${codex_reason:+; failure reason: ${codex_reason}}]}
 
 Antigravity (agy):
-${agy_view:-[no output]}
+${agy_view:-[no output${agy_reason:+; failure reason: ${agy_reason}}]}
 
 Claude:
-${claude_view:-[no output]}
+${claude_view:-[no output${claude_reason:+; failure reason: ${claude_reason}}]}
 
 Return:
 1. Gate verdict
@@ -6621,7 +6725,7 @@ Return:
 **Task:** ${prompt}
 **Style:** ${style}
 **Context Artifact:** ${context_file}
-**Provider Statuses:** codex=${codex_status}, agy=${agy_status}, claude=${claude_status}
+**Provider Statuses:** ${provider_statuses}
 
 ---
 
@@ -6635,15 +6739,15 @@ ${synthesis}
 
 ### Codex (${codex_status})
 
-${codex_view:-No output.}
+${codex_view:-No output.${codex_reason:+ Failure reason: ${codex_reason}}}
 
 ### Antigravity / agy (${agy_status})
 
-${agy_view:-No output.}
+${agy_view:-No output.${agy_reason:+ Failure reason: ${agy_reason}}}
 
 ### Claude (${claude_status})
 
-${claude_view:-No output.}
+${claude_view:-No output.${claude_reason:+ Failure reason: ${claude_reason}}}
 EOF
 
     if declare -f save_session_checkpoint >/dev/null 2>&1; then
@@ -6656,7 +6760,7 @@ EOF
             "Embrace debate gate completed: ${prompt:0:80}" \
             "" \
             "high" \
-            "Provider statuses: codex=${codex_status}, agy=${agy_status}, claude=${claude_status}" \
+            "Provider statuses: ${provider_statuses}" \
             "" 2>/dev/null || true
     fi
 

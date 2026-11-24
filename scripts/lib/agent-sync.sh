@@ -1406,44 +1406,31 @@ octopus_sync_timeout_override() {
     return 1
 }
 
-# Synchronous agent execution (for sequential steps within phases)
-# Council Claude seats start without the user's plugins, hooks and MCP servers.
-# Those make Claude Code's system prompt differ from call to call, so every seat
-# re-wrote 10-30k tokens of prompt cache; with project and local settings only, a
-# later seat in the same workspace reads that prefix from cache. Users who route
-# Claude through user settings (Bedrock, Vertex, a base URL, a key or key helper)
-# keep them, and OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS=1 keeps them for everyone.
-octo_claude_user_settings_route_auth() {
-    local settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-    [[ -f "$settings" ]] || return 1
-    jq -e '
-        has("apiKeyHelper") or has("awsAuthRefresh") or has("awsCredentialExport")
-        or ((.env // {}) | keys | any(test("^(ANTHROPIC_(BASE_URL|API_KEY|AUTH_TOKEN|VERTEX_PROJECT_ID|BEDROCK_BASE_URL|VERTEX_BASE_URL)|CLAUDE_CODE_USE_[A-Z]+|CLAUDE_CODE_SKIP_[A-Z]+_AUTH|AWS_[A-Z_]+|CLOUD_ML_REGION)$")))
-    ' "$settings" >/dev/null 2>&1 && return 0
-    # An unreadable or invalid settings file may still be what authenticates.
-    jq -e 'type == "object"' "$settings" >/dev/null 2>&1 || return 0
-    return 1
-}
-
+# Scope cache isolation to plain user configurations. Settings can contain
+# environment values, credential helpers, permission rules, or policy hooks.
 octo_council_claude_isolation_args() {
     local agent_type="$1"; shift
     [[ "${_OCTOPUS_COUNCIL_SEAT:-}" == 1 && "${OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS:-0}" != 1 ]] || return 1
-    # claude-sdk* must precede claude*: the SDK shim builds its own session.
     case "$agent_type" in
         claude-sdk*) return 1 ;;
         claude*) ;;
         *) return 1 ;;
     esac
-    local arg saw_print="" has_sources="" has_mcp=""
+    local arg saw_print="" has_sources="" has_mcp="" settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
     for arg in "$@"; do
         case "$arg" in
-            --print) saw_print=1 ;;
+            --print|-p) saw_print=1 ;;
             --setting-sources|--setting-sources=*) has_sources=1 ;;
-            --strict-mcp-config|--mcp-config|--mcp-config=*) has_mcp=1 ;;
+            --strict-mcp-config|--mcp-config|--mcp-config=*|--permission-prompt-tool|--permission-prompt-tool=*) has_mcp=1 ;;
         esac
     done
     [[ -n "$saw_print" ]] || return 1
-    octo_claude_user_settings_route_auth && return 1
+    if [[ -e "$settings" || -L "$settings" ]]; then
+        [[ -f "$settings" ]] && jq -es '
+            length == 1 and (.[0] | type == "object" and
+                ((del(.enabledPlugins, .extraKnownMarketplaces) | keys | length) == 0))
+        ' "$settings" >/dev/null 2>&1 || return 1
+    fi
     [[ -n "$has_sources" ]] || printf '%s\n' --setting-sources project,local
     [[ -n "$has_mcp" ]] || printf '%s\n' --strict-mcp-config
     return 0
@@ -1491,6 +1478,7 @@ octo_seat_usage_record() {
         2>/dev/null || log DEBUG "seat usage: $kind output did not parse; left as is"
 }
 
+# Synchronous agent execution (for sequential steps within phases)
 run_agent_sync() {
     local agent_type="$1"
     local prompt="$2"
@@ -1610,9 +1598,11 @@ ${provider_ctx}"
     enhanced_prompt=$(enforce_context_budget "$enhanced_prompt" "$role" "$agent_type" "$phase" "$_sync_seat_id")
     local _budget_rc=$?
     if [[ $_budget_rc -ne 0 ]]; then
+        local budget_reason="Prompt exceeded context budget"
+        octo_capture_seat_failure "$agent_type" "$_budget_rc" "$budget_reason" /dev/null /dev/null
         run_contract_transition "$_sync_seat_id" failed \
-            "reason=Prompt exceeded context budget" >/dev/null 2>&1 || true
-        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "Prompt exceeded context budget" 0 "" "$role" "$_sync_seat_id" failed none || true
+            "reason=$budget_reason" >/dev/null 2>&1 || true
+        type write_agent_status >/dev/null 2>&1 && write_agent_status "$agent_type" "failed" "$tokens_in" 0 "$budget_reason" 0 "" "$role" "$_sync_seat_id" failed none || true
         return "$_budget_rc"
     fi
 
@@ -1696,7 +1686,7 @@ ${provider_ctx}"
 
     # Resolve environment and argv once into the redacted dispatch plan. Both
     # execution and the offline explanation record consume this same decision.
-    local dispatch_plan dispatch_argv_json _plan_deadline=0 _plan_append_empty_prompt=false
+    local dispatch_plan dispatch_argv_json="" _plan_deadline=0 _plan_append_empty_prompt=false
     if [[ "$timeout_secs" =~ ^[0-9]+$ && "$timeout_secs" -gt 0 ]]; then
         _plan_deadline=$(( $(date +%s) + timeout_secs ))
     fi
@@ -1709,8 +1699,21 @@ ${provider_ctx}"
         return 74
     fi
     octo_dispatch_plan_bind_model_env "$agent_type" "$model"
-    local _plan_failure=""
-    if ! dispatch_argv_json="$(octo_dispatch_command_argv_json "$cmd")"; then
+    local _plan_failure="" _seat_usage_kind="" _seat_isolation_arg
+    local -a OCTO_COMMAND_ARGV
+    if octo_dispatch_command_to_argv "$cmd"; then
+        while IFS= read -r _seat_isolation_arg; do
+            OCTO_COMMAND_ARGV+=("$_seat_isolation_arg")
+        done < <(octo_council_claude_isolation_args "$agent_type" "${OCTO_COMMAND_ARGV[@]}" || true)
+        if _seat_usage_kind="$(octo_seat_usage_kind "$agent_type" "${OCTO_COMMAND_ARGV[@]}")"; then
+            case "$_seat_usage_kind" in
+                claude) OCTO_COMMAND_ARGV+=(--output-format json) ;;
+                codex) OCTO_COMMAND_ARGV+=(--json) ;;
+            esac
+        fi
+        dispatch_argv_json="$(jq -cn --args '$ARGS.positional' -- "${OCTO_COMMAND_ARGV[@]}")" || dispatch_argv_json=""
+    fi
+    if [[ -z "$dispatch_argv_json" ]]; then
         _plan_failure="argv serialization"
     elif ! dispatch_plan="$(octo_dispatch_plan_create "$agent_type" "$phase" "$role" \
         "$dispatch_argv_json" "$model" "$_plan_deadline" "$_prompt_bytes" "$_plan_append_empty_prompt")"; then
@@ -1742,18 +1745,6 @@ ${provider_ctx}"
     else
         cmd_array=("${OCTO_DISPATCH_PLAN_ARGV[@]}")
     fi
-    local _seat_isolation_arg
-    while IFS= read -r _seat_isolation_arg; do
-        [[ -n "$_seat_isolation_arg" ]] && cmd_array+=("$_seat_isolation_arg")
-    done < <(octo_council_claude_isolation_args "$agent_type" "${cmd_array[@]}" || true)
-    local _seat_usage_kind=""
-    if _seat_usage_kind="$(octo_seat_usage_kind "$agent_type" "${cmd_array[@]}")"; then
-        case "$_seat_usage_kind" in
-            claude) cmd_array+=(--output-format json) ;;
-            codex) cmd_array+=(--json) ;;
-        esac
-    fi
-
     # Capture output and exit code separately
     local output
     local exit_code
