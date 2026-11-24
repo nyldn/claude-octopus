@@ -65,12 +65,13 @@ correct the synthesis.
 ```bash
 if ! key_findings=$(awk '
     { sub(/\r$/, "") }
-    /^#+[[:blank:]]/ {
+    /^##?[[:blank:]]/ {
         section = ""
         if ($0 ~ /^##[[:blank:]]+Key Findings[[:blank:]]*$/) section = "findings"
         if ($0 ~ /^##[[:blank:]]+(Executive Summary|Summary)[[:blank:]]*$/) section = "summary"
         next
     }
+    /^###+[[:blank:]]/ { next }
     section != "" && NF && counts[section] < 3 {
         snippets[section] = snippets[section] (counts[section] ? " " : "") $0
         counts[section]++

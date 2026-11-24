@@ -29,6 +29,9 @@ reports = {
                       + '## Themes & Patterns\nother section\n', 'first second third'),
     'legacy_summary': ('## Summary\nlegacy result\n## Sources\nsource\n', 'legacy result'),
     'executive_summary': ('## Executive Summary\nexecutive result\n', 'executive result'),
+    'subsections': ('## Key Findings\n### Latency\nrequests got faster\n'
+                    '### Cost\nless compute\n## Sources\nsource only\n',
+                    'requests got faster less compute'),
     'no_context': ('## Sources\nsource only\n', None),
     'blank_context': ('## Key Findings\n  \n## Sources\nsource only\n', None),
 }
