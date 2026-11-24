@@ -7,6 +7,27 @@
 - Develop can move a subtask to an allowed fallback provider when its assigned
   provider's circuit opens or quota runs out before launch. Other spawn
   failures still stop the run.
+- Bounded Tangle lets implementers use an existing default pnpm 10 store for
+  offline installs. It gives pnpm private temporary storage for bookkeeping
+  and keeps the cached packages read-only. All required packages must already
+  be cached. See [bounded Tangle store requirements](docs/PROVIDERS.md#codex-in-bounded-tangle-runs).
+
+## [11.28.0] - 2026-11-24
+
+### Added
+
+- Council seat prompts limit reading to files and diffs named in the task or
+  supplied by Council, plus cited files opened to check a specific finding.
+  Set `OCTOPUS_COUNCIL_BOUNDED_READING=0` to remove the instruction.
+
+### Fixed
+
+- Resume can recover an interrupted session from its saved handoff, including
+  handoffs from older installs. ([#1406](https://github.com/nyldn/claude-octopus/pull/1406))
+- Council retains the terminal error from a failed Codex seat even if the seat
+  printed progress first. ([#1407](https://github.com/nyldn/claude-octopus/pull/1407))
+- Tangle detects same-size edits during correction rounds and preserves partial
+  work when a failed round leaves changes behind. ([#1408](https://github.com/nyldn/claude-octopus/pull/1408))
 
 ## [11.27.1] - 2026-11-23
 
