@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Parallel explicitly loads Octopus in each Claude Code worker, including
+  workers started from a Codex installation.
+
 ## [11.29.0] - 2026-11-25
 
 ### Added
