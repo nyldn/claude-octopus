@@ -55,6 +55,12 @@ Fresh configurations adopt the new roster. Existing environment pins, session
 overrides, and `providers.json` settings retain precedence and are not silently
 rewritten.
 
+## OpenCode and OpenRouter catalog refresh, 2026-11-24
+
+The [November 24 catalog review](MODEL-CATALOG-20261124.md) documents the
+updated gateway defaults, OpenCode model limits and token prices, and how the
+resolver preserves saved model choices.
+
 ## Catalog refresh, 2026-11-10
 
 | Model ID | API context limit | Standard USD per MTok, input/output |
