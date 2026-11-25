@@ -148,7 +148,10 @@ git --literal-pathspecs commit --only -m "quick: [brief description]
 [Detailed explanation if needed]
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" -- "${QUICK_FILES[@]}" || exit 1
+git rev-parse --verify HEAD
 ```
+
+Use the printed commit SHA when recording state and creating the summary.
 
 If staging or committing fails, stop the workflow. Do not record successful
 execution, generate a completion summary, or report an earlier commit as this
@@ -163,10 +166,13 @@ task's result. Preserve the edits for recovery.
 ### Step 4: Record in State
 
 ```bash
+QUICK_COMMIT="<quick-commit-sha>"
+quick_subject="$(git show --no-show-signature -s --format=%s "$QUICK_COMMIT" --)" || exit 1
+
 # Update state with quick task execution
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" write_decision \
   "quick" \
-  "$(git log -1 --pretty=%s)" \
+  "$quick_subject" \
   "Ad-hoc task executed in quick mode"
 
 # Update metrics
@@ -177,26 +183,33 @@ task's result. Preserve the edits for recovery.
 
 ### Step 5: Generate Summary
 
-```bash
-# Create quick task summary
-mkdir -p .claude-octopus/quick
+Use the SHA recorded in Step 3 and set the task description to the user's
+request. Pass the description as a safely quoted shell string.
 
+```bash
+QUICK_COMMIT="<quick-commit-sha>"
+TASK_DESCRIPTION="user task description"
+quick_subject="$(git show --no-show-signature -s --format=%s "$QUICK_COMMIT" --)" || exit 1
+quick_stat="$(git show --no-show-signature --format= --stat "$QUICK_COMMIT" --)" || exit 1
+quick_files="$(git show --no-show-signature --format= --name-only "$QUICK_COMMIT" --)" || exit 1
+
+mkdir -p .claude-octopus/quick || exit 1
 summary_file=".claude-octopus/quick/$(date +%Y%m%d-%H%M%S)-summary.md"
 
-cat > "$summary_file" <<EOF
-# Quick Task: $(git log -1 --pretty=%s)
+cat > "$summary_file" <<EOF || exit 1
+# Quick Task: $quick_subject
 
 ## Task Description
 $TASK_DESCRIPTION
 
 ## Changes Made
-$(git diff HEAD~1..HEAD --stat)
+$quick_stat
 
 ## Files Modified
-$(git diff --name-only HEAD~1..HEAD)
+$quick_files
 
 ## Commit
-$(git rev-parse HEAD)
+$QUICK_COMMIT
 
 ## Timestamp
 $(date -u +%Y-%m-%dT%H:%M:%SZ)
