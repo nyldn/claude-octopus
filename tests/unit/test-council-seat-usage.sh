@@ -48,6 +48,28 @@ else
     test_fail "out=$(cat "$out") ledger=$(cat "$ledger" 2>/dev/null)"
 fi
 
+test_case "claude error without answer retains diagnostics and records billed usage"
+out="$WORK/claude-error.out"; ledger="$WORK/claude-error.jsonl"
+printf '%s\n' '{"type":"result","is_error":true,"errors":["Budget limit reached"],"usage":{"input_tokens":120},"total_cost_usd":0.017}' > "$out"
+if python3 "$HELPER" claude "$out" "$ledger" "critique|analyst" fixture "" "" &&
+   [[ "$(cat "$out")" == "Budget limit reached" ]] &&
+   jq -e '.input_tokens == 120 and .cost_usd == 0.017 and .cost_source == "claude-cli"' "$ledger" >/dev/null; then
+    test_pass
+else
+    test_fail "Claude error text or usage was lost"
+fi
+
+test_case "claude error without diagnostic text retains the CLI subtype and cost"
+out="$WORK/claude-subtype.out"; ledger="$WORK/claude-subtype.jsonl"
+printf '%s\n' '{"type":"result","is_error":true,"subtype":"error_max_budget_usd","result":"","errors":[],"total_cost_usd":0.02}' > "$out"
+if python3 "$HELPER" claude "$out" "$ledger" "critique|analyst" fixture "" "" &&
+   grep -Fq 'error_max_budget_usd' "$out" &&
+   jq -e '.cost_usd == 0.02' "$ledger" >/dev/null; then
+    test_pass
+else
+    test_fail "Claude error subtype or cost was lost"
+fi
+
 test_case "codex JSONL keeps the last agent message and prices cached input at a tenth"
 out="$WORK/codex.out"; ledger="$WORK/codex.jsonl"
 printf '%s\n' "$CODEX_JSONL" > "$out"
@@ -100,20 +122,21 @@ fi
 # Drive run_agent_sync with fake CLIs that answer in JSON only when asked to.
 run_seat() (
     local agent="$1" ledger="$2" fake="$WORK/bin-$3/$1"
-    local codex_output="${4:-$CODEX_JSONL}" fake_rc="${5:-0}"
+    local codex_output="${4:-$CODEX_JSONL}" fake_rc="${5:-0}" claude_output="${6:-$CLAUDE_JSON}"
     mkdir -p "${fake%/*}" "$WORK/results-$3"
-    export RESULTS_DIR="$WORK/results-$3"
+    export RESULTS_DIR="$WORK/results-$3" WORKSPACE_DIR="$WORK/workspace-$3"
     cat > "$fake" <<EOF
 #!/usr/bin/env bash
 cat >/dev/null
 case " \$* " in
-    *" --output-format json "*) printf '%s\n' '$CLAUDE_JSON' ;;
+    *" --output-format json "*) printf '%s\n' '$claude_output' ;;
     *" --json "*) cat <<'JSONL'
 $codex_output
 JSONL
     ;;
     *) printf 'plain answer\nVERDICT: APPROVE\n' ;;
 esac
+printf '%s' "\${OCTO_TEST_CLAUDE_STDERR:-}" >&2
 exit $fake_rc
 EOF
     chmod 755 "$fake"
@@ -139,7 +162,7 @@ EOF
     stop_quota_watcher() { :; }
     update_agent_status() { :; }
     octo_estimate_tokens_for_file() { printf '0\n'; }
-    write_agent_status() { :; }
+    write_agent_status() { printf '%s\n' "$5" >> "$RESULTS_DIR/status-reasons"; }
     CODEX_SUBAGENT_PREAMBLE=""
     wrap_cli_output() { printf '%s\n' "$2"; }
     _OCTOPUS_SEAT_USAGE_FILE="$ledger" _OCTOPUS_SEAT_USAGE_LABEL="independent-advice|seat-$3" \
@@ -165,6 +188,25 @@ if [[ "$answer" == *"Found nothing."* && "$answer" != *turn.completed* ]] &&
 else
     test_fail "answer=$answer err=$(tail -c 600 "$WORK/err-codex" 2>/dev/null)"
 fi
+
+for provider_rc in 0 7; do
+    test_case "a Claude error result preserves usage and fails the seat with wrapper exit $provider_rc"
+    ledger="$WORK/claude-failed-$provider_rc.jsonl"
+    capture="$WORK/claude-failed-$provider_rc.log"
+    error_result='{"type":"result","is_error":true,"errors":["Budget limit reached"],"total_cost_usd":0.017}'
+    rc=0
+    answer="$(_OCTOPUS_SEAT_STDERR_FILE="$capture" run_seat claude "$ledger" "claude-failed-$provider_rc" \
+        "" "$provider_rc" "$error_result")" || rc=$?
+    expected_rc="$provider_rc"
+    [[ "$expected_rc" != 0 ]] || expected_rc=1
+    if [[ "$rc" == "$expected_rc" && -z "$answer" ]] &&
+       grep -qxF 'Budget limit reached' "$capture" &&
+       jq -e '.provider == "claude" and .cost_usd == 0.017' "$ledger" >/dev/null; then
+        test_pass
+    else
+        test_fail "rc=$rc answer=$answer diagnostic=$(cat "$capture" 2>/dev/null)"
+    fi
+done
 
 test_case "a failed Codex seat captures the terminal error after progress on stdout"
 ledger="$WORK/failed.jsonl"
@@ -207,6 +249,52 @@ if [[ "$answer" == *"plain answer"* ]]; then test_pass; else test_fail "answer=$
 test_case "summary.json totals the ledger by phase and attaches each seat's usage"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/council.sh"
+
+test_case "a decoded Claude seat error does not mark the provider quota-dead"
+ledger="$WORK/claude-tool-error.jsonl"
+capture="$WORK/claude-tool-error.log"
+error_result='{"type":"result","is_error":true,"errors":["Tool returned HTTP 401"],"total_cost_usd":0.017}'
+rc=0
+answer="$(OCTO_TEST_CLAUDE_STDERR='Warning: optional MCP integration unavailable' \
+    _OCTOPUS_SEAT_STDERR_FILE="$capture" run_seat claude "$ledger" tool-error "" 0 "$error_result")" || rc=$?
+if [[ "$rc" == 1 && -z "$answer" && ! -e "$WORK/workspace-tool-error/state/.provider-quota-dead" ]] &&
+   grep -qxF 'Warning: optional MCP integration unavailable' "$capture" &&
+   grep -qxF -- '-- decoded Claude error --' "$capture" &&
+   grep -qxF 'Tool returned HTTP 401' "$capture" && ! council_seat_quota_limited "$capture"; then
+    test_pass
+else
+    test_fail "rc=$rc diagnostic=$(cat "$capture") quota=$(cat "$WORK/workspace-tool-error/state/.provider-quota-dead" 2>/dev/null)"
+fi
+
+test_case "a real nonzero Claude CLI authentication error on stderr still marks the provider dead"
+ledger="$WORK/claude-auth-error.jsonl"
+capture="$WORK/claude-auth-error.log"
+rc=0
+answer="$(OCTO_TEST_CLAUDE_STDERR='HTTP 401 Unauthorized' _OCTOPUS_SEAT_STDERR_FILE="$capture" \
+    run_seat claude "$ledger" auth-error "" 7 "$error_result")" || rc=$?
+if [[ "$rc" == 7 && -z "$answer" ]] &&
+   grep -qxF claude "$WORK/workspace-auth-error/state/.provider-quota-dead" &&
+   council_seat_quota_limited "$capture"; then
+    test_pass
+else
+    test_fail "rc=$rc diagnostic=$(cat "$capture")"
+fi
+
+test_case "a Claude error envelope keeps CLI detail out of the shared status reason"
+ledger="$WORK/claude-status-error.jsonl"
+capture="$WORK/claude-status-error.log"
+rc=0
+answer="$(OCTO_TEST_CLAUDE_STDERR='ERROR: internal request detail' _OCTOPUS_SEAT_STDERR_FILE="$capture" \
+    run_seat claude "$ledger" status-error "" 0 "$error_result")" || rc=$?
+if [[ "$rc" == 1 && -z "$answer" ]] &&
+   grep -qxF 'Claude returned an error result' "$WORK/results-status-error/status-reasons" &&
+   ! grep -qF 'internal request detail' "$WORK/results-status-error/status-reasons" &&
+   grep -qxF 'ERROR: internal request detail' "$capture"; then
+    test_pass
+else
+    test_fail "rc=$rc status=$(cat "$WORK/results-status-error/status-reasons")"
+fi
+
 COUNCIL_RUN_DIR="$WORK/run"; mkdir -p "$COUNCIL_RUN_DIR"
 {
     jq -c '.persona = "strategy-analyst"' "$WORK/claude.jsonl"
