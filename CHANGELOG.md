@@ -6,12 +6,25 @@
 
 - Parallel stops at work breakdown validation when the file is missing or
   unreadable, or contains invalid JSON.
+  ([#1417](https://github.com/nyldn/claude-octopus/pull/1417))
 
 - Parallel explicitly loads Octopus in each Claude Code worker, including
-  workers started from a Codex installation.
+  workers started from a Codex installation. If the plugin directory cannot be
+  verified, Parallel marks the work package failed before creating a branch.
+  ([#1420](https://github.com/nyldn/claude-octopus/pull/1420))
 
 - Staged Review gives every reviewer the same complete staged diff, even when
   the host runs its shell commands in fresh sessions.
+  ([#1421](https://github.com/nyldn/claude-octopus/pull/1421))
+
+- Spec distinguishes providers that need setup from missing providers and stops
+  if its readiness check fails.
+  ([#1424](https://github.com/nyldn/claude-octopus/pull/1424))
+
+- Cost projections use valid metrics even when some records are malformed.
+  With too little data, the report shows known spend or says the projection is
+  unavailable. Budget warnings use the same cent precision as displayed totals.
+  ([#1426](https://github.com/nyldn/claude-octopus/pull/1426))
 
 ## [11.29.0] - 2026-11-25
 
@@ -48,9 +61,6 @@
 
 The Design Lineage, Factory, Debate and Quick Mode fixes address parts of
 the runtime follow-up in [#1304](https://github.com/nyldn/claude-octopus/issues/1304).
-
-- Spec distinguishes installed providers that need setup from missing providers
-  and stops when the readiness check fails.
 
 ## [11.28.2] - 2026-11-24
 
