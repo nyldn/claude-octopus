@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -P "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Parallel wave success gates"
-test_case "failed, missing and timed-out prerequisites stop dependent launches"
+test_case "invalid plans stop launch and unsuccessful prerequisites stop dependent waves"
 if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY'
 import json
 import os
@@ -18,14 +18,17 @@ import tempfile
 root = Path(sys.argv[1])
 failures = []
 checks = 0
-for tree in ('.claude/skills', 'skills'):
+bad_plans = ('missing WBS', 'malformed WBS', 'empty WBS', 'invalid wave',
+             'duplicate package', 'same-wave dependency', 'invalid dependency list')
+successful_plans = ('success', 'late success', 'legacy wave default', 'plan replaced after admission')
+for tree in ('.claude/skills', 'skills', 'codex-skills'):
     text = (root / tree / 'flow-parallel/SKILL.md').read_text()
     section = text.split('**Wave-based launch sequence:**', 1)[1]
     recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
     for scenario in ('success', 'failed', 'missing status', 'invalid status',
                      'timeout', 'missing dependency', 'failed dependency',
-                     'late success', 'final failed', 'final missing status',
-                     'final invalid status'):
+                     'final failed', 'final missing status', 'final invalid status',
+                     *successful_plans[1:], *bad_plans):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             project = Path(temporary)
             parallel = project / '.octo/parallel'
@@ -34,6 +37,9 @@ for tree in ('.claude/skills', 'skills'):
             # Preserve the real timeout recipe while advancing only its clock.
             date = binary / 'date'
             date.write_text('''#!/bin/bash
+if [[ "${WAVE_SCENARIO:-}" == "plan replaced after admission" && "$1" == +%H:%M:%S ]]; then
+  printf '{' > .octo/parallel/wbs.json
+fi
 if [[ "${WAVE_SCENARIO:-}" == timeout || "${WAVE_SCENARIO:-}" == "late success" ]] && [[ "$1" == +%s ]]; then
   tick=$(cat "$WAVE_CLOCK" 2>/dev/null || echo 0)
   if [[ "$WAVE_SCENARIO" == "late success" ]]; then
@@ -76,7 +82,26 @@ fi
                         script += f'printf "%s\\n" "{code if affected else "0"}" > exit-code\n'
                     script += 'touch .done\n'
                 (directory / 'launch.sh').write_text(script)
-            (parallel / 'wbs.json').write_text(json.dumps(dict(work_packages=packages)))
+            wbs = parallel / 'wbs.json'
+            if scenario == 'legacy wave default':
+                for package in packages:
+                    package.pop('wave')
+                    package.pop('dependencies')
+            elif scenario == 'invalid wave':
+                packages[1]['wave'] = 0
+            elif scenario == 'duplicate package':
+                packages[1]['id'] = packages[0]['id']
+            elif scenario == 'same-wave dependency':
+                packages[1]['wave'] = packages[0]['wave']
+            elif scenario == 'invalid dependency list':
+                packages[1]['dependencies'] = 'WP-1'
+
+            if scenario == 'malformed WBS':
+                wbs.write_text('{')
+            elif scenario == 'empty WBS':
+                wbs.write_text(json.dumps(dict(work_packages=[])))
+            elif scenario != 'missing WBS':
+                wbs.write_text(json.dumps(dict(work_packages=packages)))
             if scenario == 'failed dependency':
                 extra = parallel / 'WP-0'
                 extra.mkdir()
@@ -94,10 +119,13 @@ fi
             if scenario.startswith('final '):
                 valid = (result.returncode != 0 and (second / 'launched').exists()
                          and 'All waves executed.' not in result.stdout)
-            elif scenario not in ('success', 'late success'):
+            elif scenario not in successful_plans:
                 valid = (result.returncode != 0 and not (second / 'launched').exists()
                          and (second / 'instructions.md').read_text() == 'original instructions\n'
                          and 'All waves executed.' not in result.stdout)
+            if scenario in bad_plans:
+                valid = (valid and not (parallel / 'WP-1/launched').exists()
+                         and not (parallel / 'WP-1/pid').exists())
             if not valid:
                 failures.append(f'{tree}: {scenario}: rc={result.returncode}, '
                                 f'dependent launched={(second / "launched").exists()}\n'
@@ -107,5 +135,5 @@ if failures:
     raise SystemExit('\n'.join(failures))
 print(f'{checks} production wave controls passed')
 PY
-then test_pass; else test_fail "wave monitor advanced without successful prerequisites"; fi
+then test_pass; else test_fail "wave monitor accepted an invalid plan or advanced without successful prerequisites"; fi
 test_summary
