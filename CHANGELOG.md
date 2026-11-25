@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.29.1] - 2026-11-25
+
 ### Fixed
 
 - Parallel stops at work breakdown validation when the file is missing or
