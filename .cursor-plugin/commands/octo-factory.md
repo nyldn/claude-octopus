@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 ### MANDATORY COMPLIANCE — DO NOT SKIP
 
-**When the user explicitly invokes `/octo:factory`, you MUST execute the orchestrated factory pipeline below.** You are PROHIBITED from replacing the pipeline with a direct Claude-only implementation.
+**When the user explicitly invokes `/octo:factory` and confirms the cost, you MUST execute the orchestrated factory pipeline below.** You are PROHIBITED from replacing the pipeline with a direct Claude-only implementation.
 
 When the user invokes this command (e.g., `/octo:factory --spec <path>`):
 
@@ -22,7 +22,11 @@ Ask 3 clarifying questions:
 2. Satisfaction target — Accept spec default, or override? (Use spec default / Custom target 0.80-0.99)
 3. Cost confirmation — Factory mode runs ~20-30 agent calls (~0.50-2.00 USD). Proceed? (Yes / Yes with --ci for non-interactive / No)
 
-After receiving answers: validate spec path exists, set overrides, proceed.
+If the user answers No, end the workflow. If the cost answer is missing or
+unclear, ask for explicit approval. After approval, validate the spec path
+and set overrides. Set `FACTORY_COST_APPROVAL` in each shell that dispatches
+providers for this run. Use `approve` for Yes and `approve-ci` for
+Yes with --ci.
 
 ### Step 1.5: Ensure plugin root is resolvable (run via Bash tool)
 
@@ -119,7 +123,7 @@ If no external providers are available, warn but proceed (Claude-only mode is su
 
 ### EXECUTION MECHANISM — NON-NEGOTIABLE
 
-**You MUST execute this command by calling `orchestrate.sh` as documented below. You are PROHIBITED from:**
+**After cost approval, you MUST execute this command by calling `orchestrate.sh factory` as documented below. You are PROHIBITED from:**
 - ❌ Doing the work yourself using only Claude-native tools (Agent, Read, Grep, Write)
 - ❌ Using a single Claude subagent instead of multi-provider dispatch via orchestrate.sh
 - ❌ Skipping orchestrate.sh because "I can do this faster directly"
@@ -142,13 +146,18 @@ Before committing to the expensive embrace phase, verify scenario coverage by di
 ### Step 4: Execute Factory Pipeline
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" factory --spec "<spec-path>"
+factory_args=(factory --spec "<spec-path>")
+case "${FACTORY_COST_APPROVAL:-}" in
+    approve) ;;
+    approve-ci) factory_args+=(--ci) ;;
+    *) printf '%s\n' 'Factory requires explicit cost approval.' >&2; exit 1 ;;
+esac
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" "${factory_args[@]}"
 ```
 
-With optional flags:
+Append optional flags to `factory_args` before dispatch when requested:
 - `--holdout-ratio 0.25` if user requested custom split
 - `--max-retries 2` if user wants more retry attempts
-- `--ci` if user confirmed non-interactive mode
 
 ### Step 5: Present Results
 

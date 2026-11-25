@@ -10,6 +10,9 @@
 - Parallel checks the work breakdown before execution and stops if its
   packages, waves, or dependencies are invalid.
 
+- Factory asks for explicit cost approval before dispatching providers.
+  Declining or skipping the approval leaves the run stopped.
+
 ## [11.29.1] - 2026-11-25
 
 ### Fixed
