@@ -4,6 +4,18 @@
 
 ### Fixed
 
+- Quick Mode summaries record the task request and report the exact task
+  commit, including the first commit in a repository.
+
+- Design Lineage preserves earlier documents when several designs are saved
+  for the same branch in the same second.
+
+- Factory stops with an error if it cannot write its report or record the run
+  as completed.
+
+- Develop can retry a review correction on an allowed fallback provider when
+  the implementer's provider becomes unavailable without changing the worktree.
+
 - Debate gives each run its own folder so a second debate in the same session
   preserves the first debate's context, state, and round notes.
 - Develop can retry a subtask on an allowed provider after a quota or

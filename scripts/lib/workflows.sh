@@ -4276,45 +4276,21 @@ tangle_correction_identity_message() {
 
 # Apply verified normal findings within the correction budget. Track worktree
 # progress and completion separately so progress reporting cannot delay reaping.
-tangle_apply_review_corrections() {
+tangle_run_review_correction() {
     local resolved_prompt="$1"
     local context_file="$2"
-    local findings_file="$3"
+    local normal_findings="$3"
     local round_num="$4"
-    local routed_agent="${5:-codex}"
-    local correction_agent="" candidate
-    local correction_strategy="${6:-delta}"
-    local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-$(date +%s).md"
-    local rc_file="${correction_file}.rc"
-    local normal_findings strategy_text before_fp after_fp last_fp last_size last_progress now
+    local correction_agent="$5"
+    local correction_strategy="$6"
+    local correction_file="${RESULTS_DIR:-${HOME}/.claude-octopus/results}/tangle-review-corrections-${round_num}-${correction_agent//[^A-Za-z0-9._-]/_}-$(date +%s).md"
+    local rc_file
+    local strategy_text before_fp after_fp last_fp last_size last_progress now
 
     TANGLE_CORRECTION_FILE="$correction_file"
     TANGLE_CORRECTION_STATUS="unknown"
     TANGLE_CORRECTION_CHANGED="0"
     TANGLE_CORRECTION_CONTAMINATION=""
-
-    normal_findings=$(tangle_normal_findings_summary "$findings_file")
-    if [[ -z "$normal_findings" ]]; then
-        log INFO "No normal findings to correct in $findings_file"
-        TANGLE_CORRECTION_STATUS="no-findings"
-        return 0
-    fi
-
-    # The subtask provider can go offline before the review calls for edits.
-    while IFS= read -r candidate; do
-        tangle_subtask_agent_dispatchable "$candidate" || continue
-        correction_agent="$candidate"
-        break
-    done < <(tangle_subtask_fallback_agents "$routed_agent")
-    if [[ -z "$correction_agent" ]]; then
-        TANGLE_CORRECTION_FILE=""
-        TANGLE_CORRECTION_STATUS="provider-unavailable"
-        log ERROR "Correction round ${round_num}: no allowed, available provider for $routed_agent"
-        return 1
-    fi
-    if [[ "$correction_agent" != "$routed_agent" ]]; then
-        log WARN "Correction round ${round_num}: dispatching to $correction_agent instead of $routed_agent"
-    fi
 
     strategy_text=$(tangle_correction_strategy_prompt "$correction_strategy")
     local correction_prompt="You are in Octopus tangle correction round ${round_num}.
@@ -4350,7 +4326,11 @@ ${normal_findings}
     last_size=0
     last_progress=$(date +%s)
     : > "$correction_file"
-    rm -f "$rc_file" 2>/dev/null || true
+    if ! rc_file=$(mktemp "${correction_file}.rc.XXXXXX"); then
+        TANGLE_CORRECTION_STATUS="interrupted-partial"
+        log ERROR "Correction round ${round_num}: could not create the completion record"
+        return 1
+    fi
 
     local stall_window="${OCTOPUS_TANGLE_CORRECTION_STALL_WINDOW:-1800}"
     local poll_secs="${OCTOPUS_TANGLE_CORRECTION_POLL_SECS:-30}"
@@ -4363,20 +4343,21 @@ ${normal_findings}
     [[ -n "$correction_model" ]] || correction_model="unresolved"
     log INFO "$(tangle_correction_identity_message "$round_num" "$correction_strategy" "$stall_window" "$correction_agent" "$correction_model")"
     (
-        OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-correction-stall-watchdog" run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1
-        echo "$?" > "$rc_file"
+        local attempt_rc=0
+        OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED="tangle-correction-stall-watchdog" run_agent_sync "$correction_agent" "$correction_prompt" 0 "implementer" "tangle" > "$correction_file" 2>&1 || attempt_rc=$?
+        printf '%s\n' "$attempt_rc" > "$rc_file"
     ) &
     local correction_pid=$!
     local stalled="false"
     local next_probe=$((last_progress + poll_secs))
 
     while true; do
-        [[ -f "$rc_file" ]] && break
+        [[ -s "$rc_file" ]] && break
         if ! tangle_process_is_active_non_zombie "$correction_pid"; then
             break
         fi
         sleep 1
-        [[ -f "$rc_file" ]] && break
+        [[ -s "$rc_file" ]] && break
         tangle_process_is_active_non_zombie "$correction_pid" || break
         now=$(date +%s)
         [[ "$now" -ge "$next_probe" || ( "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ) ]] || continue
@@ -4392,7 +4373,7 @@ ${normal_findings}
         fi
         now=$(date +%s)
         if [[ "$stall_window" -gt 0 && $((now - last_progress)) -ge "$stall_window" ]]; then
-            [[ -f "$rc_file" ]] && break
+            [[ -s "$rc_file" ]] && break
             tangle_process_is_active_non_zombie "$correction_pid" || break
             stalled="true"
             log WARN "Correction round ${round_num}: no observable progress for ${stall_window}s — stopping agent and preserving partial writes"
@@ -4405,9 +4386,17 @@ ${normal_findings}
         fi
     done
 
-    wait "$correction_pid" 2>/dev/null || true
-    local correction_rc="1"
-    [[ -f "$rc_file" ]] && correction_rc=$(cat "$rc_file" 2>/dev/null || echo 1)
+    local correction_rc="unconfirmed"
+    # A reaped wrapper without a valid completion record cannot establish
+    # that its provider stopped writing to the worktree.
+    if wait "$correction_pid" 2>/dev/null; then
+        local recorded_rc
+        if recorded_rc=$(cat "$rc_file" 2>/dev/null) &&
+           [[ "$recorded_rc" =~ ^(0|[1-9][0-9]{0,2})$ ]] &&
+           [[ "$recorded_rc" -le 255 ]]; then
+            correction_rc="$recorded_rc"
+        fi
+    fi
     rm -f "$rc_file" 2>/dev/null || true
 
     after_fp=$(tangle_worktree_fingerprint) || after_fp=""
@@ -4439,7 +4428,8 @@ ${normal_findings}
         return 0
     fi
 
-    if [[ "$correction_rc" == "130" || "$correction_rc" == "137" || "$correction_rc" == "143" ]]; then
+    if [[ "$correction_rc" == "unconfirmed" || "$correction_rc" == "130" ||
+          "$correction_rc" == "137" || "$correction_rc" == "143" ]]; then
         TANGLE_CORRECTION_STATUS="interrupted-partial"
         {
             echo ""
@@ -4468,6 +4458,40 @@ ${normal_findings}
         echo "# Completed: $(date)"
     } >> "$correction_file"
     log WARN "Correction round ${round_num} failed with no observable worktree change: $correction_file"
+    return 1
+}
+
+tangle_apply_review_corrections() {
+    local findings_file="$3" round_num="$4" routed_agent="${5:-codex}"
+    local normal_findings candidate correction_rc
+
+    TANGLE_CORRECTION_FILE=""
+    TANGLE_CORRECTION_CHANGED="0"
+    TANGLE_CORRECTION_CONTAMINATION=""
+
+    normal_findings=$(tangle_normal_findings_summary "$findings_file")
+    if [[ -z "$normal_findings" ]]; then
+        log INFO "No normal findings to correct in $findings_file"
+        TANGLE_CORRECTION_STATUS="no-findings"
+        return 0
+    fi
+
+    while IFS= read -r candidate; do
+        tangle_subtask_agent_dispatchable "$candidate" || continue
+        if [[ "$candidate" != "$routed_agent" ]]; then
+            log WARN "Correction round ${round_num}: dispatching to $candidate instead of $routed_agent"
+        fi
+        correction_rc=0
+        tangle_run_review_correction "$1" "$2" "$normal_findings" "$round_num" "$candidate" "${6:-delta}" || correction_rc=$?
+        if [[ "$TANGLE_CORRECTION_STATUS" == "failed-no-progress" ]] && ! tangle_subtask_agent_dispatchable "$candidate"; then
+            log WARN "Correction round ${round_num}: $candidate became unavailable without changing the worktree; trying the next provider"
+            continue
+        fi
+        return "$correction_rc"
+    done < <(tangle_subtask_fallback_agents "$routed_agent")
+
+    TANGLE_CORRECTION_STATUS="provider-unavailable"
+    log ERROR "Correction round ${round_num}: no allowed, available provider for $routed_agent"
     return 1
 }
 

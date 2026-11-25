@@ -209,7 +209,7 @@ for evaluation in verdicts rounded-score partial-verdict integer-zero integer-on
     ); then test_pass; else test_fail "valid $evaluation was rejected or used the wrong score"; fi
 done
 
-for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict ambiguous-verdict mixed-negated mixed-ambiguous contradictory-score scored-incomplete-verdict incomplete-verdict duplicate-verdict wrong-verdict complete-verdict duplicate-score malformed-first-score signed-zero retry-score score-write-failure; do
+for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict ambiguous-verdict mixed-negated mixed-ambiguous contradictory-score scored-incomplete-verdict incomplete-verdict duplicate-verdict wrong-verdict complete-verdict duplicate-score malformed-first-score signed-zero retry-score score-write-failure report-write-failure report-state-failure report-success; do
     test_case "factory passes validated $consumer_case to the real satisfaction consumer"
     if (
         source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
@@ -220,7 +220,12 @@ for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict amb
         _BOX_TOP='' _BOX_MID='' _BOX_BOT='' MAGENTA='' CYAN=''
         OCTOPUS_FACTORY_HOLDOUT_RATIO=0.20 OCTOPUS_FACTORY_MAX_RETRIES=1
         assess_spec_maturity() { echo 'Mature|6|{}'; }
-        parse_factory_spec() { echo 0.85; }
+        parse_factory_spec() {
+            if [[ "$consumer_case" == report-* ]]; then
+                printf '%s\n' '{"status":"running","started_at":"2026-01-01T00:00:00Z"}' > "$2/session.json"
+            fi
+            echo 0.85
+        }
         score_nlspec_quality() { echo '100|PASS'; }
         generate_factory_scenarios() {
             if [[ "$consumer_case" == *-verdict && "$consumer_case" != negated-verdict && "$consumer_case" != ambiguous-verdict ]]; then
@@ -228,10 +233,16 @@ for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict amb
             else
                 printf '### Scenario 1: first\nGiven first input\n### Scenario 2: second\nGiven second input\n'
             fi | tee "$2/scenarios-all.md"
-            [[ "$consumer_case" != score-write-failure ]] || mkdir "$2/satisfaction-scores.json"
+            case "$consumer_case" in
+                score-write-failure) mkdir "$2/satisfaction-scores.json" ;;
+                report-write-failure) mkdir "$2/factory-report.md" ;;
+                report-state-failure) mkdir "$2/session.json.tmp" ;;
+            esac
         }
         embrace_full_workflow() { :; }
-        generate_factory_report() { touch reported; }
+        if [[ "$consumer_case" != report-* ]]; then
+            generate_factory_report() { touch reported; }
+        fi
         run_agent_sync() {
             if [[ "$1" == claude-sonnet ]]; then
                 echo scoring >> scoring-calls
@@ -256,6 +267,7 @@ for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict amb
                     duplicate-score) printf 'Score: 0.00\nScore: 1.00\n' ;;
                     malformed-first-score) printf 'Score: invalid\nScore: 1.00\n' ;;
                     signed-zero) echo 'Score: +0.00' ;;
+                    report-*) echo 'Score: 1' ;;
                     *) echo 'Score: 0' ;;
                 esac
             fi
@@ -267,6 +279,20 @@ for consumer_case in integer-zero markdown-zero verdict-zero negated-verdict amb
         scores=$(find .octo/factory -name satisfaction-scores.json -type f)
         if [[ "$consumer_case" == negated-verdict || "$consumer_case" == ambiguous-verdict || "$consumer_case" == mixed-negated || "$consumer_case" == mixed-ambiguous || "$consumer_case" == contradictory-score || "$consumer_case" == scored-incomplete-verdict || "$consumer_case" == incomplete-verdict || "$consumer_case" == duplicate-verdict || "$consumer_case" == wrong-verdict || "$consumer_case" == duplicate-score || "$consumer_case" == malformed-first-score ]]; then
             [[ "$rc" != 0 && ! -e reported && ! -e scoring-calls && -z "$scores" ]]
+        elif [[ "$consumer_case" == report-* ]]; then
+            run_dir=${scores%/*}
+            [[ -s "$scores" && -z ${OCTOPUS_FACTORY_MODE+x} &&
+               -z ${OCTOPUS_SKIP_PHASE_COST_PROMPT+x} ]] || exit 1
+            if [[ "$consumer_case" == report-success ]]; then
+                [[ "$rc" == 0 && -f "$run_dir/factory-report.md" ]] &&
+                    jq -e '.status == "completed" and .verdict == "PASS" and .composite_score == 1' "$run_dir/session.json" >/dev/null &&
+                    grep -Fq 'FACTORY COMPLETE' output
+            else
+                [[ "$rc" != 0 ]] &&
+                    jq -e '.status == "running"' "$run_dir/session.json" >/dev/null &&
+                    ! grep -Fq 'FACTORY COMPLETE' output &&
+                    ! grep -Fq "Report: $run_dir/factory-report.md" output
+            fi
         elif [[ "$consumer_case" == score-write-failure ]]; then
             [[ "$rc" != 0 && ! -e reported ]]
         else
