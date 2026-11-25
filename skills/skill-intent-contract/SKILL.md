@@ -167,8 +167,9 @@ is not a fifth runtime value and must not be passed to the workflow engine.
 
 For intermediate risk, record `Execution disposition: pending-user-decision`.
 Record `Escalation decision: pending`, then stop before execution.
-Use the writer in Step 2 to save this pending allocation before asking for a
-decision. Record `pending` for any allocation fields the user has yet to decide.
+In the current plan run, edit only the Task Allocation section of an existing
+contract. If there is no contract yet, create one with the pending allocation.
+Record `pending` for any allocation fields the user has yet to decide.
 Ask the user to choose human-only handling or a specific documented AI allocation.
 Record their answer, rewrite the Task Allocation fields to match it, and change
 `Escalation decision` to the user's resolution before continuing. For a human-only
@@ -236,8 +237,10 @@ If user selects "Let me describe it", follow up with a text prompt for their cus
 
 ### Step 2: Write Intent Contract File
 
-Populate the `TASK_*` values from Step 0 and save them in the current plan run's
-`session-intent.md`. `TASK_ALLOCATION_MODE` records the decision in the contract.
+After capturing intent in Step 1, populate the `TASK_*` values from Step 0 and
+save them in the current plan run's `session-intent.md`. For allocation-only
+updates, edit the Task Allocation section. `TASK_ALLOCATION_MODE` records the
+decision in the contract.
 Pass a mode to the workflow engine only after validating an AI-assisted allocation.
 
 ```bash
@@ -245,6 +248,10 @@ Pass a mode to the workflow engine only after validating an AI-assisted allocati
 : "${TASK_CONTROL:?Record the control}" "${TASK_DECISION_RIGHTS:?Record the decision rights}"
 : "${TASK_AI_ROLE:?Record the AI role}" "${TASK_EXECUTION_DISPOSITION:?Record the execution disposition}"
 : "${TASK_ESCALATION_DECISION:?Record the escalation decision}" "${TASK_ALLOCATION_MODE:?Record the allocation mode}"
+if [[ "$TASK_EXECUTION_DISPOSITION" == pending-user-decision ]]; then
+    printf '%s\n' 'Update only the Task Allocation section while the decision is pending.' >&2
+    exit 1
+fi
 PLAN_STORAGE="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/plan-storage.sh"
 OCTO_PLAN_DIR="$("$PLAN_STORAGE" current "$PWD" 2>/dev/null || "$PLAN_STORAGE" create "$PWD")" || exit 1
 cat > "${OCTO_PLAN_DIR}/session-intent.md" <<EOF

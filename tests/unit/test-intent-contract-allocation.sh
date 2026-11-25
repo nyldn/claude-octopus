@@ -238,6 +238,19 @@ EXPECTED
     else
         test_fail "a missing allocation mode must stop before rewriting the contract"
     fi
+
+    test_case "${intent_skill#"$PROJECT_ROOT/"} never replaces captured intent with a pending allocation"
+    printf '# Intent Contract\n\n## Job Statement\nKeep the captured goal.\n' > "$TEST_TMP_DIR/saved-intent.md"
+    cp "$TEST_TMP_DIR/saved-intent.md" "$INTENT_TEST_PLAN_DIR/session-intent.md"
+    if ! TASK_EXECUTION_DISPOSITION=pending-user-decision TASK_ESCALATION_DECISION=pending \
+        TASK_ALLOCATION_MODE=pending USER_GOAL='' bash -e "$TEST_TMP_DIR/write-intent.sh" \
+        2> "$TEST_TMP_DIR/write-error" &&
+        grep -Fq 'Update only the Task Allocation section' "$TEST_TMP_DIR/write-error" &&
+        cmp -s "$INTENT_TEST_PLAN_DIR/session-intent.md" "$TEST_TMP_DIR/saved-intent.md"; then
+        test_pass
+    else
+        test_fail "the full writer must refuse a pending allocation and preserve existing intent"
+    fi
 done
 
 # Deferring the complexity axis is what keeps this a fold and not a second,
