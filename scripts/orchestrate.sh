@@ -1050,7 +1050,7 @@ list_available_skills() {
     echo ""
 
     echo -e "${YELLOW}Usage:${NC}"
-    echo "  ./scripts/orchestrate.sh spawn <agent> \"prompt\""
+    echo "  ./scripts/orchestrate.sh spawn [--response-file FILE] <agent> \"prompt\""
     echo "  ./scripts/orchestrate.sh auto \"prompt\"  # Smart routing"
     echo ""
 }
@@ -2935,7 +2935,16 @@ case "$COMMAND" in
         }
         ;;
     spawn)
-        [[ $# -lt 2 ]] && { log ERROR "Usage: spawn <agent> <prompt>"; exit 1; }
+        _spawn_response_file=""
+        if [[ "${1:-}" == "--response-file" && -n "${2:-}" ]]; then
+            _spawn_response_file="$2"
+            shift
+            shift
+        fi
+        [[ $# -lt 2 || "${1:-}" == "--response-file" ]] && {
+            log ERROR "Usage: spawn [--response-file FILE] <agent> <prompt>"
+            exit 1
+        }
         _spawn_target="$1"
         _spawn_role=""
         # Consultative launchers (brainstorm, debate, deck) mark their seats so the
@@ -2955,24 +2964,28 @@ case "$COMMAND" in
             _spawn_role="${_spawn_role:-$_spawn_target}"
             _spawn_target="$_spawn_provider"
         fi
-        case "$_spawn_target" in
-            agy|agy-*|antigravity)
-                if [[ "$DRY_RUN" == "true" ]]; then
-                    spawn_agent "$_spawn_target" "$2" "" "${_spawn_role:-none}" "spawn"
-                else
-                    log INFO "Running $_spawn_target synchronously because Antigravity CLI print mode does not emit output from background jobs"
-                    run_agent_sync "$_spawn_target" "$2" "$TIMEOUT" "${_spawn_role:-none}" "spawn"
-                fi
-                ;;
-            *)
-                if [[ -n "$_spawn_role" ]]; then
-                    spawn_agent "$_spawn_target" "$2" "" "$_spawn_role" "spawn"
-                else
-                    spawn_agent "$1" "$2"
-                fi
-                ;;
-        esac
-        _spawn_exit=$?; unset _spawn_target _spawn_role _spawn_provider
+        if [[ -n "$_spawn_response_file" && "$DRY_RUN" != "true" ]]; then
+            run_agent_sync "$_spawn_target" "$2" "$TIMEOUT" "${_spawn_role:-none}" "spawn" "$_spawn_response_file"
+        else
+            case "$_spawn_target" in
+                agy|agy-*|antigravity)
+                    if [[ "$DRY_RUN" == "true" ]]; then
+                        spawn_agent "$_spawn_target" "$2" "" "${_spawn_role:-none}" "spawn"
+                    else
+                        log INFO "Running $_spawn_target synchronously because Antigravity CLI print mode does not emit output from background jobs"
+                        run_agent_sync "$_spawn_target" "$2" "$TIMEOUT" "${_spawn_role:-none}" "spawn"
+                    fi
+                    ;;
+                *)
+                    if [[ -n "$_spawn_role" ]]; then
+                        spawn_agent "$_spawn_target" "$2" "" "$_spawn_role" "spawn"
+                    else
+                        spawn_agent "$1" "$2"
+                    fi
+                    ;;
+            esac
+        fi
+        _spawn_exit=$?; unset _spawn_target _spawn_role _spawn_provider _spawn_response_file
         [[ "$_spawn_exit" -eq 0 ]] || exit "$_spawn_exit"
         ;;
     auto)

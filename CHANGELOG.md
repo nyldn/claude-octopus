@@ -10,6 +10,9 @@
 - Parallel explicitly loads Octopus in each Claude Code worker, including
   workers started from a Codex installation.
 
+- Staged Review gives every reviewer the same complete staged diff, even when
+  the host runs its shell commands in fresh sessions.
+
 ## [11.29.0] - 2026-11-25
 
 ### Added

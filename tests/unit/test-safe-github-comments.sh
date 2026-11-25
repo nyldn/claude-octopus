@@ -1247,6 +1247,29 @@ else
         "finish-branch still sends placeholder-shaped PR content"
 fi
 
+creates_temporary_body_file() {
+    grep -Eo -- 'mktemp[[:space:]]+[^;|&)]+octopus-(release-pr|deliver-report|review-body|staged-review|pr-body)' "$1" |
+        grep -Evc -- '^mktemp[[:space:]]+-d[[:space:]]' >/dev/null
+}
+
+snapshot_fixture="$TEST_TMP_DIR/snapshot-directory.sh"
+cat > "$snapshot_fixture" <<'SNAPSHOT_DIRECTORY'
+dir=$(mktemp -d /tmp/octopus-staged-review.XXXXXX)
+SNAPSHOT_DIRECTORY
+if creates_temporary_body_file "$snapshot_fixture"; then
+    fail "snapshot directories are allowed" "directory creation was treated as a body file"
+else
+    pass "snapshot directories are allowed"
+fi
+cat > "$snapshot_fixture" <<'SNAPSHOT_AND_BODY'
+dir=$(mktemp -d /tmp/octopus-staged-review.XXXXXX); body=$(mktemp /tmp/octopus-review-body.XXXXXX)
+SNAPSHOT_AND_BODY
+if creates_temporary_body_file "$snapshot_fixture"; then
+    pass "body files beside snapshot directories are rejected"
+else
+    fail "body files beside snapshot directories are rejected" "file creation was missed"
+fi
+
 streaming_guidance_files=0
 for streaming_file in "$PROJECT_ROOT/scripts/release.sh" \
         "$PROJECT_ROOT/.claude/skills/flow-deliver/SKILL.md" \
@@ -1255,8 +1278,7 @@ for streaming_file in "$PROJECT_ROOT/scripts/release.sh" \
         "$PROJECT_ROOT/.claude/skills/skill-finish-branch/SKILL.md"; do
     if grep -Eq -- 'safe-gh-comment\.sh' "$streaming_file" && \
             grep -Eq -- '<<<' "$streaming_file" && \
-            ! grep -Eq -- 'mktemp .*octopus-(release-pr|deliver-report|review-body|staged-review|pr-body)' \
-                "$streaming_file"; then
+            ! creates_temporary_body_file "$streaming_file"; then
         streaming_guidance_files=$((streaming_guidance_files + 1))
     fi
 done
