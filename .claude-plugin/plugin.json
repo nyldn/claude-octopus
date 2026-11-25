@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.29.0",
-  "description": "v11.29.0 \u2014 Council offers opt-in Claude prompt caching, Develop can recover review corrections, and Quick Mode reports the exact task commit. Run /octo:setup.",
+  "version": "11.29.1",
+  "description": "v11.29.1 \u2014 Parallel validates plans and loads Octopus in workers. Staged Review shares one snapshot. Spec reports provider readiness, and cost projections handle incomplete metrics. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
