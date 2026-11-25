@@ -58,6 +58,9 @@ Where:
 - `{branch}` -- the current git branch, sanitized (slashes replaced with dashes)
 - `{datetime}` -- ISO 8601 compact timestamp (`YYYYMMDD-HHmmss`)
 
+If that filename already exists, the new design adds a unique suffix before
+`.md`. Both documents remain available in the revision history.
+
 Example:
 ```
 chris-feature-auth-refactor-design-20260321-143022.md
@@ -127,14 +130,32 @@ After a brainstorm, planning, or define workflow produces design output, save it
 ```bash
 SLUG=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 DESIGNS_DIR="${HOME}/.claude-octopus/designs/${SLUG}"
-mkdir -p "$DESIGNS_DIR"
+mkdir -p "$DESIGNS_DIR" || exit 1
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo "no-branch")
 DATETIME=$(date -u +"%Y%m%d-%H%M%S")
 FILENAME="${USER}-${BRANCH}-design-${DATETIME}.md"
-FILEPATH="${DESIGNS_DIR}/${FILENAME}"
 
-cat > "$FILEPATH" <<EOF
+FILEPATH=$(python3 -I -c '
+import os
+from pathlib import Path
+import shutil
+import sys
+import tempfile
+
+destination = Path(sys.argv[1])
+with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=".design-") as draft:
+    shutil.copyfileobj(sys.stdin.buffer, draft)
+    draft.flush()
+    # Publish the complete document without replacing an existing revision.
+    try:
+        os.link(draft.name, destination)
+    except FileExistsError:
+        suffix = Path(draft.name).name[len(".design-"):]
+        destination = destination.with_name(f"{destination.stem}-{suffix}.md")
+        os.link(draft.name, destination)
+print(destination)
+' "$DESIGNS_DIR/$FILENAME" <<EOF
 branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "no-branch")
 user: ${USER}
 created: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -157,6 +178,8 @@ ${SUPERSEDES:+supersedes: ${SUPERSEDES}}
 ## Open Questions
 [Unresolved items]
 EOF
+) || exit 1
+printf 'Design saved to %s\n' "$FILEPATH"
 ```
 
 Design docs are **read-only after creation**. To revise a design, create a new document with a `supersedes` reference to the prior version.

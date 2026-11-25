@@ -211,8 +211,47 @@ design_recipe() {
 
 for tree in skills .claude/skills codex-skills; do
     skill="$PROJECT_ROOT/$tree/skill-design-lineage/SKILL.md"
+    save=$(design_recipe "$skill" 1)
     lookup=$(design_recipe "$skill" 3)
     discovery=$(design_recipe "$skill" 4)
+
+    test_case "$tree preserves all designs when saves share a timestamp"
+    if (
+        cd "$fixture/project" || exit 1
+        export HOME="$fixture/$tree-save-home" USER=reviewer
+        export DESIGNS_DIR="$HOME/.claude-octopus/designs/project"
+        first="$DESIGNS_DIR/reviewer-feature-auth-design-20260401-010101.md"
+        date() {
+            case "$2" in
+                +%Y%m%d-%H%M%S) printf '%s\n' '20260401-010101' ;;
+                +%Y-%m-%dT%H:%M:%SZ) printf '%s\n' '2026-04-01T01:01:01Z' ;;
+                *) command date "$@" ;;
+            esac
+        }
+        export -f date
+        output=$(bash -c "$save") || exit 1
+        [[ "$output" == "Design saved to $first" ]] || exit 1
+        original=$(cat "$first") || exit 1
+        SUPERSEDES="${first##*/}" bash -c "$save" &
+        save_pid=$!
+        SUPERSEDES="${first##*/}" bash -c "$save"
+        second_status=$?
+        wait "$save_pid" && [[ "$second_status" -eq 0 ]] || exit 1
+        [[ $(cat "$first") == "$original" ]] || exit 1
+        set -- "$DESIGNS_DIR"/*.md
+        [[ $# -eq 3 ]] || exit 1
+        for design in "$@"; do
+            [[ "$design" == "$first" ]] && continue
+            grep -Fxq "supersedes: ${first##*/}" "$design" || exit 1
+            grep -Fxq '## Open Questions' "$design" || exit 1
+        done
+        set -- "$DESIGNS_DIR"/.design-*
+        [[ ! -e "$1" ]]
+    ); then
+        test_pass
+    else
+        test_fail "same-timestamp writes lost the original or a new revision"
+    fi
 
     test_case "$tree links the newest design on the exact branch"
     if chosen=$(cd "$fixture/project" &&

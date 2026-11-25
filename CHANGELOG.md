@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Design Lineage preserves earlier documents when several designs are saved
+  for the same branch in the same second.
+
 - Factory stops with an error if it cannot write its report or record the run
   as completed.
 
