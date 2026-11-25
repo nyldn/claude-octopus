@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Parallel stops at work breakdown validation when the file is missing or
+  unreadable, or contains invalid JSON.
+
 - Parallel explicitly loads Octopus in each Claude Code worker, including
   workers started from a Codex installation.
 

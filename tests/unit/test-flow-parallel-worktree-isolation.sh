@@ -27,6 +27,56 @@ SKILL_FILES=(
     "$PROJECT_ROOT/codex-skills/flow-parallel/SKILL.md"
 )
 
+# Run the shipped validation block in a fresh shell for each artifact.
+for skill in "${SKILL_FILES[@]}"; do
+    gate="$TEST_TMP_DIR/wbs-gate.sh"
+    awk '/^# Validate WBS was created$/{grab=1} grab && /^```$/{exit} grab' "$skill" > "$gate"
+    fixture="$TEST_TMP_DIR/wbs"
+    mkdir -p "$fixture/.octo/parallel"
+    wbs="$fixture/.octo/parallel/wbs.json"
+    rm -f "$wbs"
+
+    for state in missing malformed invalid-utf8 NaN Infinity -Infinity valid; do
+        test_case "${skill#"$PROJECT_ROOT"/} WBS validation with $state input"
+        case "$state" in
+            missing) expected=1; message='WBS validation: FAILED - file not found' ;;
+            malformed)
+                printf '{broken\n' > "$wbs"
+                expected=1
+                message='WBS validation: FAILED - could not read valid JSON'
+                ;;
+            invalid-utf8)
+                printf '{"task":"\377","work_packages":[]}\n' > "$wbs"
+                expected=1
+                message='WBS validation: FAILED - could not read valid JSON'
+                ;;
+            NaN|Infinity|-Infinity)
+                printf '{"estimate":%s,"work_packages":[{"id":"WP-1"}]}\n' "$state" > "$wbs"
+                expected=1
+                message='WBS validation: FAILED - could not read valid JSON'
+                ;;
+            valid)
+                printf '%s\n' '{"work_packages":[{"id":"WP-1"}]}' > "$wbs"
+                expected=0
+                message='WBS validation: PASSED'
+                ;;
+        esac
+        rc=0
+        (cd "$fixture" && bash "$gate") > "$fixture/stdout" 2> "$fixture/stderr" || rc=$?
+        actual_file="$fixture/stdout"
+        empty_file="$fixture/stderr"
+        if [[ "$expected" == 1 ]]; then
+            actual_file="$fixture/stderr"
+            empty_file="$fixture/stdout"
+        fi
+        if [[ "$rc" == "$expected" && "$(cat "$actual_file")" == "$message" && ! -s "$empty_file" ]]; then
+            test_pass
+        else
+            test_fail "expected rc=$expected and $message, got rc=$rc: $(cat "$fixture/stdout" "$fixture/stderr")"
+        fi
+    done
+done
+
 # The launch template lives in a fenced heredoc inside the skill. Render it the
 # way the orchestrator does rather than re-stating it here, so the test tracks
 # the shipped text.

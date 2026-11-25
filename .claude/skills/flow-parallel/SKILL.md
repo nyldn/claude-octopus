@@ -170,11 +170,26 @@ WBSEOF
 
 ```bash
 # Validate WBS was created
-if [[ -f ".octo/parallel/wbs.json" ]]; then
-  python3 -c "import json; json.load(open('.octo/parallel/wbs.json')); print('WBS validation: PASSED')" 2>/dev/null || echo "WBS validation: FAILED - invalid JSON"
-else
-  echo "WBS validation: FAILED - file not found"
+if [[ ! -f ".octo/parallel/wbs.json" ]]; then
+  printf '%s\n' 'WBS validation: FAILED - file not found' >&2
+  exit 1
 fi
+if ! python3 -I - 2>/dev/null <<'PY_WBS'
+import json
+
+
+def reject_constant(value):
+    raise ValueError(f"{value} is not a valid JSON value")
+
+
+with open(".octo/parallel/wbs.json", encoding="utf-8") as wbs:
+    json.load(wbs, parse_constant=reject_constant)
+PY_WBS
+then
+  printf '%s\n' 'WBS validation: FAILED - could not read valid JSON' >&2
+  exit 1
+fi
+printf '%s\n' 'WBS validation: PASSED'
 ```
 
 **DO NOT PROCEED TO STEP 5 until WBS validated.**
