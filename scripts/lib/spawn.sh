@@ -1028,8 +1028,10 @@ spawn_agent() {
 
     # v8.19.0: Check for checkpoint (crash-recovery)
     local checkpoint_ctx=""
-    local checkpoint_data
-    checkpoint_data=$(load_agent_checkpoint "$task_id" 2>/dev/null) || true
+    local checkpoint_data=""
+    if [[ "${OCTOPUS_TANGLE_REUSE_CHECKPOINT:-true}" == true ]]; then
+        checkpoint_data=$(load_agent_checkpoint "$task_id" 2>/dev/null) || true
+    fi
     if [[ -n "$checkpoint_data" ]]; then
         local partial_output
         if command -v jq &>/dev/null; then
@@ -1408,9 +1410,18 @@ ${heuristic_ctx}"
         local _health_diag _health_rc=0
         _health_diag=$(cd "$_dispatch_workdir" && check_provider_health "$_provider_for_health" "$model" 2>&1) || _health_rc=$?
         if [[ "$_health_rc" -ne 0 ]]; then
+            local _health_recorded=true
             octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
-                "Provider unavailable: $_health_diag" "$_health_rc" "" >/dev/null 2>&1 || true
+                "Provider unavailable: $_health_diag" "$_health_rc" "" >/dev/null 2>&1 || _health_recorded=false
             log WARN "Provider '$_provider_for_health' health check failed: $_health_diag"
+            if [[ "$report_prelaunch_refusal" == true ]]; then
+                if [[ "$_health_recorded" != true ]]; then
+                    log ERROR "Unable to persist failed health check for background task $task_id"
+                    return 74
+                fi
+                printf '%s\n' 'octopus: refused before worker launch'
+                return 1
+            fi
             return "$_health_rc"
         fi
     fi
@@ -2461,7 +2472,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
         _ready_attempt=$((_ready_attempt + 1))
     done
     if [[ ! -s "$_spawn_ready_file" ]]; then
-        if jobs -pr | grep -Fx "$pid" >/dev/null; then
+        if _octopus_spawn_job_is_running "$pid"; then
             review_kill_process_tree_frozen "$pid" || true
         fi
         wait "$pid" 2>/dev/null || true
@@ -2534,6 +2545,11 @@ _octopus_spawn_pid_wait_default_attempts() {
     echo "$attempts"
 }
 
+_octopus_spawn_job_is_running() {
+    # Consume the list so pipefail cannot turn a match into a SIGPIPE failure.
+    jobs -pr | grep -Fx "$1" >/dev/null
+}
+
 # Launch spawn_agent in the background and return the inner provider PID that
 # spawn_agent prints, not the short-lived wrapper PID from `$!`.
 spawn_agent_capture_pid() {
@@ -2544,6 +2560,11 @@ spawn_agent_capture_pid() {
     local phase="${5:-}"
     local use_fork="${6:-false}"
     local contract_task_id="${7:-$task_id}"
+    local deadline="${8:-0}" deadline_reached=false
+    if [[ "$deadline" -gt 0 ]] && (( $(date +%s) >= deadline )); then
+        # This invocation has not started preparation or launched a worker.
+        return 75
+    fi
     local pid_file err_file
     if ! pid_file=$(mktemp "${TMPDIR:-/tmp}/octo-spawn-pid.XXXXXX"); then
         return 1
@@ -2578,6 +2599,10 @@ spawn_agent_capture_pid() {
         max_attempts=$default_max_attempts
     fi
     while [[ $attempts -lt $max_attempts ]]; do
+        if [[ "$deadline" -gt 0 ]] && (( $(date +%s) >= deadline )); then
+            deadline_reached=true
+            break
+        fi
         pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
         [[ -n "$pid" ]] && break
         if ! kill -0 "$wrapper_pid" 2>/dev/null; then
@@ -2610,7 +2635,13 @@ spawn_agent_capture_pid() {
         # with the same helper review.sh uses for stalled providers, falling
         # back to the old single-PID kill if review.sh wasn't sourced (e.g.
         # a test harness that loads only this file).
-        if declare -F review_terminate_process_tree >/dev/null 2>&1; then
+        if [[ "$deadline_reached" == true ]] && declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
+            if _octopus_spawn_job_is_running "$wrapper_pid" && ! review_kill_process_tree_frozen "$wrapper_pid"; then
+                log ERROR "Could not verify cleanup after the spawn deadline for $task_id" >&2
+                rm -f "$pid_file" "$err_file"
+                return 1
+            fi
+        elif declare -F review_terminate_process_tree >/dev/null 2>&1; then
             review_terminate_process_tree "$wrapper_pid" 5
         else
             kill "$wrapper_pid" 2>/dev/null || true

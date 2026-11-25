@@ -3189,18 +3189,23 @@ tangle_process_is_active_non_zombie() {
 # own the pids/task_ids arrays and signal traps; provider stall supervision stays
 # in spawn_agent. Completion uses launcher markers, with bounded grace for exited
 # workers and reconciliation of late successful artifacts.
+tangle_subtask_wait_deadline() {
+    local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-0}"
+    if [[ "$_tangle_max_wait" =~ ^[0-9]+$ && "$_tangle_max_wait" -gt 0 ]]; then
+        printf '%s\n' "$(( $(date +%s) + _tangle_max_wait ))"
+    else
+        printf '0\n'
+    fi
+}
+
 tangle_wait_for_subtasks() {
     local task_group="$1"
+    local _deadline="${2:-}"
     local i
     local _done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
-    local _tangle_max_wait="${OCTOPUS_TANGLE_DEADLINE:-0}"
-    [[ "$_tangle_max_wait" =~ ^[0-9]+$ ]] || _tangle_max_wait=0
+    [[ -n "$_deadline" ]] || _deadline=$(tangle_subtask_wait_deadline)
     local _missing_marker_grace="${OCTOPUS_TANGLE_MISSING_MARKER_GRACE:-180}"
     [[ "$_missing_marker_grace" =~ ^[0-9]+$ ]] || _missing_marker_grace=180
-    local _deadline=0
-    if [[ "$_tangle_max_wait" -gt 0 ]]; then
-        _deadline=$(( $(date +%s) + _tangle_max_wait ))
-    fi
     local completed=0
     local _terminal_task_ids=""
     local _missing_marker_since=()
@@ -3215,7 +3220,7 @@ tangle_wait_for_subtasks() {
                 ((completed++)) || true
             else
                 local _worker_pid="${pids[$i]:-}"
-                if [[ "$_tangle_max_wait" -gt 0 ]] && (( $(date +%s) > _deadline )); then
+                if [[ "$_deadline" -gt 0 ]] && (( $(date +%s) > _deadline )); then
                     log WARN "Thread ${task_ids[$i]} deadline exceeded — killing and marking timeout"
                     if [[ -n "$_worker_pid" ]] && tangle_process_is_active_non_zombie "$_worker_pid"; then
                         # Resolve ownership from the PID ledger before signaling.
@@ -3365,7 +3370,7 @@ octopus_tangle_cancel_active() {
     local -a cancel_agents=("${OCTOPUS_ACTIVE_TANGLE_AGENTS[@]+"${OCTOPUS_ACTIVE_TANGLE_AGENTS[@]}"}")
     local -a cancel_tasks=("${OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]+"${OCTOPUS_ACTIVE_TANGLE_TASK_IDS[@]}"}")
     local -a cancel_identities=()
-    local ledger_pid ledger_agent ledger_task ledger_identity idx found found_idx verified_rows
+    local ledger_pid ledger_agent ledger_task ledger_identity idx found_idx verified_rows
     for idx in "${!cancel_tasks[@]}"; do cancel_identities[$idx]=""; done
 
     # The ledger closes the race between spawn_agent's append and the caller's
@@ -3382,22 +3387,20 @@ octopus_tangle_cancel_active() {
         while IFS=: read -r ledger_pid ledger_agent ledger_task ledger_identity; do
             [[ -z "$ledger_identity" ]] || ledger_agent="$(octopus_pid_agent_name "$ledger_agent")"
             [[ "$ledger_task" == "tangle-${task_group}-"* ]] || continue
-            found=false
             found_idx=""
             for idx in "${!cancel_tasks[@]}"; do
-                if [[ "${cancel_tasks[$idx]:-}" == "$ledger_task" ]]; then
-                    found=true
-                    found_idx="$idx"
-                    break
-                fi
+                [[ "${cancel_tasks[$idx]:-}" == "$ledger_task" ]] || continue
+                [[ -z "${cancel_pids[$idx]:-}" || "${cancel_pids[$idx]}" == "$ledger_pid" ]] || continue
+                found_idx="$idx"
+                break
             done
-            if [[ "$found" == "true" ]]; then
-                [[ -n "${cancel_pids[$found_idx]:-}" ]] || cancel_pids[$found_idx]="$ledger_pid"
-                [[ -n "${cancel_agents[$found_idx]:-}" ]] || cancel_agents[$found_idx]="$ledger_agent"
-                if [[ "${cancel_pids[$found_idx]:-}" == "$ledger_pid" ]]; then
-                    cancel_identities[$found_idx]="$ledger_identity"
-                fi
+            if [[ -n "$found_idx" ]]; then
+                cancel_pids[$found_idx]="$ledger_pid"
+                cancel_agents[$found_idx]="$ledger_agent"
+                cancel_identities[$found_idx]="$ledger_identity"
             else
+                # A replacement can register under the same task before its
+                # PID has replaced the previous attempt in the active slot.
                 cancel_pids+=("$ledger_pid")
                 cancel_agents+=("$ledger_agent")
                 cancel_tasks+=("$ledger_task")
@@ -4991,10 +4994,15 @@ tangle_prepare_run_worktree() {
     log INFO "Tangle run branch: $TANGLE_RUN_BRANCH (base $TANGLE_RUN_SOURCE_COMMIT)"
 }
 
+tangle_subtask_provider() {
+    local agent="$1"
+    octo_agent_spec_provider "$agent" 2>/dev/null || printf '%s\n' "${agent%%[-:]*}"
+}
+
 tangle_subtask_agent_dispatchable() {
     local agent="${1:-}" provider quota_provider
     [[ -n "$agent" ]] || return 1
-    provider="$(octo_agent_spec_provider "$agent" 2>/dev/null)" || provider="${agent%%[-:]*}"
+    provider="$(tangle_subtask_provider "$agent")"
     if declare -f is_provider_available >/dev/null 2>&1 && ! is_provider_available "$provider"; then
         return 1
     fi
@@ -5009,7 +5017,7 @@ tangle_subtask_fallback_agents() {
     local agent="${1:-}" candidate provider seen="|"
     for candidate in "$agent" codex claude-sonnet; do
         [[ -n "$candidate" ]] || continue
-        provider="$(octo_agent_spec_provider "$candidate" 2>/dev/null)" || provider="${candidate%%[-:]*}"
+        provider="$(tangle_subtask_provider "$candidate")"
         [[ "$seen" == *"|$provider|"* ]] && continue
         seen+="$provider|"
         tangle_subtask_agent_allowed "$candidate" || continue
@@ -5022,9 +5030,12 @@ tangle_subtask_fallback_agents() {
 
 tangle_spawn_subtask() {
     local agent="$1" prompt="$2" task_id="$3" role="$4" pane_title="$5" active_idx="$6"
-    local candidate pid spawn_status attempt=0 contract_task_id
+    local recovery="${7:-0}" tried="${8:-|}" deadline="${9:-0}"
+    local candidate provider pid spawn_status attempt=0 contract_task_id
     TANGLE_SPAWNED_PID=""
     while IFS= read -r candidate; do
+        provider="$(tangle_subtask_provider "$candidate")"
+        [[ "$tried" != *"|$provider|"* ]] || continue
         if ! tangle_subtask_agent_dispatchable "$candidate"; then
             log WARN "Tangle task $task_id: $candidate is unavailable (circuit open or quota exhausted); trying the next provider"
             continue
@@ -5035,14 +5046,16 @@ tangle_spawn_subtask() {
         # Keep completion markers and PID tracking on the logical task.
         # Each retry needs a new contract seat after the prior seat terminates.
         contract_task_id="$task_id"
-        if (( attempt > 1 )); then
+        if (( recovery > 0 )); then
+            contract_task_id="${task_id}:recovery-$recovery-attempt-$attempt"
+        elif (( attempt > 1 )); then
             contract_task_id="${task_id}:attempt-$attempt"
         fi
         spawn_status=0
         if [[ "$TMUX_MODE" == "true" ]]; then
-            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" tangle "$pane_title" "$contract_task_id" </dev/null) || spawn_status=$?
+            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" tangle "$pane_title" "$contract_task_id" "$deadline" </dev/null) || spawn_status=$?
         else
-            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" tangle false "$contract_task_id" </dev/null) || spawn_status=$?
+            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" tangle false "$contract_task_id" "$deadline" </dev/null) || spawn_status=$?
         fi
         if [[ "$spawn_status" -eq 0 && "$pid" =~ ^[1-9][0-9]*$ ]]; then
             TANGLE_SPAWNED_PID="$pid"
@@ -5052,7 +5065,75 @@ tangle_spawn_subtask() {
         [[ "$spawn_status" -eq 75 && -z "$pid" ]] || return 1
         log WARN "Tangle task $task_id: $candidate refused dispatch before launch; trying the next provider"
     done < <(tangle_subtask_fallback_agents "$agent")
-    return 1
+    # No candidate launched. Other failures leave the PID handoff uncertain.
+    return 75
+}
+
+tangle_rerun_dead_provider_subtasks() {
+    local task_group="$1" deadline="$2"
+    local done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
+    local results_dir="${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
+    local i ran_on next candidate provider result prompt rerun task_id spawn_status
+    local -a tried_providers=() recoveries=() attempt_results=()
+    while :; do
+        rerun=false
+        for i in "${!task_ids[@]}"; do
+            task_id="${task_ids[$i]}"
+            # Provider health is shared across tasks. Require the trusted
+            # terminal marker and result from this specific attempt.
+            [[ "$(cat "$done_dir/$task_id.done" 2>/dev/null || true)" == 75 ]] || continue
+            ran_on="${OCTOPUS_ACTIVE_TANGLE_AGENTS[$i]:-}"
+            [[ -n "$ran_on" ]] || continue
+            # The launcher can normalize a legacy executor's name. Previous
+            # attempts have been archived, so require one result for this task.
+            attempt_results=("$results_dir"/*-"$task_id".md)
+            [[ ${#attempt_results[@]} -eq 1 && -f "${attempt_results[0]}" ]] || continue
+            result="${attempt_results[0]}"
+            [[ "$(octo_result_launcher_status "$result" || true)" == "## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)" ]] || continue
+            tangle_subtask_agent_dispatchable "$ran_on" && continue
+            provider="$(tangle_subtask_provider "$ran_on")"
+            tried_providers[$i]="${tried_providers[$i]:-|}${provider}|"
+            next=""
+            while IFS= read -r candidate; do
+                provider="$(tangle_subtask_provider "$candidate")"
+                [[ "${tried_providers[$i]}" == *"|$provider|"* ]] && continue
+                tangle_subtask_agent_dispatchable "$candidate" || continue
+                next="$candidate"
+                break
+            done < <(tangle_subtask_fallback_agents "${subtask_agents[$i]}")
+            [[ -n "$next" ]] || continue
+            # Recovery shares Step 2's original wait budget.
+            if [[ "$deadline" -gt 0 ]] && (( $(date +%s) >= deadline )); then
+                break
+            fi
+            log WARN "Tangle task $task_id: $ran_on became unavailable while it ran; rerunning it on $next"
+            mv "$result" "${result}.provider-unavailable" || return 1
+            rm -f "$done_dir/$task_id.done" || return 1
+            recoveries[$i]=$(( ${recoveries[$i]:-0} + 1 ))
+            prompt="A previous attempt at this subtask stopped when its provider (${ran_on}) became unavailable. Any edits it made are still in the worktree: review them and finish the subtask from there instead of starting over."$'\n\n'"${subtask_prompts[$i]}"
+            spawn_status=0
+            # A replacement can read the shared worktree without receiving
+            # the previous provider's raw output in its prompt.
+            OCTOPUS_TANGLE_REUSE_CHECKPOINT=false tangle_spawn_subtask "$next" "$prompt" "$task_id" "${subtask_roles[$i]}" \
+                "${subtask_pane_titles[$i]}" "$i" "${recoveries[$i]}" "${tried_providers[$i]}" "$deadline" ||
+                spawn_status=$?
+            if [[ "$spawn_status" -eq 75 ]]; then
+                # Definite prelaunch exhaustion leaves the original failure authoritative.
+                mv "${result}.provider-unavailable" "$result" || return 1
+                printf '75\n' > "$done_dir/$task_id.done" || return 1
+                OCTOPUS_ACTIVE_TANGLE_AGENTS[$i]="$ran_on"
+                continue
+            elif [[ "$spawn_status" -ne 0 ]]; then
+                log ERROR "Failed to rerun Tangle task $task_id"
+                return 1
+            fi
+            pids[$i]="$TANGLE_SPAWNED_PID"
+            OCTOPUS_ACTIVE_TANGLE_PIDS[$i]="$TANGLE_SPAWNED_PID"
+            rerun=true
+        done
+        [[ "$rerun" == true ]] || return 0
+        tangle_wait_for_subtasks "$task_group" "$deadline" || return 1
+    done
 }
 
 tangle_develop() {
@@ -5516,6 +5597,7 @@ $(tangle_decomposition_json_contract_guidance)"
     local subtask_num=0
     local pids=()
     local task_ids=()
+    local subtask_agents=() subtask_prompts=() subtask_roles=() subtask_pane_titles=()
     local subtask_lines=()
     local has_reasoning_subtask=false
 
@@ -5568,10 +5650,11 @@ $(tangle_decomposition_json_contract_guidance)"
         return 1
     fi
 
-    # Coding providers must run behind a parent-owned filesystem boundary.
-    export OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
-    export OCTOPUS_TANGLE_WORKTREE="$PROJECT_ROOT"
-    export OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
+    # Keep the parent-owned filesystem boundary through both first dispatch
+    # and any recovery or validation retries in this worktree.
+    local -x OCTOPUS_TANGLE_EXECUTION_BOUNDARY=true
+    local -x OCTOPUS_TANGLE_WORKTREE="$PROJECT_ROOT"
+    local -x OCTOPUS_TANGLE_RESULTS_DIR="$RESULTS_DIR"
 
     local tangle_previous_int_trap tangle_previous_term_trap
     tangle_previous_int_trap="$(trap -p INT)"
@@ -5623,10 +5706,13 @@ $(tangle_decomposition_json_contract_guidance)"
         pids+=("$pid")
         OCTOPUS_ACTIVE_TANGLE_PIDS[$active_idx]="$pid"
         task_ids+=("$task_id")
+        subtask_agents+=("$agent")
+        subtask_prompts+=("$subtask_prompt")
+        subtask_roles+=("$role")
+        subtask_pane_titles+=("$pane_title")
         ((subtask_num++)) || true
     done
     fleet_dispatch_end
-    unset OCTOPUS_TANGLE_EXECUTION_BOUNDARY OCTOPUS_TANGLE_WORKTREE OCTOPUS_TANGLE_RESULTS_DIR
 
     # Future-proof fail-closed guard: the current loop increments once per
     # retained line, but this catches any later continue/break/error path before
@@ -5642,7 +5728,10 @@ $(tangle_decomposition_json_contract_guidance)"
 
     local _done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
     local _failed_tasks=()
-    if ! tangle_wait_for_subtasks "$task_group"; then
+    local subtask_deadline
+    subtask_deadline=$(tangle_subtask_wait_deadline)
+    if ! tangle_wait_for_subtasks "$task_group" "$subtask_deadline" ||
+       ! tangle_rerun_dead_provider_subtasks "$task_group" "$subtask_deadline"; then
         octopus_tangle_cancel_active TERM
         _octopus_tangle_restore_traps "$tangle_previous_int_trap" "$tangle_previous_term_trap"
         return 1

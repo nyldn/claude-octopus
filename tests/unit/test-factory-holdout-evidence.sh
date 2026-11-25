@@ -497,4 +497,66 @@ for absent_score in missing empty; do
     ); then test_pass; else test_fail "scorer terminated its caller for $absent_score input"; fi
 done
 
+test_case "Factory preserves separate evidence for two runs started in the same second"
+if (
+    source "$PROJECT_ROOT/scripts/lib/factory-spec.sh"
+    mkdir -p "$TEST_TMP_DIR/same-second" && cd "$TEST_TMP_DIR/same-second" || exit 1
+    printf '# First spec\n\n## Behaviors\n### Produce the first artifact\n' > first.md
+    printf '# Second spec\n\n## Behaviors\n### Produce the second artifact\n' > second.md
+    _BOX_TOP='' _BOX_MID='' _BOX_BOT='' MAGENTA='' CYAN=''
+    OCTOPUS_FACTORY_SATISFACTION_TARGET=''
+    date() {
+        if [[ "${1:-}" == +%Y%m%d-%H%M%S ]]; then
+            printf '20260101-010101\n'
+        else
+            command date "$@"
+        fi
+    }
+    assess_spec_maturity() { echo 'Mature|6|{}'; }
+    score_nlspec_quality() { echo '100|PASS'; }
+    generate_factory_scenarios() {
+        printf '### Scenario 1: first\nGiven first input\n### Scenario 2: second\nGiven second input\n' |
+            tee "$2/scenarios-all.md"
+    }
+    embrace_full_workflow() { :; }
+    run_agent_sync() {
+        case "$4" in
+            qa-reviewer) printf 'Score: 1\n' ;;
+            evaluator) printf 'behavior_coverage: 1\nconstraint_adherence: 1\nquality: 1\n' ;;
+            *) return 42 ;;
+        esac
+    }
+    for spec in first second; do
+        if ! factory_run "$spec.md" 0.20 0 true > "$spec-output" 2>&1; then
+            cat "$spec-output" >&2
+            exit 1
+        fi
+    done
+    for spec in first second; do
+        report=$(sed -n 's/.*✓.* Report: //p' "$spec-output")
+        [[ -n "$report" && -s "$report" ]] || exit 1
+        run_dir=${report%/*}
+        cmp -s "$spec.md" "$run_dir/spec.md" || {
+            printf '%s report points to another run\n' "$spec" >&2
+            exit 1
+        }
+        jq -e '.status == "completed"' "$run_dir/session.json" >/dev/null || exit 1
+    done
+); then test_pass; else test_fail "same-second Factory runs did not preserve both sets of evidence"; fi
+
+test_case "Factory stops before parsing when its run directory cannot be created"
+if (
+    mkdir -p "$TEST_TMP_DIR/run-directory-blocked/.octo" &&
+        cd "$TEST_TMP_DIR/run-directory-blocked" || exit 1
+    printf '# Fixture spec\n' > spec.md
+    printf 'existing data\n' > .octo/factory
+    assess_spec_maturity() { echo 'Mature|6|{}'; }
+    parse_factory_spec() { touch parsed; return 1; }
+    _BOX_TOP='' _BOX_MID='' _BOX_BOT='' MAGENTA='' CYAN=''
+    rc=0
+    factory_run spec.md 0.20 0 true > output 2>&1 || rc=$?
+    [[ "$rc" != 0 && ! -e parsed && "$(cat .octo/factory)" == 'existing data' ]] &&
+        grep -F 'Could not create Factory run directory' output >/dev/null
+); then test_pass; else test_fail "Factory continued to parsing after directory creation failed"; fi
+
 test_summary

@@ -185,6 +185,7 @@ spawn_agent_async() {
     local phase="${5:-}"
     local pane_title="${6:-$agent_type}"
     local contract_task_id="${7:-$task_id}"
+    local deadline="${8:-0}"
 
     # Create tmux pane if tmux mode enabled
     if [[ "$TMUX_MODE" == "true" ]]; then
@@ -194,7 +195,7 @@ spawn_agent_async() {
     # Spawn agent and return the worker PID, not a short-lived wrapper from
     # command substitution around spawn_agent.
     local pid
-    pid=$(spawn_agent_capture_pid "$agent_type" "$prompt" "$task_id" "$role" "$phase" false "$contract_task_id") || return $?
+    pid=$(spawn_agent_capture_pid "$agent_type" "$prompt" "$task_id" "$role" "$phase" false "$contract_task_id" "$deadline") || return $?
     [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
 
     printf '%s\n' "$pid"

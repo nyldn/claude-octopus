@@ -336,11 +336,15 @@ factory_run() {
         log WARN "Spec maturity is Draft ($maturity_sections/6 sections) — results may be limited"
     fi
 
-    # Create run directory
-    local run_id
-    run_id="factory-$(date +%Y%m%d-%H%M%S)"
-    local run_dir=".octo/factory/$run_id"
-    mkdir -p "$run_dir"
+    # Allocate an exclusive directory so runs started together keep separate evidence.
+    local run_id run_dir timestamp
+    if ! timestamp=$(date +%Y%m%d-%H%M%S) ||
+       ! mkdir -p .octo/factory ||
+       ! run_dir=$(mktemp -d ".octo/factory/factory-$timestamp.XXXXXXXX"); then
+        log ERROR "Could not create Factory run directory under .octo/factory"
+        return 1
+    fi
+    run_id="${run_dir##*/}"
 
     echo ""
     echo -e "${MAGENTA}${_BOX_TOP}${NC}"
