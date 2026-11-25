@@ -995,6 +995,22 @@ else
     test_fail "prompt frame mismatch (provider=$prompt_equal expected=$expected_equal bytes=$byte_count_equal metadata=$metadata_equal redaction=$original_absent)"
 fi
 
+test_case "a replacement spawn omits the previous provider checkpoint from its prompt"
+if (
+    load_agent_checkpoint() { printf '%s\n' '{"partial_output":"Previous seat fixture output"}'; }
+    CAPTURED_PROVIDER_PROMPT_FILE="$TEST_TMP_DIR/checkpoint-default" \
+        run_external_fixture success checkpoint-default fake-api reviewer tangle &&
+    OCTOPUS_TANGLE_REUSE_CHECKPOINT=false CAPTURED_PROVIDER_PROMPT_FILE="$TEST_TMP_DIR/checkpoint-replacement" \
+        run_external_fixture success checkpoint-replacement fake-api reviewer tangle &&
+    grep -F 'Previous seat fixture output' "$TEST_TMP_DIR/checkpoint-default" >/dev/null &&
+    grep -F 'External success fixture' "$TEST_TMP_DIR/checkpoint-replacement" >/dev/null &&
+    ! grep -F 'Previous seat fixture output' "$TEST_TMP_DIR/checkpoint-replacement" >/dev/null
+); then
+    test_pass
+else
+    test_fail "checkpoint selection changed ordinary spawn or sent old output to the replacement"
+fi
+
 test_case "spawn writes the nonce beside launcher Output without changing prompt bytes"
 export FAKE_COMPRESS_PROMPT=true FAKE_PROMPT_OUTPUT=true
 run_external_fixture success nonce-frame kimi-research reviewer review

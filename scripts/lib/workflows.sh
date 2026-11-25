@@ -5104,7 +5104,9 @@ tangle_rerun_dead_provider_subtasks() {
             recoveries[$i]=$(( ${recoveries[$i]:-0} + 1 ))
             prompt="A previous attempt at this subtask stopped when its provider (${ran_on}) became unavailable. Any edits it made are still in the worktree: review them and finish the subtask from there instead of starting over."$'\n\n'"${subtask_prompts[$i]}"
             spawn_status=0
-            tangle_spawn_subtask "$next" "$prompt" "$task_id" "${subtask_roles[$i]}" \
+            # A replacement can read the shared worktree without receiving
+            # the previous provider's raw output in its prompt.
+            OCTOPUS_TANGLE_REUSE_CHECKPOINT=false tangle_spawn_subtask "$next" "$prompt" "$task_id" "${subtask_roles[$i]}" \
                 "${subtask_pane_titles[$i]}" "$i" "${recoveries[$i]}" "${tried[$i]}" "$deadline" ||
                 spawn_status=$?
             if [[ "$spawn_status" -eq 75 ]]; then

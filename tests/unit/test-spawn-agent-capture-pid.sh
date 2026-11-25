@@ -9,6 +9,7 @@ test_suite "spawn agent PID capture"
 # Load only the helpers under test so the fixture controls spawn_agent and log.
 eval "$(sed -n '/^_octopus_prune_task_id_reservations() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
 eval "$(sed -n '/^_octopus_next_spawn_task_id() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
+eval "$(sed -n '/^_octopus_spawn_job_is_running() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
 eval "$(sed -n '/^spawn_agent_capture_pid() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
 
 # Keep per-id reservation files inside the test sandbox instead of the real
@@ -193,8 +194,20 @@ if (
         : > "$TEST_TMP_DIR/late-worker"
         printf '424242\n'
     }
+    jobs() {
+        if [[ "${FUNCNAME[1]:-}" == _octo_timeout_job_is_running ]]; then
+            builtin jobs "$@"
+            return
+        fi
+        # Model a full job listing whose writer fails if the reader closes
+        # the pipe before consuming the rows after the wrapper PID.
+        awk -F: '$1 == "wrapper" { print $2 }
+            END { for (i = 0; i < 100000; i++) print 999999999 }' "$TEST_TMP_DIR/deadline-handoff"
+    }
     rc=0
-    pid=$(spawn_agent_capture_pid codex prompt slow-task implementer tangle false slow-seat 200 2>"$TEST_TMP_DIR/deadline.err") || rc=$?
+    pid=$(OCTOPUS_SPAWN_PID_HANDOFF_FD=9 spawn_agent_capture_pid \
+        codex prompt slow-task implementer tangle false slow-seat 200 \
+        9>"$TEST_TMP_DIR/deadline-handoff" 2>"$TEST_TMP_DIR/deadline.err") || rc=$?
     [[ "$rc" == 1 && -z "$pid" && -e "$TEST_TMP_DIR/slow-preparation" &&
        ! -e "$TEST_TMP_DIR/late-worker" ]]
 ); then

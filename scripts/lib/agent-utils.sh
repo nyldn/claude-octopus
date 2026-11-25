@@ -1043,13 +1043,19 @@ $prompt"
             OCTOPUS_ACTIVE_TANGLE_PIDS+=("")
             OCTOPUS_ACTIVE_TANGLE_AGENTS+=("$agent")
             OCTOPUS_ACTIVE_TANGLE_TASK_IDS+=("$retry_task_id")
-            if ! TMUX_MODE=false tangle_spawn_subtask "$agent" "$prompt" "$retry_task_id" "$role" "" "$active_idx"; then
+            local pid spawn_status=0
+            if [[ "$retry_from_result" == true && "${OCTOPUS_TANGLE_RETRY_SWITCH_PROVIDER:-false}" != true ]]; then
+                pid=$(spawn_agent_capture_pid "$agent" "$prompt" "$retry_task_id" "$role" tangle </dev/null) || spawn_status=$?
+            else
+                TMUX_MODE=false tangle_spawn_subtask "$agent" "$prompt" "$retry_task_id" "$role" "" "$active_idx" || spawn_status=$?
+                pid="$TANGLE_SPAWNED_PID"
+            fi
+            if [[ "$spawn_status" -ne 0 ]]; then
                 log ERROR "Failed to spawn Tangle retry $retry_task_id"
                 octopus_tangle_cancel_active TERM
                 _octopus_tangle_restore_traps "$retry_previous_int_trap" "$retry_previous_term_trap"
                 return 1
             fi
-            local pid="$TANGLE_SPAWNED_PID"
             OCTOPUS_ACTIVE_TANGLE_PIDS[active_idx]="$pid"
             pids+=("$pid")
             task_ids+=("$retry_task_id")

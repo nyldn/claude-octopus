@@ -158,6 +158,7 @@ EOF
             fi
             printf 'contract %s\n' "${7#"$task_id"}" >> "$CAPTURE"
             printf 'deadline %s\n' "${8:-missing}" >> "$CAPTURE"
+            printf 'reuse checkpoint %s\n' "${OCTOPUS_TANGLE_REUSE_CHECKPOINT:-true}" >> "$CAPTURE"
         fi
         mkdir -p src
         if attempt_dies "$agent" "$task_id" "$spawned"; then
@@ -209,6 +210,7 @@ run_retry() (
     local name="$1"
     SCENARIO="$2"
     load_fixture "$TEST_TMP_DIR/running-fallback-$name" ""
+    OCTOPUS_TANGLE_RETRY_SWITCH_PROVIDER="${3:-false}"
 
     is_provider_locked() { return 1; }
     search_similar_errors() { printf '0\n'; }
@@ -346,6 +348,7 @@ spawned task0 claude-sonnet|implementer
 boundary configured
 contract :recovery-1-attempt-1
 deadline 4102444800
+reuse checkpoint false
 partial by codex
 finished by claude-sonnet
 results: claude-sonnet-task0 codex-task1" \
@@ -387,10 +390,15 @@ partial by claude-sonnet
 results: claude-sonnet-task0 codex-task1" \
     run_develop replacement-dies replacement-dies
 
-expect_output "a loop retry of a subtask whose codex is quota-dead runs on claude-sonnet" \
+expect_output "a result-file loop retry does not switch a quota-dead provider by default" \
+"rc=1
+attempt tangle-fixture-retry1-0 codex" \
+    run_retry retry-no-switch quota
+
+expect_output "a loop retry of a quota-dead subtask switches providers when enabled" \
 "rc=0
 attempt tangle-fixture-retry1-0 claude-sonnet" \
-    run_retry retry-quota quota
+    run_retry retry-quota quota true
 
 expect_output "a loop retry with codex still healthy stays on codex" \
 "rc=0

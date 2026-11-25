@@ -173,13 +173,12 @@ else
 fi
 
 test_case "worker ownership check consumes a complete job listing under pipefail"
-ownership_check="$(sed -n '/if jobs -pr |/s/^[[:space:]]*if \(.*\); then$/\1/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
 if (
     set -o pipefail
-    [[ -n "$ownership_check" ]] || exit 1
+    eval "$(sed -n '/^_octopus_spawn_job_is_running() {/,/^}/p' "$PROJECT_ROOT/scripts/lib/spawn.sh")"
     pid="$$"
     jobs() { awk -v target="$pid" 'BEGIN {print target; for (i=0;i<100000;i++) print 0}'; }
-    eval "$ownership_check"
+    _octopus_spawn_job_is_running "$pid"
 ); then test_pass; else test_fail "job listing closed early or ownership predicate disappeared"; fi
 
 # Exercise workflow ledger admission with inert signal helpers.

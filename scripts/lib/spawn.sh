@@ -1028,8 +1028,10 @@ spawn_agent() {
 
     # v8.19.0: Check for checkpoint (crash-recovery)
     local checkpoint_ctx=""
-    local checkpoint_data
-    checkpoint_data=$(load_agent_checkpoint "$task_id" 2>/dev/null) || true
+    local checkpoint_data=""
+    if [[ "${OCTOPUS_TANGLE_REUSE_CHECKPOINT:-true}" == true ]]; then
+        checkpoint_data=$(load_agent_checkpoint "$task_id" 2>/dev/null) || true
+    fi
     if [[ -n "$checkpoint_data" ]]; then
         local partial_output
         if command -v jq &>/dev/null; then
@@ -2461,7 +2463,7 @@ sys.stdout.buffer.write(sys.stdin.buffer.read().decode("utf-8", errors="ignore")
         _ready_attempt=$((_ready_attempt + 1))
     done
     if [[ ! -s "$_spawn_ready_file" ]]; then
-        if jobs -pr | grep -Fx "$pid" >/dev/null; then
+        if _octopus_spawn_job_is_running "$pid"; then
             review_kill_process_tree_frozen "$pid" || true
         fi
         wait "$pid" 2>/dev/null || true
@@ -2532,6 +2534,11 @@ _octopus_spawn_pid_wait_default_attempts() {
     local attempts=$(( (10#$preflight_secs * preflight_candidates + 60) * 10 ))
     (( attempts < 1200 )) && attempts=1200
     echo "$attempts"
+}
+
+_octopus_spawn_job_is_running() {
+    # Consume the list so pipefail cannot turn a match into a SIGPIPE failure.
+    jobs -pr | grep -Fx "$1" >/dev/null
 }
 
 # Launch spawn_agent in the background and return the inner provider PID that
@@ -2620,7 +2627,7 @@ spawn_agent_capture_pid() {
         # back to the old single-PID kill if review.sh wasn't sourced (e.g.
         # a test harness that loads only this file).
         if [[ "$deadline_reached" == true ]] && declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
-            if jobs -pr | grep -Fxq "$wrapper_pid" && ! review_kill_process_tree_frozen "$wrapper_pid"; then
+            if _octopus_spawn_job_is_running "$wrapper_pid" && ! review_kill_process_tree_frozen "$wrapper_pid"; then
                 log ERROR "Could not verify cleanup after the spawn deadline for $task_id" >&2
                 rm -f "$pid_file" "$err_file"
                 return 1
