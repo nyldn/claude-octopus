@@ -173,7 +173,8 @@ quick_subject="$(git show --no-show-signature -s --format=%s "$QUICK_COMMIT" --)
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" write_decision \
   "quick" \
   "$quick_subject" \
-  "Ad-hoc task executed in quick mode"
+  "Ad-hoc task executed in quick mode" \
+  "$QUICK_COMMIT"
 
 # Update metrics
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_metrics \
@@ -246,13 +247,15 @@ $octopus-quick "fix typo in README - change 'recieve' to 'receive'"
    git --literal-pathspecs commit --only -m "quick: fix typo in README (recieve → receive)
 
    Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" -- README.md || exit 1
+   git rev-parse --verify HEAD
    ```
 
 4. **Record in state**
    ```bash
    state-manager.sh write_decision "quick" \
      "Fixed typo in README" \
-     "Ad-hoc documentation fix"
+     "Ad-hoc documentation fix" \
+     "<quick-commit-sha>"
    ```
 
 5. **Generate summary**

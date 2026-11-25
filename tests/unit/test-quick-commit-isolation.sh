@@ -7,6 +7,7 @@ source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "Quick-task commit isolation and summary"
 test_case "quick commits preserve unrelated work and summaries identify the task commit"
 if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY'
+import json
 import os
 from pathlib import Path
 import re
@@ -92,13 +93,15 @@ class QuickCommit(unittest.TestCase):
     def test_summary(self):
         request = "Update `read me` without expanding $(false) or $HOME."
         for entry in entries:
-            section = entry.read_text().split('### Step 5: Generate Summary', 1)[1]
-            recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+            state, summary = entry.read_text().split('### Step 4: Record in State', 1)[1].split(
+                '### Step 5: Generate Summary', 1)
+            recipe = re.search(r'```bash\n(.*?)\n```', summary, re.S)[1]
+            state_recipe = re.search(r'```bash\n(.*?)\n```', state, re.S)[1]
             for scenario in ('root commit', 'head advanced', 'missing commit'):
                 with self.subTest(entry=str(entry), scenario=scenario):
-                    self.check_summary(recipe, request, scenario)
+                    self.check_summary(recipe, state_recipe, request, scenario)
 
-    def check_summary(self, recipe, request, scenario):
+    def check_summary(self, recipe, state_recipe, request, scenario):
         with tempfile.TemporaryDirectory(dir=sys.argv[2]) as temporary:
             repo = Path(temporary)
             env = dict(os.environ, GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1',
@@ -119,6 +122,18 @@ class QuickCommit(unittest.TestCase):
                 (repo / 'unrelated.txt').write_text('Later change\n')
                 git('add', 'unrelated.txt')
                 git('commit', '-qm', 'later change')
+                state_dir = repo / 'workflow-state'
+                env['CLAUDE_PLUGIN_ROOT'] = str(root)
+                env['OCTOPUS_WORKFLOW_STATE_DIR'] = str(state_dir)
+                subprocess.run([str(root / 'scripts/state-manager.sh'), 'init_state'],
+                               cwd=repo, env=env, check=True, capture_output=True, timeout=10)
+                rendered = state_recipe.replace('"<quick-commit-sha>"', shlex.quote(commit))
+                updated = subprocess.run(['bash', '-c', rendered], cwd=repo, env=env,
+                                         capture_output=True, text=True, timeout=10)
+                self.assertEqual(updated.returncode, 0, updated.stderr)
+                decision = json.loads((state_dir / 'state.json').read_text())['decisions'][-1]
+                self.assertEqual(decision['decision'], 'quick: add task file')
+                self.assertEqual(decision['commit'], commit)
             if scenario == 'missing commit':
                 commit = '0' * 40
             recipe = recipe.replace('"<quick-commit-sha>"', shlex.quote(commit))
