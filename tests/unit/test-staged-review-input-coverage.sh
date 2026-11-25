@@ -287,6 +287,9 @@ for scenario in ('fitting', 'oversized', 'codex failed', 'codex empty', 'agy fai
         project = Path(location)
         for directory in ('bin', 'home', 'tmp'):
             (project / directory).mkdir()
+        installed_plugin = project / 'home' / '.claude-octopus' / 'plugin'
+        installed_plugin.parent.mkdir()
+        installed_plugin.symlink_to(root, target_is_directory=True)
         for provider, capture_prompt in {
             'codex': '[[ "$1" == exec ]] || exit 0\ncat > "$capture.tmp"\n',
             'agy': '''while [[ $# -gt 1 && "$1" != --print ]]; do shift; done
