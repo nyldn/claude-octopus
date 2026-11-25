@@ -2,7 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+
+- Council offers opt-in prompt cache isolation for native Claude seats.
+
 ### Fixed
+
+- Council records available Claude usage and cost for error results and
+  excludes failed seats from the round's answers.
 
 - Quick Mode summaries record the task request and report the exact task
   commit, including the first commit in a repository.
