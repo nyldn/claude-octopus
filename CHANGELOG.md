@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.29.0] - 2026-11-25
+
 ### Added
 
 - Council offers opt-in prompt cache isolation for native Claude seats.
