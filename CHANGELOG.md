@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Factory stops with an error if it cannot write its report or record the run
+  as completed.
+
 - Develop can retry a review correction on an allowed fallback provider when
   the implementer's provider becomes unavailable without changing the worktree.
 
