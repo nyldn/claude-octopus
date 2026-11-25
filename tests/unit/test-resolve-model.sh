@@ -107,7 +107,7 @@ cat > "$CONFIG_FILE" << EOF
 EOF
 cache_seed_output="$CLAUDE_OCTOPUS_WORKSPACE/cache-seed.out"
 resolve_octopus_model codex codex > "$cache_seed_output"
-cache_var="$(compgen -v | grep '^_OCTO_MODEL_CACHE_MC_codex_A_codex_' | head -1)"
+cache_var="$(compgen -v | grep '^_OCTO_MODEL_CACHE_MC_V2_codex_A_codex_' | head -1)"
 memory_result=""
 persistent_result=""
 if [[ -n "$cache_var" ]]; then
