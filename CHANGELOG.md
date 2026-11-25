@@ -38,6 +38,9 @@
 The Design Lineage, Factory, Debate and Quick Mode fixes address parts of
 the runtime follow-up in [#1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
+- Spec distinguishes installed providers that need setup from missing providers
+  and stops when the readiness check fails.
+
 ## [11.28.2] - 2026-11-24
 
 ### Fixed
