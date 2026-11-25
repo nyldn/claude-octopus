@@ -152,17 +152,23 @@ Format the cost projection for the HUD/statusline display.
 
 ## Step 5: Budget Ceiling Warning
 
-If the `OCTO_BUDGET_CEILING` environment variable is set, compare the projected total against it and warn on overrun.
+If `OCTO_BUDGET_CEILING` is set, compare it with the projected total and warn
+on overrun. Use the displayed precision of whole cents for both threshold
+checks. Keep the unrounded values for the projection itself.
 
 ```bash
-if [[ -n "${OCTO_BUDGET_CEILING:-}" ]]; then
-  ceiling="$OCTO_BUDGET_CEILING"
-  if overage=$(jq -ner --argjson total "$projected_total" --arg limit "$ceiling" '
+cost_overage() {
+  jq -ner --argjson total "$projected_total" --arg limit "${1}" '
+    def cents: (. * 100) | select(isfinite) | round;
     ($limit | tonumber? | select(isfinite and . >= 0)) as $limit
-    | $total - $limit | select(. > 0)
-  '); then
-    LC_ALL=C printf '⚠️ Budget ceiling: %s USD — projected to exceed by %.2f USD\n' "$ceiling" "$overage"
-  fi
+    | ($total | cents) - ($limit | cents)
+    | select(. > 0) | . / 100
+  '
+}
+
+ceiling="${OCTO_BUDGET_CEILING:-}"
+if [[ -n "$ceiling" ]] && overage=$(cost_overage "$ceiling"); then
+  LC_ALL=C printf '⚠️ Budget ceiling: %s USD — projected to exceed by %.2f USD\n' "$ceiling" "$overage"
 fi
 ```
 
@@ -189,9 +195,7 @@ If the projected total is high relative to the task, suggest switching to the bu
 ```bash
 # Suggest budget profile when projected total exceeds 5.00 USD (configurable)
 COST_THRESHOLD="${OCTO_COST_THRESHOLD:-5.00}"
-if jq -ne --argjson total "$projected_total" --arg limit "$COST_THRESHOLD" '
-  $total > ($limit | tonumber? | select(isfinite and . >= 0))
-' >/dev/null; then
+if cost_overage "$COST_THRESHOLD" >/dev/null; then
   echo "💡 Tip: Switch to OCTO_PROFILE=budget to reduce costs"
 fi
 ```

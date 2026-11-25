@@ -214,6 +214,12 @@ for tree in skills .claude/skills codex-skills; do
   check_projection 'extra completed rows never produce negative remaining cost' '0.60|0.00|0.60'
 
   printf '%s\n' '{"cost":0.00000001}' '{"cost":0.00000001}' > "$metrics_file"
+  script+=$'\n'"$(cat <<'TINY_COSTS'
+jq -en --argjson spent "$total_spent" --argjson remaining "$projected_remaining" \
+    --argjson total "$projected_total" \
+    '$spent > 0 and $remaining > 0 and $total > $spent' >/dev/null
+TINY_COSTS
+)"
   check_projection 'very small numeric costs still project' '0.00|0.00|0.00'
   script='total_steps=unknown'$'\n'"$projection"
   check_projection 'missing workflow size leaves actual spend available' 'Spent: 0.00 USD (remaining cost unavailable)'
@@ -226,6 +232,10 @@ for tree in skills .claude/skills codex-skills; do
   script='total_steps=4 OCTO_BUDGET_CEILING=invalid OCTO_COST_THRESHOLD=invalid'
   script+=$'\n'"$projection"$'\n'"$(recipe "$skill" 5 6)"
   check_projection 'invalid thresholds do not produce an arithmetic error' ''
+  script='total_steps=2 OCTO_BUDGET_CEILING=0.30 OCTO_COST_THRESHOLD=0.30'
+  script+=$'\n'"$projection"$'\n'"$(recipe "$skill" 5 6)"
+  printf '%s\n' '{"cost":0.10}' '{"cost":0.20}' > "$metrics_file"
+  check_projection 'a projected total equal to both thresholds produces no warnings' ''
 
   if "$has_comma_locale"; then
     script='total_steps=4'$'\n'"$projection"
