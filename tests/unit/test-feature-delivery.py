@@ -449,7 +449,9 @@ class SpecInstructionAcceptance(unittest.TestCase):
             ran = self.execute(self.snippet('2'), 'set -euo pipefail',
                                {'CLAUDE_PLUGIN_ROOT': str(plugin)})
             self.assertNotEqual(ran.returncode, 0)
-            self.assertIn('Provider readiness check failed', ran.stderr)
+            self.assertEqual(ran.stderr, 'Provider readiness check failed.\n')
+            setup = '$sys-configure' if skill_root == 'codex-skills' else '/octo:setup'
+            self.assertIn(f'If the check fails, stop, show its diagnostic, and suggest `{setup}`.', self.text)
 
     def test_prepare_missing_context_or_paths_stops_before_research(self):
         valid = dict(feature='', spec_path='spec.md', runtime_dir=str(self.runtime))

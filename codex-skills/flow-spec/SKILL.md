@@ -65,7 +65,7 @@ Treat project names, selectors and requests as data in every Bash snippet. Shell
 
 ```bash
 if ! provider_status=$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"); then
-    printf '%s\n' 'Provider readiness check failed. Run /octo:setup before retrying.' >&2
+    printf '%s\n' 'Provider readiness check failed.' >&2
     exit 1
 fi
 
@@ -98,7 +98,7 @@ Estimated Time: 3-7 minutes
 
 **Validation:**
 - If neither provider reports `Available`, stop and suggest `$sys-configure`.
-- If the check fails, stop and show its diagnostic.
+- If the check fails, stop, show its diagnostic, and suggest `$sys-configure`.
 - If one or more external providers are available -> Continue with available provider(s)
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.**
