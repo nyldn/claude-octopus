@@ -106,9 +106,10 @@ run_develop() (
             [[ "${2:-}" != *.provider-unavailable ]] || kill_provider claude
         }
     fi
-    if [[ "$SCENARIO" == legacy-fast ]]; then
-        octopus_execution_profile_provider() { printf 'claude-opus-fast\n'; }
-    fi
+    case "$SCENARIO" in
+        legacy-fast) octopus_execution_profile_provider() { printf 'claude-opus-fast\n'; } ;;
+        replacement-alias) octopus_execution_profile_provider() { printf 'codex-standard\n'; } ;;
+    esac
 
     run_agent_sync() {
         if [[ "${OCTOPUS_UNBOUNDED_EXECUTION_SUPERVISED:-}" == "tangle-decomposition-adequacy" ]]; then
@@ -139,6 +140,10 @@ EOF
         [[ "$task_id" != *-0 || "$2" == *"Add the two org scopes."* ]] || printf 'lost prompt %s\n' "$task_id" >> "$CAPTURE"
         if [[ "$agent" == claude-sonnet ]]; then
             case "$SCENARIO" in
+                replacement-alias)
+                    octo_quota_clear_dead codex
+                    return 75
+                    ;;
                 replacement-refused) return 75 ;;
                 replacement-uncertain) return 1 ;;
             esac
@@ -200,7 +205,7 @@ EOF
     done
     printf 'results:%s\n' "$results"
     case "$SCENARIO" in
-        replacement-unavailable|replacement-refused|replacement-uncertain)
+        replacement-unavailable|replacement-refused|replacement-uncertain|replacement-alias)
             printf 'reported-status:%s\n' "$(cat "$CAPTURE.failure-status" 2>/dev/null || true)"
             ;;
     esac
@@ -336,6 +341,18 @@ partial by codex
 results: codex-task1
 reported-status:" \
     run_develop replacement-uncertain replacement-uncertain
+
+expect_output "a prelaunch refusal cannot fall back to an alias of the original provider after quota clears" \
+"rc=0
+attempt task0 codex-standard
+spawned task0 codex-standard|implementer
+attempt task1 codex-standard
+spawned task1 codex-standard|implementer
+attempt task0 claude-sonnet
+partial by codex-standard
+results: codex-standard-task0 codex-standard-task1
+reported-status:75" \
+    run_develop replacement-alias replacement-alias
 
 expect_output "a replacement retains the boundary and gets a new execution contract seat" \
 "rc=0

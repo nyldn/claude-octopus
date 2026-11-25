@@ -4994,10 +4994,15 @@ tangle_prepare_run_worktree() {
     log INFO "Tangle run branch: $TANGLE_RUN_BRANCH (base $TANGLE_RUN_SOURCE_COMMIT)"
 }
 
+tangle_subtask_provider() {
+    local agent="$1"
+    octo_agent_spec_provider "$agent" 2>/dev/null || printf '%s\n' "${agent%%[-:]*}"
+}
+
 tangle_subtask_agent_dispatchable() {
     local agent="${1:-}" provider quota_provider
     [[ -n "$agent" ]] || return 1
-    provider="$(octo_agent_spec_provider "$agent" 2>/dev/null)" || provider="${agent%%[-:]*}"
+    provider="$(tangle_subtask_provider "$agent")"
     if declare -f is_provider_available >/dev/null 2>&1 && ! is_provider_available "$provider"; then
         return 1
     fi
@@ -5012,7 +5017,7 @@ tangle_subtask_fallback_agents() {
     local agent="${1:-}" candidate provider seen="|"
     for candidate in "$agent" codex claude-sonnet; do
         [[ -n "$candidate" ]] || continue
-        provider="$(octo_agent_spec_provider "$candidate" 2>/dev/null)" || provider="${candidate%%[-:]*}"
+        provider="$(tangle_subtask_provider "$candidate")"
         [[ "$seen" == *"|$provider|"* ]] && continue
         seen+="$provider|"
         tangle_subtask_agent_allowed "$candidate" || continue
@@ -5026,10 +5031,11 @@ tangle_subtask_fallback_agents() {
 tangle_spawn_subtask() {
     local agent="$1" prompt="$2" task_id="$3" role="$4" pane_title="$5" active_idx="$6"
     local recovery="${7:-0}" tried="${8:-|}" deadline="${9:-0}"
-    local candidate pid spawn_status attempt=0 contract_task_id
+    local candidate provider pid spawn_status attempt=0 contract_task_id
     TANGLE_SPAWNED_PID=""
     while IFS= read -r candidate; do
-        [[ "$tried" != *"|$candidate|"* ]] || continue
+        provider="$(tangle_subtask_provider "$candidate")"
+        [[ "$tried" != *"|$provider|"* ]] || continue
         if ! tangle_subtask_agent_dispatchable "$candidate"; then
             log WARN "Tangle task $task_id: $candidate is unavailable (circuit open or quota exhausted); trying the next provider"
             continue
@@ -5067,8 +5073,8 @@ tangle_rerun_dead_provider_subtasks() {
     local task_group="$1" deadline="$2"
     local done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
     local results_dir="${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
-    local i ran_on next candidate result prompt rerun task_id spawn_status
-    local -a tried=() recoveries=() attempt_results=()
+    local i ran_on next candidate provider result prompt rerun task_id spawn_status
+    local -a tried_providers=() recoveries=() attempt_results=()
     while :; do
         rerun=false
         for i in "${!task_ids[@]}"; do
@@ -5085,10 +5091,12 @@ tangle_rerun_dead_provider_subtasks() {
             result="${attempt_results[0]}"
             [[ "$(octo_result_launcher_status "$result" || true)" == "## Status: FAILED - QUOTA OR AUTH ERROR (exit code: 75)" ]] || continue
             tangle_subtask_agent_dispatchable "$ran_on" && continue
-            tried[$i]="${tried[$i]:-|}${ran_on}|"
+            provider="$(tangle_subtask_provider "$ran_on")"
+            tried_providers[$i]="${tried_providers[$i]:-|}${provider}|"
             next=""
             while IFS= read -r candidate; do
-                [[ "${tried[$i]}" == *"|${candidate}|"* ]] && continue
+                provider="$(tangle_subtask_provider "$candidate")"
+                [[ "${tried_providers[$i]}" == *"|$provider|"* ]] && continue
                 tangle_subtask_agent_dispatchable "$candidate" || continue
                 next="$candidate"
                 break
@@ -5107,7 +5115,7 @@ tangle_rerun_dead_provider_subtasks() {
             # A replacement can read the shared worktree without receiving
             # the previous provider's raw output in its prompt.
             OCTOPUS_TANGLE_REUSE_CHECKPOINT=false tangle_spawn_subtask "$next" "$prompt" "$task_id" "${subtask_roles[$i]}" \
-                "${subtask_pane_titles[$i]}" "$i" "${recoveries[$i]}" "${tried[$i]}" "$deadline" ||
+                "${subtask_pane_titles[$i]}" "$i" "${recoveries[$i]}" "${tried_providers[$i]}" "$deadline" ||
                 spawn_status=$?
             if [[ "$spawn_status" -eq 75 ]]; then
                 # Definite prelaunch exhaustion leaves the original failure authoritative.
