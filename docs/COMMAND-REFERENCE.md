@@ -1020,6 +1020,10 @@ empty evaluator calls try the existing fallback; missing, duplicate or malformed
 dimension scores stop completion without a score record. A remediation retry
 invalidates the previous attempt's score before changing or re-evaluating source.
 
+Factory stops if it cannot save the final report or record the run as completed.
+If it saved the report before the state write failed, the report stays in the
+run folder.
+
 **Cost:** ~20–30 agent calls (~$0.50–2.00). Requires confirmation before starting.
 
 **Requires:** A spec file (create one with `/octo:spec`). Works in Claude-only mode if external providers unavailable.
