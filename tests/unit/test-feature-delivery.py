@@ -424,6 +424,35 @@ class SpecInstructionAcceptance(unittest.TestCase):
         (plugin / 'scripts/orchestrate.sh').write_text('touch "$PWD/dispatched"\n')
         return {'CLAUDE_PLUGIN_ROOT': str(plugin)}
 
+    def test_provider_banner_distinguishes_readiness_states(self):
+        plugin = self.root / 'plugin'
+        helper = plugin / 'scripts/helpers/check-providers.sh'
+        helper.parent.mkdir(parents=True)
+        for skill_root in ('skills', '.claude/skills', 'codex-skills'):
+            self.text = (REPO / skill_root / 'flow-spec/SKILL.md').read_text()
+            for rows, expected in [
+                ('codex:degraded\nagy:available', 'Not ready|Available'),
+                ('codex:available\nagy:missing', 'Available|Not installed'),
+                ('codex:available-extra\nagy:degraded', 'Unknown|Not ready'),
+                ('PROVIDER_CHECK_START', 'Unknown|Unknown'),
+            ]:
+                with self.subTest(skill_root=skill_root, rows=rows):
+                    helper.write_text("cat <<'STATUS'\n" + rows + "\nSTATUS\n")
+                    ran = self.execute(
+                        self.snippet('2') + '\nprintf "%s|%s" "$codex_status" "$agy_status"',
+                        'set -euo pipefail',
+                        {'CLAUDE_PLUGIN_ROOT': str(plugin)},
+                    )
+                    self.assertEqual(ran.returncode, 0, ran.stderr)
+                    self.assertEqual(ran.stdout, expected)
+            helper.write_text('printf "%s\\n" codex:available; exit 2\n')
+            ran = self.execute(self.snippet('2'), 'set -euo pipefail',
+                               {'CLAUDE_PLUGIN_ROOT': str(plugin)})
+            self.assertNotEqual(ran.returncode, 0)
+            self.assertEqual(ran.stderr, 'Provider readiness check failed.\n')
+            setup = '$sys-configure' if skill_root == 'codex-skills' else '/octo:setup'
+            self.assertIn(f'If the check fails, stop, show its diagnostic, and suggest `{setup}`.', self.text)
+
     def test_prepare_missing_context_or_paths_stops_before_research(self):
         valid = dict(feature='', spec_path='spec.md', runtime_dir=str(self.runtime))
         invalid = [None, {}, dict(schema_version=1, feature=None, feature_context=False)]
