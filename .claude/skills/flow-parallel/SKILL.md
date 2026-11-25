@@ -28,7 +28,7 @@ codex_short_description: "Run a large implementation in coordinated work package
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact 7-step sequence.
 
-**Architectural Principle:** Task tool subagents do NOT load plugins. Independent `claude -p` processes DO. This skill spawns independent `claude -p` processes so each work package gets the full Octopus plugin, its own Double Diamond, agents, and quality gates.
+**Architectural Principle:** Each work package runs in an independent Claude Code process. The launcher explicitly loads the verified Octopus plugin directory so each worker has its agents, workflow skills, and quality gates, even when the parent uses Codex.
 
 ---
 
@@ -396,7 +396,8 @@ PROJECT_ROOT="<absolute-project-root-path>"
 WP_ID="WP-N"
 WP_BRANCH="<wp-branch-name>"
 BASE_REF="<base-ref>"
-REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+REGISTRY=""
 
 # Every exit path must leave exit-code and .done behind, or the orchestrator's
 # monitor loop waits for a marker that never arrives and only the wave timeout
@@ -413,6 +414,12 @@ fail() {
 
 # A retry must not inherit the previous run's completion status.
 rm -f "$SCRIPT_DIR/.done" "$SCRIPT_DIR/exit-code" || fail "ERROR: cannot clear completion markers"
+# Resolve plugin inputs before creating the package worktree.
+RESOLVED_PLUGIN_ROOT="$(cd -- "$PLUGIN_ROOT" 2>/dev/null && pwd -P)" ||
+    fail "ERROR: cannot resolve the Octopus plugin directory"
+jq -e '.name == "octo"' "$RESOLVED_PLUGIN_ROOT/.claude-plugin/plugin.json" >/dev/null 2>&1 ||
+    fail "ERROR: cannot verify the Octopus plugin manifest at $RESOLVED_PLUGIN_ROOT"
+REGISTRY="$RESOLVED_PLUGIN_ROOT/scripts/agent-registry.sh"
 # Hook environments can otherwise redirect Git away from PROJECT_ROOT.
 while IFS= read -r git_var; do unset "$git_var"; done < <(git rev-parse --local-env-vars)
 
@@ -466,7 +473,7 @@ unset CLAUDECODE
 unset OPENAI_API_KEY AGY_AUTH_TOKEN ANTIGRAVITY_API_KEY OPENROUTER_API_KEY PERPLEXITY_API_KEY
 # No `set -e` around this call: a non-zero claude -p must still record its exit
 # code and .done rather than abort the script before either is written.
-claude -p < "$SCRIPT_DIR/instructions.md" > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
+claude -p --plugin-dir "$RESOLVED_PLUGIN_ROOT" < "$SCRIPT_DIR/instructions.md" > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
 EXIT_CODE=$?
 # The worker can change branches, detach HEAD or replace the repository. Admit
 # the resulting worktree again before reporting completion or removing it.
