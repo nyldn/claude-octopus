@@ -7,6 +7,9 @@
 - Parallel stops before launching workers when a work package is missing its
   instructions or launch script.
 
+- Parallel checks the work breakdown before execution and stops if its
+  packages, waves, or dependencies are invalid.
+
 ## [11.29.1] - 2026-11-25
 
 ### Fixed

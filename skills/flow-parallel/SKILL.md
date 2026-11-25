@@ -610,32 +610,59 @@ Launch work packages in dependency waves. Wave 1 runs first; Wave 2 starts only 
 ```bash
 PROJECT_ROOT="$(pwd)"
 WBS_FILE=".octo/parallel/wbs.json"
-MAX_WAVE=$(python3 -c "import json; wbs=json.load(open('$WBS_FILE')); print(max(wp.get('wave',1) for wp in wbs['work_packages']))")
+# Capture the plan once. Step 5 may have run in a different shell.
+WAVE_PLAN=$(python3 - "$WBS_FILE" <<'WAVEPLAN'
+import json
+import re
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as source:
+        packages = json.load(source)["work_packages"]
+    if not isinstance(packages, list) or not packages:
+        raise ValueError("work_packages must be a nonempty list")
+
+    plan = {}
+    for package in packages:
+        package_id = package["id"]
+        wave = package.get("wave", 1)
+        dependencies = package.get("dependencies", [])
+        if not isinstance(package_id, str) or not re.fullmatch(r"WP-[1-9][0-9]*", package_id):
+            raise ValueError("each work package needs a WP-N ID")
+        if package_id in plan:
+            raise ValueError(f"duplicate package ID {package_id}")
+        if type(wave) is not int or not 1 <= wave <= len(packages):
+            raise ValueError(f"{package_id} has an invalid wave")
+        if not isinstance(dependencies, list) or any(not isinstance(dep, str) for dep in dependencies):
+            raise ValueError(f"{package_id} has an invalid dependency list")
+        plan[package_id] = (wave, dependencies)
+
+    for package_id, (wave, dependencies) in plan.items():
+        if any(dep not in plan or plan[dep][0] >= wave for dep in dependencies):
+            raise ValueError(f"{package_id} needs all dependencies in earlier waves")
+except (OSError, KeyError, TypeError, ValueError) as error:
+    sys.exit(f"Cannot launch Parallel workers: invalid work breakdown: {error}")
+
+print(max(wave for wave, _ in plan.values()))
+for package_id, (wave, dependencies) in plan.items():
+    print(wave, package_id, *dependencies)
+WAVEPLAN
+) || exit 1
+read -r MAX_WAVE <<< "$WAVE_PLAN"
 TIMEOUT=600  # 10 minutes per wave
 
 echo "Executing $MAX_WAVE wave(s)..."
 
-for WAVE in $(seq 1 "$MAX_WAVE"); do
+for ((WAVE=1; WAVE<=MAX_WAVE; WAVE++)); do
   echo ""
   echo "=== WAVE $WAVE ==="
   echo ""
 
-  # Get WPs for this wave
-  WAVE_WPS=$(python3 -c "
-import json
-wbs=json.load(open('$WBS_FILE'))
-wps=[wp['id'] for wp in wbs['work_packages'] if wp.get('wave',1)==$WAVE]
-print(' '.join(wps))
-  ")
+  WAVE_WPS=$(awk -v wave="$WAVE" 'NR > 1 && $(1) == wave { print $(2) }' <<< "$WAVE_PLAN") || exit 1
 
   # Validate every dependency before modifying instructions or launching this wave.
   for WP_ID in $WAVE_WPS; do
-    DEPS=$(python3 -c "
-import json
-wbs=json.load(open('$WBS_FILE'))
-wp=[w for w in wbs['work_packages'] if w['id']=='$WP_ID'][0]
-print(' '.join(wp.get('dependencies',[])))
-    ") || exit 1
+    DEPS=$(awk -v id="$WP_ID" '$(2) == id { for (i = 3; i <= NF; i++) print $i }' <<< "$WAVE_PLAN") || exit 1
     for DEP in $DEPS; do
       DEP_DIR=".octo/parallel/$DEP"
       if [[ ! -f "$DEP_DIR/.done" || "$(cat "$DEP_DIR/exit-code" 2>/dev/null)" != 0 ]]; then
@@ -650,13 +677,7 @@ print(' '.join(wp.get('dependencies',[])))
     WP_NUM="${WP_ID#WP-}"
     WP_DIR=".octo/parallel/$WP_ID"
 
-    # Get dependencies for this WP
-    DEPS=$(python3 -c "
-import json
-wbs=json.load(open('$WBS_FILE'))
-wp=[w for w in wbs['work_packages'] if w['id']=='$WP_ID'][0]
-print(' '.join(wp.get('dependencies',[])))
-    ")
+    DEPS=$(awk -v id="$WP_ID" '$(2) == id { for (i = 3; i <= NF; i++) print $i }' <<< "$WAVE_PLAN") || exit 1
 
     if [[ -n "$DEPS" ]]; then
       echo "Injecting dependency outputs into $WP_ID..."
