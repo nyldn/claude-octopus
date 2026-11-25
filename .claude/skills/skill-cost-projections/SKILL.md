@@ -57,7 +57,7 @@ if [[ ! -f "$SESSION_METRICS" || ! -r "$SESSION_METRICS" ]] ||
 fi
 IFS=$'\t' read -r completed_count total_spent <<< "$summary"
 if (( completed_count < 2 )); then
-    printf 'Spent: %.2f USD (need 2+ steps for projection)\n' "$total_spent"
+    LC_ALL=C printf 'Spent: %.2f USD (need 2+ steps for projection)\n' "$total_spent"
     exit 0
 fi
 ```
@@ -104,7 +104,7 @@ if ! projection=$(jq -ner --arg planned "${total_steps:-}" \
     | [$remaining, $estimate, $spent + $estimate]
     | select(all(.[]; isfinite)) | @tsv
 '); then
-    printf 'Spent: %.2f USD (remaining cost unavailable)\n' "$total_spent"
+    LC_ALL=C printf 'Spent: %.2f USD (remaining cost unavailable)\n' "$total_spent"
     exit 0
 fi
 IFS=$'\t' read -r remaining_steps projected_remaining projected_total <<< "$projection"
@@ -161,7 +161,7 @@ if [[ -n "${OCTO_BUDGET_CEILING:-}" ]]; then
     ($limit | tonumber? | select(isfinite and . >= 0)) as $limit
     | $total - $limit | select(. > 0)
   '); then
-    printf '⚠️ Budget ceiling: %s USD — projected to exceed by %.2f USD\n' "$ceiling" "$overage"
+    LC_ALL=C printf '⚠️ Budget ceiling: %s USD — projected to exceed by %.2f USD\n' "$ceiling" "$overage"
   fi
 fi
 ```

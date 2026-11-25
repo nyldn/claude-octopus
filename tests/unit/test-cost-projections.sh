@@ -176,15 +176,23 @@ mkdir -p "$metrics_home/.claude-octopus/metrics"
 metrics_file="$metrics_home/.claude-octopus/metrics/session-$(date +%Y%m%d).jsonl"
 
 check_projection() {
-  local label="$1" expected="$2" output
+  local label="$1" expected="$2" numeric_locale="${3:-C}" output
   test_case "$tree: $label"
-  if output=$(LC_ALL=C HOME="$metrics_home" bash -euo pipefail -c "$script" 2>&1) &&
+  if output=$(LANG=C LC_ALL= LC_NUMERIC="$numeric_locale" HOME="$metrics_home" \
+      bash -euo pipefail -c "$script" 2>&1) &&
      [[ "$output" == "$expected" ]]; then
     test_pass
   else
     test_fail "expected '$expected', got '$output'"
   fi
 }
+
+comma_locale=de_DE.UTF-8
+if [[ $(LANG=C LC_ALL= LC_NUMERIC="$comma_locale" bash -c 'printf "%.1f" 0' 2>/dev/null) == 0,0 ]]; then
+  has_comma_locale=true
+else
+  has_comma_locale=false
+fi
 
 for tree in skills .claude/skills codex-skills; do
   skill="$PROJECT_ROOT/$tree/skill-cost-projections/SKILL.md"
@@ -218,6 +226,24 @@ for tree in skills .claude/skills codex-skills; do
   script='total_steps=4 OCTO_BUDGET_CEILING=invalid OCTO_COST_THRESHOLD=invalid'
   script+=$'\n'"$projection"$'\n'"$(recipe "$skill" 5 6)"
   check_projection 'invalid thresholds do not produce an arithmetic error' ''
+
+  if "$has_comma_locale"; then
+    script='total_steps=4'$'\n'"$projection"
+    printf '%s\n' '{"cost":0.42}' > "$metrics_file"
+    check_projection 'one valid row formats spend under a comma-decimal locale' \
+      'Spent: 0.42 USD (need 2+ steps for projection)' "$comma_locale"
+    script='total_steps=unknown'$'\n'"$projection"
+    printf '%s\n' '{"cost":0.42}' '{"cost":0.18}' > "$metrics_file"
+    check_projection 'unknown workflow size formats spend under a comma-decimal locale' \
+      'Spent: 0.60 USD (remaining cost unavailable)' "$comma_locale"
+    script='total_steps=4 OCTO_BUDGET_CEILING=1 OCTO_COST_THRESHOLD=5'
+    script+=$'\n'"$projection"$'\n'"$(recipe "$skill" 5 6)"
+    check_projection 'ceiling overage formats under a comma-decimal locale' \
+      '⚠️ Budget ceiling: 1 USD — projected to exceed by 0.20 USD' "$comma_locale"
+  else
+    test_case "$tree: formats jq results under a comma-decimal locale"
+    test_skip "$comma_locale is unavailable"
+  fi
 done
 
 test_summary
