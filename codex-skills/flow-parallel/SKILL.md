@@ -546,11 +546,26 @@ because Git status can hide local edits or deletions under those flags.
 
 ```bash
 # Count WPs from wbs.json
-wp_count=$(python3 -c "import json; print(len(json.load(open('.octo/parallel/wbs.json'))['work_packages']))")
+if ! wp_count=$(python3 -I - 2>/dev/null <<'PY_WP_COUNT'
+import json
+import sys
+
+with open(".octo/parallel/wbs.json", encoding="utf-8") as wbs_file:
+    wbs = json.load(wbs_file)
+
+packages = wbs.get("work_packages") if isinstance(wbs, dict) else None
+if not isinstance(packages, list) or not packages:
+    sys.exit(1)
+print(len(packages))
+PY_WP_COUNT
+); then
+  printf '%s\n' 'Instruction files validation: FAILED - could not read a nonempty work package list' >&2
+  exit 1
+fi
 
 # Verify each WP has instructions.md and launch.sh
 missing=0
-for i in $(seq 1 "$wp_count"); do
+for ((i = 1; i <= wp_count; i++)); do
   if [[ ! -f ".octo/parallel/WP-$i/instructions.md" ]]; then
     echo "MISSING: .octo/parallel/WP-$i/instructions.md"
     missing=$((missing + 1))
@@ -564,7 +579,8 @@ done
 if [[ "$missing" -eq 0 ]]; then
   echo "Instruction files validation: PASSED ($wp_count work packages)"
 else
-  echo "Instruction files validation: FAILED ($missing files missing)"
+  echo "Instruction files validation: FAILED ($missing files missing)" >&2
+  exit 1
 fi
 ```
 

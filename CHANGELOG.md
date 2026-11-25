@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Parallel stops before launching workers when a work package is missing its
+  instructions or launch script.
+
 - Develop can retry a subtask on an allowed provider after a quota or
   authentication failure, keeping partial edits in the same worktree.
 
