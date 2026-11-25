@@ -63,7 +63,7 @@ fi
             sleep = binary / 'sleep'
             sleep.write_text('#!/bin/bash\nexec /bin/sleep 0.01\n')
             sleep.chmod(0o755)
-            dependency = 'WP-0' if 'dependency' in scenario else 'WP-1'
+            dependency = 'WP-0' if scenario in ('missing dependency', 'failed dependency') else 'WP-1'
             packages = [dict(id='WP-1', wave=1, dependencies=[]),
                         dict(id='WP-2', wave=2, dependencies=[dependency])]
             for number in (1, 2):
@@ -126,6 +126,8 @@ fi
             if scenario in bad_plans:
                 valid = (valid and not (parallel / 'WP-1/launched').exists()
                          and not (parallel / 'WP-1/pid').exists())
+            if scenario == 'same-wave dependency':
+                valid = valid and 'WP-2 needs all dependencies in earlier waves' in result.stderr
             if not valid:
                 failures.append(f'{tree}: {scenario}: rc={result.returncode}, '
                                 f'dependent launched={(second / "launched").exists()}\n'
