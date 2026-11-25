@@ -5059,14 +5059,15 @@ tangle_spawn_subtask() {
         [[ "$spawn_status" -eq 75 && -z "$pid" ]] || return 1
         log WARN "Tangle task $task_id: $candidate refused dispatch before launch; trying the next provider"
     done < <(tangle_subtask_fallback_agents "$agent")
-    return 1
+    # No candidate launched. Other failures leave the PID handoff uncertain.
+    return 75
 }
 
 tangle_rerun_dead_provider_subtasks() {
     local task_group="$1" deadline="$2"
     local done_dir="${WORKSPACE_DIR:-${HOME}/.claude-octopus}/.octo/agents"
     local results_dir="${RESULTS_DIR:-${HOME}/.claude-octopus/results}"
-    local i ran_on next candidate result prompt rerun task_id
+    local i ran_on next candidate result prompt rerun task_id spawn_status
     local -a tried=() recoveries=() attempt_results=()
     while :; do
         rerun=false
@@ -5102,7 +5103,16 @@ tangle_rerun_dead_provider_subtasks() {
             rm -f "$done_dir/$task_id.done" || return 1
             recoveries[$i]=$(( ${recoveries[$i]:-0} + 1 ))
             prompt="A previous attempt at this subtask stopped when its provider (${ran_on}) became unavailable. Any edits it made are still in the worktree: review them and finish the subtask from there instead of starting over."$'\n\n'"${subtask_prompts[$i]}"
-            if ! tangle_spawn_subtask "$next" "$prompt" "$task_id" "${subtask_roles[$i]}" "${subtask_pane_titles[$i]}" "$i" "${recoveries[$i]}" "${tried[$i]}"; then
+            spawn_status=0
+            tangle_spawn_subtask "$next" "$prompt" "$task_id" "${subtask_roles[$i]}" "${subtask_pane_titles[$i]}" "$i" "${recoveries[$i]}" "${tried[$i]}" ||
+                spawn_status=$?
+            if [[ "$spawn_status" -eq 75 ]]; then
+                # Definite prelaunch exhaustion leaves the original failure authoritative.
+                mv "${result}.provider-unavailable" "$result" || return 1
+                printf '75\n' > "$done_dir/$task_id.done" || return 1
+                OCTOPUS_ACTIVE_TANGLE_AGENTS[$i]="$ran_on"
+                continue
+            elif [[ "$spawn_status" -ne 0 ]]; then
                 log ERROR "Failed to rerun Tangle task $task_id"
                 return 1
             fi

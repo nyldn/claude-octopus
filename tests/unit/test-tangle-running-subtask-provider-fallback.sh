@@ -89,8 +89,21 @@ run_develop() (
     fleet_dispatch_begin() { :; }
     fleet_dispatch_end() { :; }
     validate_tangle_results() { :; }
+    log() {
+        case "$2" in
+            "Subtask "*" finished with status: "*)
+                printf '%s\n' "${2##*: }" >> "$CAPTURE.failure-status"
+                ;;
+        esac
+    }
     if [[ "$SCENARIO" == deadline ]]; then
         tangle_subtask_wait_deadline() { printf '1\n'; }
+    fi
+    if [[ "$SCENARIO" == replacement-unavailable ]]; then
+        mv() {
+            command mv "$@" || return
+            [[ "${2:-}" != *.provider-unavailable ]] || kill_provider claude
+        }
     fi
     if [[ "$SCENARIO" == legacy-fast ]]; then
         octopus_execution_profile_provider() { printf 'claude-opus-fast\n'; }
@@ -123,6 +136,12 @@ EOF
         cat >/dev/null || true
         printf 'attempt %s %s\n' "$task_id" "$agent" >> "$CAPTURE"
         [[ "$task_id" != *-0 || "$2" == *"Add the two org scopes."* ]] || printf 'lost prompt %s\n' "$task_id" >> "$CAPTURE"
+        if [[ "$agent" == claude-sonnet ]]; then
+            case "$SCENARIO" in
+                replacement-refused) return 75 ;;
+                replacement-uncertain) return 1 ;;
+            esac
+        fi
         provider="$(octo_agent_spec_provider "$agent")"
         is_provider_available "$provider" || return 1
         octo_quota_is_dead "$provider" && return 1
@@ -160,7 +179,7 @@ EOF
         if [[ "$spawned" -eq 1 ]]; then
             case "$SCENARIO" in
                 circuit) kill_provider circuit ;;
-                quota|replacement-dies|codex-only|boundary|unrelated-quota|ordinary-75|deadline) kill_provider quota ;;
+                quota|replacement-*|codex-only|boundary|unrelated-quota|ordinary-75|deadline) kill_provider quota ;;
                 legacy-fast) kill_provider claude ;;
             esac
         fi
@@ -177,6 +196,11 @@ EOF
         results+=" $(basename "$result" | sed -E 's/-tangle-.*-([0-9]+)\.md$/-task\1/')"
     done
     printf 'results:%s\n' "$results"
+    case "$SCENARIO" in
+        replacement-unavailable|replacement-refused|replacement-uncertain)
+            printf 'reported-status:%s\n' "$(cat "$CAPTURE.failure-status" 2>/dev/null || true)"
+            ;;
+    esac
 )
 
 run_retry() (
@@ -273,6 +297,41 @@ partial by codex
 results: codex-task0 codex-task1" \
         run_develop "$scenario" "$scenario"
 done
+
+expect_output "a replacement that becomes unavailable before spawn leaves the original failed result and marker" \
+"rc=0
+attempt task0 codex
+spawned task0 codex|implementer
+attempt task1 codex
+spawned task1 codex|implementer
+partial by codex
+results: codex-task0 codex-task1
+reported-status:75" \
+    run_develop replacement-unavailable replacement-unavailable
+
+expect_output "a confirmed prelaunch refusal restores the original failed result and marker" \
+"rc=0
+attempt task0 codex
+spawned task0 codex|implementer
+attempt task1 codex
+spawned task1 codex|implementer
+attempt task0 claude-sonnet
+partial by codex
+results: codex-task0 codex-task1
+reported-status:75" \
+    run_develop replacement-refused replacement-refused
+
+expect_output "an uncertain replacement handoff still aborts without restoring an active result" \
+"rc=1
+attempt task0 codex
+spawned task0 codex|implementer
+attempt task1 codex
+spawned task1 codex|implementer
+attempt task0 claude-sonnet
+partial by codex
+results: codex-task1
+reported-status:" \
+    run_develop replacement-uncertain replacement-uncertain
 
 expect_output "a replacement retains the boundary and gets a new execution contract seat" \
 "rc=0

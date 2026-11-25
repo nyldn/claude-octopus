@@ -11,6 +11,7 @@ test_suite "Tangle retry supervision (#1163)"
 
 # The fixture stubs spawning but still uses the real provider selector.
 # Pin Codex availability so CI and developer hosts exercise the same seat.
+unset OCTO_ALLOWED_PROVIDERS
 mkdir -p "$TEST_TMP_DIR/bin"
 printf '#!/bin/sh\nexit 0\n' > "$TEST_TMP_DIR/bin/codex"
 chmod +x "$TEST_TMP_DIR/bin/codex"
