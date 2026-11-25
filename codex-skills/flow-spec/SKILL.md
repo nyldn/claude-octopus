@@ -70,7 +70,7 @@ if ! provider_status=$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/
 fi
 
 spec_provider_status() {
-    case "$(awk -F: -v provider="$1" '$1 == provider { print substr($0, length(provider) + 2); exit }' <<< "$provider_status")" in
+    case "$(awk -F: -v provider="${1}" '$(1) == provider { print substr($(0), length(provider) + 2); exit }' <<< "$provider_status")" in
         available) printf '%s\n' 'Available' ;;
         degraded) printf '%s\n' 'Not ready' ;;
         missing) printf '%s\n' 'Not installed' ;;
