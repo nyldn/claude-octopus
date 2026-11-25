@@ -10,6 +10,7 @@ test_suite "Factory workflow cost approval"
 mkdir -p "$TEST_TMP_DIR/plugin/scripts" "$TEST_TMP_DIR/bin"
 cat > "$TEST_TMP_DIR/plugin/scripts/orchestrate.sh" <<'STUB'
 #!/usr/bin/env bash
+printf '%s\n' invoked >> "$FACTORY_TEST_DISPATCH.count"
 printf '%s\n' "$@" > "$FACTORY_TEST_DISPATCH"
 STUB
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TEST_TMP_DIR/bin/codex"
@@ -38,7 +39,7 @@ for surface in .claude/skills/skill-factory/SKILL.md skills/skill-factory/SKILL.
         ' "$PROJECT_ROOT/$surface" > "$recipe"
         for approval in decline '' skip approve approve-ci; do
             test_case "$surface $operation with approval '${approval:-missing}'"
-            rm -f "$FACTORY_TEST_DISPATCH"
+            rm -f "$FACTORY_TEST_DISPATCH" "$FACTORY_TEST_DISPATCH.count"
             rc=0
             FACTORY_COST_APPROVAL="$approval" bash -e "$recipe" > output 2>&1 || rc=$?
             case "$approval" in
@@ -48,6 +49,8 @@ for surface in .claude/skills/skill-factory/SKILL.md skills/skill-factory/SKILL.
                     [[ "$operation:$approval" == factory:approve-ci ]] && expected_ci=true
                     grep -qx -- --ci "$FACTORY_TEST_DISPATCH" 2>/dev/null && actual_ci=true
                     if [[ "$rc" == 0 && -s "$FACTORY_TEST_DISPATCH" &&
+                          -s "$FACTORY_TEST_DISPATCH.count" &&
+                          "$(cat "$FACTORY_TEST_DISPATCH.count")" == invoked &&
                           "$(head -n 1 "$FACTORY_TEST_DISPATCH")" == "$operation" &&
                           "$actual_ci" == "$expected_ci" ]]; then
                         test_pass
@@ -56,7 +59,8 @@ for surface in .claude/skills/skill-factory/SKILL.md skills/skill-factory/SKILL.
                     fi
                     ;;
                 *)
-                    if [[ "$rc" != 0 && ! -e "$FACTORY_TEST_DISPATCH" ]]; then
+                    if [[ "$rc" != 0 && ! -e "$FACTORY_TEST_DISPATCH" &&
+                          ! -e "$FACTORY_TEST_DISPATCH.count" ]]; then
                         test_pass
                     else
                         test_fail "expected the recipe to stop before dispatch"
