@@ -169,8 +169,9 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             launcher = plugin / 'scripts/orchestrate.sh'
             launcher.write_text(
                 '#!/bin/bash\n'
-                '[[ "$1" == spawn && $# == 3 ]] || exit 2\n'
-                'printf "%s" "$3" > "$REVIEW_FIXTURE/$2-prompt"\n'
+                '[[ "$1" == spawn && "$2" == --response-file && $# == 5 ]] || exit 2\n'
+                'printf "%s" "$5" > "$REVIEW_FIXTURE/$4-prompt"\n'
+                'printf "%s\\n" "Fixture reviewer inspected the supplied text." > "$3"\n'
             )
             launcher.chmod(0o755)
             has_providers = scenario in ('long text', 'index race', 'empty',
@@ -275,13 +276,13 @@ import shlex
 import subprocess
 import sys
 import tempfile
-import time
 
 root = Path(sys.argv[1])
 skill = (root / '.claude/skills/skill-staged-review/SKILL.md').read_text()
 section = skill.split('### Step 2: Multi-LLM Quality Review', 1)[1]
 recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
-for oversized in (False, True):
+for scenario in ('fitting', 'oversized', 'codex failed', 'codex empty', 'agy failed'):
+    oversized = scenario == 'oversized'
     with tempfile.TemporaryDirectory(dir=sys.argv[2]) as location:
         project = Path(location)
         for directory in ('bin', 'home', 'tmp'):
@@ -295,12 +296,16 @@ printf '%s' "$2" > "$capture.tmp"
         }.items():
             stub = project / 'bin' / provider
             capture = shlex.quote(str(project / f'{provider}.prompt'))
+            finish = 'echo "Fixture reviewer inspected the supplied text."\n'
+            if scenario == f'{provider} failed':
+                finish = 'sleep 1\nprintf "Fixture reviewer failed\\n" >&2\nexit 42\n'
+            elif scenario == f'{provider} empty':
+                finish = 'exit 0\n'
             stub.write_text(
                 '#!/bin/bash\n'
                 'case "$1" in --version|-v|version) echo "0.160.0"; exit 0;; esac\n'
                 f'capture={capture}\n' + capture_prompt +
-                'mv "$capture.tmp" "$capture"\n'
-                'echo "Fixture reviewer inspected the supplied text."\n'
+                'mv "$capture.tmp" "$capture"\n' + finish
             )
             stub.chmod(0o755)
         environment = dict(
@@ -323,7 +328,7 @@ printf '%s' "$2" > "$capture.tmp"
                                 capture_output=True, text=True, timeout=45)
         snapshot, = (project / 'tmp').glob('octopus-staged-review.*/staged.diff')
         assert snapshot.read_text() == expected + '\n'
-        assert result.returncode == int(oversized), (oversized, result.stderr)
+        assert result.returncode == int(scenario != 'fitting'), (scenario, result.stderr)
         for provider in ('codex', 'agy'):
             capture = project / f'{provider}.prompt'
             diagnostic = (snapshot.parent / f'{provider}.log').read_text()
@@ -332,14 +337,15 @@ printf '%s' "$2" > "$capture.tmp"
                 assert 'Context budget: prompt for ' + provider in diagnostic, diagnostic
                 assert f'External review incomplete for {provider}.' in result.stderr, result.stderr
             else:
-                # The Codex CLI launch returns its worker PID before it completes.
-                for _ in range(100):
-                    if capture.exists():
-                        break
-                    time.sleep(0.1)
                 assert capture.exists(), (provider, diagnostic)
                 assert '\nDIFF:\n' + expected in capture.read_text(), (provider, 'incomplete prompt')
-print('2/2 staged review production spawn controls passed')
+                answer = snapshot.parent / f'{provider}.md'
+                if scenario.startswith(provider + ' '):
+                    assert f'External review incomplete for {provider}.' in result.stderr, result.stderr
+                    assert not answer.exists(), (scenario, answer)
+                else:
+                    assert 'Fixture reviewer inspected the supplied text.' in answer.read_text(), (provider, answer)
+print('5/5 staged review production spawn controls passed')
 PY_SPAWN
 then test_pass; else test_fail "production spawn changed or omitted staged-review input"; fi
 test_summary

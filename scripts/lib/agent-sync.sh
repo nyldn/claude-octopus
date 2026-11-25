@@ -1455,6 +1455,7 @@ run_agent_sync() {
     local timeout_secs="${3:-120}"
     local role="${4:-}"   # Optional role override
     local phase="${5:-}"  # Optional phase context
+    local response_file="${6:-}" # Optional completed answer destination
 
     local _timeout_override
     if _timeout_override="$(octopus_sync_timeout_override "$timeout_secs" "$phase")"; then
@@ -1908,6 +1909,7 @@ ${provider_ctx}"
                     "duration_ms=$_elapsed_ms" >/dev/null 2>&1 || true
                 [[ -n "$metrics_id" ]] && record_agent_failure "$metrics_id" "$_elapsed_ms" "Prompt rejected by provider (oversize)" failed 2>/dev/null || true
                 rm -f "$temp_err" "$temp_out"
+                [[ -z "$response_file" ]] || return 1
                 echo ""
                 return 0
             fi
@@ -2112,6 +2114,11 @@ ${provider_ctx}"
             "$_PARSED_REASONING_TOKENS" 2>/dev/null || true
     fi
 
-    echo "$output"
+    if [[ -n "$response_file" ]]; then
+        [[ "$output" =~ [^[:space:]] ]] || return 1
+        printf '%s\n' "$output" > "$response_file" || return 74
+    else
+        echo "$output"
+    fi
     return 0
 }

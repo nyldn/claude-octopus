@@ -315,8 +315,9 @@ command -v agy >/dev/null 2>&1 && providers+=(agy)
 
 launch_pids=()
 for provider in "${providers[@]}"; do
-  OCTOPUS_OVERSIZE_STRATEGY=fail \
-    "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
+  OCTOPUS_OVERSIZE_STRATEGY=fail OCTOPUS_SPAWN_ROLE=advisor \
+    "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" \
+    spawn --response-file "$REVIEW_DIR/$provider.pending" "$provider" \
     "Review this code diff for LOGIC, CORRECTNESS, and SECURITY issues. Focus on:
 1. Logic bugs and off-by-one errors
 2. Unhandled error paths
@@ -327,32 +328,33 @@ for provider in "${providers[@]}"; do
 Report ONLY high-confidence issues. Do NOT flag style preferences.
 
 DIFF:
-${DIFF_CONTENT}" > "$REVIEW_DIR/$provider.md" 2>"$REVIEW_DIR/$provider.log" &
+${DIFF_CONTENT}" > "$REVIEW_DIR/$provider.log" 2>&1 &
   launch_pids+=("$!")
 done
 
-launch_failed=0
+review_failed=0
 for index in "${!launch_pids[@]}"; do
-  if ! wait "${launch_pids[$index]}"; then
-    provider=${providers[$index]}
+  provider=${providers[$index]}
+  if ! { wait "${launch_pids[$index]}" &&
+         mv "$REVIEW_DIR/$provider.pending" "$REVIEW_DIR/$provider.md"; }; then
     printf 'External review incomplete for %s. See %s/%s.log\n' "$provider" "$REVIEW_DIR" "$provider" >&2
-    launch_failed=1
+    review_failed=1
   fi
 done
-[[ "$launch_failed" == 0 ]] || exit 1
+[[ "$review_failed" == 0 ]] || exit 1
 ```
 
 If snapshot admission fails, stop before provider dispatch or a clean-review
 claim. Binary and submodule changes require a separate complete content review.
 If a reviewer cannot fit the complete prompt, the launch rejects it before
-dispatch. Report failed launches as incomplete and keep the admitted snapshot
-for the local review.
+dispatch. A failed or missing provider response leaves external review incomplete.
+The admitted snapshot remains available for the local review.
 Read the complete `staged.diff` from the printed path for the local review.
 Later staging requires a fresh review.
 
 **Wait for the dispatched reviews to complete before combining their findings
-with yours.** Use the directory containing `staged.diff` to identify this
-invocation's dispatches. If no external providers are available, perform the
+with yours.** Read each completed answer from `codex.md` or `agy.md` beside
+`staged.diff`. If no external providers are available, perform the
 local review below.
 
 **Claude (you) performs the full quality review regardless:**
