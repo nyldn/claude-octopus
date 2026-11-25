@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+TEST_TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/octopus-cost-projections.XXXXXX")
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "skill-cost-projections: HUD cost projection from per-phase averages"
 
@@ -179,7 +180,7 @@ check_projection() {
   local label="$1" expected="$2" numeric_locale="${3:-C}" output
   test_case "$tree: $label"
   if output=$(LANG=C LC_ALL= LC_NUMERIC="$numeric_locale" HOME="$metrics_home" \
-      bash -euo pipefail -c "$script" 2>&1) &&
+      "$BASH" -euo pipefail -c "$script" 2>&1) &&
      [[ "$output" == "$expected" ]]; then
     test_pass
   else
@@ -188,7 +189,7 @@ check_projection() {
 }
 
 comma_locale=de_DE.UTF-8
-if [[ $(LANG=C LC_ALL= LC_NUMERIC="$comma_locale" bash -c 'printf "%.1f" 0' 2>/dev/null) == 0,0 ]]; then
+if [[ $(LANG=C LC_ALL= LC_NUMERIC="$comma_locale" "$BASH" -c 'printf "%.1f" 0' 2>/dev/null) == 0,0 ]]; then
   has_comma_locale=true
 else
   has_comma_locale=false
@@ -228,7 +229,7 @@ TINY_COSTS
   script+=$'\n'"$projection"$'\n'"$(recipe "$skill" 5 6)"
   printf '%s\n' '{"cost":0.42}' '{"cost":0.18}' > "$metrics_file"
   check_projection 'valid thresholds report a budget overrun and profile tip' \
-    $'⚠️ Budget ceiling: 1 USD — projected to exceed by 0.20 USD\n💡 Tip: Switch to OCTO_PROFILE=budget to reduce costs'
+    $'⚠️ Budget ceiling: 1.00 USD — projected to exceed by 0.20 USD\n💡 Tip: Switch to OCTO_PROFILE=budget to reduce costs'
   script='total_steps=4 OCTO_BUDGET_CEILING=invalid OCTO_COST_THRESHOLD=invalid'
   script+=$'\n'"$projection"$'\n'"$(recipe "$skill" 5 6)"
   check_projection 'invalid thresholds do not produce an arithmetic error' ''
@@ -237,7 +238,18 @@ TINY_COSTS
   printf '%s\n' '{"cost":0.10}' '{"cost":0.20}' > "$metrics_file"
   check_projection 'a projected total equal to both thresholds produces no warnings' ''
 
+  script='total_steps=2 OCTO_BUDGET_CEILING=0.12 OCTO_COST_THRESHOLD=0.12'
+  script+=$'\n'"$projection"$'\n'"$(recipe "$skill" 4 6)"
+  printf '%s\n' '{"cost":0.0625}' '{"cost":0.0625}' > "$metrics_file"
+  check_projection 'a half cent agrees with the displayed total and stays within both thresholds' \
+    '💰 Spent: 0.12 USD | Est. remaining: 0.00 USD | Total: ~0.12 USD'
+  printf '%s\n' '{"cost":0.0625}' '{"cost":0.0635}' > "$metrics_file"
+  check_projection 'a displayed total one cent over both thresholds triggers both warnings' \
+    $'💰 Spent: 0.13 USD | Est. remaining: 0.00 USD | Total: ~0.13 USD\n⚠️ Budget ceiling: 0.12 USD — projected to exceed by 0.01 USD\n💡 Tip: Switch to OCTO_PROFILE=budget to reduce costs'
+
   if "$has_comma_locale"; then
+    check_projection 'display and thresholds agree under a comma-decimal locale' \
+      $'💰 Spent: 0.13 USD | Est. remaining: 0.00 USD | Total: ~0.13 USD\n⚠️ Budget ceiling: 0.12 USD — projected to exceed by 0.01 USD\n💡 Tip: Switch to OCTO_PROFILE=budget to reduce costs' "$comma_locale"
     script='total_steps=4'$'\n'"$projection"
     printf '%s\n' '{"cost":0.42}' > "$metrics_file"
     check_projection 'one valid row formats spend under a comma-decimal locale' \
@@ -249,7 +261,7 @@ TINY_COSTS
     script='total_steps=4 OCTO_BUDGET_CEILING=1 OCTO_COST_THRESHOLD=5'
     script+=$'\n'"$projection"$'\n'"$(recipe "$skill" 5 6)"
     check_projection 'ceiling overage formats under a comma-decimal locale' \
-      '⚠️ Budget ceiling: 1 USD — projected to exceed by 0.20 USD' "$comma_locale"
+      '⚠️ Budget ceiling: 1.00 USD — projected to exceed by 0.20 USD' "$comma_locale"
   else
     test_case "$tree: formats jq results under a comma-decimal locale"
     test_skip "$comma_locale is unavailable"

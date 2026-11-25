@@ -39,11 +39,19 @@ Projects remaining workflow cost based on per-phase averages from completed work
 Set `total_steps` for the workflow in Step 3 and run the following blocks in
 the same shell. Use the JSONL file only when its entries are known to describe
 the current workflow. Each completed step should have one cost entry in USD.
+The recipe requires this file. For a legacy session with only tracker or HUD
+data, report separately any spend you can attribute to the current workflow.
+A session total alone cannot establish the number of completed steps.
 
 ```bash
 # Read metrics from the session metrics directory
 METRICS_DIR="$HOME/.claude-octopus/metrics"
 SESSION_METRICS="$METRICS_DIR/session-$(date +%Y%m%d).jsonl"
+
+format_usd() (
+    export LC_ALL=C
+    printf '%.2f' "${1}"
+)
 
 # Parse each line separately so damaged rows do not discard valid costs.
 if [[ ! -f "$SESSION_METRICS" || ! -r "$SESSION_METRICS" ]] ||
@@ -57,14 +65,10 @@ if [[ ! -f "$SESSION_METRICS" || ! -r "$SESSION_METRICS" ]] ||
 fi
 IFS=$'\t' read -r completed_count total_spent <<< "$summary"
 if (( completed_count < 2 )); then
-    LC_ALL=C printf 'Spent: %.2f USD (need 2+ steps for projection)\n' "$total_spent"
+    printf 'Spent: %s USD (need 2+ steps for projection)\n' "$(format_usd "$total_spent")"
     exit 0
 fi
 ```
-
-If per-step data is unavailable, report any known spend separately. A
-`metrics-tracker.sh` or HUD total can provide spend, but the total alone does
-not establish the number of completed steps.
 
 If fewer than 2 completed steps are available, display only actual spend:
 ```
@@ -104,10 +108,11 @@ if ! projection=$(jq -ner --arg planned "${total_steps:-}" \
     | [$remaining, $estimate, $spent + $estimate]
     | select(all(.[]; isfinite)) | @tsv
 '); then
-    LC_ALL=C printf 'Spent: %.2f USD (remaining cost unavailable)\n' "$total_spent"
+    printf 'Spent: %s USD (remaining cost unavailable)\n' "$(format_usd "$total_spent")"
     exit 0
 fi
 IFS=$'\t' read -r remaining_steps projected_remaining projected_total <<< "$projection"
+display_projected_total=$(format_usd "$projected_total")
 ```
 
 **Formula:**
@@ -129,6 +134,11 @@ projected_total     = total_spent + projected_remaining
 ## Step 4: Display in HUD
 
 Format the cost projection for the HUD/statusline display.
+
+```bash
+printf '💰 Spent: %s USD | Est. remaining: %s USD | Total: ~%s USD\n' \
+    "$(format_usd "$total_spent")" "$(format_usd "$projected_remaining")" "$display_projected_total"
+```
 
 **Standard display:**
 ```
@@ -158,17 +168,21 @@ checks. Keep the unrounded values for the projection itself.
 
 ```bash
 cost_overage() {
-  jq -ner --argjson total "$projected_total" --arg limit "${1}" '
+  local limit
+  limit=$(jq -ner --arg limit "${1}" '$limit | tonumber? | select(isfinite and . >= 0)') || return 1
+  limit=$(format_usd "$limit") || return 1
+  jq -ner --argjson total "$display_projected_total" --arg limit "$limit" '
     def cents: (. * 100) | select(isfinite) | round;
-    ($limit | tonumber? | select(isfinite and . >= 0)) as $limit
-    | ($total | cents) - ($limit | cents)
-    | select(. > 0) | . / 100
+    (($total | cents) - ($limit | tonumber | cents)) as $overage
+    | select($overage > 0) | [$limit, $overage / 100] | @tsv
   '
 }
 
 ceiling="${OCTO_BUDGET_CEILING:-}"
 if [[ -n "$ceiling" ]] && overage=$(cost_overage "$ceiling"); then
-  LC_ALL=C printf '⚠️ Budget ceiling: %s USD — projected to exceed by %.2f USD\n' "$ceiling" "$overage"
+  IFS=$'\t' read -r display_ceiling excess <<< "$overage"
+  printf '⚠️ Budget ceiling: %s USD — projected to exceed by %s USD\n' \
+    "$display_ceiling" "$(format_usd "$excess")"
 fi
 ```
 
