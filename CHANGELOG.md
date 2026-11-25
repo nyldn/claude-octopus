@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- Quick Mode summaries record the task request and report the exact task
+  commit, including the first commit in a repository.
+
 - Design Lineage preserves earlier documents when several designs are saved
   for the same branch in the same second.
 
