@@ -67,9 +67,21 @@ If user says "skip" for any question, note assumptions and proceed.
 Treat project names, selectors and requests as data in every Bash snippet. Shell-quote substituted values. Never paste raw user or research text into executed shell source.
 
 ```bash
-provider_status=$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh")
-codex_status=$(echo "$provider_status" | grep -q '^codex:available' && echo "Available" || echo "Not installed")
-agy_status=$(echo "$provider_status" | grep -q '^agy:available' && echo "Available" || echo "Not installed")
+if ! provider_status=$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/helpers/check-providers.sh"); then
+    printf '%s\n' 'Provider readiness check failed. Run /octo:setup before retrying.' >&2
+    exit 1
+fi
+
+spec_provider_status() {
+    case "$(awk -F: -v provider="$1" '$1 == provider { print substr($0, length(provider) + 2); exit }' <<< "$provider_status")" in
+        available) printf '%s\n' 'Available' ;;
+        degraded) printf '%s\n' 'Not ready' ;;
+        missing) printf '%s\n' 'Not installed' ;;
+        *) printf '%s\n' 'Unknown' ;;
+    esac
+}
+codex_status=$(spec_provider_status codex)
+agy_status=$(spec_provider_status agy)
 ```
 
 **Display this banner BEFORE orchestrate.sh execution:**
@@ -88,7 +100,8 @@ Estimated Time: 3-7 minutes
 ```
 
 **Validation:**
-- If no external providers are available -> STOP, suggest: `/octo:setup`
+- If neither provider reports `Available`, stop and suggest `/octo:setup`.
+- If the check fails, stop and show its diagnostic.
 - If one or more external providers are available -> Continue with available provider(s)
 
 **DO NOT PROCEED TO STEP 3 until banner displayed.**
