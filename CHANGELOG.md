@@ -16,6 +16,9 @@
 - Factory keeps evidence separate for runs started in the same second and
   stops before parsing the spec if it cannot create the run directory.
 
+- The Factory command and skill require explicit cost approval before
+  dispatching providers. Declining or skipping approval stops the run.
+
 ## [11.29.1] - 2026-11-25
 
 ### Fixed
