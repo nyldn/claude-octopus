@@ -1410,9 +1410,18 @@ ${heuristic_ctx}"
         local _health_diag _health_rc=0
         _health_diag=$(cd "$_dispatch_workdir" && check_provider_health "$_provider_for_health" "$model" 2>&1) || _health_rc=$?
         if [[ "$_health_rc" -ne 0 ]]; then
+            local _health_recorded=true
             octo_spawn_contract_finish "$_contract_seat_id" failed "" "" \
-                "Provider unavailable: $_health_diag" "$_health_rc" "" >/dev/null 2>&1 || true
+                "Provider unavailable: $_health_diag" "$_health_rc" "" >/dev/null 2>&1 || _health_recorded=false
             log WARN "Provider '$_provider_for_health' health check failed: $_health_diag"
+            if [[ "$report_prelaunch_refusal" == true ]]; then
+                if [[ "$_health_recorded" != true ]]; then
+                    log ERROR "Unable to persist failed health check for background task $task_id"
+                    return 74
+                fi
+                printf '%s\n' 'octopus: refused before worker launch'
+                return 1
+            fi
             return "$_health_rc"
         fi
     fi

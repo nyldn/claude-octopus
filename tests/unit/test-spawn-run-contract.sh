@@ -565,6 +565,33 @@ run_tangle_spawn_retry_fixture() (
     return 1
 )
 
+test_case "Tangle reports a recorded health failure as refusal before launch"
+if (
+    export FAKE_SCENARIO=health-fail
+    rc=0
+    pid=$(spawn_agent_capture_pid kimi 'Inert health check' tangle-health-refusal reviewer tangle) || rc=$?
+    [[ "$rc" == 75 && -z "$pid" &&
+       "$(run_contract_latest_transition spawn-tangle-health-refusal)" == failed &&
+       ! -e "$RESULTS_DIR/kimi-tangle-health-refusal.md" ]]
+); then
+    test_pass
+else
+    test_fail "health rejection was not a definite pre-launch refusal"
+fi
+
+test_case "Tangle does not report a pre-launch refusal if recording the health failure fails"
+if (
+    export FAKE_SCENARIO=health-fail FAKE_CONTRACT_PERSISTENCE_FAIL=true
+    rc=0
+    pid=$(spawn_agent_capture_pid kimi 'Inert health check' tangle-health-ledger-fail reviewer tangle) || rc=$?
+    [[ "$rc" == 1 && -z "$pid" &&
+       "$(run_contract_latest_transition spawn-tangle-health-ledger-fail)" == starting ]]
+); then
+    test_pass
+else
+    test_fail "an unrecorded health failure authorized another launch"
+fi
+
 for tmux_mode in false true; do
     test_case "Tangle retries a refused spawn with a new contract seat (tmux=$tmux_mode)"
     if run_tangle_spawn_retry_fixture "$tmux_mode"; then
