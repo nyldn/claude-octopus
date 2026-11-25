@@ -327,7 +327,7 @@ printf '%s' "$2" > "$capture.tmp"
         subprocess.run(['git', 'add', 'change.txt'], cwd=project, env=environment, check=True)
         expected = subprocess.check_output(['git', 'diff', '--cached', '--binary'], cwd=project,
                                            env=environment, text=True).rstrip('\n')
-        result = subprocess.run(['bash', '-c', recipe], cwd=project, env=environment,
+        result = subprocess.run(['bash', '-c', 'umask 022\n' + recipe], cwd=project, env=environment,
                                 capture_output=True, text=True, timeout=45)
         snapshot, = (project / 'tmp').glob('octopus-staged-review.*/staged.diff')
         assert snapshot.read_text() == expected + '\n'
@@ -348,6 +348,7 @@ printf '%s' "$2" > "$capture.tmp"
                     assert not answer.exists(), (scenario, answer)
                 else:
                     assert 'Fixture reviewer inspected the supplied text.' in answer.read_text(), (provider, answer)
+                    assert answer.stat().st_mode & 0o777 == 0o600, (provider, 'response must be owner-only')
 print('5/5 staged review production spawn controls passed')
 PY_SPAWN
 then test_pass; else test_fail "production spawn changed or omitted staged-review input"; fi

@@ -2116,7 +2116,10 @@ ${provider_ctx}"
 
     if [[ -n "$response_file" ]]; then
         [[ "$output" =~ [^[:space:]] ]] || return 1
-        printf '%s\n' "$output" > "$response_file" || return 74
+        (
+            umask 077
+            printf '%s\n' "$output" > "$response_file"
+        ) || return 74
     else
         echo "$output"
     fi
