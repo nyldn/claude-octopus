@@ -36,7 +36,7 @@ for skill in "${SKILL_FILES[@]}" "$PROJECT_ROOT/codex-skills/flow-parallel/SKILL
     wbs="$fixture/.octo/parallel/wbs.json"
     rm -f "$wbs"
 
-    for state in missing malformed invalid-utf8 valid; do
+    for state in missing malformed invalid-utf8 NaN Infinity -Infinity valid; do
         test_case "${skill#"$PROJECT_ROOT"/} WBS validation with $state input"
         case "$state" in
             missing) expected=1; message='WBS validation: FAILED - file not found' ;;
@@ -47,6 +47,11 @@ for skill in "${SKILL_FILES[@]}" "$PROJECT_ROOT/codex-skills/flow-parallel/SKILL
                 ;;
             invalid-utf8)
                 printf '{"task":"\377","work_packages":[]}\n' > "$wbs"
+                expected=1
+                message='WBS validation: FAILED - could not read valid JSON'
+                ;;
+            NaN|Infinity|-Infinity)
+                printf '{"estimate":%s,"work_packages":[{"id":"WP-1"}]}\n' "$state" > "$wbs"
                 expected=1
                 message='WBS validation: FAILED - could not read valid JSON'
                 ;;

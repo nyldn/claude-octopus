@@ -166,7 +166,18 @@ if [[ ! -f ".octo/parallel/wbs.json" ]]; then
   printf '%s\n' 'WBS validation: FAILED - file not found' >&2
   exit 1
 fi
-if ! python3 -I -c 'import json; json.load(open(".octo/parallel/wbs.json", encoding="utf-8"))' 2>/dev/null; then
+if ! python3 -I - 2>/dev/null <<'PY_WBS'
+import json
+
+
+def reject_constant(value):
+    raise ValueError(f"{value} is not a valid JSON value")
+
+
+with open(".octo/parallel/wbs.json", encoding="utf-8") as wbs:
+    json.load(wbs, parse_constant=reject_constant)
+PY_WBS
+then
   printf '%s\n' 'WBS validation: FAILED - could not read valid JSON' >&2
   exit 1
 fi
