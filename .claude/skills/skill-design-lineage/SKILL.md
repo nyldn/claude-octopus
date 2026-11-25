@@ -192,6 +192,7 @@ ${SUPERSEDES:+supersedes: ${SUPERSEDES}}
 [Unresolved items]
 EOF
 ) || exit 1
+FILENAME="${FILEPATH##*/}"
 printf 'Design saved to %s\n' "$FILEPATH"
 ```
 
@@ -279,7 +280,10 @@ This creates a linked chain of revisions:
 v3 (supersedes: v2) -> v2 (supersedes: v1) -> v1 (no supersedes)
 ```
 
-To walk the full revision history for a branch:
+To walk the full revision history, start with the design just saved. In a fresh
+shell, set `FILENAME` to the basename of the printed path and `DESIGNS_DIR` to
+the design directory from Step 1.
+
 ```bash
 current="$FILENAME"
 while [[ -n "$current" ]]; do

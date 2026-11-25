@@ -201,9 +201,12 @@ touch -t 202601020101 "$designs_dir/$current"
 touch -t 202601030101 "$designs_dir/$other"
 
 design_recipe() {
-    awk -v step="$2" '
-        index($0, "## Step " step ":") == 1 { section = 1 }
-        section && /^```bash$/ { block = 1; next }
+    awk -v step="$2" -v recipe="${3:-1}" '
+        /^## Step / {
+            if (section) exit
+            section = index($0, "## Step " step ":") == 1
+        }
+        section && /^```bash$/ { block = ++count == recipe; next }
         block && /^```$/ { exit }
         block { print }
     ' "$1"
@@ -213,6 +216,7 @@ for tree in skills .claude/skills codex-skills; do
     skill="$PROJECT_ROOT/$tree/skill-design-lineage/SKILL.md"
     save=$(design_recipe "$skill" 1)
     lookup=$(design_recipe "$skill" 3)
+    walk=$(design_recipe "$skill" 3 2)
     discovery=$(design_recipe "$skill" 4)
 
     test_case "$tree preserves all designs when saves share a timestamp"
@@ -232,9 +236,10 @@ for tree in skills .claude/skills codex-skills; do
         output=$(bash -c "$save") || exit 1
         [[ "$output" == "Design saved to $first" ]] || exit 1
         original=$(cat "$first") || exit 1
-        SUPERSEDES="${first##*/}" bash -c "$save" &
+        save_and_walk="$save"$'\n'"$walk"
+        SUPERSEDES="${first##*/}" bash -c "$save_and_walk" > "$HOME/first-history" &
         save_pid=$!
-        SUPERSEDES="${first##*/}" bash -c "$save"
+        SUPERSEDES="${first##*/}" bash -c "$save_and_walk" > "$HOME/second-history"
         second_status=$?
         wait "$save_pid" && [[ "$second_status" -eq 0 ]] || exit 1
         [[ $(cat "$first") == "$original" ]] || exit 1
@@ -245,12 +250,18 @@ for tree in skills .claude/skills codex-skills; do
             grep -Fxq "supersedes: ${first##*/}" "$design" || exit 1
             grep -Fxq '## Open Questions' "$design" || exit 1
         done
+        for history in "$HOME/first-history" "$HOME/second-history"; do
+            saved_path=$(sed -n '1s/^Design saved to //p' "$history")
+            [[ -f "$saved_path" && "$saved_path" != "$first" ]] || exit 1
+            expected_history="${saved_path##*/}"$'\n'"${first##*/}"
+            [[ $(tail -n +2 "$history") == "$expected_history" ]] || exit 1
+        done
         set -- "$DESIGNS_DIR"/.design-*
         [[ ! -e "$1" ]]
     ); then
         test_pass
     else
-        test_fail "same-timestamp writes lost the original or a new revision"
+        test_fail "same-timestamp saves lost a revision or walked the wrong history"
     fi
 
     test_case "$tree links the newest design on the exact branch"
