@@ -859,6 +859,10 @@ Design-review seats and synthesis use versioned JSON v1 contracts for all model-
 
 Tangle coding agents are unbounded by default at the wall-clock layer and use a progress-aware stall watchdog. Users can still set an explicit absolute timeout. See [Tangle adaptive coding supervision](docs/tangle-adaptive-timeouts.md).
 
+When a running Develop subtask stops on a quota or authentication error,
+Tangle can retry it on an available, allowed provider. The replacement picks up
+the partial edits in the same worktree.
+
 ### Tangle reconsideration JSON contract
 
 Planner reconsideration uses a versioned JSON v1 contract: explicit accept/reject decisions for every adequacy scope recommendation plus a nested decomposition JSON v1 object. The historical `DECISIONS:/DECOMPOSITION:` response remains a deprecated compatibility fallback. See [Tangle reconsideration JSON v1](docs/tangle-reconsideration-contract.md) and [`schemas/tangle-reconsideration-v1.schema.json`](schemas/tangle-reconsideration-v1.schema.json).

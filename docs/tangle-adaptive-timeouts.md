@@ -16,6 +16,11 @@ seconds for each pass, with `0` or an unset value leaving the wait unbounded
 while provider stall supervision remains active. Deadline cleanup verifies worker
 ownership against the PID ledger before terminating the worker and its descendants.
 
+After a subtask records a quota or authentication failure and its provider
+becomes unavailable, Tangle can retry on another allowed provider. The retry
+uses the same worktree and shares the initial pass's remaining wait budget.
+If every replacement is unavailable, the original failure stays visible.
+
 An exited or zombie worker without a completion marker receives
 `OCTOPUS_TANGLE_MISSING_MARKER_GRACE` seconds for a late marker or result, default
 `180`. After that grace period the watcher records a missing-marker failure and

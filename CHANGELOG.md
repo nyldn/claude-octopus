@@ -6,15 +6,19 @@
 
 - Develop can retry a subtask on an allowed provider after a quota or
   authentication failure, keeping partial edits in the same worktree.
+  ([#1391](https://github.com/nyldn/claude-octopus/pull/1391))
 
 - Parallel stops before launching workers when a work package is missing its
   instructions or launch script.
+  ([#1428](https://github.com/nyldn/claude-octopus/pull/1428))
 
 - Parallel checks the work breakdown before execution and stops if its
   packages, waves, or dependencies are invalid.
+  ([#1429](https://github.com/nyldn/claude-octopus/pull/1429))
 
 - Factory keeps evidence separate for runs started in the same second and
   stops before parsing the spec if it cannot create the run directory.
+  ([#1430](https://github.com/nyldn/claude-octopus/pull/1430))
 
 ## [11.29.1] - 2026-11-25
 
