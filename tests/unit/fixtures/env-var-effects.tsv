@@ -62,6 +62,7 @@ OCTOPUS_COUNCIL_DIFF_BASE	covered-by	test-council-quote-grounding.sh
 OCTOPUS_COUNCIL_QUOTE_VERIFY	covered-by	test-council-quote-grounding.sh
 OCTOPUS_COUNCIL_REQUIRE_GROUNDED_APPROVE	covered-by	test-council-grounding-citations.sh
 OCTOPUS_COUNCIL_BOUNDED_READING	covered-by	test-council-bounded-reading.sh
+OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS	covered-by	test-council-claude-seat-cache.sh
 OCTOPUS_COUNCIL_CHAIR_FALLBACK_MAX	covered-by	test-council-chair-fallback-cap.sh
 OCTOPUS_COUNCIL_REQUIRE_CONTEXT	covered-by	test-council-context-guard.sh
 OCTOPUS_COUNCIL_SEAT_USAGE	covered-by	test-council-seat-usage.sh

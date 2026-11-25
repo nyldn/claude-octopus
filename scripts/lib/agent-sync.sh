@@ -1321,11 +1321,13 @@ octo_safe_diagnostic_tail() {
 # summary.json could only say "no-response". When the caller names a capture
 # file, append this failed attempt there: the exit code and reason, the
 # provider's stderr, or the tail of its stdout when stderr is empty. A validated
-# terminal stdout session status is retained even with stderr warnings.
+# terminal stdout session status or decoded Claude error is retained even
+# with stderr warnings.
 # Secrets are scrubbed and the file is private.
 octo_capture_seat_failure() {
     local file="${_OCTOPUS_SEAT_STDERR_FILE:-}" agent="$1" rc="$2" reason="$3" err="$4" out="$5" body="" record=""
-    local terminal_status=""
+    local status_out="${6:-$out}"
+    local terminal_status="" decoded_error=""
     local section="-- no stderr or stdout --"
     local scanner="${BASH_SOURCE[0]%/*}/../helpers/artifact-safety.py"
     [[ -n "$file" ]] || return 0
@@ -1334,8 +1336,8 @@ octo_capture_seat_failure() {
     # Only the complete stdout can establish a standalone terminal status.
     # A bounded diagnostic tail may have discarded an earlier quotation lead-in.
     if [[ "$rc" != 0 ]] && declare -F octo_quota_session_limit_line >/dev/null &&
-       octo_quota_session_limit_line "$out" >/dev/null; then
-        terminal_status="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
+       octo_quota_session_limit_line "$status_out" >/dev/null; then
+        terminal_status="$(octo_safe_diagnostic_tail "$status_out" 4096)" || return 0
     fi
     # Redact the stream first: a raw byte tail can remove a credential prefix.
     # Certify before truncation too: a tail can remove an opaque key's field name.
@@ -1343,9 +1345,13 @@ octo_capture_seat_failure() {
     if [[ -s "$err" ]]; then
         body="$(octo_safe_diagnostic_tail "$err" 16384)" || return 0
         section="-- stderr --"
+        if [[ "$out" != "$status_out" && -s "$out" ]]; then
+            decoded_error="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
+        fi
     elif [[ -s "$out" ]]; then
         body="$(octo_safe_diagnostic_tail "$out" 4096)" || return 0
         section="-- stdout tail (stderr was empty) --"
+        [[ "$out" == "$status_out" ]] || section="-- decoded Claude error --"
     fi
     record="$(
         printf '== %s %s exited %s: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$agent" "$rc" "$reason"
@@ -1353,6 +1359,9 @@ octo_capture_seat_failure() {
             printf '%s\n%s\n' '-- terminal stdout status --' "$terminal_status"
         fi
         printf '%s\n' "$section" "$body"
+        if [[ -n "$decoded_error" ]]; then
+            printf '%s\n%s\n' '-- decoded Claude error --' "$decoded_error"
+        fi
     )"
     # The reason can contain provider output too. Clean controls before
     # redacting the entire event, discarding partial output on any failure.
@@ -1406,7 +1415,36 @@ octopus_sync_timeout_override() {
     return 1
 }
 
-# Synchronous agent execution (for sequential steps within phases)
+# Scope cache isolation to plain user configurations. Settings can contain
+# environment values, credential helpers, permission rules, or policy hooks.
+octo_council_claude_isolation_args() {
+    local agent_type="$1"; shift
+    [[ "${_OCTOPUS_COUNCIL_SEAT:-}" == 1 && "${OCTOPUS_COUNCIL_CLAUDE_USER_SETTINGS:-1}" == 0 ]] || return 1
+    case "$agent_type" in
+        claude-sdk*) return 1 ;;
+        claude*) ;;
+        *) return 1 ;;
+    esac
+    local arg saw_print="" has_sources="" has_mcp="" settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+    for arg in "$@"; do
+        case "$arg" in
+            --print|-p) saw_print=1 ;;
+            --setting-sources|--setting-sources=*) has_sources=1 ;;
+            --strict-mcp-config|--mcp-config|--mcp-config=*|--permission-prompt-tool|--permission-prompt-tool=*) has_mcp=1 ;;
+        esac
+    done
+    [[ -n "$saw_print" ]] || return 1
+    if [[ -e "$settings" || -L "$settings" ]]; then
+        [[ -f "$settings" ]] && jq -es '
+            length == 1 and (.[0] | type == "object" and
+                ((del(.enabledPlugins, .extraKnownMarketplaces) | keys | length) == 0))
+        ' "$settings" >/dev/null 2>&1 || return 1
+    fi
+    [[ -n "$has_sources" ]] || printf '%s\n' --setting-sources project,local
+    [[ -n "$has_mcp" ]] || printf '%s\n' --strict-mcp-config
+    return 0
+}
+
 # Council seat usage accounting. When the council sets _OCTOPUS_SEAT_USAGE_FILE,
 # claude and codex seats run with machine-readable output so their real token
 # counts and cost can be recorded; octo_seat_usage_record turns that output back
@@ -1446,9 +1484,10 @@ octo_seat_usage_record() {
     fi
     python3 -I "${_agent_sync_lib_dir}/../helpers/seat-usage.py" "$kind" "$out_file" \
         "$_OCTOPUS_SEAT_USAGE_FILE" "${_OCTOPUS_SEAT_USAGE_LABEL:-}" "$model" "$in_price" "$out_price" \
-        2>/dev/null || log DEBUG "seat usage: $kind output did not parse; left as is"
+        2>/dev/null || log DEBUG "seat usage: could not finish recording $kind output" >&2
 }
 
+# Synchronous agent execution (for sequential steps within phases)
 run_agent_sync() {
     local agent_type="$1"
     local prompt="$2"
@@ -1657,7 +1696,7 @@ ${provider_ctx}"
 
     # Resolve environment and argv once into the redacted dispatch plan. Both
     # execution and the offline explanation record consume this same decision.
-    local dispatch_plan dispatch_argv_json _plan_deadline=0 _plan_append_empty_prompt=false
+    local dispatch_plan dispatch_argv_json="" _plan_deadline=0 _plan_append_empty_prompt=false
     if [[ "$timeout_secs" =~ ^[0-9]+$ && "$timeout_secs" -gt 0 ]]; then
         _plan_deadline=$(( $(date +%s) + timeout_secs ))
     fi
@@ -1670,8 +1709,21 @@ ${provider_ctx}"
         return 74
     fi
     octo_dispatch_plan_bind_model_env "$agent_type" "$model"
-    local _plan_failure=""
-    if ! dispatch_argv_json="$(octo_dispatch_command_argv_json "$cmd")"; then
+    local _plan_failure="" _seat_usage_kind="" _seat_isolation_arg
+    local -a OCTO_COMMAND_ARGV
+    if octo_dispatch_command_to_argv "$cmd"; then
+        while IFS= read -r _seat_isolation_arg; do
+            OCTO_COMMAND_ARGV+=("$_seat_isolation_arg")
+        done < <(octo_council_claude_isolation_args "$agent_type" "${OCTO_COMMAND_ARGV[@]}" || true)
+        if _seat_usage_kind="$(octo_seat_usage_kind "$agent_type" "${OCTO_COMMAND_ARGV[@]}")"; then
+            case "$_seat_usage_kind" in
+                claude) OCTO_COMMAND_ARGV+=(--output-format json) ;;
+                codex) OCTO_COMMAND_ARGV+=(--json) ;;
+            esac
+        fi
+        dispatch_argv_json="$(jq -cn --args '$ARGS.positional' -- "${OCTO_COMMAND_ARGV[@]}")" || dispatch_argv_json=""
+    fi
+    if [[ -z "$dispatch_argv_json" ]]; then
         _plan_failure="argv serialization"
     elif ! dispatch_plan="$(octo_dispatch_plan_create "$agent_type" "$phase" "$role" \
         "$dispatch_argv_json" "$model" "$_plan_deadline" "$_prompt_bytes" "$_plan_append_empty_prompt")"; then
@@ -1703,14 +1755,6 @@ ${provider_ctx}"
     else
         cmd_array=("${OCTO_DISPATCH_PLAN_ARGV[@]}")
     fi
-    local _seat_usage_kind=""
-    if _seat_usage_kind="$(octo_seat_usage_kind "$agent_type" "${cmd_array[@]}")"; then
-        case "$_seat_usage_kind" in
-            claude) cmd_array+=(--output-format json) ;;
-            codex) cmd_array+=(--json) ;;
-        esac
-    fi
-
     # Capture output and exit code separately
     local output
     local exit_code
@@ -1811,8 +1855,15 @@ ${provider_ctx}"
         break
     done
     stop_quota_watcher "$_quota_watcher_pid"
-    [[ -n "$_seat_usage_kind" ]] && octo_seat_usage_record "$_seat_usage_kind" "$temp_out" "$model" "$agent_type" "$enhanced_prompt"
-    quota_watcher_mark_after_exit "$exit_code" "$temp_err" "$temp_out" "${_provider_for_health:-}"
+    local _provider_exit_code="$exit_code" _status_stdout="$temp_out"
+    if [[ -n "$_seat_usage_kind" ]] &&
+       [[ "$(octo_seat_usage_record "$_seat_usage_kind" "$temp_out" "$model" "$agent_type" "$enhanced_prompt")" == provider-error ]]; then
+        # Decoded errors can describe a single seat or tool. Keep their text
+        # for diagnostics and use the actual CLI status for provider health.
+        _status_stdout=/dev/null
+        [[ "$exit_code" -ne 0 ]] || exit_code=1
+    fi
+    quota_watcher_mark_after_exit "$_provider_exit_code" "$temp_err" "$_status_stdout" "${_provider_for_health:-}"
     local _sync_output_truncated=false
 
     local _elapsed_ms
@@ -1873,10 +1924,12 @@ ${provider_ctx}"
         elif [[ $exit_code -eq 143 ]]; then
             # Keep termination diagnostics out of trusted status and metrics.
             _sync_reason="Provider terminated by SIGTERM"
+        elif [[ "$_status_stdout" != "$temp_out" ]]; then
+            _sync_reason="Claude returned an error result"
         elif declare -F octo_failure_reason >/dev/null 2>&1; then
-            _sync_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_err" "$temp_out")
+            _sync_reason=$(octo_failure_reason "$exit_code" "$enhanced_prompt" "$temp_err" "$_status_stdout")
         fi
-        octo_capture_seat_failure "$agent_type" "$exit_code" "$_sync_reason" "$temp_err" "$temp_out"
+        octo_capture_seat_failure "$agent_type" "$exit_code" "$_sync_reason" "$temp_err" "$temp_out" "$_status_stdout"
         run_contract_transition "$_sync_seat_id" "$_sync_status" \
             "reason=$_sync_reason" "stderr_file=$_sync_signal_artifact" \
             "duration_ms=$_elapsed_ms" >/dev/null 2>&1 || true

@@ -1820,6 +1820,7 @@ EOF
         OCTOPUS_AGY_PRINT_TIMEOUT="${_agy_print_timeout:-5m0s}" \
         _OCTOPUS_SEAT_USAGE_FILE="${COUNCIL_RUN_DIR:+${COUNCIL_RUN_DIR}/usage.jsonl}" \
         _OCTOPUS_SEAT_USAGE_LABEL="${dispatch_phase}|${persona}" \
+        _OCTOPUS_COUNCIL_SEAT=1 \
             run_agent_sync_consultative "$agent_type" "$prompt" "$_seat_timeout" "$persona" "council"
         return $?
     fi
@@ -5087,7 +5088,8 @@ council_seat_quota_limited() {
         # shellcheck source=/dev/null
         source "${_council_registry_dir}/quota-watcher.sh" 2>/dev/null || return 1
     fi
-    quota_watcher_has_match "$file" /dev/null stream ||
+    # A decoded result is retained as a diagnostic, not a provider status.
+    quota_watcher_has_match <(sed '/^-- decoded Claude error --$/,$d' "$file") /dev/null stream ||
         octo_quota_session_limit_line "$file" capture >/dev/null
 }
 
