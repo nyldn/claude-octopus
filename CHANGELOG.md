@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Parallel stops before launching workers when a work package is missing its
+  instructions or launch script.
+
 ## [11.29.1] - 2026-11-25
 
 ### Fixed
