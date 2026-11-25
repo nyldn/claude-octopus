@@ -255,8 +255,11 @@ ledger="$WORK/claude-tool-error.jsonl"
 capture="$WORK/claude-tool-error.log"
 error_result='{"type":"result","is_error":true,"errors":["Tool returned HTTP 401"],"total_cost_usd":0.017}'
 rc=0
-answer="$(_OCTOPUS_SEAT_STDERR_FILE="$capture" run_seat claude "$ledger" tool-error "" 0 "$error_result")" || rc=$?
+answer="$(OCTO_TEST_CLAUDE_STDERR='Warning: optional MCP integration unavailable' \
+    _OCTOPUS_SEAT_STDERR_FILE="$capture" run_seat claude "$ledger" tool-error "" 0 "$error_result")" || rc=$?
 if [[ "$rc" == 1 && -z "$answer" && ! -e "$WORK/workspace-tool-error/state/.provider-quota-dead" ]] &&
+   grep -qxF 'Warning: optional MCP integration unavailable' "$capture" &&
+   grep -qxF -- '-- decoded Claude error --' "$capture" &&
    grep -qxF 'Tool returned HTTP 401' "$capture" && ! council_seat_quota_limited "$capture"; then
     test_pass
 else
