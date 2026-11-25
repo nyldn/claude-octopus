@@ -15,6 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -P "$SCRIPT_DIR/../.." && pwd)"
 
+# shellcheck source=tests/helpers/test-framework.sh
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
 test_suite "intent-contract agency allocation (issue #700)"
 
@@ -143,6 +144,8 @@ test_case "every allocation row records the complete ordered contract"
 allocation_contract_ok=true
 for intent_skill in "${INTENT_SKILLS[@]}"; do
     allocation_table=$(sed -n '/^| Risk \/ complexity |/,/^$/p' "$intent_skill")
+    # Markdown mode values include literal backticks.
+    # shellcheck disable=SC2016
     if ! grep -Fq '| Low / low | AI | AI | AI | executor | AI-assisted | not-needed | `autonomous` |' <<< "$allocation_table" ||
        ! grep -Fq '| Low / high | shared | human | human | collaborator | AI-assisted | not-needed | `loop-until-approved` |' <<< "$allocation_table" ||
        ! grep -Fq '| High / low | human | human | human | executor | AI-assisted | not-needed | `supervised` |' <<< "$allocation_table" ||
@@ -185,6 +188,57 @@ if [[ "$escalation_contract_ok" == true ]]; then
 else
     test_fail "intermediate-risk path must record pending state, stop, rewrite the contract, then resolve human-only handling"
 fi
+
+# Execute the shipped writer with a local plan directory and no provider calls.
+mkdir -p "$TEST_TMP_DIR/plugin/scripts" "$TEST_TMP_DIR/plan"
+cat > "$TEST_TMP_DIR/plugin/scripts/plan-storage.sh" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$INTENT_TEST_PLAN_DIR"
+STUB
+chmod +x "$TEST_TMP_DIR/plugin/scripts/plan-storage.sh"
+export CLAUDE_PLUGIN_ROOT="$TEST_TMP_DIR/plugin"
+export INTENT_TEST_PLAN_DIR="$TEST_TMP_DIR/plan"
+export TASK_RISK=intermediate TASK_INITIATIVE=human TASK_CONTROL=human
+export TASK_DECISION_RIGHTS=human TASK_AI_ROLE=none
+export TASK_EXECUTION_DISPOSITION=human-only TASK_ESCALATION_DECISION='User chose human-only handling'
+export TASK_ALLOCATION_MODE=not-applicable
+
+for intent_skill in "${INTENT_SKILLS[@]}" "$PROJECT_ROOT/codex-skills/skill-intent-contract/SKILL.md"; do
+    test_case "${intent_skill#"$PROJECT_ROOT/"} writes the recorded human-only allocation"
+    sed -n '/^### Step 2: Write Intent Contract File/,/^### Step 3:/p' "$intent_skill" |
+        awk '/^\140\140\140bash$/ { active = 1; next } /^\140\140\140$/ { active = 0 } active' \
+        > "$TEST_TMP_DIR/write-intent.sh"
+    rm -f "$INTENT_TEST_PLAN_DIR/session-intent.md"
+    if bash -e "$TEST_TMP_DIR/write-intent.sh" &&
+        sed -n '/^## Task Allocation$/,/^$/p' "$INTENT_TEST_PLAN_DIR/session-intent.md" |
+        diff -u - <(cat <<'EXPECTED'
+## Task Allocation
+**Risk**: intermediate
+**Initiative**: human
+**Control**: human
+**Decision rights**: human
+**AI role**: none
+**Execution disposition**: human-only
+**Escalation decision**: User chose human-only handling
+**Resolved AUTONOMY_MODE**: not-applicable
+
+EXPECTED
+        ); then
+        test_pass
+    else
+        test_fail "the writer must persist the chosen allocation and the contract-only mode"
+    fi
+
+    test_case "${intent_skill#"$PROJECT_ROOT/"} preserves the contract if a required field is missing"
+    cp "$INTENT_TEST_PLAN_DIR/session-intent.md" "$TEST_TMP_DIR/previous-intent.md"
+    if ! TASK_ALLOCATION_MODE='' bash -e "$TEST_TMP_DIR/write-intent.sh" 2> "$TEST_TMP_DIR/write-error" &&
+        grep -Fq 'Record the allocation mode' "$TEST_TMP_DIR/write-error" &&
+        cmp -s "$INTENT_TEST_PLAN_DIR/session-intent.md" "$TEST_TMP_DIR/previous-intent.md"; then
+        test_pass
+    else
+        test_fail "a missing allocation mode must stop before rewriting the contract"
+    fi
+done
 
 # Deferring the complexity axis is what keeps this a fold and not a second,
 # disagreeing classifier.
