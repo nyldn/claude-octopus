@@ -19,7 +19,8 @@ root = Path(sys.argv[1])
 failures = []
 checks = 0
 bad_plans = ('missing WBS', 'malformed WBS', 'empty WBS', 'invalid wave',
-             'duplicate package', 'same-wave dependency', 'invalid dependency list')
+             'duplicate package', 'same-wave dependency', 'invalid dependency list',
+             'unknown dependency')
 successful_plans = ('success', 'late success', 'legacy wave default', 'plan replaced after admission')
 for tree in ('.claude/skills', 'skills', 'codex-skills'):
     text = (root / tree / 'flow-parallel/SKILL.md').read_text()
@@ -63,7 +64,29 @@ fi
             sleep = binary / 'sleep'
             sleep.write_text('#!/bin/bash\nexec /bin/sleep 0.01\n')
             sleep.chmod(0o755)
-            dependency = 'WP-0' if scenario in ('missing dependency', 'failed dependency') else 'WP-1'
+            cat = binary / 'cat'
+            cat.write_text('''#!/bin/bash
+if [[ "$1" == .octo/parallel/WP-1/exit-code && ! -e "$WAVE_CLOCK.prerequisite-changed" ]]; then
+  # Return the real terminal code to Wave 1, then change its retained evidence.
+  case "${WAVE_SCENARIO:-}" in
+    "missing dependency")
+      /bin/cat "$@" || exit $?
+      rm -f .octo/parallel/WP-1/.done || exit $?
+      : > "$WAVE_CLOCK.prerequisite-changed"
+      exit
+      ;;
+    "failed dependency")
+      /bin/cat "$@" || exit $?
+      printf '9\n' > "$1" || exit $?
+      : > "$WAVE_CLOCK.prerequisite-changed"
+      exit
+      ;;
+  esac
+fi
+exec /bin/cat "$@"
+''')
+            cat.chmod(0o755)
+            dependency = 'WP-0' if scenario == 'unknown dependency' else 'WP-1'
             packages = [dict(id='WP-1', wave=1, dependencies=[]),
                         dict(id='WP-2', wave=2, dependencies=[dependency])]
             for number in (1, 2):
@@ -102,12 +125,6 @@ fi
                 wbs.write_text(json.dumps(dict(work_packages=[])))
             elif scenario != 'missing WBS':
                 wbs.write_text(json.dumps(dict(work_packages=packages)))
-            if scenario == 'failed dependency':
-                extra = parallel / 'WP-0'
-                extra.mkdir()
-                (extra / '.done').touch()
-                (extra / 'exit-code').write_text('9\n')
-                (extra / 'output.md').write_text('failed prerequisite output\n')
             env = dict(os.environ, PATH=str(binary) + ':' + os.environ['PATH'],
                        WAVE_SCENARIO=scenario, WAVE_CLOCK=str(project / 'clock'),
                        CLAUDE_PLUGIN_ROOT=str(project / 'inert-plugin'),
@@ -126,6 +143,10 @@ fi
             if scenario in bad_plans:
                 valid = (valid and not (parallel / 'WP-1/launched').exists()
                          and not (parallel / 'WP-1/pid').exists())
+            if scenario in ('missing dependency', 'failed dependency'):
+                valid = (valid and (parallel / 'WP-1/launched').exists()
+                         and 'Wave 1 complete' in result.stdout
+                         and 'Wave 2 blocked: dependency WP-1 of WP-2' in result.stderr)
             if scenario == 'same-wave dependency':
                 valid = valid and 'WP-2 needs all dependencies in earlier waves' in result.stderr
             if not valid:
