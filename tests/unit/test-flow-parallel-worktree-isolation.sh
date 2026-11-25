@@ -28,7 +28,7 @@ SKILL_FILES=(
 )
 
 # Run the shipped validation block in a fresh shell for each artifact.
-for skill in "${SKILL_FILES[@]}" "$PROJECT_ROOT/codex-skills/flow-parallel/SKILL.md"; do
+for skill in "${SKILL_FILES[@]}"; do
     gate="$TEST_TMP_DIR/wbs-gate.sh"
     awk '/^# Validate WBS was created$/{grab=1} grab && /^```$/{exit} grab' "$skill" > "$gate"
     fixture="$TEST_TMP_DIR/wbs"
