@@ -5,26 +5,36 @@
 ### Added
 
 - Council offers opt-in prompt cache isolation for native Claude seats.
+  ([#1388](https://github.com/nyldn/claude-octopus/pull/1388))
 
 ### Fixed
 
 - Council records available Claude usage and cost for error results and
   excludes failed seats from the round's answers.
+  ([#1388](https://github.com/nyldn/claude-octopus/pull/1388))
 
 - Quick Mode summaries record the task request and report the exact task
   commit, including the first commit in a repository.
+  ([#1423](https://github.com/nyldn/claude-octopus/pull/1423))
 
 - Design Lineage preserves earlier documents when several designs are saved
   for the same branch in the same second.
+  ([#1422](https://github.com/nyldn/claude-octopus/pull/1422))
 
 - Factory stops with an error if it cannot write its report or record the run
-  as completed.
+  as completed. A report already saved stays available in the run folder.
+  ([#1419](https://github.com/nyldn/claude-octopus/pull/1419))
 
-- Develop can retry a review correction on an allowed fallback provider when
-  the implementer's provider becomes unavailable without changing the worktree.
+- Develop retries a review correction with an allowed provider when the
+  original provider becomes unavailable before changing files.
+  ([#1386](https://github.com/nyldn/claude-octopus/pull/1386))
 
 - Debate gives each run its own folder so a second debate in the same session
   preserves the first debate's context, state, and round notes.
+  ([#1416](https://github.com/nyldn/claude-octopus/pull/1416))
+
+The Design Lineage, Factory, Debate and Quick Mode fixes address parts of
+the runtime follow-up in [#1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
 ## [11.28.2] - 2026-11-24
 

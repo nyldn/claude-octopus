@@ -36,12 +36,13 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 ## What's New
 
-The [verification gate](docs/WORKFLOW-METHODS.md#review-and-compaction-recovery)
-checks the synthesis from the current run before reporting completion.
-[Develop](docs/WORKFLOW-METHODS.md#tangle-provider-and-write-scope-checks) can
-switch a subtask to an allowed provider when its assigned provider becomes
-unavailable before launch. [Status](docs/COMMAND-REFERENCE.md#status) reads
-saved progress in projects where Octopus is installed as a plugin.
+[Council](docs/COUNCIL.md#claude-seat-prompt-caching) can opt native Claude
+seats into prompt cache isolation and records usage when a seat returns an
+error. Develop can retry a review correction with an allowed provider when
+the first one fails before making edits. Quick Mode summaries identify the
+exact task commit, and Design Lineage keeps designs saved in the same second.
+Debate saves each run separately, and Factory reports an error if it cannot
+save its report or record completion.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.28.2 — Verify checks the current synthesis, Develop recovers from pre-launch provider outages, and Status reads saved project progress.**
