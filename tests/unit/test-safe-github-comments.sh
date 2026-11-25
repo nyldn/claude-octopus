@@ -1253,10 +1253,11 @@ for streaming_file in "$PROJECT_ROOT/scripts/release.sh" \
         "$PROJECT_ROOT/.claude/skills/skill-code-review/SKILL.md" \
         "$PROJECT_ROOT/.claude/skills/skill-staged-review/SKILL.md" \
         "$PROJECT_ROOT/.claude/skills/skill-finish-branch/SKILL.md"; do
+    # A private snapshot directory is not a temporary GitHub comment body.
     if grep -Eq -- 'safe-gh-comment\.sh' "$streaming_file" && \
             grep -Eq -- '<<<' "$streaming_file" && \
-            ! grep -Eq -- 'mktemp .*octopus-(release-pr|deliver-report|review-body|staged-review|pr-body)' \
-                "$streaming_file"; then
+            ! grep -E -- 'mktemp .*octopus-(release-pr|deliver-report|review-body|staged-review|pr-body)' \
+                "$streaming_file" | grep -Evc -- 'mktemp[[:space:]]+-d[[:space:]]' >/dev/null; then
         streaming_guidance_files=$((streaming_guidance_files + 1))
     fi
 done
