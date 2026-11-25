@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.28.2",
-  "description": "v11.28.2 \u2014 Verify checks the current synthesis, Develop recovers from pre-launch provider outages, and Status reads saved project progress. Run /octo:setup.",
+  "version": "11.29.1",
+  "description": "v11.29.1 \u2014 Parallel validates plans and loads Octopus in workers. Staged Review shares one snapshot. Spec reports provider readiness, and cost projections handle incomplete metrics. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

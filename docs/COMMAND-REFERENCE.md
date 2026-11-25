@@ -863,6 +863,10 @@ NLSpec authoring — structured specification from multi-AI research.
 - Completeness validation with scoring
 - Saves specification file for downstream workflows (e.g., `/octo:factory`)
 
+Spec shows whether Codex and Antigravity are available, need setup, or are
+missing. If the readiness check fails or neither provider is available, run
+`/octo:setup` before retrying Spec.
+
 **When to use:** Starting a new project from scratch, defining requirements before implementation, creating a specification for handoff.
 
 ---
@@ -905,6 +909,12 @@ Two-stage review pipeline: spec compliance then code quality.
 2. **Gate check**: Stage 1 must pass before Stage 2 runs
 3. **Stage 2 — Code Quality**: Stub detection and quality review
 4. **Combined report**: Unified verdict with PR comment posting when applicable
+
+Stage 2 saves the admitted staged diff in a private directory and gives that
+same snapshot to the local reviewer and each available external reviewer.
+An external review stays incomplete if the input exceeds the provider's
+prompt limit or the provider fails to return an answer. If you stage more
+changes, run Staged Review again.
 
 **When to use:** After completing a feature with a defined spec, before merging. More thorough than `/octo:review`.
 
@@ -978,9 +988,12 @@ Team of Teams — decompose compound tasks across independent Claude instances.
 ```
 
 **What it does:**
-- Generates a Work Breakdown Structure (WBS) decomposing the task into independent work packages
+- Generates a Work Breakdown Structure (WBS) for independent packages. Parallel
+  stops if the work breakdown file is missing, unreadable, or invalid JSON.
 - Each work package runs as a separate `claude -p` process with its own git worktree (v8.44.0+)
-- Each worker gets the full Octopus plugin (Double Diamond, agents, quality gates)
+- Each worker explicitly loads the Octopus plugin, including workers started
+  from Codex. If Parallel cannot verify the plugin directory, it marks the
+  package failed before creating its worktree.
 - Parallel execution with staggered launch
 - Agents tracked in registry with PR lifecycle management (v8.44.0+)
 - Reaction engine auto-handles CI failures and review comments (v8.45.0+)
@@ -1019,6 +1032,10 @@ Satisfaction scoring requires one value from 0 to 1 for each dimension. Failed o
 empty evaluator calls try the existing fallback; missing, duplicate or malformed
 dimension scores stop completion without a score record. A remediation retry
 invalidates the previous attempt's score before changing or re-evaluating source.
+
+Factory stops if it cannot save the final report or record the run as completed.
+If it saved the report before the state write failed, the report stays in the
+run folder.
 
 **Cost:** ~20–30 agent calls (~$0.50–2.00). Requires confirmation before starting.
 

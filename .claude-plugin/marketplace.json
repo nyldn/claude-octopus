@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.28.2"
+    "version": "11.29.1"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.28.2 - Verify checks the current synthesis, Develop recovers from pre-launch provider outages, and Status reads saved project progress. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.28.2",
+      "description": "v11.29.1 - Parallel validates plans and loads Octopus in workers. Staged Review shares one snapshot. Spec reports provider readiness, and cost projections handle incomplete metrics. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.29.1",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"

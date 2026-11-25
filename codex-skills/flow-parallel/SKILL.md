@@ -24,7 +24,7 @@ disable-model-invocation: true
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact 7-step sequence.
 
-**Architectural Principle:** host subagents do NOT load plugins. Independent `claude -p` processes DO. This skill spawns independent `claude -p` processes so each work package gets the full Octopus plugin, its own Double Diamond, agents, and quality gates.
+**Architectural Principle:** Each work package runs in an independent Claude Code process. The launcher explicitly loads the verified Octopus plugin directory so each worker has its agents, workflow skills, and quality gates, even when the parent uses Codex.
 
 
 ### STEP 1: Clarifying Questions (MANDATORY)
@@ -162,11 +162,26 @@ WBSEOF
 
 ```bash
 # Validate WBS was created
-if [[ -f ".octo/parallel/wbs.json" ]]; then
-  python3 -c "import json; json.load(open('.octo/parallel/wbs.json')); print('WBS validation: PASSED')" 2>/dev/null || echo "WBS validation: FAILED - invalid JSON"
-else
-  echo "WBS validation: FAILED - file not found"
+if [[ ! -f ".octo/parallel/wbs.json" ]]; then
+  printf '%s\n' 'WBS validation: FAILED - file not found' >&2
+  exit 1
 fi
+if ! python3 -I - 2>/dev/null <<'PY_WBS'
+import json
+
+
+def reject_constant(value):
+    raise ValueError(f"{value} is not a valid JSON value")
+
+
+with open(".octo/parallel/wbs.json", encoding="utf-8") as wbs:
+    json.load(wbs, parse_constant=reject_constant)
+PY_WBS
+then
+  printf '%s\n' 'WBS validation: FAILED - could not read valid JSON' >&2
+  exit 1
+fi
+printf '%s\n' 'WBS validation: PASSED'
 ```
 
 **DO NOT PROCEED TO STEP 5 until WBS validated.**
@@ -381,7 +396,8 @@ PROJECT_ROOT="<absolute-project-root-path>"
 WP_ID="WP-N"
 WP_BRANCH="<wp-branch-name>"
 BASE_REF="<base-ref>"
-REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+REGISTRY=""
 
 # Every exit path must leave exit-code and .done behind, or the orchestrator's
 # monitor loop waits for a marker that never arrives and only the wave timeout
@@ -398,6 +414,12 @@ fail() {
 
 # A retry must not inherit the previous run's completion status.
 rm -f "$SCRIPT_DIR/.done" "$SCRIPT_DIR/exit-code" || fail "ERROR: cannot clear completion markers"
+# Resolve plugin inputs before creating the package worktree.
+RESOLVED_PLUGIN_ROOT="$(cd -- "$PLUGIN_ROOT" 2>/dev/null && pwd -P)" ||
+    fail "ERROR: cannot resolve the Octopus plugin directory"
+jq -e '.name == "octo"' "$RESOLVED_PLUGIN_ROOT/.claude-plugin/plugin.json" >/dev/null 2>&1 ||
+    fail "ERROR: cannot verify the Octopus plugin manifest at $RESOLVED_PLUGIN_ROOT"
+REGISTRY="$RESOLVED_PLUGIN_ROOT/scripts/agent-registry.sh"
 # Hook environments can otherwise redirect Git away from PROJECT_ROOT.
 while IFS= read -r git_var; do unset "$git_var"; done < <(git rev-parse --local-env-vars)
 
@@ -451,7 +473,7 @@ unset CLAUDECODE
 unset OPENAI_API_KEY AGY_AUTH_TOKEN ANTIGRAVITY_API_KEY OPENROUTER_API_KEY PERPLEXITY_API_KEY
 # No `set -e` around this call: a non-zero claude -p must still record its exit
 # code and .done rather than abort the script before either is written.
-claude -p < "$SCRIPT_DIR/instructions.md" > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
+claude -p --plugin-dir "$RESOLVED_PLUGIN_ROOT" < "$SCRIPT_DIR/instructions.md" > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
 EXIT_CODE=$?
 # The worker can change branches, detach HEAD or replace the repository. Admit
 # the resulting worktree again before reporting completion or removing it.
@@ -524,11 +546,26 @@ because Git status can hide local edits or deletions under those flags.
 
 ```bash
 # Count WPs from wbs.json
-wp_count=$(python3 -c "import json; print(len(json.load(open('.octo/parallel/wbs.json'))['work_packages']))")
+if ! wp_count=$(python3 -I - 2>/dev/null <<'PY_WP_COUNT'
+import json
+import sys
+
+with open(".octo/parallel/wbs.json", encoding="utf-8") as wbs_file:
+    wbs = json.load(wbs_file)
+
+packages = wbs.get("work_packages") if isinstance(wbs, dict) else None
+if not isinstance(packages, list) or not packages:
+    sys.exit(1)
+print(len(packages))
+PY_WP_COUNT
+); then
+  printf '%s\n' 'Instruction files validation: FAILED - could not read a nonempty work package list' >&2
+  exit 1
+fi
 
 # Verify each WP has instructions.md and launch.sh
 missing=0
-for i in $(seq 1 "$wp_count"); do
+for ((i = 1; i <= wp_count; i++)); do
   if [[ ! -f ".octo/parallel/WP-$i/instructions.md" ]]; then
     echo "MISSING: .octo/parallel/WP-$i/instructions.md"
     missing=$((missing + 1))
@@ -542,7 +579,8 @@ done
 if [[ "$missing" -eq 0 ]]; then
   echo "Instruction files validation: PASSED ($wp_count work packages)"
 else
-  echo "Instruction files validation: FAILED ($missing files missing)"
+  echo "Instruction files validation: FAILED ($missing files missing)" >&2
+  exit 1
 fi
 ```
 
@@ -560,32 +598,59 @@ Launch work packages in dependency waves. Wave 1 runs first; Wave 2 starts only 
 ```bash
 PROJECT_ROOT="$(pwd)"
 WBS_FILE=".octo/parallel/wbs.json"
-MAX_WAVE=$(python3 -c "import json; wbs=json.load(open('$WBS_FILE')); print(max(wp.get('wave',1) for wp in wbs['work_packages']))")
+# Capture the plan once. Step 5 may have run in a different shell.
+WAVE_PLAN=$(python3 - "$WBS_FILE" <<'WAVEPLAN'
+import json
+import re
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as source:
+        packages = json.load(source)["work_packages"]
+    if not isinstance(packages, list) or not packages:
+        raise ValueError("work_packages must be a nonempty list")
+
+    plan = {}
+    for package in packages:
+        package_id = package["id"]
+        wave = package.get("wave", 1)
+        dependencies = package.get("dependencies", [])
+        if not isinstance(package_id, str) or not re.fullmatch(r"WP-[1-9][0-9]*", package_id):
+            raise ValueError("each work package needs a WP-N ID")
+        if package_id in plan:
+            raise ValueError(f"duplicate package ID {package_id}")
+        if type(wave) is not int or not 1 <= wave <= len(packages):
+            raise ValueError(f"{package_id} has an invalid wave")
+        if not isinstance(dependencies, list) or any(not isinstance(dep, str) for dep in dependencies):
+            raise ValueError(f"{package_id} has an invalid dependency list")
+        plan[package_id] = (wave, dependencies)
+
+    for package_id, (wave, dependencies) in plan.items():
+        if any(dep not in plan or plan[dep][0] >= wave for dep in dependencies):
+            raise ValueError(f"{package_id} needs all dependencies in earlier waves")
+except (OSError, KeyError, TypeError, ValueError) as error:
+    sys.exit(f"Cannot launch Parallel workers: invalid work breakdown: {error}")
+
+print(max(wave for wave, _ in plan.values()))
+for package_id, (wave, dependencies) in plan.items():
+    print(wave, package_id, *dependencies)
+WAVEPLAN
+) || exit 1
+read -r MAX_WAVE <<< "$WAVE_PLAN"
 TIMEOUT=600  # 10 minutes per wave
 
 echo "Executing $MAX_WAVE wave(s)..."
 
-for WAVE in $(seq 1 "$MAX_WAVE"); do
+for ((WAVE=1; WAVE<=MAX_WAVE; WAVE++)); do
   echo ""
   echo "=== WAVE $WAVE ==="
   echo ""
 
-  # Get WPs for this wave
-  WAVE_WPS=$(python3 -c "
-import json
-wbs=json.load(open('$WBS_FILE'))
-wps=[wp['id'] for wp in wbs['work_packages'] if wp.get('wave',1)==$WAVE]
-print(' '.join(wps))
-  ")
+  WAVE_WPS=$(awk -v wave="$WAVE" 'NR > 1 && $(1) == wave { print $(2) }' <<< "$WAVE_PLAN") || exit 1
 
   # Validate every dependency before modifying instructions or launching this wave.
   for WP_ID in $WAVE_WPS; do
-    DEPS=$(python3 -c "
-import json
-wbs=json.load(open('$WBS_FILE'))
-wp=[w for w in wbs['work_packages'] if w['id']=='$WP_ID'][0]
-print(' '.join(wp.get('dependencies',[])))
-    ") || exit 1
+    DEPS=$(awk -v id="$WP_ID" '$(2) == id { for (i = 3; i <= NF; i++) print $i }' <<< "$WAVE_PLAN") || exit 1
     for DEP in $DEPS; do
       DEP_DIR=".octo/parallel/$DEP"
       if [[ ! -f "$DEP_DIR/.done" || "$(cat "$DEP_DIR/exit-code" 2>/dev/null)" != 0 ]]; then
@@ -600,13 +665,7 @@ print(' '.join(wp.get('dependencies',[])))
     WP_NUM="${WP_ID#WP-}"
     WP_DIR=".octo/parallel/$WP_ID"
 
-    # Get dependencies for this WP
-    DEPS=$(python3 -c "
-import json
-wbs=json.load(open('$WBS_FILE'))
-wp=[w for w in wbs['work_packages'] if w['id']=='$WP_ID'][0]
-print(' '.join(wp.get('dependencies',[])))
-    ")
+    DEPS=$(awk -v id="$WP_ID" '$(2) == id { for (i = 3; i <= NF; i++) print $i }' <<< "$WAVE_PLAN") || exit 1
 
     if [[ -n "$DEPS" ]]; then
       echo "Injecting dependency outputs into $WP_ID..."

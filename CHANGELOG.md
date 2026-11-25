@@ -4,8 +4,73 @@
 
 ### Fixed
 
+- Parallel stops before launching workers when a work package is missing its
+  instructions or launch script.
+
+- Parallel checks the work breakdown before execution and stops if its
+  packages, waves, or dependencies are invalid.
+
+## [11.29.1] - 2026-11-25
+
+### Fixed
+
+- Parallel stops at work breakdown validation when the file is missing or
+  unreadable, or contains invalid JSON.
+  ([#1417](https://github.com/nyldn/claude-octopus/pull/1417))
+
+- Parallel explicitly loads Octopus in each Claude Code worker, including
+  workers started from a Codex installation. If the plugin directory cannot be
+  verified, Parallel marks the work package failed before creating a branch.
+  ([#1420](https://github.com/nyldn/claude-octopus/pull/1420))
+
+- Staged Review gives every reviewer the same complete staged diff, even when
+  the host runs its shell commands in fresh sessions.
+  ([#1421](https://github.com/nyldn/claude-octopus/pull/1421))
+
+- Spec distinguishes providers that need setup from missing providers and stops
+  if its readiness check fails.
+  ([#1424](https://github.com/nyldn/claude-octopus/pull/1424))
+
+- Cost projections use valid metrics even when some records are malformed.
+  With too little data, the report shows known spend or says the projection is
+  unavailable. Budget warnings use the same cent precision as displayed totals.
+  ([#1426](https://github.com/nyldn/claude-octopus/pull/1426))
+
+## [11.29.0] - 2026-11-25
+
+### Added
+
+- Council offers opt-in prompt cache isolation for native Claude seats.
+  ([#1388](https://github.com/nyldn/claude-octopus/pull/1388))
+
+### Fixed
+
+- Council records available Claude usage and cost for error results and
+  excludes failed seats from the round's answers.
+  ([#1388](https://github.com/nyldn/claude-octopus/pull/1388))
+
+- Quick Mode summaries record the task request and report the exact task
+  commit, including the first commit in a repository.
+  ([#1423](https://github.com/nyldn/claude-octopus/pull/1423))
+
+- Design Lineage preserves earlier documents when several designs are saved
+  for the same branch in the same second.
+  ([#1422](https://github.com/nyldn/claude-octopus/pull/1422))
+
+- Factory stops with an error if it cannot write its report or record the run
+  as completed. A report already saved stays available in the run folder.
+  ([#1419](https://github.com/nyldn/claude-octopus/pull/1419))
+
+- Develop retries a review correction with an allowed provider when the
+  original provider becomes unavailable before changing files.
+  ([#1386](https://github.com/nyldn/claude-octopus/pull/1386))
+
 - Debate gives each run its own folder so a second debate in the same session
   preserves the first debate's context, state, and round notes.
+  ([#1416](https://github.com/nyldn/claude-octopus/pull/1416))
+
+The Design Lineage, Factory, Debate and Quick Mode fixes address parts of
+the runtime follow-up in [#1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
 ## [11.28.2] - 2026-11-24
 
