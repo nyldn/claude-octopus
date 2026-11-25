@@ -161,6 +161,48 @@ else
     test_fail "expected ambiguous launch failure, got status $rc, PID '$pid'"
 fi
 
+test_case "an expired Tangle recovery deadline refuses before launch"
+if (
+    date() { printf '200\n'; }
+    spawn_agent() {
+        : > "$TEST_TMP_DIR/expired-started"
+        printf '424242\n'
+    }
+    rc=0
+    pid=$(spawn_agent_capture_pid codex prompt expired-task implementer tangle false expired-seat 200) || rc=$?
+    [[ "$rc" == 75 && -z "$pid" && ! -e "$TEST_TMP_DIR/expired-started" ]]
+); then
+    test_pass
+else
+    test_fail "expired recovery started preparation or failed to report pre-launch refusal"
+fi
+
+test_case "Tangle recovery stops preparation at the shared deadline during PID capture"
+if (
+    source "$PROJECT_ROOT/scripts/lib/review.sh"
+    date() {
+        if [[ -e "$TEST_TMP_DIR/slow-preparation" ]]; then
+            printf '200\n'
+        else
+            printf '199\n'
+        fi
+    }
+    spawn_agent() {
+        : > "$TEST_TMP_DIR/slow-preparation"
+        sleep 1
+        : > "$TEST_TMP_DIR/late-worker"
+        printf '424242\n'
+    }
+    rc=0
+    pid=$(spawn_agent_capture_pid codex prompt slow-task implementer tangle false slow-seat 200 2>"$TEST_TMP_DIR/deadline.err") || rc=$?
+    [[ "$rc" == 1 && -z "$pid" && -e "$TEST_TMP_DIR/slow-preparation" &&
+       ! -e "$TEST_TMP_DIR/late-worker" ]]
+); then
+    test_pass
+else
+    test_fail "preparation survived the deadline or published a late worker PID"
+fi
+
 # Regression for #661: two concurrent spawns with no explicit task_id must not
 # collide on the same-second `date +%s` value, or their result/temp files
 # interleave and get attributed to the wrong provider. Tests the real,

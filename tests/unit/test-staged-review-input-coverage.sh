@@ -30,6 +30,7 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                      'oversized', 'transport marker', 'external diff', 'textconv',
                      'relative config', 'shadow stdlib', 'unstaged excluded',
                      'forced text hidden NUL', 'forced text trailing NUL', 'unmerged', 'index race',
+                     'unavailable output directory',
                      'staged stub', 'staged comments', 'staged deletion',
                      'staged block comments', 'staged block then code',
                      'staged exported declarations', 'staged reexports', 'staged private fields',
@@ -162,7 +163,25 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
             expected = subprocess.check_output(['git', 'diff', '--cached', '--no-ext-diff',
                 '--no-textconv', '--no-renames', '--no-relative', '--ignore-submodules=none',
                 '--no-color', '--binary', '--'], cwd=project, env=environment, text=True).rstrip('\n')
-            call_environment = dict(environment, CAPTURE=str(project / '.git/prompt'))
+            fixture = project / '.git'
+            plugin = fixture / 'plugin root'
+            (plugin / 'scripts').mkdir(parents=True)
+            launcher = plugin / 'scripts/orchestrate.sh'
+            launcher.write_text(
+                '#!/bin/bash\n'
+                '[[ "$1" == spawn && "$2" == --response-file && $# == 5 ]] || exit 2\n'
+                'printf "%s" "$5" > "$REVIEW_FIXTURE/$4-prompt"\n'
+                'printf "%s\\n" "Fixture reviewer inspected the supplied text." > "$3"\n'
+            )
+            launcher.chmod(0o755)
+            has_providers = scenario in ('long text', 'index race', 'empty',
+                                         'unavailable output directory')
+            temp_root = fixture
+            if scenario == 'unavailable output directory':
+                temp_root = fixture / 'not-a-directory'
+                temp_root.touch()
+            call_environment = dict(environment, CLAUDE_PLUGIN_ROOT=str(plugin), TMPDIR=str(temp_root),
+                                    REVIEW_FIXTURE=str(fixture), REVIEW_PROVIDERS=str(int(has_providers)))
             expected_index = before
             if scenario == 'index race':
                 binary_dir = project / '.git/bin'
@@ -179,19 +198,46 @@ for tree in ('.claude/skills', 'skills', 'codex-skills'):
                 call_environment.update(PATH=str(binary_dir) + ':' + environment['PATH'],
                                         REAL_GIT=shutil.which('git'), RACE_HEAD=race_head)
                 expected_index += f'160000 {race_head} 0\tnested\0'
-            result = subprocess.run(['bash', '-c', recipe + '\nprintf "%s" "$DIFF_CONTENT" > "$CAPTURE"'],
+            # Give the recipe two inert providers only for the dispatch controls.
+            provider_lookup = '''
+command() {
+    if [[ "$1" == -v && ( "$2" == codex || "$2" == agy ) ]]; then
+        [[ "$REVIEW_PROVIDERS" == 1 ]]
+    else
+        builtin command "$@"
+    fi
+}
+'''
+            result = subprocess.run(['bash', '-c', provider_lookup + recipe + '\nwait'],
                                     cwd=cwd, env=call_environment,
                                     capture_output=True, text=True, timeout=5)
             blocked = scenario.startswith(('binary', 'gitlink')) or scenario in (
                 'empty', 'forced text binary', 'oversized', 'transport marker',
-                'forced text hidden NUL', 'forced text trailing NUL', 'unmerged')
-            capture = project / '.git/prompt'
+                'forced text hidden NUL', 'forced text trailing NUL', 'unmerged',
+                'unavailable output directory')
             valid = ((result.returncode != 0) == blocked and
-                     capture.exists() != blocked and not (project / 'executed').exists() and
+                     not (project / 'executed').exists() and
                      git('ls-files', '--stage', '-z') == expected_index)
-            if not blocked and capture.exists():
-                valid = valid and capture.read_text() == expected
-                valid = valid and 'UNSTAGED_MUST_NOT_BE_REVIEWED' not in capture.read_text()
+            output_dirs = list(fixture.glob('octopus-staged-review.*'))
+            valid = valid and len(output_dirs) == (0 if blocked else 1)
+            if blocked:
+                valid = valid and result.stdout == ''
+            elif output_dirs:
+                staged_diff = output_dirs[0] / 'staged.diff'
+                files = {'staged.diff'}
+                if has_providers:
+                    files.update(('codex.md', 'codex.log', 'agy.md', 'agy.log'))
+                valid = (valid and result.stdout == f'Staged review input: {staged_diff}\n' and
+                         {path.name for path in output_dirs[0].iterdir()} == files and
+                         staged_diff.read_text() == expected + '\n')
+            for provider in ('codex', 'agy'):
+                prompt = fixture / f'{provider}-prompt'
+                if has_providers and not blocked:
+                    valid = valid and prompt.is_file()
+                    if prompt.is_file():
+                        valid = valid and prompt.read_text().partition('\nDIFF:\n')[2] == expected
+                else:
+                    valid = valid and not prompt.exists()
             if scenario == 'staged stub':
                 valid = valid and '1 TODO/FIXME markers' in result.stderr
             elif scenario == 'staged comments':
@@ -220,4 +266,90 @@ for failure in failures:
 sys.exit(bool(failures))
 PY_CONTROLS
 then test_pass; else test_fail "staged review admitted incomplete input or omitted source"; fi
+
+test_case "production spawn preserves fitting input and refuses oversized staged reviews before dispatch"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_SPAWN'
+import os
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+
+root = Path(sys.argv[1])
+skill = (root / '.claude/skills/skill-staged-review/SKILL.md').read_text()
+section = skill.split('### Step 2: Multi-LLM Quality Review', 1)[1]
+recipe = re.search(r'```bash\n(.*?)\n```', section, re.S)[1]
+for scenario in ('fitting', 'oversized', 'codex failed', 'codex empty', 'agy failed'):
+    oversized = scenario == 'oversized'
+    with tempfile.TemporaryDirectory(dir=sys.argv[2]) as location:
+        project = Path(location)
+        for directory in ('bin', 'home', 'tmp'):
+            (project / directory).mkdir()
+        installed_plugin = project / 'home' / '.claude-octopus' / 'plugin'
+        installed_plugin.parent.mkdir()
+        installed_plugin.symlink_to(root, target_is_directory=True)
+        for provider, capture_prompt in {
+            'codex': '[[ "$1" == exec ]] || exit 0\ncat > "$capture.tmp"\n',
+            'agy': '''while [[ $# -gt 1 && "$1" != --print ]]; do shift; done
+[[ "$1" == --print ]] || exit 0
+printf '%s' "$2" > "$capture.tmp"
+''',
+        }.items():
+            stub = project / 'bin' / provider
+            capture = shlex.quote(str(project / f'{provider}.prompt'))
+            finish = 'echo "Fixture reviewer inspected the supplied text."\n'
+            if scenario == f'{provider} failed':
+                finish = 'sleep 1\nprintf "Fixture reviewer failed\\n" >&2\nexit 42\n'
+            elif scenario == f'{provider} empty':
+                finish = 'exit 0\n'
+            stub.write_text(
+                '#!/bin/bash\n'
+                'case "$1" in --version|-v|version) echo "0.160.0"; exit 0;; esac\n'
+                f'capture={capture}\n' + capture_prompt +
+                'mv "$capture.tmp" "$capture"\n' + finish
+            )
+            stub.chmod(0o755)
+        environment = dict(
+            PATH=str(project / 'bin') + ':' + os.environ['PATH'],
+            HOME=str(project / 'home'), TMPDIR=str(project / 'tmp'),
+            CLAUDE_PLUGIN_ROOT=str(root), GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1',
+            OPENAI_API_KEY='fixture-unusable', OCTO_ALLOWED_PROVIDERS='codex,agy',
+            OCTOPUS_CONTEXT_BUDGET='4000', OCTOPUS_OVERSIZE_STRATEGY='truncate',
+            OCTOPUS_HEURISTIC_LEARNING='off', OCTOPUS_PERSONA_PACKS='off',
+        )
+        for args in (('init', '-q'), ('config', 'core.hooksPath', os.devnull)):
+            subprocess.run(['git', *args], cwd=project, env=environment, check=True)
+        (project / 'change.txt').write_text(
+            'START_STAGED_EVIDENCE\n' + 'x' * (50000 if oversized else 10) + '\nEND_STAGED_EVIDENCE\n'
+        )
+        subprocess.run(['git', 'add', 'change.txt'], cwd=project, env=environment, check=True)
+        expected = subprocess.check_output(['git', 'diff', '--cached', '--binary'], cwd=project,
+                                           env=environment, text=True).rstrip('\n')
+        result = subprocess.run(['bash', '-c', 'umask 022\n' + recipe], cwd=project, env=environment,
+                                capture_output=True, text=True, timeout=45)
+        snapshot, = (project / 'tmp').glob('octopus-staged-review.*/staged.diff')
+        assert snapshot.read_text() == expected + '\n'
+        assert result.returncode == int(scenario != 'fitting'), (scenario, result.stderr)
+        for provider in ('codex', 'agy'):
+            capture = project / f'{provider}.prompt'
+            diagnostic = (snapshot.parent / f'{provider}.log').read_text()
+            if oversized:
+                assert not capture.exists(), (provider, 'oversized dispatch')
+                assert 'Context budget: prompt for ' + provider in diagnostic, diagnostic
+                assert f'External review incomplete for {provider}.' in result.stderr, result.stderr
+            else:
+                assert capture.exists(), (provider, diagnostic)
+                assert '\nDIFF:\n' + expected in capture.read_text(), (provider, 'incomplete prompt')
+                answer = snapshot.parent / f'{provider}.md'
+                if scenario.startswith(provider + ' '):
+                    assert f'External review incomplete for {provider}.' in result.stderr, result.stderr
+                    assert not answer.exists(), (scenario, answer)
+                else:
+                    assert 'Fixture reviewer inspected the supplied text.' in answer.read_text(), (provider, answer)
+                    assert answer.stat().st_mode & 0o777 == 0o600, (provider, 'response must be owner-only')
+print('5/5 staged review production spawn controls passed')
+PY_SPAWN
+then test_pass; else test_fail "production spawn changed or omitted staged-review input"; fi
 test_summary

@@ -28,7 +28,7 @@ codex_short_description: "Run a large implementation in coordinated work package
 
 This skill uses **ENFORCED execution mode**. You MUST follow this exact 7-step sequence.
 
-**Architectural Principle:** Task tool subagents do NOT load plugins. Independent `claude -p` processes DO. This skill spawns independent `claude -p` processes so each work package gets the full Octopus plugin, its own Double Diamond, agents, and quality gates.
+**Architectural Principle:** Each work package runs in an independent Claude Code process. The launcher explicitly loads the verified Octopus plugin directory so each worker has its agents, workflow skills, and quality gates, even when the parent uses Codex.
 
 ---
 
@@ -170,11 +170,26 @@ WBSEOF
 
 ```bash
 # Validate WBS was created
-if [[ -f ".octo/parallel/wbs.json" ]]; then
-  python3 -c "import json; json.load(open('.octo/parallel/wbs.json')); print('WBS validation: PASSED')" 2>/dev/null || echo "WBS validation: FAILED - invalid JSON"
-else
-  echo "WBS validation: FAILED - file not found"
+if [[ ! -f ".octo/parallel/wbs.json" ]]; then
+  printf '%s\n' 'WBS validation: FAILED - file not found' >&2
+  exit 1
 fi
+if ! python3 -I - 2>/dev/null <<'PY_WBS'
+import json
+
+
+def reject_constant(value):
+    raise ValueError(f"{value} is not a valid JSON value")
+
+
+with open(".octo/parallel/wbs.json", encoding="utf-8") as wbs:
+    json.load(wbs, parse_constant=reject_constant)
+PY_WBS
+then
+  printf '%s\n' 'WBS validation: FAILED - could not read valid JSON' >&2
+  exit 1
+fi
+printf '%s\n' 'WBS validation: PASSED'
 ```
 
 **DO NOT PROCEED TO STEP 5 until WBS validated.**
@@ -392,7 +407,8 @@ PROJECT_ROOT="<absolute-project-root-path>"
 WP_ID="WP-N"
 WP_BRANCH="<wp-branch-name>"
 BASE_REF="<base-ref>"
-REGISTRY="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/agent-registry.sh"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+REGISTRY=""
 
 # Every exit path must leave exit-code and .done behind, or the orchestrator's
 # monitor loop waits for a marker that never arrives and only the wave timeout
@@ -409,6 +425,12 @@ fail() {
 
 # A retry must not inherit the previous run's completion status.
 rm -f "$SCRIPT_DIR/.done" "$SCRIPT_DIR/exit-code" || fail "ERROR: cannot clear completion markers"
+# Resolve plugin inputs before creating the package worktree.
+RESOLVED_PLUGIN_ROOT="$(cd -- "$PLUGIN_ROOT" 2>/dev/null && pwd -P)" ||
+    fail "ERROR: cannot resolve the Octopus plugin directory"
+jq -e '.name == "octo"' "$RESOLVED_PLUGIN_ROOT/.claude-plugin/plugin.json" >/dev/null 2>&1 ||
+    fail "ERROR: cannot verify the Octopus plugin manifest at $RESOLVED_PLUGIN_ROOT"
+REGISTRY="$RESOLVED_PLUGIN_ROOT/scripts/agent-registry.sh"
 # Hook environments can otherwise redirect Git away from PROJECT_ROOT.
 while IFS= read -r git_var; do unset "$git_var"; done < <(git rev-parse --local-env-vars)
 
@@ -462,7 +484,7 @@ unset CLAUDECODE
 unset OPENAI_API_KEY AGY_AUTH_TOKEN ANTIGRAVITY_API_KEY OPENROUTER_API_KEY PERPLEXITY_API_KEY
 # No `set -e` around this call: a non-zero claude -p must still record its exit
 # code and .done rather than abort the script before either is written.
-claude -p < "$SCRIPT_DIR/instructions.md" > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
+claude -p --plugin-dir "$RESOLVED_PLUGIN_ROOT" < "$SCRIPT_DIR/instructions.md" > "$SCRIPT_DIR/output.md" 2>"$SCRIPT_DIR/agent.log"
 EXIT_CODE=$?
 # The worker can change branches, detach HEAD or replace the repository. Admit
 # the resulting worktree again before reporting completion or removing it.

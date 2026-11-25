@@ -2544,6 +2544,11 @@ spawn_agent_capture_pid() {
     local phase="${5:-}"
     local use_fork="${6:-false}"
     local contract_task_id="${7:-$task_id}"
+    local deadline="${8:-0}" deadline_reached=false
+    if [[ "$deadline" -gt 0 ]] && (( $(date +%s) >= deadline )); then
+        # This invocation has not started preparation or launched a worker.
+        return 75
+    fi
     local pid_file err_file
     if ! pid_file=$(mktemp "${TMPDIR:-/tmp}/octo-spawn-pid.XXXXXX"); then
         return 1
@@ -2578,6 +2583,10 @@ spawn_agent_capture_pid() {
         max_attempts=$default_max_attempts
     fi
     while [[ $attempts -lt $max_attempts ]]; do
+        if [[ "$deadline" -gt 0 ]] && (( $(date +%s) >= deadline )); then
+            deadline_reached=true
+            break
+        fi
         pid=$(awk '/^[0-9]+$/ { value=$1 } END { print value }' "$pid_file" 2>/dev/null)
         [[ -n "$pid" ]] && break
         if ! kill -0 "$wrapper_pid" 2>/dev/null; then
@@ -2610,7 +2619,13 @@ spawn_agent_capture_pid() {
         # with the same helper review.sh uses for stalled providers, falling
         # back to the old single-PID kill if review.sh wasn't sourced (e.g.
         # a test harness that loads only this file).
-        if declare -F review_terminate_process_tree >/dev/null 2>&1; then
+        if [[ "$deadline_reached" == true ]] && declare -F review_kill_process_tree_frozen >/dev/null 2>&1; then
+            if jobs -pr | grep -Fxq "$wrapper_pid" && ! review_kill_process_tree_frozen "$wrapper_pid"; then
+                log ERROR "Could not verify cleanup after the spawn deadline for $task_id" >&2
+                rm -f "$pid_file" "$err_file"
+                return 1
+            fi
+        elif declare -F review_terminate_process_tree >/dev/null 2>&1; then
             review_terminate_process_tree "$wrapper_pid" 5
         else
             kill "$wrapper_pid" 2>/dev/null || true

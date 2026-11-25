@@ -5025,7 +5025,7 @@ tangle_subtask_fallback_agents() {
 
 tangle_spawn_subtask() {
     local agent="$1" prompt="$2" task_id="$3" role="$4" pane_title="$5" active_idx="$6"
-    local recovery="${7:-0}" tried="${8:-|}"
+    local recovery="${7:-0}" tried="${8:-|}" deadline="${9:-0}"
     local candidate pid spawn_status attempt=0 contract_task_id
     TANGLE_SPAWNED_PID=""
     while IFS= read -r candidate; do
@@ -5047,9 +5047,9 @@ tangle_spawn_subtask() {
         fi
         spawn_status=0
         if [[ "$TMUX_MODE" == "true" ]]; then
-            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" tangle "$pane_title" "$contract_task_id" </dev/null) || spawn_status=$?
+            pid=$(spawn_agent_async "$candidate" "$prompt" "$task_id" "$role" tangle "$pane_title" "$contract_task_id" "$deadline" </dev/null) || spawn_status=$?
         else
-            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" tangle false "$contract_task_id" </dev/null) || spawn_status=$?
+            pid=$(spawn_agent_capture_pid "$candidate" "$prompt" "$task_id" "$role" tangle false "$contract_task_id" "$deadline" </dev/null) || spawn_status=$?
         fi
         if [[ "$spawn_status" -eq 0 && "$pid" =~ ^[1-9][0-9]*$ ]]; then
             TANGLE_SPAWNED_PID="$pid"
@@ -5104,7 +5104,8 @@ tangle_rerun_dead_provider_subtasks() {
             recoveries[$i]=$(( ${recoveries[$i]:-0} + 1 ))
             prompt="A previous attempt at this subtask stopped when its provider (${ran_on}) became unavailable. Any edits it made are still in the worktree: review them and finish the subtask from there instead of starting over."$'\n\n'"${subtask_prompts[$i]}"
             spawn_status=0
-            tangle_spawn_subtask "$next" "$prompt" "$task_id" "${subtask_roles[$i]}" "${subtask_pane_titles[$i]}" "$i" "${recoveries[$i]}" "${tried[$i]}" ||
+            tangle_spawn_subtask "$next" "$prompt" "$task_id" "${subtask_roles[$i]}" \
+                "${subtask_pane_titles[$i]}" "$i" "${recoveries[$i]}" "${tried[$i]}" "$deadline" ||
                 spawn_status=$?
             if [[ "$spawn_status" -eq 75 ]]; then
                 # Definite prelaunch exhaustion leaves the original failure authoritative.

@@ -24,7 +24,58 @@ test_suite "flow-parallel worktree isolation"
 SKILL_FILES=(
     "$(resolve_claude_skill_path flow-parallel)"
     "$PROJECT_ROOT/skills/flow-parallel/SKILL.md"
+    "$PROJECT_ROOT/codex-skills/flow-parallel/SKILL.md"
 )
+
+# Run the shipped validation block in a fresh shell for each artifact.
+for skill in "${SKILL_FILES[@]}"; do
+    gate="$TEST_TMP_DIR/wbs-gate.sh"
+    awk '/^# Validate WBS was created$/{grab=1} grab && /^```$/{exit} grab' "$skill" > "$gate"
+    fixture="$TEST_TMP_DIR/wbs"
+    mkdir -p "$fixture/.octo/parallel"
+    wbs="$fixture/.octo/parallel/wbs.json"
+    rm -f "$wbs"
+
+    for state in missing malformed invalid-utf8 NaN Infinity -Infinity valid; do
+        test_case "${skill#"$PROJECT_ROOT"/} WBS validation with $state input"
+        case "$state" in
+            missing) expected=1; message='WBS validation: FAILED - file not found' ;;
+            malformed)
+                printf '{broken\n' > "$wbs"
+                expected=1
+                message='WBS validation: FAILED - could not read valid JSON'
+                ;;
+            invalid-utf8)
+                printf '{"task":"\377","work_packages":[]}\n' > "$wbs"
+                expected=1
+                message='WBS validation: FAILED - could not read valid JSON'
+                ;;
+            NaN|Infinity|-Infinity)
+                printf '{"estimate":%s,"work_packages":[{"id":"WP-1"}]}\n' "$state" > "$wbs"
+                expected=1
+                message='WBS validation: FAILED - could not read valid JSON'
+                ;;
+            valid)
+                printf '%s\n' '{"work_packages":[{"id":"WP-1"}]}' > "$wbs"
+                expected=0
+                message='WBS validation: PASSED'
+                ;;
+        esac
+        rc=0
+        (cd "$fixture" && bash "$gate") > "$fixture/stdout" 2> "$fixture/stderr" || rc=$?
+        actual_file="$fixture/stdout"
+        empty_file="$fixture/stderr"
+        if [[ "$expected" == 1 ]]; then
+            actual_file="$fixture/stderr"
+            empty_file="$fixture/stdout"
+        fi
+        if [[ "$rc" == "$expected" && "$(cat "$actual_file")" == "$message" && ! -s "$empty_file" ]]; then
+            test_pass
+        else
+            test_fail "expected rc=$expected and $message, got rc=$rc: $(cat "$fixture/stdout" "$fixture/stderr")"
+        fi
+    done
+done
 
 # The launch template lives in a fenced heredoc inside the skill. Render it the
 # way the orchestrator does rather than re-stating it here, so the test tracks
@@ -48,7 +99,7 @@ render_launch() {
     chmod +x "$out"
 }
 
-test_case "the launch template is extractable from both skill copies"
+test_case "the launch template is extractable from each skill copy"
 missing=""
 for f in "${SKILL_FILES[@]}"; do
     [[ -s "$f" ]] || { missing="$missing ${f#"$PROJECT_ROOT"/}"; continue; }
@@ -56,7 +107,7 @@ for f in "${SKILL_FILES[@]}"; do
 done
 if [[ -z "$missing" ]]; then test_pass; else test_fail "no launch template in:$missing"; fi
 
-test_case "neither copy pins work packages to the session branch"
+test_case "no copy pins work packages to the session branch"
 bad=""
 for f in "${SKILL_FILES[@]}"; do
     tpl="$(extract_launch_template "$f")"
@@ -65,7 +116,7 @@ for f in "${SKILL_FILES[@]}"; do
 done
 if [[ -z "$bad" ]]; then test_pass; else test_fail "session-branch reuse:$bad"; fi
 
-test_case "neither copy aborts before recording exit-code and .done"
+test_case "no copy aborts before recording exit-code and .done"
 bad=""
 for f in "${SKILL_FILES[@]}"; do
     tpl="$(extract_launch_template "$f")"
@@ -77,7 +128,14 @@ if [[ -z "$bad" ]]; then test_pass; else test_fail "agent failure can skip the m
 
 FIXTURE="$TEST_TMP_DIR/repo"
 STUB_BIN="$TEST_TMP_DIR/bin"
-mkdir -p "$FIXTURE" "$STUB_BIN"
+PLUGIN_DIR="$TEST_TMP_DIR/installed octopus"
+PLUGIN_FIXTURE="$TEST_TMP_DIR/octopus link"
+mkdir -p "$FIXTURE" "$STUB_BIN" "$PLUGIN_DIR/.claude-plugin"
+cp "$PROJECT_ROOT/.claude-plugin/plugin.json" "$PLUGIN_DIR/.claude-plugin/plugin.json"
+ln -s "$PLUGIN_DIR" "$PLUGIN_FIXTURE"
+PLUGIN_PHYSICAL="$(cd "$PLUGIN_DIR" && pwd -P)"
+unset CLAUDE_PLUGIN_ROOT
+export CODEX_PLUGIN_ROOT="$PLUGIN_FIXTURE"
 
 git -C "$FIXTURE" init --quiet -b main
 git -C "$FIXTURE" config user.email octo@example.com
@@ -107,6 +165,44 @@ run_package() {
     render_launch "$skill" "$root" "$wp_id" "$branch" "$base" "$dir/launch.sh"
     ( PATH="$STUB_BIN:$PATH" HOME="$TEST_TMP_DIR/home" bash "$dir/launch.sh" ) >/dev/null 2>&1 || true
 }
+
+test_case "Claude and Codex launchers load the selected Octopus plugin explicitly"
+make_stub 'printf "%s\n" "$@"'
+for index in "${!SKILL_FILES[@]}"; do
+    skill="${SKILL_FILES[$index]}"
+    wp="WP-PLUGIN-$index"
+    case "$skill" in
+        */.claude/skills/*)
+            CLAUDE_PLUGIN_ROOT="$PLUGIN_FIXTURE" CODEX_PLUGIN_ROOT="$TEST_TMP_DIR/missing" \
+                run_package "$wp" "octo/$wp" "$FIXTURE" main "$skill"
+            ;;
+        *)
+            run_package "$wp" "octo/$wp" "$FIXTURE" main "$skill"
+            ;;
+    esac
+    if [[ "$(cat "$TEST_TMP_DIR/$wp/output.md" 2>/dev/null)" == "-p"$'\n'"--plugin-dir"$'\n'"$PLUGIN_PHYSICAL" ]]; then
+        test_pass
+    else
+        test_fail "launch did not pass the selected plugin root as one argument: $skill"
+    fi
+done
+
+test_case "a missing or unrelated plugin fails before worker launch"
+WRONG_PLUGIN="$TEST_TMP_DIR/unrelated"
+mkdir -p "$WRONG_PLUGIN/.claude-plugin"
+printf '{"name":"unrelated"}\n' > "$WRONG_PLUGIN/.claude-plugin/plugin.json"
+make_stub 'echo AGENT_RAN'
+for plugin_root in "$TEST_TMP_DIR/missing" "$WRONG_PLUGIN"; do
+    wp="WP-BAD-PLUGIN-${plugin_root##*/}"
+    CODEX_PLUGIN_ROOT="$plugin_root" run_package "$wp" "octo/$wp"
+    dir="$TEST_TMP_DIR/$wp"
+    if [[ "$(cat "$dir/exit-code" 2>/dev/null)" == 1 && -e "$dir/.done" && ! -e "$dir/output.md" ]] &&
+       ! git -C "$FIXTURE" show-ref --verify --quiet "refs/heads/octo/$wp"; then
+        test_pass
+    else
+        test_fail "invalid plugin allowed a worker or branch to start: $plugin_root"
+    fi
+done
 
 test_case "workers refuse a mutable base before starting an agent"
 make_stub 'echo AGENT_RAN'

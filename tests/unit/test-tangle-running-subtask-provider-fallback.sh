@@ -96,9 +96,10 @@ run_develop() (
                 ;;
         esac
     }
-    if [[ "$SCENARIO" == deadline ]]; then
-        tangle_subtask_wait_deadline() { printf '1\n'; }
-    fi
+    case "$SCENARIO" in
+        deadline) tangle_subtask_wait_deadline() { printf '1\n'; } ;;
+        boundary) tangle_subtask_wait_deadline() { printf '4102444800\n'; } ;;
+    esac
     if [[ "$SCENARIO" == replacement-unavailable ]]; then
         mv() {
             command mv "$@" || return
@@ -156,6 +157,7 @@ EOF
                 printf 'boundary missing\n' >> "$CAPTURE"
             fi
             printf 'contract %s\n' "${7#"$task_id"}" >> "$CAPTURE"
+            printf 'deadline %s\n' "${8:-missing}" >> "$CAPTURE"
         fi
         mkdir -p src
         if attempt_dies "$agent" "$task_id" "$spawned"; then
@@ -343,6 +345,7 @@ attempt task0 claude-sonnet
 spawned task0 claude-sonnet|implementer
 boundary configured
 contract :recovery-1-attempt-1
+deadline 4102444800
 partial by codex
 finished by claude-sonnet
 results: claude-sonnet-task0 codex-task1" \
