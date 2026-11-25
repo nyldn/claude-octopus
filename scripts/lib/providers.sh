@@ -1213,17 +1213,17 @@ get_openrouter_model() {
             case "$complexity" in
                 3) echo "anthropic/claude-opus-4-6${routing_suffix}" ;;   # v8.0: Opus for premium
                 1) echo "anthropic/claude-haiku${routing_suffix}" ;;
-                *) echo "anthropic/claude-sonnet-4${routing_suffix}" ;;
+                *) echo "anthropic/claude-sonnet-4.6${routing_suffix}" ;;
             esac
             ;;
         image)
             echo "google/gemini-2.0-flash${routing_suffix}"
             ;;
         research|design)
-            echo "anthropic/claude-sonnet-4${routing_suffix}"
+            echo "anthropic/claude-sonnet-4.6${routing_suffix}"
             ;;
         *)
-            echo "anthropic/claude-sonnet-4${routing_suffix}"
+            echo "anthropic/claude-sonnet-4.6${routing_suffix}"
             ;;
     esac
 }

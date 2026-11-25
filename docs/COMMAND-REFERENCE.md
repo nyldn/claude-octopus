@@ -1024,6 +1024,9 @@ Dark Factory Mode — spec-in, software-out autonomous pipeline.
 7. Repeats if target not met (up to configured limit)
 8. Produces final delivery report
 
+The Factory command and skill ask for explicit cost approval before provider
+dispatch. Choose the non-interactive approval option to run with `--ci`.
+
 Each Factory invocation writes its evidence to a separate run directory.
 Factory stops before parsing the spec if it cannot create that directory.
 

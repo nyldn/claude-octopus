@@ -20,6 +20,15 @@
   stops before parsing the spec if it cannot create the run directory.
   ([#1430](https://github.com/nyldn/claude-octopus/pull/1430))
 
+- The Factory command and skill require explicit cost approval before
+  dispatching providers. Declining or skipping approval stops the run.
+  ([#1431](https://github.com/nyldn/claude-octopus/pull/1431))
+
+- OpenCode uses available models for its free and research routes and
+  reports estimated token costs for paid models. OpenRouter uses Sonnet 4.6
+  for its standard routes. Existing saved model choices are preserved.
+  ([#1418](https://github.com/nyldn/claude-octopus/pull/1418))
+
 ## [11.29.1] - 2026-11-25
 
 ### Fixed

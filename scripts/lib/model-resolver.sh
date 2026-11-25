@@ -484,7 +484,9 @@ resolve_octopus_model() {
         safe_cfg="$(cksum < "$config_file" 2>/dev/null | awk '{print $1 "_" $2}')"
         safe_cfg="${safe_cfg//[^a-zA-Z0-9_]/_}"
     fi
-    cache_key="MC_${safe_p}_A_${safe_a}_P_${safe_ph}_R_${safe_r}_M_${safe_cm}_RP_${safe_rp}_TC_${safe_tc}_C_${safe_cfg}"
+    # Bump this revision when shipped defaults change. Config checksums alone
+    # cannot invalidate an old no-config default after a plugin upgrade.
+    cache_key="MC_V2_${safe_p}_A_${safe_a}_P_${safe_ph}_R_${safe_r}_M_${safe_cm}_RP_${safe_rp}_TC_${safe_tc}_C_${safe_cfg}"
     local cached_val
     eval "cached_val=\"\${_OCTO_MODEL_CACHE_${cache_key}:-}\""
     if [[ "$resolution_field" == model && -n "$cached_val" ]]; then
@@ -877,7 +879,7 @@ resolve_octopus_model() {
             openrouter-glm*)  resolved_model="z-ai/glm-5" ;;
             openrouter-kimi*) resolved_model="moonshotai/kimi-k2.5" ;;
             openrouter-deepseek*) resolved_model="deepseek/deepseek-v4-pro" ;;
-            openrouter)      resolved_model="anthropic/claude-sonnet-4" ;; # bare OpenRouter needs a namespaced ID, not an OpenAI model string (#797)
+            openrouter)      resolved_model="anthropic/claude-sonnet-4.6" ;; # bare OpenRouter needs a namespaced ID, not an OpenAI model string (#797)
             orcarouter*)     resolved_model="anthropic/claude-sonnet-4.6" ;; # bare OrcaRouter needs a namespaced ID, not an OpenAI model string (#797)
             openai-compatible|openai-tools|openai-compatible-agent*)
                 if [[ -z "${OPENAI_COMPAT_MODEL:-}" ]]; then
@@ -894,9 +896,9 @@ resolve_octopus_model() {
             copilot*)        resolved_model="auto" ;; # Let the current Copilot CLI choose its supported default.
             qwen*)           resolved_model="qwen3-coder" ;;
             cursor-agent*)   resolved_model="auto" ;; # Cursor's service-side pick; pin any `agent models` ID via OCTOPUS_CURSOR_AGENT_MODEL
-            opencode-research*) resolved_model="opencode/glm-5.1" ;;
-            opencode-fast*)  resolved_model="opencode/deepseek-v4-flash-free" ;;
-            opencode*)       resolved_model="opencode/deepseek-v4-flash-free" ;;
+            opencode-research*) resolved_model="opencode/glm-5.3" ;;
+            opencode-fast*)  resolved_model="opencode/deepseek-v4.1-flash-free" ;;
+            opencode*)       resolved_model="opencode/deepseek-v4.1-flash-free" ;;
             grok*)           resolved_model="default" ;; # xAI's own default; dispatch.sh/grok-exec.sh omit --model for "default" (#797)
             kimi*)           resolved_model="default" ;; # Kimi's own default from ~/.kimi-code/config.toml; the shim omits --model for "default"
             vibe*)           resolved_model="default" ;; # Mistral Vibe's own default from ~/.vibe/config.toml; never wired to --model (#797)

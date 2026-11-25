@@ -75,10 +75,11 @@ model	moonshotai/kimi-k2.5	0.45	2.25	OpenRouter
 model	deepseek/deepseek-v4-pro	0.435	0.87	OpenRouter current DeepSeek route
 model	deepseek/deepseek-v4-flash	0.30	1.20	DeepSeek Flash peak uncached fallback; legacy alias now serves V4.1 Flash; verified 2026-11-12 https://api-docs.deepseek.com/quick_start/pricing/; gateway billing varies
 model	deepseek/deepseek-r1-0528	0.70	2.50	OpenRouter legacy DeepSeek route
-model	opencode/deepseek-v4-flash-free	0.00	0.00	OpenCode free model
-model	opencode/gpt-5.4	0.00	0.00	OpenCode provider accounting
-model	opencode/gpt-5.4-mini	0.00	0.00	OpenCode provider accounting
-model	opencode/glm-5.1	0.00	0.00	OpenCode provider accounting
+model	opencode/deepseek-v4.1-flash-free	0.00	0.00	OpenCode limited-time free model; verified 2026-11-24 https://opencode.ai/docs/console/models/
+model	opencode/gpt-5.4	2.50	15.00	OpenCode paid route; canonical GPT-5.4 request rule applies above 272K input; verified 2026-11-24 https://opencode.ai/inference/v1/models
+request-rule	opencode/gpt-5.4	272000	2.00	1.50	Same whole-request rule for reports retaining the OpenCode namespace
+model	opencode/gpt-5.4-mini	0.75	4.50	OpenCode paid route; verified 2026-11-24 https://opencode.ai/inference/v1/models
+model	opencode/glm-5.3	0.56	1.76	OpenCode paid research route; current 60% discount, recheck before use; verified 2026-11-24 https://opencode.ai/docs/console/models/
 model	sonar-pro	3.00	15.00	Perplexity
 model	sonar	1.00	1.00	Perplexity
 provider	claude	5.00	25.00	Legacy provider-only records

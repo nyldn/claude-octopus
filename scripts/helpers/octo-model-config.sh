@@ -123,9 +123,9 @@ ensure_config() {
       "fast": "sonar"
     },
     "opencode": {
-      "default": "opencode/deepseek-v4-flash-free",
-      "fast": "opencode/deepseek-v4-flash-free",
-      "research": "opencode/glm-5.1"
+      "default": "opencode/deepseek-v4.1-flash-free",
+      "fast": "opencode/deepseek-v4.1-flash-free",
+      "research": "opencode/glm-5.3"
     },
     "openai-compatible-agent": {
       "default": "example/model-id",
