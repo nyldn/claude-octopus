@@ -26,24 +26,35 @@ Projects remaining workflow cost based on per-phase averages from completed work
 
 ## Step 1: Collect Completed Phase Costs
 
-Read cost data from `~/.claude-octopus/metrics/` or from metrics-tracker.sh output. Each completed phase/step should have an associated cost entry.
+Set `total_steps` for the workflow in Step 3 and run the following blocks in
+the same shell. Use the JSONL file only when its entries are known to describe
+the current workflow. Each completed step should have one cost entry in USD.
 
 ```bash
 # Read metrics from the session metrics directory
 METRICS_DIR="$HOME/.claude-octopus/metrics"
 SESSION_METRICS="$METRICS_DIR/session-$(date +%Y%m%d).jsonl"
 
-# Each line contains: {"phase": "discover", "cost": 0.42, "tokens_in": 12000, "tokens_out": 3400, "timestamp": "..."}
-# Sum costs from completed steps
-completed_costs=$(jq -s '[.[].cost]' "$SESSION_METRICS")
-completed_count=$(jq -s 'length' "$SESSION_METRICS")
-total_spent=$(jq -s '[.[].cost] | add' "$SESSION_METRICS")
+# Parse each line separately so damaged rows do not discard valid costs.
+if [[ ! -f "$SESSION_METRICS" || ! -r "$SESSION_METRICS" ]] ||
+   ! summary=$(jq -nRer '
+      reduce (inputs | fromjson? | objects | .cost | numbers | select(isfinite and . >= 0))
+        as $cost ([0, 0]; [.[0] + 1, .[1] + $cost])
+      | select(.[0] > 0 and (.[1] | isfinite)) | @tsv
+    ' "$SESSION_METRICS"); then
+    printf '%s\n' 'Cost projection unavailable: no usable metrics data found.'
+    exit 0
+fi
+IFS=$'\t' read -r completed_count total_spent <<< "$summary"
+if (( completed_count < 2 )); then
+    printf 'Spent: %.2f USD (need 2+ steps for projection)\n' "$total_spent"
+    exit 0
+fi
 ```
 
-**Data sources (in priority order):**
-1. `~/.claude-octopus/metrics/session-*.jsonl` — structured per-phase cost entries
-2. `metrics-tracker.sh` output — fallback for legacy sessions
-3. HUD accumulated cost counters — last resort
+If per-step data is unavailable, report any known spend separately. A
+`metrics-tracker.sh` or HUD total can provide spend, but the total alone does
+not establish the number of completed steps.
 
 If fewer than 2 completed steps are available, display only actual spend:
 ```
@@ -56,7 +67,7 @@ If fewer than 2 completed steps are available, display only actual spend:
 Calculate the mean cost across all completed steps.
 
 ```bash
-avg_cost=$(echo "$total_spent / $completed_count" | bc -l)
+avg_cost=$(jq -nr --argjson spent "$total_spent" --argjson count "$completed_count" '$spent / $count')
 ```
 
 **Formula:**
@@ -72,9 +83,19 @@ avg_cost = total_cost / completed_steps
 Multiply the average cost per step by the number of remaining steps.
 
 ```bash
-remaining_steps=$((total_steps - completed_count))
-projected_remaining=$(echo "$avg_cost * $remaining_steps" | bc -l)
-projected_total=$(echo "$total_spent + $projected_remaining" | bc -l)
+if ! projection=$(jq -ner --arg planned "${total_steps:-}" \
+    --argjson count "$completed_count" --argjson average "$avg_cost" \
+    --argjson spent "$total_spent" '
+    ($planned | select(test("^[0-9]+$")) | tonumber) as $planned
+    | ([$planned - $count, 0] | max) as $remaining
+    | ($average * $remaining) as $estimate
+    | [$remaining, $estimate, $spent + $estimate]
+    | select(all(.[]; isfinite)) | @tsv
+'); then
+    printf 'Spent: %.2f USD (remaining cost unavailable)\n' "$total_spent"
+    exit 0
+fi
+IFS=$'\t' read -r remaining_steps projected_remaining projected_total <<< "$projection"
 ```
 
 **Formula:**
@@ -122,9 +143,11 @@ If the `OCTO_BUDGET_CEILING` environment variable is set, compare the projected 
 ```bash
 if [[ -n "${OCTO_BUDGET_CEILING:-}" ]]; then
   ceiling="$OCTO_BUDGET_CEILING"
-  if (( $(echo "$projected_total > $ceiling" | bc -l) )); then
-    overage=$(echo "$projected_total - $ceiling" | bc -l)
-    echo "⚠️ Budget ceiling: ${ceiling} USD — projected to exceed by ${overage} USD"
+  if overage=$(jq -ner --argjson total "$projected_total" --arg limit "$ceiling" '
+    ($limit | tonumber? | select(isfinite and . >= 0)) as $limit
+    | $total - $limit | select(. > 0)
+  '); then
+    printf '⚠️ Budget ceiling: %s USD — projected to exceed by %.2f USD\n' "$ceiling" "$overage"
   fi
 fi
 ```
@@ -151,7 +174,9 @@ If the projected total is high relative to the task, suggest switching to the bu
 ```bash
 # Suggest budget profile when projected total exceeds 5.00 USD (configurable)
 COST_THRESHOLD="${OCTO_COST_THRESHOLD:-5.00}"
-if (( $(echo "$projected_total > $COST_THRESHOLD" | bc -l) )); then
+if jq -ne --argjson total "$projected_total" --arg limit "$COST_THRESHOLD" '
+  $total > ($limit | tonumber? | select(isfinite and . >= 0))
+' >/dev/null; then
   echo "💡 Tip: Switch to OCTO_PROFILE=budget to reduce costs"
 fi
 ```

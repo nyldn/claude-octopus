@@ -162,4 +162,62 @@ assert_not_contains "$DESC_VALUE" "independent|compound|team of teams|claude ins
 assert_not_contains "$SKILL_CONTENT" "gsd-2" "no attribution: does not reference gsd-2"
 
 assert_not_contains "$SKILL_CONTENT" "github\.com/[a-z].*source" "no attribution: no source repo references"
+recipe() {
+  awk '
+    /^## Step [0-9]+:/ { section = $3 + 0; next }
+    section >= first && section <= last && /^```bash$/ { block = 1; next }
+    block && /^```$/ { block = 0; next }
+    block { print }
+  ' first="$2" last="$3" "$1"
+}
+
+metrics_home="$TEST_TMP_DIR/home"
+mkdir -p "$metrics_home/.claude-octopus/metrics"
+metrics_file="$metrics_home/.claude-octopus/metrics/session-$(date +%Y%m%d).jsonl"
+
+check_projection() {
+  local label="$1" expected="$2" output
+  test_case "$tree: $label"
+  if output=$(LC_ALL=C HOME="$metrics_home" bash -euo pipefail -c "$script" 2>&1) &&
+     [[ "$output" == "$expected" ]]; then
+    test_pass
+  else
+    test_fail "expected '$expected', got '$output'"
+  fi
+}
+
+for tree in skills .claude/skills codex-skills; do
+  skill="$PROJECT_ROOT/$tree/skill-cost-projections/SKILL.md"
+  projection=$(recipe "$skill" 1 3)
+  print_projection='printf "%.2f|%.2f|%.2f\n" "$total_spent" "$projected_remaining" "$projected_total"'
+  script='total_steps=4'$'\n'"$projection"$'\n'"$print_projection"
+  rm -f "$metrics_file"
+  unavailable='Cost projection unavailable: no usable metrics data found.'
+  check_projection 'missing metrics' "$unavailable"
+  : > "$metrics_file"
+  check_projection 'empty metrics' "$unavailable"
+  printf '%s\n' invalid-json '{"cost":null}' '{"cost":"5"}' '{"cost":-1}' '[]' > "$metrics_file"
+  check_projection 'no usable rows' "$unavailable"
+  printf '%s\n' '{"cost":0.42}' >> "$metrics_file"
+  check_projection 'one valid row displays spend only' 'Spent: 0.42 USD (need 2+ steps for projection)'
+  printf '%s\n' '{"cost":0.18}' >> "$metrics_file"
+  check_projection 'two valid rows project past malformed rows' '0.60|0.60|1.20'
+  printf '%s\n' '{"cost":0}' '{"cost":0}' '{"cost":0}' >> "$metrics_file"
+  check_projection 'extra completed rows never produce negative remaining cost' '0.60|0.00|0.60'
+
+  printf '%s\n' '{"cost":0.00000001}' '{"cost":0.00000001}' > "$metrics_file"
+  check_projection 'very small numeric costs still project' '0.00|0.00|0.00'
+  script='total_steps=unknown'$'\n'"$projection"
+  check_projection 'missing workflow size leaves actual spend available' 'Spent: 0.00 USD (remaining cost unavailable)'
+
+  script='total_steps=4 OCTO_BUDGET_CEILING=1 OCTO_COST_THRESHOLD=1'
+  script+=$'\n'"$projection"$'\n'"$(recipe "$skill" 5 6)"
+  printf '%s\n' '{"cost":0.42}' '{"cost":0.18}' > "$metrics_file"
+  check_projection 'valid thresholds report a budget overrun and profile tip' \
+    $'⚠️ Budget ceiling: 1 USD — projected to exceed by 0.20 USD\n💡 Tip: Switch to OCTO_PROFILE=budget to reduce costs'
+  script='total_steps=4 OCTO_BUDGET_CEILING=invalid OCTO_COST_THRESHOLD=invalid'
+  script+=$'\n'"$projection"$'\n'"$(recipe "$skill" 5 6)"
+  check_projection 'invalid thresholds do not produce an arithmetic error' ''
+done
+
 test_summary
