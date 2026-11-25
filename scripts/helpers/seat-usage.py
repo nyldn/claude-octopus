@@ -9,6 +9,7 @@ KIND is "claude" (`claude --print --output-format json`) or "codex"
 or left untouched when it does not parse, so a seat never loses its answer to
 accounting. LABEL is "phase|persona". Prices are USD per million tokens and
 price codex usage; claude reports its own total_cost_usd.
+Stdout reports "provider-error" for a Claude result marked as failed.
 
 Input tokens exclude cache reads and writes. Reasoning tokens are part of
 output tokens.
@@ -31,8 +32,18 @@ def parse_claude(raw):
     if not isinstance(doc, dict) or doc.get("type") != "result":
         raise ValueError("not a claude result object")
     text = doc.get("result")
-    if not isinstance(text, str):
-        raise ValueError("claude result has no text")
+    is_error = doc.get("is_error") is True
+    if not isinstance(text, str) or (is_error and not text):
+        if not is_error:
+            raise ValueError("claude result has no text")
+        errors = doc.get("errors")
+        text = "\n".join(error for error in errors if isinstance(error, str)) if isinstance(errors, list) else ""
+        if not text:
+            subtype = doc.get("subtype")
+            text = "Claude returned an error without a message"
+            if isinstance(subtype, str) and subtype:
+                text += f" ({subtype})"
+            text += "."
     usage = doc.get("usage") if isinstance(doc.get("usage"), dict) else {}
     models = doc.get("modelUsage") if isinstance(doc.get("modelUsage"), dict) else {}
     if models:
@@ -56,7 +67,7 @@ def parse_claude(raw):
     tokens["cost_usd"] = round(float(cost), 6) if isinstance(cost, (int, float)) else None
     tokens["cost_source"] = "claude-cli" if tokens["cost_usd"] is not None else None
     tokens["reported_model"] = ",".join(sorted(models)) or None
-    return text, tokens
+    return text, tokens, is_error
 
 
 def parse_codex(raw, input_price, output_price):
@@ -136,7 +147,10 @@ def main(argv):
         return 0
     try:
         if kind == "claude":
-            text, tokens = parse_claude(raw)
+            text, tokens, is_error = parse_claude(raw)
+            if is_error:
+                # Keep the provider result distinct from accounting success.
+                print("provider-error", flush=True)
         elif kind == "codex":
             text, tokens = parse_codex(raw, price(input_price), price(output_price))
         else:
