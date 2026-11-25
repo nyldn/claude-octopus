@@ -565,6 +565,33 @@ run_tangle_spawn_retry_fixture() (
     return 1
 )
 
+test_case "Tangle reports a recorded health failure as refusal before launch"
+if (
+    export FAKE_SCENARIO=health-fail
+    rc=0
+    pid=$(spawn_agent_capture_pid kimi 'Inert health check' tangle-health-refusal reviewer tangle) || rc=$?
+    [[ "$rc" == 75 && -z "$pid" &&
+       "$(run_contract_latest_transition spawn-tangle-health-refusal)" == failed &&
+       ! -e "$RESULTS_DIR/kimi-tangle-health-refusal.md" ]]
+); then
+    test_pass
+else
+    test_fail "health rejection was not a definite pre-launch refusal"
+fi
+
+test_case "Tangle does not report a pre-launch refusal if recording the health failure fails"
+if (
+    export FAKE_SCENARIO=health-fail FAKE_CONTRACT_PERSISTENCE_FAIL=true
+    rc=0
+    pid=$(spawn_agent_capture_pid kimi 'Inert health check' tangle-health-ledger-fail reviewer tangle) || rc=$?
+    [[ "$rc" == 1 && -z "$pid" &&
+       "$(run_contract_latest_transition spawn-tangle-health-ledger-fail)" == starting ]]
+); then
+    test_pass
+else
+    test_fail "an unrecorded health failure authorized another launch"
+fi
+
 for tmux_mode in false true; do
     test_case "Tangle retries a refused spawn with a new contract seat (tmux=$tmux_mode)"
     if run_tangle_spawn_retry_fixture "$tmux_mode"; then
@@ -993,6 +1020,22 @@ if [[ "$prompt_equal" == true && "$expected_equal" == true && "$byte_count_equal
     test_pass
 else
     test_fail "prompt frame mismatch (provider=$prompt_equal expected=$expected_equal bytes=$byte_count_equal metadata=$metadata_equal redaction=$original_absent)"
+fi
+
+test_case "a replacement spawn omits the previous provider checkpoint from its prompt"
+if (
+    load_agent_checkpoint() { printf '%s\n' '{"partial_output":"Previous seat fixture output"}'; }
+    CAPTURED_PROVIDER_PROMPT_FILE="$TEST_TMP_DIR/checkpoint-default" \
+        run_external_fixture success checkpoint-default fake-api reviewer tangle &&
+    OCTOPUS_TANGLE_REUSE_CHECKPOINT=false CAPTURED_PROVIDER_PROMPT_FILE="$TEST_TMP_DIR/checkpoint-replacement" \
+        run_external_fixture success checkpoint-replacement fake-api reviewer tangle &&
+    grep -F 'Previous seat fixture output' "$TEST_TMP_DIR/checkpoint-default" >/dev/null &&
+    grep -F 'External success fixture' "$TEST_TMP_DIR/checkpoint-replacement" >/dev/null &&
+    ! grep -F 'Previous seat fixture output' "$TEST_TMP_DIR/checkpoint-replacement" >/dev/null
+); then
+    test_pass
+else
+    test_fail "checkpoint selection changed ordinary spawn or sent old output to the replacement"
 fi
 
 test_case "spawn writes the nonce beside launcher Output without changing prompt bytes"

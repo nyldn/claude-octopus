@@ -1019,6 +1019,7 @@ $prompt"
             # spawn_agent retains the same role/phase and adaptive stall policy.
             if [[ "$retry_supervision_active" == false ]]; then
                 if ! declare -F tangle_wait_for_subtasks >/dev/null 2>&1 \
+                   || ! declare -F tangle_spawn_subtask >/dev/null 2>&1 \
                    || ! declare -F review_kill_process_tree_frozen >/dev/null 2>&1 \
                    || ! declare -F review_kill_descendants_frozen >/dev/null 2>&1; then
                     log ERROR "Tangle retry supervision is unavailable; refusing to start provider work"
@@ -1042,8 +1043,14 @@ $prompt"
             OCTOPUS_ACTIVE_TANGLE_PIDS+=("")
             OCTOPUS_ACTIVE_TANGLE_AGENTS+=("$agent")
             OCTOPUS_ACTIVE_TANGLE_TASK_IDS+=("$retry_task_id")
-            local pid
-            if ! pid=$(spawn_agent_capture_pid "$agent" "$prompt" "$retry_task_id" "$role" "tangle" </dev/null); then
+            local pid spawn_status=0
+            if [[ "$retry_from_result" == true && "${OCTOPUS_TANGLE_RETRY_SWITCH_PROVIDER:-false}" != true ]]; then
+                pid=$(spawn_agent_capture_pid "$agent" "$prompt" "$retry_task_id" "$role" tangle </dev/null) || spawn_status=$?
+            else
+                TMUX_MODE=false tangle_spawn_subtask "$agent" "$prompt" "$retry_task_id" "$role" "" "$active_idx" || spawn_status=$?
+                pid="$TANGLE_SPAWNED_PID"
+            fi
+            if [[ "$spawn_status" -ne 0 ]]; then
                 log ERROR "Failed to spawn Tangle retry $retry_task_id"
                 octopus_tangle_cancel_active TERM
                 _octopus_tangle_restore_traps "$retry_previous_int_trap" "$retry_previous_term_trap"

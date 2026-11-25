@@ -106,8 +106,13 @@ test_provider_pid_capture() {
         failed=1
     fi
 
+    if ! sed -n '/^tangle_spawn_subtask()/,/^}/p' "$PROJECT_ROOT/scripts/lib/workflows.sh" | grep -q 'spawn_agent_capture_pid'; then
+        echo "  MISSING provider PID capture in tangle_spawn_subtask"
+        failed=1
+    fi
+
     for rel in "${pid_capture_files[@]}"; do
-        if ! grep -q 'spawn_agent_capture_pid' "$PROJECT_ROOT/$rel"; then
+        if ! grep -qE 'spawn_agent_capture_pid|tangle_spawn_subtask' "$PROJECT_ROOT/$rel"; then
             echo "  MISSING provider PID capture in: $rel"
             failed=1
         fi
