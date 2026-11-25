@@ -13,6 +13,9 @@
 - Parallel checks the work breakdown before execution and stops if its
   packages, waves, or dependencies are invalid.
 
+- Factory keeps evidence separate for runs started in the same second and
+  stops before parsing the spec if it cannot create the run directory.
+
 ## [11.29.1] - 2026-11-25
 
 ### Fixed
