@@ -38,9 +38,10 @@ Every AI model has blind spots. Claude Octopus supports twelve external provider
 
 [Council](docs/COUNCIL.md#claude-seat-prompt-caching) can opt native Claude
 seats into prompt cache isolation and records usage when a seat returns an
-error. Develop can retry a review correction with an allowed provider when
-the first one fails before making edits. Quick Mode summaries identify the
-exact task commit, and Design Lineage keeps designs saved in the same second.
+error. If a provider becomes unavailable before making edits, Develop can
+retry the review correction with another allowed provider. Quick Mode
+summaries identify the exact task commit, and Design Lineage keeps designs
+saved in the same second.
 Debate saves each run separately, and Factory reports an error if it cannot
 save its report or record completion.
 
