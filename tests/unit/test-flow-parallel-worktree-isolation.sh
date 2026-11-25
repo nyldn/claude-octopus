@@ -77,6 +77,39 @@ for skill in "${SKILL_FILES[@]}"; do
     done
 done
 
+# Step 5 must fail in a plain shell before the workflow launches workers.
+for skill in "${SKILL_FILES[@]}"; do
+    gate="$TEST_TMP_DIR/instructions-gate.sh"
+    awk '/^# Count WPs from wbs.json$/{grab=1} grab && /^```$/{exit} grab' "$skill" > "$gate"
+    for state in missing-wbs malformed-wbs empty-packages missing-instructions missing-launch complete; do
+        test_case "${skill#"$PROJECT_ROOT"/} instruction validation with $state"
+        fixture="$TEST_TMP_DIR/instructions-$state"
+        parallel="$fixture/.octo/parallel"
+        mkdir -p "$parallel/WP-1" "$parallel/WP-2"
+        printf '%s\n' '{"work_packages":[{"id":"WP-1"},{"id":"WP-2"}]}' > "$parallel/wbs.json"
+        touch "$parallel/WP-1/instructions.md" "$parallel/WP-1/launch.sh"
+        touch "$parallel/WP-2/instructions.md" "$parallel/WP-2/launch.sh"
+        expected=1
+        case "$state" in
+            missing-wbs) rm "$parallel/wbs.json" ;;
+            malformed-wbs) printf '{broken\n' > "$parallel/wbs.json" ;;
+            empty-packages) printf '%s\n' '{"work_packages":[]}' > "$parallel/wbs.json" ;;
+            missing-instructions) rm "$parallel/WP-2/instructions.md" ;;
+            missing-launch) rm "$parallel/WP-2/launch.sh" ;;
+            complete) expected=0 ;;
+        esac
+        rc=0
+        output="$(cd "$fixture" && bash "$gate" 2>&1)" || rc=$?
+        if [[ "$rc" == "$expected" ]] &&
+           { [[ "$expected" == 0 && "$output" == *"PASSED (2 work packages)"* ]] ||
+             [[ "$expected" == 1 && "$output" == *"FAILED"* && "$output" != *"PASSED"* ]]; }; then
+            test_pass
+        else
+            test_fail "expected rc=$expected and corresponding validation result, got rc=$rc: $output"
+        fi
+    done
+done
+
 # The launch template lives in a fenced heredoc inside the skill. Render it the
 # way the orchestrator does rather than re-stating it here, so the test tracks
 # the shipped text.
