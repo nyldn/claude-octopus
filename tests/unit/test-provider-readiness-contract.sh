@@ -254,4 +254,32 @@ else
     test_fail "parallel skill hardcodes a potentially stale installed-plugin path"
 fi
 
+test_case "provider detection still reports a ready seat when Claude Code is outdated"
+printf '#!/usr/bin/env bash\nprintf "2.1.13 (Claude Code)\\n"\n' > "$fake_bin/claude"
+chmod +x "$fake_bin/claude"
+if outdated_detect=$(cd "$TEST_TMP_DIR" && env -i "HOME=$HOME" "PATH=$fake_bin:$PATH" \
+       "WORKSPACE_DIR=$TEST_TMP_DIR/outdated-workspace" "OCTO_ALLOWED_PROVIDERS=codex" \
+       bash "$PROJECT_ROOT/scripts/orchestrate.sh" detect-providers) &&
+   grep -q '^CLAUDE_CODE_STATUS=outdated$' <<< "$outdated_detect" &&
+   grep -q '^CODEX_STATUS=ok$' <<< "$outdated_detect" &&
+   grep -q '^How to update:$' <<< "$outdated_detect"; then
+    test_pass
+else
+    test_fail "provider detection suppressed a ready seat or its version warning: $outdated_detect"
+fi
+
+for skill_tree in .claude/skills skills codex-skills; do
+    test_case "$skill_tree treats the Claude Code version as advisory for parallel routing"
+    routing_guidance=$(sed -n '/^### Route based on the result$/,/^## Double Diamond Workflow$/p' \
+        "$PROJECT_ROOT/$skill_tree/skill-parallel-agents/SKILL.md")
+    if grep -Eiq 'outdated.*warning' <<< "$routing_guidance" &&
+       ! grep -Eiq 'outdated.*stop' <<< "$routing_guidance" &&
+       grep -Fq 'If one non-Claude provider reports `ok`, use it.' <<< "$routing_guidance" &&
+       grep -Fq 'If none reports `ok`, stop the parallel workflow' <<< "$routing_guidance"; then
+        test_pass
+    else
+        test_fail "parallel routing must warn about Claude Code and use the provider readiness result"
+    fi
+done
+
 test_summary

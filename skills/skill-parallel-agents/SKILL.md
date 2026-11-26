@@ -252,7 +252,7 @@ Provider values are `ok`, `unauthenticated`, `quota`, `not-installed`, or a spec
 
 ### Route based on the result
 
-If Claude Code is outdated, stop and show the version and update instructions reported by the command:
+If Claude Code is outdated, show the version and update instructions as a warning. Then use provider readiness to decide whether to continue.
 
 ```text
 CLAUDE_CODE_VERSION=2.1.13
