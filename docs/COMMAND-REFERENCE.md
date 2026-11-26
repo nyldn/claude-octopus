@@ -942,6 +942,9 @@ Enhanced multi-LLM or adversarial security audit with OWASP compliance and vulne
 - Authentication and authorization review
 - Input validation and injection checks
 - Red team analysis (adversarial testing)
+- In Deep mode, inventories local Claude Code and Codex skills, plugin manifests,
+  and marketplace metadata. Review custom skill directories and linked skills
+  separately.
 
 ---
 
@@ -991,6 +994,8 @@ Team of Teams — decompose compound tasks across independent Claude instances.
 /octo:parallel build a full authentication system with OAuth, RBAC, and audit logging
 /octo:parallel create CI/CD pipeline with testing, linting, and deployment stages
 ```
+
+In Codex, invoke the installed `$flow-parallel` skill for the same workflow.
 
 **What it does:**
 - Validates the Work Breakdown Structure before launching workers. Parallel stops

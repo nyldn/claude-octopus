@@ -57,6 +57,11 @@ Discover validates external links in fresh shells before fetching them. Expert
 Review keeps valid verdicts when verifier replies include extra metadata. Doc
 Sync records changed documentation and checks in the open pull request.
 
+Design Lineage can find designs saved from Codex, including in projects
+without Git history. Deep security audits inventory local Codex skills and
+plugin metadata. The Parallel migration example uses `/octo:parallel` in
+Claude Code and `$flow-parallel` in Codex.
+
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.30.0 — Pin GPT-6.2 Sol and Astra in Codex, keep valid review verdicts, and update Doc Sync summaries.**
 >
