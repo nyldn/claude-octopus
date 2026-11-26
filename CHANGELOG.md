@@ -6,8 +6,8 @@
 
 ### Fixed
 
-- Deep security audits inventory local Codex skills and plugin metadata
-  alongside Claude Code installations for supply-chain review.
+- The Deep audit skill checks local Codex skills for selected shell patterns
+  and lists plugin and marketplace metadata paths for supply-chain review.
   ([#1444](https://github.com/nyldn/claude-octopus/pull/1444))
 
 - Design Lineage finds designs saved from Codex and uses a consistent

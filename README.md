@@ -58,9 +58,9 @@ Review keeps valid verdicts when verifier replies include extra metadata. Doc
 Sync records changed documentation and checks in the open pull request.
 
 Design Lineage can find designs saved from Codex, including in projects
-without Git history. Deep security audits inventory local Codex skills and
-plugin metadata. The Parallel migration example uses `/octo:parallel` in
-Claude Code and `$flow-parallel` in Codex.
+without Git history. The `octopus-security-audit` skill checks local Codex
+skills and plugin metadata in Deep mode. The Parallel migration example uses
+`/octo:parallel` in Claude Code and `$flow-parallel` in Codex.
 
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.30.1 — Find new Codex designs, audit local Codex skills and plugins, and use the installed Parallel migration command.**

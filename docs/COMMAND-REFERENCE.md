@@ -942,9 +942,15 @@ Enhanced multi-LLM or adversarial security audit with OWASP compliance and vulne
 - Authentication and authorization review
 - Input validation and injection checks
 - Red team analysis (adversarial testing)
-- In Deep mode, inventories local Claude Code and Codex skills, plugin manifests,
-  and marketplace metadata. Review custom skill directories and linked skills
-  separately.
+
+---
+
+### Deep supply-chain review
+
+Run the `octopus-security-audit` skill in Deep mode to check local Claude Code
+and Codex installations. It lists plugin and marketplace metadata paths and
+flags skill files whose contents match `exec`, `eval`, or `bash -c` patterns.
+Review custom skill directories and linked skills separately.
 
 ---
 
