@@ -62,7 +62,8 @@ Design documents follow a strict naming convention:
 
 Where:
 - `{user}` -- the current OS username (`$USER` or `whoami`)
-- `{branch}` -- the current git branch, sanitized (slashes replaced with dashes)
+- `{branch}` -- the current git branch with slashes replaced with dashes,
+  or `no-branch` if Git cannot resolve `HEAD`
 - `{datetime}` -- ISO 8601 compact timestamp (`YYYYMMDD-HHmmss`)
 
 If that filename already exists, the new design adds a unique suffix before
@@ -75,9 +76,10 @@ chris-feature-auth-refactor-design-20260321-143022.md
 
 Resolution:
 ```bash
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo "no-branch")
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || BRANCH=no-branch
+BRANCH_SLUG=${BRANCH//\//-}
 DATETIME=$(date -u +"%Y%m%d-%H%M%S")
-FILENAME="${USER}-${BRANCH}-design-${DATETIME}.md"
+FILENAME="${USER}-${BRANCH_SLUG}-design-${DATETIME}.md"
 ```
 
 ---
@@ -88,14 +90,12 @@ Each design document contains YAML frontmatter followed by structured sections.
 
 ### Frontmatter Metadata
 
-```yaml
----
-branch: feature/auth-refactor
-user: chris
-created: 2026-03-21T14:30:22Z
-supersedes: chris-feature-auth-refactor-design-20260320-091500.md
----
-```
+    ---
+    branch: feature/auth-refactor
+    user: chris
+    created: 2026-03-21T14:30:22Z
+    supersedes: chris-feature-auth-refactor-design-20260320-091500.md
+    ---
 
 Fields:
 - `branch` -- the git branch at time of creation
@@ -143,9 +143,11 @@ SLUG=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 DESIGNS_DIR="${HOME}/.claude-octopus/designs/${SLUG}"
 mkdir -p "$DESIGNS_DIR" || exit 1
 
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo "no-branch")
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || BRANCH=no-branch
+BRANCH_SLUG=${BRANCH//\//-}
 DATETIME=$(date -u +"%Y%m%d-%H%M%S")
-FILENAME="${USER}-${BRANCH}-design-${DATETIME}.md"
+FILENAME="${USER}-${BRANCH_SLUG}-design-${DATETIME}.md"
+FRONTMATTER_DELIMITER=---
 
 FILEPATH=$(python3 -I -c '
 import os
@@ -167,12 +169,12 @@ with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=".design-") as d
         os.link(draft.name, destination)
 print(destination)
 ' "$DESIGNS_DIR/$FILENAME" <<EOF
----
-branch: $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "no-branch")
+${FRONTMATTER_DELIMITER}
+branch: ${BRANCH}
 user: ${USER}
 created: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 ${SUPERSEDES:+supersedes: ${SUPERSEDES}}
----
+${FRONTMATTER_DELIMITER}
 
 # Design: [Title]
 

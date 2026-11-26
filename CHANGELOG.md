@@ -7,6 +7,9 @@
 - Deep security audits inventory local Codex skills and plugin metadata
   alongside Claude Code installations for supply-chain review.
 
+- Design Lineage finds designs saved from Codex and uses a consistent
+  `no-branch` label when a project has no Git history.
+
 ## [11.30.0] - 2026-11-26
 
 ### Added

@@ -138,7 +138,7 @@ assert_contains "$SKILL_CONTENT" "flow-develop" "discovery: integration with flo
 
 assert_contains "$SKILL_CONTENT" "git rev-parse --abbrev-ref HEAD" "branch tracking: git branch detection documented"
 
-assert_contains "$SKILL_CONTENT" "tr '/' '-'" "branch tracking: slash sanitization documented"
+assert_contains "$SKILL_CONTENT" "slashes replaced with dashes" "branch tracking: slash sanitization documented"
 
 # ── Immutability rule ────────────────────────────────────────────────────────
 
@@ -185,6 +185,8 @@ git -C "$fixture/project" symbolic-ref HEAD refs/heads/feature/auth
 git -C "$fixture/project" -c user.name=Test -c user.email=test@example.invalid \
     -c commit.gpgsign=false -c core.hooksPath=/dev/null \
     commit -q --allow-empty -m "Initial commit"
+mkdir -p "$fixture/plain" "$fixture/unborn"
+git -C "$fixture/unborn" init -q
 designs_dir="$fixture/home/.claude-octopus/designs/project"
 mkdir -p "$designs_dir"
 write_design() {
@@ -218,6 +220,31 @@ for tree in skills .claude/skills codex-skills; do
     lookup=$(design_recipe "$skill" 3)
     walk=$(design_recipe "$skill" 3 2)
     discovery=$(design_recipe "$skill" 4)
+
+    for project in plain unborn project; do
+        expected_branch=no-branch
+        if [[ "$project" == project ]]; then
+            expected_branch=feature/auth
+        fi
+        expected_slug=${expected_branch//\//-}
+        test_case "$tree saves and finds a design on $expected_branch ($project fixture)"
+        if (
+            cd "$fixture/$project" || exit 1
+            export HOME="$fixture/$tree-$project-home" USER=reviewer
+            export GIT_CEILING_DIRECTORIES="$fixture"
+            output=$(bash -c "$save") || exit 1
+            saved_path=${output#Design saved to }
+            expected_prefix="$HOME/.claude-octopus/designs/$project/reviewer-$expected_slug-design-"
+            [[ "$saved_path" == "$expected_prefix"*.md ]] || exit 1
+            grep -Fxq "branch: $expected_branch" "$saved_path" || exit 1
+            chosen=$(bash -c "$lookup"$'\nprintf "%s" "$SUPERSEDES"') || exit 1
+            [[ "$chosen" == "${saved_path##*/}" ]]
+        ); then
+            test_pass
+        else
+            test_fail "expected a filename for $expected_branch and matching revision lookup"
+        fi
+    done
 
     test_case "$tree preserves all designs when saves share a timestamp"
     if (
