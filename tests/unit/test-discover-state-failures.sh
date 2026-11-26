@@ -110,4 +110,21 @@ for failure in failures:
 sys.exit(bool(failures))
 PY_CONTROLS
 then test_pass; else test_fail "Discover continued after invalid synthesis or failed state writes"; fi
+
+test_case "Discover guidance uses the synthesis path from the current run"
+guidance_failures=()
+for skill_tree in skills codex-skills; do
+    guidance_path="$PROJECT_ROOT/$skill_tree/flow-discover/references/guidance.md"
+    guidance="$(<"$guidance_path")"
+    if [[ "$guidance" != *'Read `$SYNTHESIS_FILE`'* \
+       || "$guidance" != *'Full research saved to: $SYNTHESIS_FILE'* ]] \
+       || grep -E '(discover|probe)-synthesis-[^[:space:]]*\.md' "$guidance_path"; then
+        guidance_failures+=("$skill_tree")
+    fi
+done
+if [[ ${#guidance_failures[@]} -eq 0 ]]; then
+    test_pass
+else
+    test_fail "Discover guidance does not consistently use SYNTHESIS_FILE in: ${guidance_failures[*]}"
+fi
 test_summary
