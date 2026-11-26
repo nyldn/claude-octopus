@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.30.0] - 2026-11-26
+
 ### Added
 
 - Choose GPT-6.2 Sol or Astra explicitly with Codex CLI 0.171.0 or later.

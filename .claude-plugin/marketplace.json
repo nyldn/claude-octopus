@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.29.3"
+    "version": "11.30.0"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.29.3 - Discover keeps the report path, intent contracts retain task allocation, and Parallel Agents uses ready providers after a Claude Code upgrade warning. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.29.3",
+      "description": "v11.30.0 - Pin GPT-6.2 Sol and Astra in Codex, keep valid review verdicts, and update Doc Sync summaries. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.30.0",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
