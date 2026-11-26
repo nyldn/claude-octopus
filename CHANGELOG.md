@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Content Pipeline's integration guide points only to installed skills.
+
 - Deliver stops before recording completion or posting a PR summary when it
   cannot read the workflow's validated report.
 

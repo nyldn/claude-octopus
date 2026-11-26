@@ -548,9 +548,6 @@ Both patterns are included in the guide.
 ### With skill-security-framing
 All content fetching uses security framing patterns.
 
-### With skill-interview-generator
-Stage 5 can use dedicated interview skill for more sophisticated questions.
-
 ### With skill-meta-prompt
 Can generate meta-prompts for content creation based on anatomy guide.
 
@@ -561,6 +558,5 @@ Research phase can feed into content pipeline for pattern extraction.
 ## Related Skills
 
 - **skill-security-framing** - Security for external content
-- **skill-interview-generator** - Context gathering questions
 - **skill-thought-partner** - Creative ideation on content
 - **skill-meta-prompt** - Generate prompts from patterns
