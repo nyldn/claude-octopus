@@ -2,15 +2,25 @@
 
 ## [Unreleased]
 
+## [11.30.2] - 2026-11-26
+
 ### Fixed
 
-- Content Pipeline's integration guide points only to installed skills.
+- LiteLLM stays eligible for chat dispatch when the optional model-list
+  probe receives HTTP 403. HTTP 401 still reports invalid credentials and HTTP
+  429 still reports quota. ([#1449](https://github.com/nyldn/claude-octopus/pull/1449),
+  [#1448](https://github.com/nyldn/claude-octopus/issues/1448))
 
 - Deliver stops before recording completion or posting a PR summary when it
   cannot read the workflow's validated report.
+  ([#1447](https://github.com/nyldn/claude-octopus/pull/1447))
 
-- LiteLLM remains eligible for chat dispatch when the provider probe receives
-  HTTP 403 from the model-list endpoint.
+- Content Pipeline generates interview questions within the workflow and lists
+  installed skill integrations.
+  ([#1450](https://github.com/nyldn/claude-octopus/pull/1450))
+
+The Deliver and Content Pipeline fixes address parts of
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
 ## [11.30.1] - 2026-11-26
 

@@ -612,6 +612,9 @@ Delivery phase — Validation, quality assurance, and PR comment posting.
 - **Auto-posts review findings as PR comments** when an open PR is detected (v8.44.0+)
 - Shows visual indicator: 🐙 ✅
 
+Deliver stops before recording completion or preparing a PR summary if it
+cannot read the report validated for the current run.
+
 When delivery runs documentation sync, the doc-sync commit contains only the
 files changed during that run. Files with pre-existing edits are skipped.
 Unrelated staged changes stay in the index.
@@ -1191,7 +1194,8 @@ Content analysis pipeline — extract patterns and anatomy guides from URLs.
 1. Fetches and validates content from URLs
 2. Deconstructs patterns: structure, psychology, mechanics
 3. Synthesizes findings into a reusable anatomy guide
-4. Generates interview questions for content recreation
+4. Generates interview questions and saves them in the session as
+   `content-interview-{timestamp}.md`
 
 ---
 
