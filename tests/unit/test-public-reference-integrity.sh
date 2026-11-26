@@ -116,6 +116,25 @@ else
   test_fail "$missing_paths plugin manifest path(s) do not resolve"
 fi
 
+for skill_tree in skills .claude/skills codex-skills; do
+    test_case "$skill_tree Content Pipeline uses available integrations and generates its interview questions"
+    pipeline="$PROJECT_ROOT/$skill_tree/skill-content-pipeline/SKILL.md"
+    missing_skills=0
+    while IFS= read -r skill_name; do
+        if [[ ! -f "$PROJECT_ROOT/$skill_tree/$skill_name/SKILL.md" ]]; then
+            printf 'missing Content Pipeline skill: %s\n' "$skill_name"
+            missing_skills=$((missing_skills + 1))
+        fi
+    done < <(sed -nE 's/^### With ([a-z0-9-]+)$/\1/p; s/^- \*\*([a-z0-9-]+)\*\* - .*/\1/p' "$pipeline" | sort -u)
+    if [[ "$missing_skills" -eq 0 ]] &&
+       grep -Fq '## Stage 5: Interview Question Generation' "$pipeline" &&
+       grep -Fq 'content-interview-{timestamp}.md' "$pipeline"; then
+        test_pass
+    else
+        test_fail "Content Pipeline references unavailable skills or omits its interview stage or output"
+    fi
+done
+
 test_case "Installed-root script and skill references resolve"
 REFERENCE_PATHS="$TEST_TMP_DIR/installed-root-paths"
 for surface in "${PUBLIC_SURFACES[@]}"; do
