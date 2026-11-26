@@ -109,20 +109,28 @@ Run this from the project under review.
 ```bash
 (
   shopt -s nullglob
-  project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd -P) || exit 1
+  skill_scope=$(pwd -P) || exit 1
+  project_root=$(git rev-parse --show-toplevel 2>/dev/null) || project_root="$skill_scope"
   claude_config="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   codex_config="${CODEX_HOME:-$HOME/.codex}"
   skill_roots=(
     "$project_root/.claude/skills" "$project_root/.agents/skills"
     "$claude_config/skills" "$HOME/.agents/skills" "$codex_config/skills"
   )
+  # Codex also discovers skills in each directory between here and the Git root.
+  while [[ "$skill_scope" != "$project_root" && "$skill_scope" == "${project_root%/}/"* ]]; do
+    skill_roots+=("$skill_scope/.agents/skills")
+    skill_scope=${skill_scope%/*}
+    skill_scope=${skill_scope:-/}
+  done
 
   for metadata in \
     "$claude_config"/plugins/{known_marketplaces,installed_plugins}.json \
     "$codex_config/plugins/installed_plugins.json" \
     "$claude_config"/plugins/marketplaces/*/.claude-plugin/marketplace.json \
     "$codex_config"/plugins/marketplaces/*/{.agents/plugins,.claude-plugin}/marketplace.json \
-    "$HOME/.agents/plugins/marketplace.json" "$project_root/.agents/plugins/marketplace.json"; do
+    "$HOME/.agents/plugins/marketplace.json" \
+    "$project_root"/{.agents/plugins,.claude-plugin}/marketplace.json; do
     if [[ -f "$metadata" ]]; then
       printf 'Plugin metadata: %q\n' "$metadata"
     fi

@@ -200,6 +200,9 @@ check_phase_examples "generated skill-parallel-agents" "$GENERATED_PARALLEL_SKIL
 
 check_supply_chain_example() {
     local skill="$1" profile="$2" fixture="$TEST_TMP_DIR/supply-chain-$2"
+    mkdir -p "$fixture"
+    # Git reports a physical project path, including on macOS where /var is a symlink.
+    fixture="$(cd "$fixture" && pwd -P)"
     local fixture_home="$fixture/home" claude_config="$fixture/home/.claude"
     local codex_config="$fixture/home/.codex" project="$fixture/project"
     local claude_plugin codex_plugin portable_plugin recipe output path
@@ -216,6 +219,8 @@ check_supply_chain_example() {
         "$codex_config/skills/local codex/SKILL.md"
         "$project/.claude/skills/claude project/SKILL.md"
         "$project/.agents/skills/codex project/SKILL.md"
+        "$project/subdir/.agents/skills/codex parent/SKILL.md"
+        "$project/subdir/leaf/.agents/skills/codex current/SKILL.md"
         "$claude_plugin/skills/claude plugin/SKILL.md"
         "$codex_plugin/codex-skills/nested/codex plugin/SKILL.md"
         "$portable_plugin/skills/portable plugin/SKILL.md"
@@ -229,6 +234,7 @@ check_supply_chain_example() {
         "$codex_config/plugins/marketplaces/store/.agents/plugins/marketplace.json"
         "$fixture_home/.agents/plugins/marketplace.json"
         "$project/.agents/plugins/marketplace.json"
+        "$project/.claude-plugin/marketplace.json"
     )
     for path in "${skill_files[@]}"; do
         mkdir -p "${path%/*}"
@@ -238,9 +244,10 @@ check_supply_chain_example() {
         mkdir -p "${path%/*}"
         printf '%s\n' '{"source":"SUPPLY_CHAIN_FIXTURE_BODY"}' > "$path"
     done
-    mkdir -p "$project/.agents/skills/plain" "$project/subdir"
+    mkdir -p "$project/.agents/skills/plain" "$fixture/.agents/skills/outside-project"
     git init -q "$project"
     printf '%s\n' 'This skill explains the execution of a plan.' > "$project/.agents/skills/plain/SKILL.md"
+    printf '%s\n' 'bash -c "echo outside fixture"' > "$fixture/.agents/skills/outside-project/SKILL.md"
     recipe="$(awk '
         /^### Skill & Plugin Supply Chain/ { section = 1 }
         section && /^```bash$/ { block = 1; next }
@@ -250,7 +257,7 @@ check_supply_chain_example() {
 
     test_case "${skill#$PROJECT_ROOT/}: deep audit checks both hosts with $profile paths"
     if ! output="$(
-        cd "$project/subdir"
+        cd "$project/subdir/leaf"
         if [[ "$profile" == custom ]]; then
             env "HOME=$fixture_home" "CLAUDE_CONFIG_DIR=$claude_config" "CODEX_HOME=$codex_config" bash -eu -o pipefail -c "$recipe"
         else
@@ -267,8 +274,8 @@ check_supply_chain_example() {
             return
         fi
     done
-    if [[ "$output" == *SUPPLY_CHAIN_FIXTURE_BODY* || "$output" == *'/plain/SKILL.md'* ]]; then
-        test_fail "supply-chain example printed fixture bodies or flagged a plain skill"
+    if [[ "$output" == *SUPPLY_CHAIN_FIXTURE_BODY* || "$output" == *'/plain/SKILL.md'* || "$output" == *'/outside-project/SKILL.md'* ]]; then
+        test_fail "supply-chain example printed fixture bodies or included a plain or out-of-scope skill"
     else
         test_pass
     fi
