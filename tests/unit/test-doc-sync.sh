@@ -305,4 +305,99 @@ else
   test_fail "doc-sync included unrelated changes or mishandled its commit outcome"
 fi
 
+test_case "shipped doc-sync recipes update the PR body without replacing unrelated text"
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PYTHON'
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import unittest
+
+root = Path(sys.argv[1])
+trees = ('.claude/skills', 'skills', 'codex-skills')
+start = '<!-- octopus-doc-sync:start -->'
+end = '<!-- octopus-doc-sync:end -->'
+
+
+class DocSyncPullRequest(unittest.TestCase):
+    def test_recipes(self):
+        for tree in trees:
+            text = (root / tree / 'skill-doc-sync/SKILL.md').read_text()
+            step = text.split('## Step 9: Commit Doc Changes', 1)[1].split('## Integration', 1)[0]
+            recipe = re.findall(r'```bash\n(.*?)\n```', step, re.S)[1]
+            for scenario in ('append', 'replace', 'unchanged', 'invalid markers',
+                             'closed', 'changed body', 'edit failed'):
+                with self.subTest(tree=tree, scenario=scenario):
+                    self.check_recipe(recipe, scenario)
+
+    def check_recipe(self, recipe, scenario):
+        with tempfile.TemporaryDirectory(dir=sys.argv[2]) as directory:
+            fixture = Path(directory)
+            fake_gh = fixture / 'gh'
+            fake_gh.write_text("""#!/usr/bin/env python3
+import os
+from pathlib import Path
+import sys
+
+root = Path(os.environ['TEST_DOC_SYNC_FIXTURE'])
+if sys.argv[1:3] == ['pr', 'view']:
+    current = root / 'current.json'
+    response = current if len(sys.argv) > 3 and sys.argv[3].startswith('https://') and current.exists() else root / 'pr.json'
+    print(response.read_text())
+elif sys.argv[1:4] == ['pr', 'edit', 'https://github.com/example/project/pull/2']:
+    assert sys.argv[4] == '--body-file' and len(sys.argv) == 6
+    if (root / 'reject-edit').exists():
+        sys.exit(1)
+    (root / 'edited').write_bytes(Path(sys.argv[5]).read_bytes())
+else:
+    sys.exit(3)
+""")
+            fake_gh.chmod(0o755)
+            prefix = '## Context\n\nExisting PR text.  \n'
+            suffix = '\n\n## Testing\n\nStill here.\n'
+            summary = '- Updated docs/guide.md\n'
+            section = f'{start}\n## Documentation sync\n\n{summary}{end}'
+            body = prefix
+            if scenario in ('replace', 'unchanged'):
+                previous = section if scenario == 'unchanged' else f'{start}\nPrevious summary\n{end}'
+                body = f'{prefix}\n{previous}{suffix}'
+            if scenario == 'invalid markers':
+                body = f'{prefix}\n{start}\n'
+            if scenario == 'edit failed':
+                (fixture / 'reject-edit').touch()
+            (fixture / 'summary.md').write_text(summary)
+            pr = {
+                'number': 2, 'url': 'https://github.com/example/project/pull/2',
+                'state': 'CLOSED' if scenario == 'closed' else 'OPEN', 'body': body,
+            }
+            (fixture / 'pr.json').write_text(json.dumps(pr))
+            if scenario == 'changed body':
+                (fixture / 'current.json').write_text(json.dumps(dict(pr, body=f'{body}New edit.')))
+            env = dict(os.environ, PATH=f'{fixture}:{os.environ["PATH"]}',
+                       TEST_DOC_SYNC_FIXTURE=directory,
+                       DOC_SYNC_SUMMARY_FILE=str(fixture / 'summary.md'))
+            result = subprocess.run(['bash', '-c', recipe], env=env, capture_output=True, text=True)
+            edited = fixture / 'edited'
+            if scenario in ('append', 'replace'):
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = f'{prefix}\n{section}{suffix if scenario == "replace" else chr(10)}'
+                self.assertEqual(edited.read_text(), expected)
+            else:
+                self.assertFalse(edited.exists())
+                self.assertNotIn('Updated PR', result.stdout)
+                if scenario in ('invalid markers', 'changed body', 'edit failed'):
+                    self.assertNotEqual(result.returncode, 0)
+
+
+unittest.main(argv=['doc-sync-pull-request'])
+PYTHON
+then
+  test_pass
+else
+  test_fail "doc-sync lost existing PR text or mishandled its update outcome"
+fi
+
 test_summary

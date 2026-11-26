@@ -229,13 +229,56 @@ fi
 If staging or committing fails, report the failure and preserve the edits for
 recovery. Continue to the PR summary only after a successful commit.
 
-If a PR exists for the current branch, update its body to include a doc-sync section:
+If the current branch has an open PR, write a concise Markdown summary of this
+run to a private scratch file and set `DOC_SYNC_SUMMARY_FILE` to its path.
+Include the documentation changed and the checks run. Run this block from the
+same branch. Skip this step for branches without an open PR.
+
 ```bash
-# Update PR body with doc-sync summary (if PR exists)
-PR_NUMBER=$(gh pr view --json number -q '.number' 2>/dev/null || true)
-if [[ -n "$PR_NUMBER" ]]; then
-  echo "Updating PR #$PR_NUMBER with doc-sync summary..."
-fi
+(
+  scratch=$(mktemp -d "${TMPDIR:-/tmp}/octopus-doc-sync.XXXXXX") || exit 1
+  trap 'rm -rf -- "$scratch"' EXIT
+  gh pr view --json url,state,body > "$scratch/pr.json" || exit 1
+  state=$(jq -er '.state' "$scratch/pr.json") || exit 1
+  [[ "$state" == OPEN ]] || exit 0
+  pr_url=$(jq -er '.url | strings | select(length > 0)' "$scratch/pr.json") || exit 1
+
+  python3 -I - "$scratch/pr.json" "${DOC_SYNC_SUMMARY_FILE:?}" > "$scratch/body.md" <<'PY_DOC_SYNC' || exit 1
+import json
+from pathlib import Path
+import re
+import sys
+
+start = "<!-- octopus-doc-sync:start -->"
+end = "<!-- octopus-doc-sync:end -->"
+body = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["body"] or ""
+summary = Path(sys.argv[2]).read_text(encoding="utf-8").strip()
+if not summary or start in summary or end in summary:
+    sys.exit("Doc Sync needs a nonempty summary without section markers.")
+
+section = f"{start}\n## Documentation sync\n\n{summary}\n{end}"
+markers = list(re.finditer(r"(?m)^<!-- octopus-doc-sync:(start|end) -->\r?$", body))
+if not markers:
+    separator = "\n" if body.endswith("\n") else "\n\n" if body else ""
+    updated = f"{body}{separator}{section}\n"
+elif [marker.group(1) for marker in markers] == ["start", "end"]:
+    begin, finish = markers
+    updated = body[:begin.start()] + section + body[finish.end():]
+else:
+    sys.exit("Doc Sync section markers in the PR body are incomplete or duplicated.")
+
+if updated != body:
+    sys.stdout.buffer.write(updated.encode("utf-8"))
+PY_DOC_SYNC
+  [[ -s "$scratch/body.md" ]] || exit 0
+  gh pr view "$pr_url" --json url,state,body > "$scratch/current.json" || exit 1
+  if ! cmp -s "$scratch/pr.json" "$scratch/current.json"; then
+    printf '%s\n' 'The PR changed while preparing the Doc Sync summary. Rerun this step.' >&2
+    exit 1
+  fi
+  gh pr edit "$pr_url" --body-file "$scratch/body.md" >/dev/null || exit 1
+  printf 'Updated PR documentation summary.\n'
+)
 ```
 
 ---
