@@ -1769,13 +1769,23 @@ review_validate_verdicts() {
         review_slurp_provider_json '
             if length == 1 and (.[0] | type == "object") and (.[0].findings | type == "array")
                and all(.[0].findings[]; type == "object") then .[0]
-            else error("expected one verifier findings document") end') || return 1
-    [[ -n "$normalized" ]] || return 1
+            else empty end' 2>/dev/null) || {
+        printf '%s\n' 'expected one verifier findings document' >&2
+        return 1
+    }
     printf '%s' "$normalized" | jq -e --slurpfile original "$originals" '
             def original_fields: del(.verdict, .pre_existing_newly_reachable);
-            if all(.findings[]; .verdict == "confirmed" or .verdict == "false-positive" or .verdict == "needs-debate") and
-               ([.findings[] | original_fields] | sort) == ([$original[0][] | original_fields] | sort)
-            then . else error("incomplete or invalid verifier verdicts") end'
+            ($original[0] | map(original_fields)) as $original_rows
+            | ([$original_rows[] | keys_unsorted[]] | unique) as $original_keys
+            # Retain all Round 1 fields and the supported verifier fields.
+            | .findings |= map(with_entries(select(
+                .key == "verdict" or .key == "pre_existing_newly_reachable" or (.key | IN($original_keys[]))
+              )))
+            | if any(.findings[]; .verdict != "confirmed" and .verdict != "false-positive" and .verdict != "needs-debate")
+              then error("missing or unsupported verifier verdict")
+              elif ([.findings[] | original_fields] | sort) != ($original_rows | sort)
+              then error("verifier findings differ from Round 1")
+              else . end'
 }
 
 # Only the existing unmanaged fallback uses this path. Its smaller context
@@ -1880,10 +1890,10 @@ review_verify_findings() (
             fi
             if [[ "$verifier_transport_failed" == false && "$verifier_response_validated" == false ]]; then
                 local normalized_verified_findings
-                if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_validate_verdicts "${verifier_batch%.prompt}.json" 2>/dev/null); then
+                if normalized_verified_findings=$(printf '%s' "$verified_findings" | review_validate_verdicts "${verifier_batch%.prompt}.json" 2>&1); then
                     verified_findings="$normalized_verified_findings"
                 else
-                    log WARN "review_run: verification returned invalid or multi-document findings JSON; preserving Round 1 findings"
+                    log WARN "review_run: ${normalized_verified_findings:-verification response invalid}; preserving Round 1 findings"
                     review_append_provider_status "$provider_status_file" "$actual_verifier_provider" implementation-verifier fallback "Verification response incomplete or invalid"
                     verifier_transport_failed=true
                 fi
