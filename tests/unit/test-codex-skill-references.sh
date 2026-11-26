@@ -10,4 +10,23 @@ if python3 "$PROJECT_ROOT/tests/fixtures/native-skills/codex-references.py" "$PR
 else
     test_fail "Codex reference adaptation failed"
 fi
+
+while read -r tree route; do
+    test_case "$tree uses its installed route in the parallel migration example"
+    example=$(awk '
+        /^### Example: Migration/ { migration = 1; next }
+        /^### / && migration { exit }
+        migration && /^User: / { print; exit }
+    ' "$PROJECT_ROOT/$tree/flow-parallel/SKILL.md")
+    if [[ "$example" == "User: $route migrate "* ]]; then
+        test_pass
+    else
+        test_fail "Expected $route, found: $example"
+    fi
+done <<'ROUTES'
+skills /octo:parallel
+.claude/skills /octo:parallel
+codex-skills $flow-parallel
+ROUTES
+
 test_summary
