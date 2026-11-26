@@ -2,22 +2,34 @@
 
 ## [Unreleased]
 
+## [11.29.2] - 2026-11-25
+
 ### Fixed
 
 - Develop can retry a subtask on an allowed provider after a quota or
   authentication failure, keeping partial edits in the same worktree.
+  ([#1391](https://github.com/nyldn/claude-octopus/pull/1391))
 
 - Parallel stops before launching workers when a work package is missing its
   instructions or launch script.
+  ([#1428](https://github.com/nyldn/claude-octopus/pull/1428))
 
 - Parallel checks the work breakdown before execution and stops if its
   packages, waves, or dependencies are invalid.
+  ([#1429](https://github.com/nyldn/claude-octopus/pull/1429))
 
 - Factory keeps evidence separate for runs started in the same second and
   stops before parsing the spec if it cannot create the run directory.
+  ([#1430](https://github.com/nyldn/claude-octopus/pull/1430))
 
 - The Factory command and skill require explicit cost approval before
   dispatching providers. Declining or skipping approval stops the run.
+  ([#1431](https://github.com/nyldn/claude-octopus/pull/1431))
+
+- OpenCode uses available models for its free and research routes and
+  reports estimated token costs for paid models. OpenRouter uses Sonnet 4.6
+  for its standard routes. Existing saved model choices are preserved.
+  ([#1418](https://github.com/nyldn/claude-octopus/pull/1418))
 
 ## [11.29.1] - 2026-11-25
 

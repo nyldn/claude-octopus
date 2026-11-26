@@ -988,8 +988,10 @@ Team of Teams — decompose compound tasks across independent Claude instances.
 ```
 
 **What it does:**
-- Generates a Work Breakdown Structure (WBS) for independent packages. Parallel
-  stops if the work breakdown file is missing, unreadable, or invalid JSON.
+- Validates the Work Breakdown Structure before launching workers. Parallel stops
+  when the plan is missing, unreadable, or invalid, or when a work package lacks
+  its instructions or launch script. Parallel keeps using the validated plan
+  throughout execution.
 - Each work package runs as a separate `claude -p` process with its own git worktree (v8.44.0+)
 - Each worker explicitly loads the Octopus plugin, including workers started
   from Codex. If Parallel cannot verify the plugin directory, it marks the
@@ -1021,6 +1023,12 @@ Dark Factory Mode — spec-in, software-out autonomous pipeline.
 6. Scores against satisfaction target
 7. Repeats if target not met (up to configured limit)
 8. Produces final delivery report
+
+The Factory command and skill ask for explicit cost approval before provider
+dispatch. Choose the non-interactive approval option to run with `--ci`.
+
+Each Factory invocation writes its evidence to a separate run directory.
+Factory stops before parsing the spec if it cannot create that directory.
 
 Factory requires at least two structured scenarios with usable bodies before
 implementation, including an independent holdout. Failed providers cannot supply
