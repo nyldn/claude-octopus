@@ -234,6 +234,8 @@ run to a private scratch file and set `DOC_SYNC_SUMMARY_FILE` to its path.
 Include the documentation changed and the checks run. Run this block from the
 same branch, with the installed Octopus root available in `OCTO_ROOT` or the
 host's plugin root variable. Skip this step for branches without an open PR.
+The recipe detects changes between its two PR reads. A concurrent edit after
+the final read can still be overwritten by GitHub's full-body update.
 
 ```bash
 (
@@ -271,12 +273,12 @@ else:
 if updated != body:
     sys.stdout.buffer.write(updated.encode("utf-8"))
 PY_DOC_SYNC
-  [[ -s "$scratch/body.md" ]] || exit 0
   gh pr view "$pr_url" --json url,state,body > "$scratch/current.json" || exit 1
   if ! cmp -s "$scratch/pr.json" "$scratch/current.json"; then
-    printf '%s\n' 'The PR changed while preparing the Doc Sync summary. Rerun this step.' >&2
+    printf '%s\n' 'The PR changed after Doc Sync read its description. Rerun this step.' >&2
     exit 1
   fi
+  [[ -s "$scratch/body.md" ]] || exit 0
   pr_path='^https://([A-Za-z0-9.-]+)/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/([1-9][0-9]*)$'
   if ! [[ "$pr_url" =~ $pr_path ]]; then
     printf '%s\n' 'Could not identify the GitHub host, repository, and PR number.' >&2

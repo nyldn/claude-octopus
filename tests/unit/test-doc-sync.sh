@@ -329,7 +329,8 @@ class DocSyncPullRequest(unittest.TestCase):
             step = text.split('## Step 9: Commit Doc Changes', 1)[1].split('## Integration', 1)[0]
             recipe = re.findall(r'```bash\n(.*?)\n```', step, re.S)[1]
             for scenario in ('append', 'replace', 'unchanged', 'invalid markers', 'closed',
-                             'changed body', 'edit failed', 'credential blocked', 'missing helper'):
+                             'changed body', 'changed after no-op', 'edit failed',
+                             'credential blocked', 'missing helper'):
                 with self.subTest(tree=tree, scenario=scenario):
                     self.check_recipe(recipe, scenario)
 
@@ -367,8 +368,8 @@ else:
             summary = '- Updated docs/guide.md\n'
             section = f'{start}\n## Documentation sync\n\n{summary}{end}'
             body = prefix
-            if scenario in ('replace', 'unchanged'):
-                previous = section if scenario == 'unchanged' else f'{start}\nPrevious summary\n{end}'
+            if scenario in ('replace', 'unchanged', 'changed after no-op'):
+                previous = f'{start}\nPrevious summary\n{end}' if scenario == 'replace' else section
                 body = f'{prefix}\n{previous}{suffix}'
             if scenario == 'invalid markers':
                 body = f'{prefix}\n{start}\n'
@@ -384,6 +385,9 @@ else:
             (fixture / 'pr.json').write_text(json.dumps(pr))
             if scenario == 'changed body':
                 (fixture / 'current.json').write_text(json.dumps(dict(pr, body=f'{body}New edit.')))
+            if scenario == 'changed after no-op':
+                changed = body.replace(summary, '- Summary edited on GitHub.\n')
+                (fixture / 'current.json').write_text(json.dumps(dict(pr, body=changed)))
             env = dict(os.environ, PATH=f'{fixture}:{os.environ["PATH"]}',
                        TEST_DOC_SYNC_FIXTURE=directory,
                        OCTO_ROOT=directory if scenario == 'missing helper' else str(root),
@@ -399,6 +403,8 @@ else:
                 self.assertNotIn('Updated PR', result.stdout)
                 if scenario not in ('closed', 'unchanged'):
                     self.assertNotEqual(result.returncode, 0)
+                if scenario in ('changed body', 'changed after no-op'):
+                    self.assertIn('Rerun this step', result.stderr)
                 if scenario == 'credential blocked':
                     self.assertIn('credential-safety gate', result.stderr)
                     self.assertNotIn(summary, result.stderr)
