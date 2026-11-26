@@ -229,13 +229,73 @@ fi
 If staging or committing fails, report the failure and preserve the edits for
 recovery. Continue to the PR summary only after a successful commit.
 
-If a PR exists for the current branch, update its body to include a doc-sync section:
+If the current branch has an open PR, write a concise Markdown summary of this
+run to a private scratch file and set `DOC_SYNC_SUMMARY_FILE` to its path.
+Include the documentation changed and the checks run. Run this block from the
+same branch, with the installed Octopus root available in `OCTO_ROOT` or the
+host's plugin root variable. Skip this step for branches without an open PR.
+The recipe detects changes between its two PR reads. A concurrent edit after
+the final read can still be overwritten by GitHub's full-body update.
+
 ```bash
-# Update PR body with doc-sync summary (if PR exists)
-PR_NUMBER=$(gh pr view --json number -q '.number' 2>/dev/null || true)
-if [[ -n "$PR_NUMBER" ]]; then
-  echo "Updating PR #$PR_NUMBER with doc-sync summary..."
-fi
+(
+  scratch=$(mktemp -d "${TMPDIR:-/tmp}/octopus-doc-sync.XXXXXX") || exit 1
+  trap 'rm -rf -- "$scratch"' EXIT
+  gh pr view --json url,state,body > "$scratch/pr.json" || exit 1
+  state=$(jq -er '.state' "$scratch/pr.json") || exit 1
+  [[ "$state" == OPEN ]] || exit 0
+  pr_url=$(jq -er '.url | strings | select(length > 0)' "$scratch/pr.json") || exit 1
+
+  python3 -I - "$scratch/pr.json" "${DOC_SYNC_SUMMARY_FILE:?}" > "$scratch/body.md" <<'PY_DOC_SYNC' || exit 1
+import json
+from pathlib import Path
+import re
+import sys
+
+start = "<!-- octopus-doc-sync:start -->"
+end = "<!-- octopus-doc-sync:end -->"
+body = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["body"] or ""
+summary = Path(sys.argv[2]).read_text(encoding="utf-8").strip()
+if not summary or start in summary or end in summary:
+    sys.exit("Doc Sync needs a nonempty summary without section markers.")
+
+section = f"{start}\n## Documentation sync\n\n{summary}\n{end}"
+markers = list(re.finditer(r"(?m)^<!-- octopus-doc-sync:(start|end) -->\r?$", body))
+if not markers:
+    separator = "\n" if body.endswith("\n") else "\n\n" if body else ""
+    updated = f"{body}{separator}{section}\n"
+elif [marker.group(1) for marker in markers] == ["start", "end"]:
+    begin, finish = markers
+    updated = body[:begin.start()] + section + body[finish.end():]
+else:
+    sys.exit("Doc Sync section markers in the PR body are incomplete or duplicated.")
+
+if updated != body:
+    sys.stdout.buffer.write(updated.encode("utf-8"))
+PY_DOC_SYNC
+  gh pr view "$pr_url" --json url,state,body > "$scratch/current.json" || exit 1
+  if ! cmp -s "$scratch/pr.json" "$scratch/current.json"; then
+    printf '%s\n' 'The PR changed after Doc Sync read its description. Rerun this step.' >&2
+    exit 1
+  fi
+  [[ -s "$scratch/body.md" ]] || exit 0
+  pr_path='^https://([A-Za-z0-9.-]+)/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/([1-9][0-9]*)$'
+  if ! [[ "$pr_url" =~ $pr_path ]]; then
+    printf '%s\n' 'Could not identify the GitHub host, repository, and PR number.' >&2
+    exit 1
+  fi
+  pr_host=${BASH_REMATCH[1]}
+  pr_repo=${BASH_REMATCH[2]}
+  pr_number=${BASH_REMATCH[3]}
+  plugin_root="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}"
+  if [[ "$plugin_root" != /* || ! -x "$plugin_root/scripts/safe-gh-comment.sh" ]]; then
+    printf '%s\n' 'Could not find the installed Octopus GitHub safety helper.' >&2
+    exit 1
+  fi
+  GH_HOST="$pr_host" "$plugin_root/scripts/safe-gh-comment.sh" --repo "$pr_repo" \
+    pr-edit "$pr_number" "$scratch/body.md" >/dev/null || exit 1
+  printf 'Updated PR documentation summary.\n'
+)
 ```
 
 ---

@@ -305,4 +305,117 @@ else
   test_fail "doc-sync included unrelated changes or mishandled its commit outcome"
 fi
 
+test_case "shipped doc-sync recipes update the PR body without replacing unrelated text"
+if python3 - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PYTHON'
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import unittest
+
+root = Path(sys.argv[1])
+trees = ('.claude/skills', 'skills', 'codex-skills')
+start = '<!-- octopus-doc-sync:start -->'
+end = '<!-- octopus-doc-sync:end -->'
+
+
+class DocSyncPullRequest(unittest.TestCase):
+    def test_recipes(self):
+        for tree in trees:
+            text = (root / tree / 'skill-doc-sync/SKILL.md').read_text()
+            step = text.split('## Step 9: Commit Doc Changes', 1)[1].split('## Integration', 1)[0]
+            recipe = re.findall(r'```bash\n(.*?)\n```', step, re.S)[1]
+            for scenario in ('append', 'replace', 'unchanged', 'invalid markers', 'closed',
+                             'changed body', 'changed after no-op', 'edit failed',
+                             'credential blocked', 'missing helper'):
+                with self.subTest(tree=tree, scenario=scenario):
+                    self.check_recipe(recipe, scenario)
+
+    def check_recipe(self, recipe, scenario):
+        with tempfile.TemporaryDirectory(dir=sys.argv[2]) as directory:
+            fixture = Path(directory)
+            fake_gh = fixture / 'gh'
+            fake_gh.write_text("""#!/usr/bin/env python3
+import os
+from pathlib import Path
+import sys
+
+root = Path(os.environ['TEST_DOC_SYNC_FIXTURE'])
+if sys.argv[1:3] == ['pr', 'view']:
+    current = root / 'current.json'
+    response = root / 'pr.json'
+    if sys.argv[3].startswith('https://') and current.exists():
+        response = current
+    print(response.read_text())
+elif sys.argv[1:3] == ['pr', 'edit']:
+    if sys.argv[3].startswith('https://'):
+        assert sys.argv[4] == '--body-file' and len(sys.argv) == 6
+    else:
+        assert sys.argv[3:7] == ['2', '--repo', 'example/project', '--body-file']
+        assert len(sys.argv) == 8 and os.environ['GH_HOST'] == 'github.example.test'
+    if (root / 'reject-edit').exists():
+        sys.exit(1)
+    (root / 'edited').write_bytes(Path(sys.argv[-1]).read_bytes())
+else:
+    sys.exit(3)
+""")
+            fake_gh.chmod(0o755)
+            prefix = '## Context\n\nExisting PR text.  \n'
+            suffix = '\n\n## Testing\n\nStill here.\n'
+            summary = '- Updated docs/guide.md\n'
+            section = f'{start}\n## Documentation sync\n\n{summary}{end}'
+            body = prefix
+            if scenario in ('replace', 'unchanged', 'changed after no-op'):
+                previous = f'{start}\nPrevious summary\n{end}' if scenario == 'replace' else section
+                body = f'{prefix}\n{previous}{suffix}'
+            if scenario == 'invalid markers':
+                body = f'{prefix}\n{start}\n'
+            if scenario == 'edit failed':
+                (fixture / 'reject-edit').touch()
+            if scenario == 'credential blocked':
+                summary = 'OPENAI_API_' + 'KEY=fixture-' + 'abc01234' * 4
+            (fixture / 'summary.md').write_text(summary)
+            pr = {
+                'number': 2, 'url': 'https://github.example.test/example/project/pull/2',
+                'state': 'CLOSED' if scenario == 'closed' else 'OPEN', 'body': body,
+            }
+            (fixture / 'pr.json').write_text(json.dumps(pr))
+            if scenario == 'changed body':
+                (fixture / 'current.json').write_text(json.dumps(dict(pr, body=f'{body}New edit.')))
+            if scenario == 'changed after no-op':
+                changed = body.replace(summary, '- Summary edited on GitHub.\n')
+                (fixture / 'current.json').write_text(json.dumps(dict(pr, body=changed)))
+            env = dict(os.environ, PATH=f'{fixture}:{os.environ["PATH"]}',
+                       TEST_DOC_SYNC_FIXTURE=directory,
+                       OCTO_ROOT=directory if scenario == 'missing helper' else str(root),
+                       DOC_SYNC_SUMMARY_FILE=str(fixture / 'summary.md'))
+            result = subprocess.run(['bash', '-c', recipe], env=env, capture_output=True, text=True)
+            edited = fixture / 'edited'
+            if scenario in ('append', 'replace'):
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = f'{prefix}\n{section}{suffix if scenario == "replace" else chr(10)}'
+                self.assertEqual(edited.read_text(), expected)
+            else:
+                self.assertFalse(edited.exists())
+                self.assertNotIn('Updated PR', result.stdout)
+                if scenario not in ('closed', 'unchanged'):
+                    self.assertNotEqual(result.returncode, 0)
+                if scenario in ('changed body', 'changed after no-op'):
+                    self.assertIn('Rerun this step', result.stderr)
+                if scenario == 'credential blocked':
+                    self.assertIn('credential-safety gate', result.stderr)
+                    self.assertNotIn(summary, result.stderr)
+
+
+unittest.main(argv=['doc-sync-pull-request'])
+PYTHON
+then
+  test_pass
+else
+  test_fail "doc-sync lost existing PR text or mishandled its update outcome"
+fi
+
 test_summary
