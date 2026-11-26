@@ -3693,15 +3693,16 @@ def load(path):
     try:
         if path.stat().st_size <= MAX_FILE_BYTES:
             data = html.unescape(path.read_bytes().decode("utf-8", "replace"))
-            starts, parts, pos = [], [], 0
-            for line in data.split("\n"):
+            starts, parts, line_numbers, pos = [], [], [], 0
+            for number, line in enumerate(data.split("\n"), 1):
                 piece = norm(line)
                 if not piece:
                     continue
                 starts.append(pos)
                 parts.append(piece)
+                line_numbers.append(number)
                 pos += len(piece) + 1
-            entry = (" ".join(parts), starts, [i for i, l in enumerate(data.split("\n"), 1) if norm(l)])
+            entry = (" ".join(parts), starts, line_numbers)
     except (OSError, ValueError):
         entry = None
     file_cache[path] = entry
@@ -3739,6 +3740,9 @@ def find_lines(hay, starts, line_numbers, needle, limit=50, following=(), word_b
 LAYOUT_SPACE = re.compile(r"(?<=\() | (?=\))")
 QUOTED_LITERAL = re.compile(r"""'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`""")
 def layout_removed(text):
+    # A line without parenthesis padding has no layout variant to compute.
+    if "( " not in text and " )" not in text:
+        return []
     literals = list(QUOTED_LITERAL.finditer(text))
     cursor = 0
     for literal in literals:

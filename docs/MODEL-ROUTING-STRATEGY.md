@@ -250,6 +250,25 @@ review fleets, councils, security passes, literal tier defaults, or fallback
 chains. Its rollout is limited, and inputs above 272K tokens trigger OpenAI's
 long-context multipliers for the whole request.
 
+Codex CLI 0.171.0 or later supports explicit `codex:gpt-6.2-sol` and
+`codex:gpt-6.2-astra` seats when the account offers the models. Sol suits
+day-to-day coding and review. Reserve Astra for a difficult decision or a
+failed acceptance check that merits a second pass. The bundled Codex catalog
+starts both at `low` effort when the caller leaves effort unset. Octopus
+continues to honor applicable explicit effort and model settings. Automatic
+routes, fallback chains, and bounded escalation targets keep their existing
+models.
+
+The OpenAI standard API input, cached-input and output rates per million
+tokens are $2/$0.10/$10 for Sol and $8/$0.40/$40 for Astra. Above 272K input
+tokens, input and cache rates double and output costs 1.5 times as much for
+the whole request. Octopus estimates standard uncached input and output.
+Codex subscription allowances and other processing tiers use separate billing.
+Sources checked 2026-11-26 include the
+[Codex CLI release](https://github.com/openai/codex/releases/tag/rust-v0.171.0),
+[Sol API reference](https://developers.openai.com/api/docs/models/gpt-6.2-sol)
+and [Astra API reference](https://developers.openai.com/api/docs/models/gpt-6.2-astra).
+
 ## Routing rules
 
 1. Start generic, mergeable work with one capable owner.

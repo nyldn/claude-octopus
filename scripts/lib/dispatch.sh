@@ -203,16 +203,12 @@ _codex_dispatch_is_oss_model() {
 }
 
 _octopus_require_codex_model_version() {
-    local model="$1"
-    local canonical_model="$model"
-    if declare -f octo_model_canonical_id >/dev/null 2>&1; then
-        canonical_model="$(octo_model_canonical_id "$model")" || return 1
-    fi
-    [[ "$canonical_model" == "gpt-6-astra" ]] || return 0
-    local installed_version
+    local model="$1" minimum installed_version
+    minimum="$(octo_codex_model_min_version "$model")" || return 1
+    [[ -n "$minimum" ]] || return 0
     installed_version="$(octo_codex_installed_version)"
-    if ! octo_codex_model_version_ok "$installed_version" "$model"; then
-        log "ERROR" "gpt-6-astra requires Codex CLI ${OCTO_CODEX_ASTRA_MIN_VERSION}+; found ${installed_version}"
+    if [[ "$installed_version" == unknown ]] || ! octo_version_ok "$installed_version" "$minimum"; then
+        log "ERROR" "$model requires Codex CLI ${minimum}+; found ${installed_version}"
         return 1
     fi
 }

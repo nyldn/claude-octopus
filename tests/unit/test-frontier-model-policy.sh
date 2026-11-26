@@ -325,4 +325,20 @@ else
     test_fail "version lookup trusted OCTO_CODEX_VERSION_OVERRIDE: $reported_version"
 fi
 
+for model in gpt-6.2-sol gpt-6.2-astra; do
+    test_case "$model is an explicit Codex pin on 0.171.0 and later"
+    if ! octo_model_auto_eligible "$model" &&
+       ! octo_model_automatic_target_allowed "codex:$model" codex &&
+       ! octo_codex_model_version_ok unknown "$model" &&
+       ! PATH="$fake_codex_bin:$PATH" OCTOPUS_TEST_CODEX_VERSION=0.170.0 \
+            _build_codex_exec_command "$model" '--sandbox read-only' '' >/dev/null 2>&1 &&
+       command_line="$(PATH="$fake_codex_bin:$PATH" OCTOPUS_TEST_CODEX_VERSION=0.171.0 \
+            _build_codex_exec_command "$model" '--sandbox read-only' '')" &&
+       [[ "$command_line" == "codex exec --skip-git-repo-check --model $model --sandbox read-only -" ]]; then
+        test_pass
+    else
+        test_fail "$model violated the explicit-pin or minimum-version contract"
+    fi
+done
+
 test_summary
