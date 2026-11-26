@@ -135,6 +135,7 @@ MOCK
     PERPLEXITY_API_KEY="sk-test" \
     OPENROUTER_API_KEY="sk-test" \
     LITELLM_API_KEY="sk-test" \
+    LITELLM_BASE_URL="http://localhost:4000" \
     PATH="$mock_bin:$PATH" \
     bash -c '
         log() { :; }
@@ -194,23 +195,16 @@ test_probe_200_stays_open() {
 }
 
 
-test_probe_litellm_401_marks_dead() {
-    test_case "octo_provider_probe: 401/403 from the LiteLLM proxy mark litellm dead and return the auth code 2"
-    local code result exit_code is_dead failures=""
-    for code in 401 403; do
-        result="$(run_probe_with_mock_curl litellm "$code")"
-        exit_code="${result%% *}"
-        is_dead="${result##* }"
-        [[ "$exit_code" -eq 2 && "$is_dead" == "1" ]] || failures+=" ${code}:exit=${exit_code},dead=${is_dead}"
-    done
-    result="$(run_probe_with_mock_curl litellm 429)"
-    exit_code="${result%% *}"
-    is_dead="${result##* }"
-    [[ "$exit_code" -eq 1 && "$is_dead" == "1" ]] || failures+=" 429:exit=${exit_code},dead=${is_dead}"
-    if [[ -z "$failures" ]]; then
+test_probe_litellm_auth_vs_route_denial() {
+    test_case "octo_provider_probe: LiteLLM 403 leaves dispatch eligible, 401 and 429 mark it dead"
+    local auth forbidden quota
+    auth="$(run_probe_with_mock_curl litellm 401)"
+    forbidden="$(run_probe_with_mock_curl litellm 403)"
+    quota="$(run_probe_with_mock_curl litellm 429)"
+    if [[ "$auth" == "2 1" && "$forbidden" == "0 0" && "$quota" == "1 1" ]]; then
         test_pass
     else
-        test_fail "unexpected LiteLLM probe results:${failures}"
+        test_fail "unexpected LiteLLM probe results (exit code, dead marker): 401=[$auth] 403=[$forbidden] 429=[$quota]"
     fi
 }
 
@@ -235,14 +229,14 @@ MOCK
     rm -rf "$workspace" "$mock_bin"
 }
 
-test_live_readiness_litellm_auth_vs_quota() {
-    test_case "live readiness: a rejected LiteLLM key reports auth-invalid, 429 still reports quota"
+test_live_readiness_litellm_probe_status() {
+    test_case "live readiness: LiteLLM 403 stays available, 401 reports auth-invalid, 429 reports quota"
     local auth quota forbidden
     auth="$(litellm_live_readiness_with_probe 401)"
     forbidden="$(litellm_live_readiness_with_probe 403)"
     quota="$(litellm_live_readiness_with_probe 429)"
     if [[ "$auth" == *'"status":"degraded"'* && "$auth" == *'"reason_code":"auth-invalid"'* &&
-          "$forbidden" == *'"reason_code":"auth-invalid"'* &&
+          "$forbidden" == *'"status":"available"'* && "$forbidden" == *'"reason_code":"ready"'* &&
           "$quota" == *'"status":"degraded"'* && "$quota" == *'"reason_code":"quota"'* ]]; then
         test_pass
     else
@@ -425,9 +419,9 @@ test_perplexity_max_tokens_env_override
 test_probe_401_marks_dead
 test_probe_402_marks_dead
 test_probe_200_stays_open
-test_probe_litellm_401_marks_dead
+test_probe_litellm_auth_vs_route_denial
 test_probe_litellm_uses_proxy_models_endpoint
-test_live_readiness_litellm_auth_vs_quota
+test_live_readiness_litellm_probe_status
 test_probe_network_error_stays_open
 test_probe_noop_when_flag_off
 test_check_providers_probe_on_401_gives_degraded

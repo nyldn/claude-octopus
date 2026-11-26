@@ -371,18 +371,10 @@ quota_watcher_mark_after_exit() {
 # existing quota-dead marker file, so check-providers.sh octo_quota_is_dead
 # reads it without any extra wiring.
 #
-# Fail-open policy: network errors (curl exit codes other than auth failure
-# signals) return 0 and do NOT mark the provider dead. Only definitive 401/402
-# or quota signals mark the provider dead. This avoids false positives on
-# transient connectivity issues.
-#
 # Return codes: 0 alive or unknown (fail open), 1 quota or auth signal, 2 a
-# definitive auth or configuration rejection. Only litellm returns 2 today:
-# its self-hosted proxy answers 401 for a missing or unknown key and 403 for
-# a key that may not use the route, which the operator fixes in config rather
-# than by waiting for a quota window. The provider is still marked dead for
-# the session, as with every other definitive rejection. An unreachable proxy
-# is a network error and fails open, matching the OrcaRouter policy.
+# definitive auth rejection (currently LiteLLM 401). Nonzero results mark the
+# provider dead for the session. Network errors and inconclusive responses
+# leave dispatch eligible.
 octo_provider_probe() {
     local provider="$1"
     [[ -n "$provider" ]] || return 0
@@ -433,8 +425,8 @@ octo_provider_probe() {
             fi
             local litellm_base_url
             litellm_base_url="$(octo_litellm_base_url)" || return 0
-            # GET /v1/models lists the proxy's model names, or 401/403 on a
-            # rejected key.
+            # A 403 on model listing is inconclusive: LiteLLM can restrict
+            # routes separately and still allow chat completions.
             http_code=$(curl -s -o /dev/null -w "%{http_code}" \
                 --max-time 10 \
                 -X GET "${litellm_base_url}/models" \
@@ -452,13 +444,9 @@ octo_provider_probe() {
         return 0
     fi
 
-    if [[ "$provider" == litellm ]]; then
-        case "$http_code" in
-            401|403)
-                octo_quota_mark_dead "$provider"
-                return 2
-                ;;
-        esac
+    if [[ "$provider" == litellm && "$http_code" == 401 ]]; then
+        octo_quota_mark_dead "$provider"
+        return 2
     fi
 
     # Definitive auth/quota failure: mark dead and return 1.
