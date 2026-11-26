@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.29.2] - 2026-11-25
+
 ### Fixed
 
 - Develop can retry a subtask on an allowed provider after a quota or
