@@ -143,4 +143,66 @@ for skill_tree in skills codex-skills; do
         test_fail "The synthesis recipe did not pass its exact path to a fresh shell"
     fi
 done
+
+test_case "Discover validates URLs and frames content in fresh shells"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_SECURITY'
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+root, scratch = map(Path, sys.argv[1:])
+failures = []
+checked = 0
+for tree in ('skills', 'codex-skills'):
+    reference = root / tree / 'flow-discover/references/security.md'
+    *prepare, frame = re.findall(
+        r'^[ \t]*```bash\n(.*?)^[ \t]*```$', reference.read_text(), re.M | re.S
+    )
+    prepare = '\n'.join(prepare)
+    source_url = 'https://example.com/article'
+    payload = 'Example article content.'
+    scenarios = (
+        ('public URL', prepare, source_url, root, payload, (source_url,)),
+        ('social URL', prepare, 'https://x.com/example/status/42',
+         root, payload, ('https://api.fxtwitter.com/example/status/42',)),
+        ('HTTP URL', prepare, 'http://example.com/', root, payload, None),
+        ('invalid social path', prepare, 'https://x.com/example', root, payload, None),
+        ('missing validation library', prepare, source_url, scratch, payload, None),
+        ('framed content', frame, source_url, root, payload,
+         ('---BEGIN UNTRUSTED CONTENT---', f'URL: {source_url}', payload,
+          '---END UNTRUSTED CONTENT---')),
+        ('empty content', frame, source_url, root, '', None),
+        ('missing framing library', frame, source_url, scratch, payload, None),
+    )
+    for strict in ((), ('-euo', 'pipefail')):
+        for name, recipe, url, plugin_root, content, expected in scenarios:
+            env = dict(os.environ, OCTO_ROOT=str(plugin_root), url=url,
+                       source_url=url, raw_content=content)
+            env.pop('BASH_ENV', None)
+            result = subprocess.run(
+                ['bash', *strict, '-c', recipe + '\nprintf "recipe finished\\n"'],
+                cwd=scratch, env=env, capture_output=True, text=True, timeout=10,
+            )
+            lines = result.stdout.splitlines()
+            finished = lines[-1:] == ['recipe finished']
+            if expected is None:
+                passed = result.returncode != 0 and not lines
+            else:
+                passed = (result.returncode == 0 and finished and not result.stderr
+                          and all(line in lines for line in expected))
+                if recipe == prepare:
+                    passed = passed and lines[:-1] == list(expected)
+            if not passed:
+                failures.append(f'{tree} {name} {strict}: exit={result.returncode}, '
+                                f'stdout={result.stdout!r}, stderr={result.stderr!r}')
+            checked += 1
+print(f'{checked - len(failures)}/{checked} Discover external-content recipe controls passed')
+for failure in failures:
+    print(failure, file=sys.stderr)
+sys.exit(bool(failures))
+PY_SECURITY
+then test_pass; else test_fail "Discover could not validate a URL or frame fetched content"; fi
+
 test_summary
