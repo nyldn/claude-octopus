@@ -26,10 +26,14 @@
 
 ```bash
 SYNTHESIS_FILE="${HOME}/.claude-octopus/results/probe-synthesis-${RUN_ID}.md"
-mkdir -p "$(dirname "$SYNTHESIS_FILE")"
+mkdir -p "$(dirname "$SYNTHESIS_FILE")" || exit 1
+printf 'SYNTHESIS_FILE=%q\n' "$SYNTHESIS_FILE"
 ```
 
-Write the synthesis content to `$SYNTHESIS_FILE`. The file MUST exist for the validation gate.
+Save the printed assignment in the task handoff with the run ID. Restore it
+at the start of each later shell call that uses the synthesis, including
+completion and any resumed call. Write the synthesis content to
+`$SYNTHESIS_FILE` before running the validation gate.
 
 Before presenting the synthesis, run the mechanical evidence gate when the durable run is available:
 

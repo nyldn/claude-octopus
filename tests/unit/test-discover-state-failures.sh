@@ -110,4 +110,37 @@ for failure in failures:
 sys.exit(bool(failures))
 PY_CONTROLS
 then test_pass; else test_fail "Discover continued after invalid synthesis or failed state writes"; fi
+
+test_case "Discover guidance uses the synthesis path from the current run"
+guidance_failures=()
+for skill_tree in skills codex-skills; do
+    guidance_path="$PROJECT_ROOT/$skill_tree/flow-discover/references/guidance.md"
+    guidance="$(<"$guidance_path")"
+    if [[ "$guidance" != *'Read `$SYNTHESIS_FILE`'* \
+       || "$guidance" != *'Full research saved to: <full synthesis path for this run>'* ]] \
+       || grep -E '(discover|probe)-synthesis-[^[:space:]]*\.md' "$guidance_path"; then
+        guidance_failures+=("$skill_tree")
+    fi
+done
+if [[ ${#guidance_failures[@]} -eq 0 ]]; then
+    test_pass
+else
+    test_fail "Discover guidance does not consistently use SYNTHESIS_FILE in: ${guidance_failures[*]}"
+fi
+
+for skill_tree in skills codex-skills; do
+    test_case "$skill_tree synthesis passes its output path to a fresh shell"
+    synthesis_reference="$PROJECT_ROOT/$skill_tree/flow-discover/references/synthesize.md"
+    path_recipe="$(sed -n '/^SYNTHESIS_FILE=/,/^```/ { /^```/d; p; }' "$synthesis_reference")"
+    fixture_run_id='flow-1700000000-0123456789abcdef0123456789abcdef'
+    expected_path="$HOME/.claude-octopus/results/probe-synthesis-${fixture_run_id}.md"
+    if assignment="$(RUN_ID="$fixture_run_id" bash -eu -c $'mkdir() { return 0; }\n'"$path_recipe")" &&
+       [[ "$assignment" == SYNTHESIS_FILE=* ]] &&
+       restored_path="$(bash -eu -c "$assignment"$'\nprintf "%s" "${SYNTHESIS_FILE:?}"')" &&
+       [[ "$restored_path" == "$expected_path" ]]; then
+        test_pass
+    else
+        test_fail "The synthesis recipe did not pass its exact path to a fresh shell"
+    fi
+done
 test_summary

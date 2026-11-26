@@ -157,14 +157,11 @@ background_task(agent="librarian", prompt="Research external documentation for [
 
 ### Step 3: Read Results
 
-Results are saved to:
-```
-~/.claude-octopus/results/${SESSION_ID}/discover-synthesis-<timestamp>.md
-```
+Read `$SYNTHESIS_FILE`, the path set by the synthesis step for this run.
 
 ### Step 4: Present Synthesis
 
-Read the synthesis file and present key findings to the user in the chat.
+Present the key findings and the full synthesis path to the user.
 
 
 ## Implementation Instructions
@@ -319,7 +316,7 @@ Based on multi-provider analysis, the recommended approach for React apps in 202
 - Trade-offs between different approaches
 - Integration with existing React patterns
 
-Full research saved to: ~/.claude-octopus/results/abc-123/probe-synthesis-20250118-143022.md
+Full research saved to: <full synthesis path for this run>
 ```
 
 ### Example 2: Technology Comparison
