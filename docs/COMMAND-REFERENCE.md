@@ -533,6 +533,7 @@ Discovery phase — Multi-AI research and exploration.
 - Relevance-aware synthesis with quality ranking (v8.49.0+)
 - Minority opinion preservation — surfaces dissenting views
 - Saves a local run manifest and source ledger so interrupted research can be resumed
+- Carries the current report path across shell calls and shows the full path with the findings
 - Mechanically checks cited source IDs, quoted text, numeric claims, and source independence
 - Applies bounded public-HTTPS fetching with redirect and response-size checks
 - Shows visual indicator: 🐙 🔍
@@ -635,6 +636,7 @@ Intelligent plan builder — creates strategic execution plans without executing
 - Captures comprehensive intent via 5 structured questions (goal, knowledge level, constraints, timeline, success criteria)
 - Analyzes requirements and generates a weighted execution strategy
 - Saves every plan and intent contract to a unique resolved run directory: `<project-root>/.octo/plans/<run-id>/` in a project, or `~/.claude-octopus/sessions/<session-id>/plans/<run-id>/` elsewhere. It never writes loose artifacts into `~/.claude/`.
+- Records task allocation and escalation decisions in the intent contract, including when the task is assigned to a human
 - Offers to execute immediately with `/octo:embrace` or save for later
 
 **When to use:** When you want to think through a complex task before committing to execution. Use `/octo:embrace` to execute a plan.

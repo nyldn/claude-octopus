@@ -45,6 +45,11 @@ saved in the same second.
 Debate saves each run separately, and Factory reports an error if it cannot
 save its report or record completion.
 
+Discover shows the full path to the current research report, including after a
+resume. Intent contracts retain who does the work and who decides whether to
+proceed. Parallel Agents warns when Claude Code needs an update and can continue
+with a ready non-Claude provider.
+
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.29.2 — Parallel validates work plans, Develop retries on available providers, Factory asks before spending and separates run evidence, and gateway defaults use available models.**
 >
