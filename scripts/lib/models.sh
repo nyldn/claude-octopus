@@ -19,6 +19,8 @@ _octo_get_model_catalog_raw() {
     case "$model" in
         # OpenAI GPT-6 and GPT-5.x. Context values describe API model limits;
         # dispatch applies the configured transport ceiling separately.
+        gpt-6.2-astra)          echo "1050|yes|yes|yes|codex|premium|active" ;;
+        gpt-6.2-sol)            echo "1050|yes|yes|yes|codex|standard|active" ;;
         gpt-6-astra)            echo "1050|yes|yes|yes|codex|premium|limited" ;;
         gpt-6.1-sol)            echo "1050|yes|yes|yes|codex|standard|active" ;;
         gpt-6.1-terra)          echo "1050|yes|yes|yes|codex|standard|active" ;;
@@ -178,6 +180,7 @@ get_model_policy() {
         claude-fable-5-2) echo "explicit|no|0|0|general" ;;
         claude-fable-5-1) echo "explicit|no|0|1|general" ;;
         claude-fable-5)   echo "explicit|no|0|0|general" ;;
+        gpt-6.2-astra|gpt-6.2-sol) echo "explicit|no|0|0|general" ;;
         gpt-6-astra)      echo "explicit|no|0|1|limited" ;;
         *)
             if [[ "$(get_model_catalog "$model")" == *"|unknown" ]]; then
@@ -292,6 +295,8 @@ octo_model_family() {
 # must use this instead of maintaining another hand-written catalog.
 octo_model_ids() {
     cat <<'EOF'
+gpt-6.2-astra
+gpt-6.2-sol
 gpt-6-astra
 gpt-6.1-sol
 gpt-6.1-terra

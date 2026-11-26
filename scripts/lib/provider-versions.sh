@@ -4,6 +4,7 @@
 
 OCTO_CODEX_MIN_VERSION="${OCTO_CODEX_MIN_VERSION:-0.144.0}"
 OCTO_CODEX_ASTRA_MIN_VERSION="${OCTO_CODEX_ASTRA_MIN_VERSION:-0.153.1}"
+OCTO_CODEX_GPT62_MIN_VERSION="${OCTO_CODEX_GPT62_MIN_VERSION:-0.171.0}"
 OCTO_CLAUDE_FABLE_MIN_VERSION="${OCTO_CLAUDE_FABLE_MIN_VERSION:-2.1.255}"
 OCTO_CLAUDE_FABLE52_MIN_VERSION="${OCTO_CLAUDE_FABLE52_MIN_VERSION:-2.1.321}"
 OCTO_AGY_MIN_VERSION="${OCTO_AGY_MIN_VERSION:-1.0.6}"
@@ -36,17 +37,24 @@ octo_version_ok() {
   return 0
 }
 
-# Astra entered the Codex model catalog after the general CLI floor. Keep this
-# gate model-specific so existing Codex routes remain usable on supported older
-# clients. Unlike the general check, an unknown version fails closed for Astra.
-octo_codex_model_version_ok() {
-  local installed="$1" model="$2"
+# Return a floor only for models that need a newer bundled Codex catalog.
+octo_codex_model_min_version() {
+  local model="$1"
   if declare -f octo_model_canonical_id >/dev/null 2>&1; then
     model="$(octo_model_canonical_id "$model")" || return 1
   fi
-  [[ "$model" == "gpt-6-astra" ]] || return 0
+  case "$model" in
+    gpt-6-astra) printf '%s\n' "$OCTO_CODEX_ASTRA_MIN_VERSION" ;;
+    gpt-6.2-astra|gpt-6.2-sol) printf '%s\n' "$OCTO_CODEX_GPT62_MIN_VERSION" ;;
+  esac
+}
+
+octo_codex_model_version_ok() {
+  local installed="$1" minimum
+  minimum="$(octo_codex_model_min_version "$2")" || return 1
+  [[ -n "$minimum" ]] || return 0
   [[ "$installed" != "unknown" && -n "$installed" ]] || return 1
-  octo_version_ok "$installed" "$OCTO_CODEX_ASTRA_MIN_VERSION"
+  octo_version_ok "$installed" "$minimum"
 }
 
 octo_codex_installed_version() {

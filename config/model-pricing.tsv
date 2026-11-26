@@ -4,6 +4,10 @@
 # Model rows take precedence; provider rows cover legacy records and dynamic IDs.
 # Provider-override rows distinguish subscription routes from direct API routes
 # when the same model name can be used by both.
+model	gpt-6.2-astra	8.00	40.00	OpenAI explicit-only frontier
+request-rule	gpt-6.2-astra	272000	2.00	1.50	Whole-request multiplier when input exceeds threshold
+model	gpt-6.2-sol	2.00	10.00	OpenAI explicit-only standard
+request-rule	gpt-6.2-sol	272000	2.00	1.50	Whole-request multiplier when input exceeds threshold
 model	gpt-6-astra	10.00	50.00	OpenAI explicit-only frontier
 request-rule	gpt-6-astra	272000	2.00	1.50	Whole-request multiplier when input exceeds threshold
 model	gpt-6.1-terra	1.00	5.00	OpenAI visual reasoning and writing

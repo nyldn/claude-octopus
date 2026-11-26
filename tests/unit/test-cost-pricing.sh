@@ -40,6 +40,16 @@ else
   test_fail "unknown cached-token tariff was fabricated"
 fi
 
+test_case "explicit GPT-6.2 estimates apply the standard and whole-request long-context rates"
+if [[ "$(get_model_pricing gpt-6.2-sol codex-api 272000)" == "2.00:10.00" &&
+      "$(get_model_pricing gpt-6.2-sol codex-api 272001)" == "4.000000:15.000000" &&
+      "$(get_model_pricing gpt-6.2-astra codex-api 272000)" == "8.00:40.00" &&
+      "$(get_model_pricing gpt-6.2-astra codex-api 272001)" == "16.000000:60.000000" ]]; then
+  test_pass
+else
+  test_fail "GPT-6.2 request estimates did not use the published threshold and tariffs"
+fi
+
 test_case "native metrics parser keeps cache and reasoning fields"
 SUPPORTS_NATIVE_TASK_METRICS=true
 SUPPORTS_OTEL_SPEED=false
