@@ -2,13 +2,23 @@
 
 ## [Unreleased]
 
+## [11.30.1] - 2026-11-26
+
 ### Fixed
 
-- Deep security audits inventory local Codex skills and plugin metadata
-  alongside Claude Code installations for supply-chain review.
+- The Deep audit skill checks local Codex skills for selected shell patterns
+  and lists plugin and marketplace metadata paths for supply-chain review.
+  ([#1444](https://github.com/nyldn/claude-octopus/pull/1444))
 
 - Design Lineage finds designs saved from Codex and uses a consistent
   `no-branch` label when a project has no Git history.
+  ([#1445](https://github.com/nyldn/claude-octopus/pull/1445))
+
+- The Parallel migration example uses `/octo:parallel` in Claude Code and
+  `$flow-parallel` in Codex.
+  ([#1443](https://github.com/nyldn/claude-octopus/pull/1443))
+
+These fixes address parts of [#1304](https://github.com/nyldn/claude-octopus/issues/1304).
 
 ## [11.30.0] - 2026-11-26
 

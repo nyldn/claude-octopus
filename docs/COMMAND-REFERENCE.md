@@ -945,6 +945,15 @@ Enhanced multi-LLM or adversarial security audit with OWASP compliance and vulne
 
 ---
 
+### Deep supply-chain review
+
+Run the `octopus-security-audit` skill in Deep mode to check local Claude Code
+and Codex installations. It lists plugin and marketplace metadata paths and
+flags skill files whose contents match `exec`, `eval`, or `bash -c` patterns.
+Review custom skill directories and linked skills separately.
+
+---
+
 ### `/octo:debug`
 
 Systematic debugging with methodical root cause investigation.
@@ -991,6 +1000,8 @@ Team of Teams — decompose compound tasks across independent Claude instances.
 /octo:parallel build a full authentication system with OAuth, RBAC, and audit logging
 /octo:parallel create CI/CD pipeline with testing, linting, and deployment stages
 ```
+
+In Codex, invoke the installed `$flow-parallel` skill for the same workflow.
 
 **What it does:**
 - Validates the Work Breakdown Structure before launching workers. Parallel stops

@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.30.0",
-  "description": "v11.30.0 \u2014 Pin GPT-6.2 Sol and Astra in Codex, keep valid review verdicts, and update Doc Sync summaries. Run /octo:setup.",
+  "version": "11.30.1",
+  "description": "v11.30.1 \u2014 Find new Codex designs, audit local Codex skills and plugins, and use the installed Parallel migration command. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
