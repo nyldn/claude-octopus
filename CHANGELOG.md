@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Deep security audits inventory local Codex skills and plugin metadata
+  alongside Claude Code installations for supply-chain review.
+
 ## [11.30.0] - 2026-11-26
 
 ### Added

@@ -12,6 +12,7 @@ KW_DOC="$PROJECT_ROOT/docs/KNOWLEDGE-WORKERS.md"
 AUDIT_SKILL="$PROJECT_ROOT/.claude/skills/skill-security-audit/SKILL.md"
 PARALLEL_SKILL="$PROJECT_ROOT/.claude/skills/skill-parallel-agents/SKILL.md"
 GENERATED_AUDIT_SKILL="$PROJECT_ROOT/skills/octopus-security-audit/SKILL.md"
+CODEX_AUDIT_SKILL="$PROJECT_ROOT/codex-skills/octopus-security-audit/SKILL.md"
 GENERATED_PARALLEL_SKILL="$PROJECT_ROOT/skills/skill-parallel-agents/SKILL.md"
 
 example_home="$TEST_TMP_DIR/documented-examples-home"
@@ -196,5 +197,93 @@ check_phase_examples() {
 
 check_phase_examples "skill-parallel-agents" "$PARALLEL_SKILL"
 check_phase_examples "generated skill-parallel-agents" "$GENERATED_PARALLEL_SKILL"
+
+check_supply_chain_example() {
+    local skill="$1" profile="$2" fixture="$TEST_TMP_DIR/supply-chain-$2"
+    mkdir -p "$fixture"
+    # Git reports a physical project path, including on macOS where /var is a symlink.
+    fixture="$(cd "$fixture" && pwd -P)"
+    local fixture_home="$fixture/home" claude_config="$fixture/home/.claude"
+    local codex_config="$fixture/home/.codex" project="$fixture/project"
+    local claude_plugin codex_plugin portable_plugin recipe output path
+    if [[ "$profile" == custom ]]; then
+        claude_config="$fixture/custom claude"
+        codex_config="$fixture/custom codex"
+    fi
+    claude_plugin="$claude_config/plugins/cache/store/claude-example/1.0"
+    codex_plugin="$codex_config/plugins/cache/store/codex-example/local"
+    portable_plugin="$codex_config/plugins/portable-example"
+    local -a skill_files=(
+        "$claude_config/skills/claude user/SKILL.md"
+        "$fixture_home/.agents/skills/codex user/SKILL.md"
+        "$codex_config/skills/local codex/SKILL.md"
+        "$project/.claude/skills/claude project/SKILL.md"
+        "$project/.agents/skills/codex project/SKILL.md"
+        "$project/subdir/.agents/skills/codex parent/SKILL.md"
+        "$project/subdir/leaf/.agents/skills/codex current/SKILL.md"
+        "$claude_plugin/skills/claude plugin/SKILL.md"
+        "$codex_plugin/codex-skills/nested/codex plugin/SKILL.md"
+        "$portable_plugin/skills/portable plugin/SKILL.md"
+    )
+    local -a metadata_files=(
+        "$claude_plugin/.claude-plugin/plugin.json"
+        "$codex_plugin/.codex-plugin/plugin.json"
+        "$portable_plugin/plugin.json"
+        "$claude_config/plugins/known_marketplaces.json"
+        "$codex_config/plugins/installed_plugins.json"
+        "$codex_config/plugins/marketplaces/store/.agents/plugins/marketplace.json"
+        "$fixture_home/.agents/plugins/marketplace.json"
+        "$project/.agents/plugins/marketplace.json"
+        "$project/.claude-plugin/marketplace.json"
+    )
+    for path in "${skill_files[@]}"; do
+        mkdir -p "${path%/*}"
+        printf '%s\n' 'bash -c "echo SUPPLY_CHAIN_FIXTURE_BODY"' > "$path"
+    done
+    for path in "${metadata_files[@]}"; do
+        mkdir -p "${path%/*}"
+        printf '%s\n' '{"source":"SUPPLY_CHAIN_FIXTURE_BODY"}' > "$path"
+    done
+    mkdir -p "$project/.agents/skills/plain" "$fixture/.agents/skills/outside-project"
+    git init -q "$project"
+    printf '%s\n' 'This skill explains the execution of a plan.' > "$project/.agents/skills/plain/SKILL.md"
+    printf '%s\n' 'bash -c "echo outside fixture"' > "$fixture/.agents/skills/outside-project/SKILL.md"
+    recipe="$(awk '
+        /^### Skill & Plugin Supply Chain/ { section = 1 }
+        section && /^```bash$/ { block = 1; next }
+        block && /^```$/ { exit }
+        block { print }
+    ' "$skill")"
+
+    test_case "${skill#$PROJECT_ROOT/}: deep audit checks both hosts with $profile paths"
+    if ! output="$(
+        cd "$project/subdir/leaf"
+        if [[ "$profile" == custom ]]; then
+            env "HOME=$fixture_home" "CLAUDE_CONFIG_DIR=$claude_config" "CODEX_HOME=$codex_config" bash -eu -o pipefail -c "$recipe"
+        else
+            unset CLAUDE_CONFIG_DIR CODEX_HOME
+            env "HOME=$fixture_home" bash -eu -o pipefail -c "$recipe"
+        fi
+    )"; then
+        test_fail "supply-chain example failed: $output"
+        return
+    fi
+    for path in "${skill_files[@]}" "${metadata_files[@]}"; do
+        if ! grep -Fx -e "Shell review: $(printf '%q' "$path")" -e "Plugin metadata: $(printf '%q' "$path")" <<< "$output" >/dev/null; then
+            test_fail "supply-chain example missed $path"
+            return
+        fi
+    done
+    if [[ "$output" == *SUPPLY_CHAIN_FIXTURE_BODY* || "$output" == *'/plain/SKILL.md'* || "$output" == *'/outside-project/SKILL.md'* ]]; then
+        test_fail "supply-chain example printed fixture bodies or included a plain or out-of-scope skill"
+    else
+        test_pass
+    fi
+}
+
+for skill in "$AUDIT_SKILL" "$GENERATED_AUDIT_SKILL" "$CODEX_AUDIT_SKILL"; do
+    check_supply_chain_example "$skill" default
+    check_supply_chain_example "$skill" custom
+done
 
 test_summary
