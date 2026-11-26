@@ -215,17 +215,20 @@ if [[ "$rc" -eq 73 && ! -e "$retry_results/review-called" ]] &&
     test_pass
 else test_fail "context setup failure preserved an earlier completed review"; fi
 
-test_case "verifier responses preserve original fields and allow only verification additions"
+test_case "verifier responses preserve original findings and discard extra metadata"
 if (
     source "$ROOT/scripts/lib/review.sh"
     originals="$TEST_TMP_DIR/original-findings.json"
-    printf '%s\n' '[{"file":"app.py","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.2,"extra":{"b":2,"a":1}}]' > "$originals"
-    valid='{"findings":[{"extra":{"a":1,"b":2},"confidence":0.2,"severity":"normal","category":"logic","detail":"bad","title":"bug","line":1,"file":"app.py","verdict":"confirmed","pre_existing_newly_reachable":true}]}'
-    printf '%s' "$valid" | review_validate_verdicts "$originals" >/dev/null || exit 1
-    for mutation in '.findings[0].confidence = 0.99' 'del(.findings[0].extra)' '.findings[0].extra.a = 9' '.findings[0].invented = true'; do
+    printf '%s\n' '[{"file":"app.py","line":1,"title":"bug","detail":"bad","category":"logic","severity":"normal","confidence":0.2,"extra":{"b":2,"a":1}},{"file":"app.py","line":2,"title":"other"}]' > "$originals"
+    valid='{"findings":[{"file":"app.py","line":2,"title":"other","verdict":"false-positive","verification":"Behavior predates the change"},{"extra":{"a":1,"b":2},"confidence":0.2,"severity":"normal","category":"logic","detail":"bad","title":"bug","line":1,"file":"app.py","verdict":"confirmed","pre_existing_newly_reachable":true,"invented":true}]}'
+    normalized=$(printf '%s' "$valid" | review_validate_verdicts "$originals") || exit 1
+    expected=$(printf '%s' "$valid" | jq 'del(.findings[0].verification, .findings[1].invented)')
+    [[ "$normalized" == "$expected" ]] || exit 1
+    for mutation in '.findings[1].confidence = 0.99' 'del(.findings[1].extra)' '.findings[1].extra.a = 9' \
+        'del(.findings[0].verdict)' '.findings[0].verdict = "unknown"' 'del(.findings[0])' '.findings[0] = .findings[1]'; do
         if printf '%s' "$valid" | jq "$mutation" | review_validate_verdicts "$originals" >/dev/null 2>&1; then exit 1; fi
     done
-); then test_pass; else test_fail "verifier changed original fields or rejected equivalent JSON"; fi
+); then test_pass; else test_fail "verifier dropped usable verdicts or accepted changed findings"; fi
 
 test_case "missing and invalid final verdicts cannot authorize Tangle corrections"
 if (
