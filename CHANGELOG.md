@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added
+
+- Choose GPT-6.2 Sol or Astra explicitly with Codex CLI 0.171.0 or later.
+  Existing automatic routes and saved pins keep their current behavior.
+  ([#1440](https://github.com/nyldn/claude-octopus/pull/1440))
+
+### Fixed
+
+- Council verifies large source quotes with less repeated scanning.
+  ([#1440](https://github.com/nyldn/claude-octopus/pull/1440))
+
+- Discover loads its link validation helpers in a fresh shell and stops
+  processing a source if validation or fetching fails.
+  ([#1437](https://github.com/nyldn/claude-octopus/pull/1437))
+
+- Expert Review keeps valid verdicts when a verifier adds extra metadata.
+  ([#1439](https://github.com/nyldn/claude-octopus/pull/1439),
+  [#1438](https://github.com/nyldn/claude-octopus/issues/1438))
+
+- Doc Sync adds or updates its summary in the current pull request and scans
+  the outgoing description before publishing it.
+  ([#1441](https://github.com/nyldn/claude-octopus/pull/1441))
+
 ## [11.29.3] - 2026-11-25
 
 ### Fixed

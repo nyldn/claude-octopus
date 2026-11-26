@@ -50,6 +50,13 @@ resume. Intent contracts retain who does the work and who decides whether to
 proceed. Parallel Agents warns when Claude Code needs an update and can continue
 with a ready non-Claude provider.
 
+Codex CLI 0.171.0 and later can pin GPT-6.2 Sol or Astra explicitly.
+Automatic provider routing keeps its existing defaults.
+
+Discover validates external links in fresh shells before fetching them. Expert
+Review keeps valid verdicts when verifier replies include extra metadata. Doc
+Sync records changed documentation and checks in the open pull request.
+
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.29.3 — Discover keeps the report path, intent contracts retain task allocation, and Parallel Agents uses ready providers after a Claude Code upgrade warning.**
 >
