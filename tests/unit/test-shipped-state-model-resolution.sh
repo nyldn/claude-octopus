@@ -78,10 +78,10 @@ test_bare_openrouter_no_config() {
     test_case "bare openrouter resolves to a namespaced OpenRouter ID with no config"
     local resolved
     resolved="$(_resolve_in_empty_home openrouter openrouter)"
-    if [[ "$resolved" == "anthropic/claude-sonnet-4" ]]; then
+    if [[ "$resolved" == "anthropic/claude-sonnet-4.6" ]]; then
         test_pass
     else
-        test_fail "expected anthropic/claude-sonnet-4, got: '$resolved'"
+        test_fail "expected anthropic/claude-sonnet-4.6, got: '$resolved'"
     fi
 }
 

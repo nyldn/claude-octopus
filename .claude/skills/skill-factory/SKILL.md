@@ -27,8 +27,13 @@ Ask via AskUserQuestion BEFORE any other action:
 3. Cost approval — ~0.50-2.00 USD for ~20-30 agent calls (Approve / Approve --ci / Decline)
 
 If spec path provided inline with the command, use it but still ask remaining questions.
-If user says "skip", use defaults and proceed.
-DO NOT proceed to Step 2 until answered.
+Use defaults for optional answers the user skips. If the user declines the
+cost, end the workflow. If the cost answer is missing or unclear, ask for
+explicit approval before proceeding to Step 2.
+
+In each shell that can dispatch providers, set `FACTORY_COST_APPROVAL` from
+the user's answer for this run. Use `approve` for Approve and `approve-ci`
+for Approve --ci.
 
 ### STEP 2: Display Visual Indicators (MANDATORY — BLOCKING)
 Check providers:
@@ -84,6 +89,10 @@ Failure → continue without state, warn user.
 If a second provider is available, dispatch the challenge through Octopus routing:
 
 ```bash
+case "${FACTORY_COST_APPROVAL:-}" in
+    approve|approve-ci) ;;
+    *) printf '%s\n' 'Factory requires explicit cost approval.' >&2; exit 1 ;;
+esac
 # Read the spec to extract behaviors and constraints
 SPEC_CONTENT=$(<"<spec_path>")
 review_provider=""
@@ -120,20 +129,25 @@ fi
 
 ### STEP 5: Execute orchestrate.sh factory (MANDATORY — Bash Tool)
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" factory --spec "<spec_path>"
+factory_args=(factory --spec "<spec_path>")
+case "${FACTORY_COST_APPROVAL:-}" in
+    approve) ;;
+    approve-ci) factory_args+=(--ci) ;;
+    *) printf '%s\n' 'Factory requires explicit cost approval.' >&2; exit 1 ;;
+esac
+"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" "${factory_args[@]}"
 ```
 
 If the command exits nonzero, report the error, show logs from
 `~/.claude-octopus/logs/`, and stop. Do not run Steps 6 through 8 or use an earlier
 run's artifacts after a failed execution.
 
-With optional flags based on Step 1 answers:
+Append optional flags to `factory_args` before dispatch when requested:
 - `--holdout-ratio <value>` if custom ratio requested
 - `--max-retries <value>` if custom retry count
-- `--ci` if user approved non-interactive mode
 
 <HARD-GATE>
-PROHIBITED from:
+After cost approval, PROHIBITED from:
 - Running embrace directly (MUST use factory command which wraps it)
 - Simulating or faking holdout testing
 - Substituting direct Claude analysis for multi-provider scoring
@@ -195,7 +209,7 @@ Providers: Codex | Antigravity | Claude
 ```
 
 ## Error Handling (by step)
-- Step 1 (Questions): If user declines all, proceed with defaults
+- Step 1 (Questions): Stop on declined cost approval. Ask for explicit approval if the cost answer is missing or unclear.
 - Step 2 (Providers): Both external unavailable → Claude-only mode (warn)
 - Step 3 (Spec): File missing → STOP. Thin spec → WARN and proceed.
 - Step 4 (State): Failure → continue without state
@@ -205,7 +219,7 @@ Providers: Codex | Antigravity | Claude
 - Step 8 (State): Failure → skip state update, still present results
 
 ## Prohibited Actions
-- CANNOT skip orchestrate.sh factory execution
+- CANNOT skip orchestrate.sh factory execution after cost approval
 - CANNOT simulate or fake the factory pipeline
 - CANNOT substitute direct Claude analysis for multi-provider scoring
 - CANNOT skip spec validation gate

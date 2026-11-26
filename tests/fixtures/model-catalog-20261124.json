@@ -1,0 +1,335 @@
+{
+  "checked_at": "2026-11-24T18:26:36.407776+00:00",
+  "sources": {
+    "opencode": {
+      "url": "https://opencode.ai/inference/v1/models",
+      "models": [
+        {
+          "id": "deepseek-v4.1-flash-free",
+          "limit": {
+            "context": 200000,
+            "output": 32000
+          },
+          "cost": {
+            "text": {
+              "input": {
+                "price": 0,
+                "cache": {
+                  "read": 0
+                }
+              },
+              "output": {
+                "price": 0
+              }
+            }
+          },
+          "capabilities": {
+            "tools": {
+              "supported": true
+            },
+            "reasoning": {
+              "supported": true,
+              "toggle": true,
+              "effort": [
+                "low",
+                "high",
+                "max"
+              ]
+            },
+            "structured_output": true,
+            "temperature": true,
+            "top_p": true,
+            "top_k": true,
+            "system_updates": true,
+            "effort_updates": false
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image/jpeg",
+              "image/png",
+              "image/gif",
+              "image/webp"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        {
+          "id": "glm-5.3",
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "cost": {
+            "text": {
+              "input": {
+                "price": 0.56,
+                "cache": {
+                  "read": 0.104
+                }
+              },
+              "output": {
+                "price": 1.76
+              }
+            }
+          },
+          "capabilities": {
+            "tools": {
+              "supported": true
+            },
+            "reasoning": {
+              "supported": true,
+              "effort": [
+                "low",
+                "high",
+                "max"
+              ]
+            },
+            "cache": {
+              "implicit": true
+            },
+            "structured_output": true,
+            "temperature": true,
+            "top_p": true,
+            "top_k": true,
+            "system_updates": true,
+            "effort_updates": false
+          },
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        {
+          "id": "gpt-5.4",
+          "limit": {
+            "context": 1050000,
+            "input": 922000,
+            "output": 128000
+          },
+          "cost": {
+            "text": {
+              "input": {
+                "price": 2.5,
+                "cache": {
+                  "read": 0.25
+                },
+                "overrides": [
+                  {
+                    "when": {
+                      "context": {
+                        "gt": 272000
+                      }
+                    },
+                    "price": 5,
+                    "cache": {
+                      "read": 0.5
+                    }
+                  }
+                ]
+              },
+              "output": {
+                "price": 15,
+                "overrides": [
+                  {
+                    "when": {
+                      "context": {
+                        "gt": 272000
+                      }
+                    },
+                    "price": 22.5
+                  }
+                ]
+              }
+            },
+            "multipliers": [
+              {
+                "when": {
+                  "service_tier": {
+                    "equals": "priority"
+                  }
+                },
+                "factor": {
+                  "text": 2
+                }
+              },
+              {
+                "when": {
+                  "service_tier": {
+                    "equals": "flex"
+                  }
+                },
+                "factor": {
+                  "text": 0.5
+                }
+              }
+            ]
+          },
+          "capabilities": {
+            "tools": {
+              "supported": true
+            },
+            "reasoning": {
+              "supported": true,
+              "effort": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            },
+            "structured_output": true,
+            "temperature": true,
+            "top_p": true,
+            "top_k": false,
+            "system_updates": true,
+            "effort_updates": false,
+            "service_tier": [
+              "priority",
+              "flex"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image/jpeg",
+              "image/png",
+              "image/gif",
+              "image/webp",
+              "application/pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        {
+          "id": "gpt-5.4-mini",
+          "limit": {
+            "context": 400000,
+            "input": 272000,
+            "output": 128000
+          },
+          "cost": {
+            "text": {
+              "input": {
+                "price": 0.75,
+                "cache": {
+                  "read": 0.075
+                }
+              },
+              "output": {
+                "price": 4.5
+              }
+            },
+            "multipliers": [
+              {
+                "when": {
+                  "service_tier": {
+                    "equals": "priority"
+                  }
+                },
+                "factor": {
+                  "text": 2
+                }
+              },
+              {
+                "when": {
+                  "service_tier": {
+                    "equals": "flex"
+                  }
+                },
+                "factor": {
+                  "text": 0.5
+                }
+              }
+            ]
+          },
+          "capabilities": {
+            "tools": {
+              "supported": true
+            },
+            "reasoning": {
+              "supported": true,
+              "effort": [
+                "none",
+                "low",
+                "medium",
+                "high",
+                "xhigh"
+              ]
+            },
+            "structured_output": true,
+            "temperature": true,
+            "top_p": true,
+            "top_k": false,
+            "system_updates": true,
+            "effort_updates": false,
+            "service_tier": [
+              "priority",
+              "flex"
+            ]
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image/jpeg",
+              "image/png",
+              "image/gif",
+              "image/webp",
+              "application/pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        }
+      ]
+    },
+    "openrouter": {
+      "url": "https://openrouter.ai/api/v1/models",
+      "models": [
+        {
+          "id": "anthropic/claude-sonnet-4.6",
+          "context_length": 1000000,
+          "pricing": {
+            "prompt": "0.000003",
+            "completion": "0.000015",
+            "web_search": "0.01",
+            "input_cache_read": "0.0000003",
+            "input_cache_write": "0.00000375",
+            "input_cache_write_1h": "0.000006"
+          },
+          "top_provider": {
+            "context_length": 1000000,
+            "max_completion_tokens": 128000,
+            "is_moderated": true
+          },
+          "supported_parameters": [
+            "include_reasoning",
+            "max_completion_tokens",
+            "max_tokens",
+            "reasoning",
+            "reasoning_effort",
+            "response_format",
+            "stop",
+            "structured_outputs",
+            "temperature",
+            "tool_choice",
+            "tools",
+            "top_k",
+            "top_p",
+            "verbosity"
+          ]
+        }
+      ]
+    }
+  }
+}
