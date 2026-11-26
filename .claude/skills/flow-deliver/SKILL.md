@@ -292,7 +292,20 @@ would count this phase twice. If only the summary failed, rerun `show_summary`.
 
 ```bash
 # Update deliver phase context with validation summary
-validation_summary=$(head -30 "$VALIDATION_FILE" | grep -A 2 "## Summary\|Pass\|Fail" | tail -2 | tr '\n' ' ')
+# In a fresh shell, set VALIDATION_FILE to the exact path printed by Step 4.
+if [[ ! -f "${VALIDATION_FILE:-}" ]] ||
+   ! validation_excerpt=$(head -n 30 < "$VALIDATION_FILE") ||
+   [[ -z "$validation_excerpt" ]]; then
+  echo "Cannot read the validated report. Restore the exact path printed by Step 4." >&2
+  exit 1
+fi
+validation_summary=$(
+  set -o pipefail
+  # A complete report may have no matching summary lines.
+  printf '%s\n' "$validation_excerpt" |
+    { grep -A 2 -E '## Summary|Pass|Fail' || [[ $? -eq 1 ]]; } |
+    tail -n 2 | tr '\n' ' '
+) || exit 1
 
 "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/state-manager.sh" update_context \
   "deliver" \
@@ -347,8 +360,13 @@ if [[ -n "$CURRENT_BRANCH" && "$CURRENT_BRANCH" != "main" && "$CURRENT_BRANCH" !
 fi
 
 if [[ -n "$PR_NUM" ]]; then
-    # Extract summary section from validation file for PR comment
-    REVIEW_SUMMARY=$(head -60 "$VALIDATION_FILE")
+    # In a fresh shell, set VALIDATION_FILE to the exact path printed by Step 4.
+    if [[ ! -f "${VALIDATION_FILE:-}" ]] ||
+       ! REVIEW_SUMMARY=$(head -n 60 < "$VALIDATION_FILE") ||
+       [[ -z "$REVIEW_SUMMARY" ]]; then
+        echo "Cannot read the validated report. Restore the exact path printed by Step 4." >&2
+        exit 1
+    fi
 
     REPO_SLUG=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
     COMMENT_BODY="## Deliver Phase — Validation Report

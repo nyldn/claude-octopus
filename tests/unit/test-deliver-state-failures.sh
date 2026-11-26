@@ -78,6 +78,83 @@ for failure in failures:
 sys.exit(bool(failures))
 PY_CONTROLS
 then test_pass; else test_fail "Deliver continued after a failed state operation"; fi
+test_case "fresh shells require the validated report before state writes or PR comments"
+if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_REPORT'
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+
+root = Path(sys.argv[1])
+failures = []
+checked = 0
+with tempfile.TemporaryDirectory(dir=sys.argv[2], prefix='deliver report ') as temporary:
+    directory = Path(temporary)
+    scripts = directory / 'scripts'
+    scripts.mkdir()
+    side_effect = directory / 'side effect'
+    for helper, script in (
+        ('state-manager.sh', 'printf "%s\\n" "$1" >> "$SIDE_EFFECT"'),
+        ('safe-gh-comment.sh', 'cat >> "$SIDE_EFFECT"'),
+    ):
+        path = scripts / helper
+        path.write_text(f'#!/bin/bash\n{script}\n')
+        path.chmod(0o755)
+    valid = directory / 'validated report.md'
+    valid.write_text('## Status: COMPLETE\n## Summary\nPass\nValidated review\n')
+    no_summary = directory / 'validated report without summary.md'
+    no_summary.write_text('## Status: COMPLETE\nValidated review\n')
+    empty = directory / 'empty.md'
+    empty.touch()
+    (directory / 'delivery-newer.md').write_text('## Summary\nPass\nUnrelated review\n')
+    git_and_gh = """
+git() { echo feature; }
+gh() {
+    case "$1 $2" in
+        'pr list') echo 123 ;;
+        'repo view') echo test/example ;;
+        *) return 1 ;;
+    esac
+}
+"""
+    for tree in ('.claude/skills', 'skills', 'codex-skills'):
+        text = (root / tree / 'flow-deliver/SKILL.md').read_text()
+        for section in ('### STEP 6: Update State', '#### Post to PR'):
+            recipe = re.search(r'```bash\n(.*?)\n```', text.split(section, 1)[1], re.S)[1]
+            for shell in ('-c', '-euo'):
+                for report in (None, '', directory / 'missing.md', directory, empty, valid, no_summary):
+                    env = dict(os.environ, CLAUDE_PLUGIN_ROOT=str(directory), CODEX_PLUGIN_ROOT=str(directory),
+                               SIDE_EFFECT=str(side_effect))
+                    env.pop('VALIDATION_FILE', None)
+                    if report is not None:
+                        env['VALIDATION_FILE'] = str(report)
+                    flags = ['-euo', 'pipefail', '-c'] if shell == '-euo' else ['-c']
+                    program = git_and_gh + '(\n' + recipe + '\nprintf "completion reached\\n"\n) && exit 0; exit $?'
+                    result = subprocess.run(['bash', *flags, program], env=env, cwd=directory,
+                                            capture_output=True, text=True, timeout=10)
+                    effect = side_effect.read_text() if side_effect.exists() else ''
+                    side_effect.unlink(missing_ok=True)
+                    admitted = report in (valid, no_summary)
+                    expected_effect = ('Validated review' in effect and 'Unrelated review' not in effect
+                                       if section == '#### Post to PR'
+                                       else effect.splitlines() == ['update_context', 'update_metrics', 'show_summary'])
+                    if admitted:
+                        passed = result.returncode == 0 and 'completion reached' in result.stdout and expected_effect
+                    else:
+                        passed = (result.returncode != 0 and 'completion reached' not in result.stdout
+                                  and not effect and 'validated report' in result.stderr.lower())
+                    if not passed:
+                        failures.append(f'{tree}: {section}, {shell}, report={report!r}, exit={result.returncode}, '
+                                        f'evidence={effect!r}, stderr={result.stderr.strip()!r}')
+                    checked += 1
+print(f'{checked - len(failures)}/{checked} Deliver report handoff controls passed')
+for failure in failures:
+    print(failure, file=sys.stderr)
+sys.exit(bool(failures))
+PY_REPORT
+then test_pass; else test_fail "Deliver accepted a missing or unreadable validated report"; fi
 test_case "actual summary reads fail without printing success-shaped output"
 if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_SUMMARY'
 import json
