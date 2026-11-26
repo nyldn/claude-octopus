@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Deliver stops before recording completion or posting a PR summary when it
+  cannot read the workflow's validated report.
+
 ## [11.30.1] - 2026-11-26
 
 ### Fixed
