@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.29.3",
-  "description": "v11.29.3 \u2014 Discover keeps the report path, intent contracts retain task allocation, and Parallel Agents uses ready providers after a Claude Code upgrade warning. Run /octo:setup.",
+  "version": "11.30.0",
+  "description": "v11.30.0 \u2014 Pin GPT-6.2 Sol and Astra in Codex, keep valid review verdicts, and update Doc Sync summaries. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

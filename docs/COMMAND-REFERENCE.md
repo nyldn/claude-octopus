@@ -615,6 +615,9 @@ Delivery phase — Validation, quality assurance, and PR comment posting.
 When delivery runs documentation sync, the doc-sync commit contains only the
 files changed during that run. Files with pre-existing edits are skipped.
 Unrelated staged changes stay in the index.
+If the current branch has an open pull request, Doc Sync adds a documentation
+summary to the description. A repeat run updates the same section. If Doc Sync
+detects that the description changed while it was working, it asks you to retry.
 
 **Natural language triggers:**
 - `octo validate X`
