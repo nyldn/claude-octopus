@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [11.29.3] - 2026-11-25
+
+### Fixed
+
+- Discover keeps the current report path through validation and resume, then
+  shares the full path with the findings.
+  ([#1435](https://github.com/nyldn/claude-octopus/pull/1435))
+
+- Intent contracts save task allocation and escalation decisions. A pending
+  decision preserves the intent already recorded in the plan.
+  ([#1432](https://github.com/nyldn/claude-octopus/pull/1432))
+
+- Parallel Agents warns when Claude Code is outdated and continues when a
+  non-Claude provider is ready.
+  ([#1434](https://github.com/nyldn/claude-octopus/pull/1434))
+
 ## [11.29.2] - 2026-11-25
 
 ### Fixed
