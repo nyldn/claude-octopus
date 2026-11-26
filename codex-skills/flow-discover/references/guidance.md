@@ -158,7 +158,6 @@ background_task(agent="librarian", prompt="Research external documentation for [
 ### Step 3: Read Results
 
 Read `$SYNTHESIS_FILE`, the path set by the synthesis step for this run.
-Keep that path in the task handoff and restore it when resuming in a new shell.
 
 ### Step 4: Present Synthesis
 
@@ -317,7 +316,7 @@ Based on multi-provider analysis, the recommended approach for React apps in 202
 - Trade-offs between different approaches
 - Integration with existing React patterns
 
-Full research saved to: $SYNTHESIS_FILE
+Full research saved to: <full synthesis path for this run>
 ```
 
 ### Example 2: Technology Comparison
