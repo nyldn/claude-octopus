@@ -328,8 +328,8 @@ class DocSyncPullRequest(unittest.TestCase):
             text = (root / tree / 'skill-doc-sync/SKILL.md').read_text()
             step = text.split('## Step 9: Commit Doc Changes', 1)[1].split('## Integration', 1)[0]
             recipe = re.findall(r'```bash\n(.*?)\n```', step, re.S)[1]
-            for scenario in ('append', 'replace', 'unchanged', 'invalid markers',
-                             'closed', 'changed body', 'edit failed'):
+            for scenario in ('append', 'replace', 'unchanged', 'invalid markers', 'closed',
+                             'changed body', 'edit failed', 'credential blocked', 'missing helper'):
                 with self.subTest(tree=tree, scenario=scenario):
                     self.check_recipe(recipe, scenario)
 
@@ -345,13 +345,19 @@ import sys
 root = Path(os.environ['TEST_DOC_SYNC_FIXTURE'])
 if sys.argv[1:3] == ['pr', 'view']:
     current = root / 'current.json'
-    response = current if len(sys.argv) > 3 and sys.argv[3].startswith('https://') and current.exists() else root / 'pr.json'
+    response = root / 'pr.json'
+    if sys.argv[3].startswith('https://') and current.exists():
+        response = current
     print(response.read_text())
-elif sys.argv[1:4] == ['pr', 'edit', 'https://github.com/example/project/pull/2']:
-    assert sys.argv[4] == '--body-file' and len(sys.argv) == 6
+elif sys.argv[1:3] == ['pr', 'edit']:
+    if sys.argv[3].startswith('https://'):
+        assert sys.argv[4] == '--body-file' and len(sys.argv) == 6
+    else:
+        assert sys.argv[3:7] == ['2', '--repo', 'example/project', '--body-file']
+        assert len(sys.argv) == 8 and os.environ['GH_HOST'] == 'github.example.test'
     if (root / 'reject-edit').exists():
         sys.exit(1)
-    (root / 'edited').write_bytes(Path(sys.argv[5]).read_bytes())
+    (root / 'edited').write_bytes(Path(sys.argv[-1]).read_bytes())
 else:
     sys.exit(3)
 """)
@@ -368,9 +374,11 @@ else:
                 body = f'{prefix}\n{start}\n'
             if scenario == 'edit failed':
                 (fixture / 'reject-edit').touch()
+            if scenario == 'credential blocked':
+                summary = 'OPENAI_API_' + 'KEY=fixture-' + 'abc01234' * 4
             (fixture / 'summary.md').write_text(summary)
             pr = {
-                'number': 2, 'url': 'https://github.com/example/project/pull/2',
+                'number': 2, 'url': 'https://github.example.test/example/project/pull/2',
                 'state': 'CLOSED' if scenario == 'closed' else 'OPEN', 'body': body,
             }
             (fixture / 'pr.json').write_text(json.dumps(pr))
@@ -378,6 +386,7 @@ else:
                 (fixture / 'current.json').write_text(json.dumps(dict(pr, body=f'{body}New edit.')))
             env = dict(os.environ, PATH=f'{fixture}:{os.environ["PATH"]}',
                        TEST_DOC_SYNC_FIXTURE=directory,
+                       OCTO_ROOT=directory if scenario == 'missing helper' else str(root),
                        DOC_SYNC_SUMMARY_FILE=str(fixture / 'summary.md'))
             result = subprocess.run(['bash', '-c', recipe], env=env, capture_output=True, text=True)
             edited = fixture / 'edited'
@@ -388,8 +397,11 @@ else:
             else:
                 self.assertFalse(edited.exists())
                 self.assertNotIn('Updated PR', result.stdout)
-                if scenario in ('invalid markers', 'changed body', 'edit failed'):
+                if scenario not in ('closed', 'unchanged'):
                     self.assertNotEqual(result.returncode, 0)
+                if scenario == 'credential blocked':
+                    self.assertIn('credential-safety gate', result.stderr)
+                    self.assertNotIn(summary, result.stderr)
 
 
 unittest.main(argv=['doc-sync-pull-request'])

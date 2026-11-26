@@ -232,7 +232,8 @@ recovery. Continue to the PR summary only after a successful commit.
 If the current branch has an open PR, write a concise Markdown summary of this
 run to a private scratch file and set `DOC_SYNC_SUMMARY_FILE` to its path.
 Include the documentation changed and the checks run. Run this block from the
-same branch. Skip this step for branches without an open PR.
+same branch, with the installed Octopus root available in `OCTO_ROOT` or the
+host's plugin root variable. Skip this step for branches without an open PR.
 
 ```bash
 (
@@ -276,7 +277,21 @@ PY_DOC_SYNC
     printf '%s\n' 'The PR changed while preparing the Doc Sync summary. Rerun this step.' >&2
     exit 1
   fi
-  gh pr edit "$pr_url" --body-file "$scratch/body.md" >/dev/null || exit 1
+  pr_path='^https://([A-Za-z0-9.-]+)/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/([1-9][0-9]*)$'
+  if ! [[ "$pr_url" =~ $pr_path ]]; then
+    printf '%s\n' 'Could not identify the GitHub host, repository, and PR number.' >&2
+    exit 1
+  fi
+  pr_host=${BASH_REMATCH[1]}
+  pr_repo=${BASH_REMATCH[2]}
+  pr_number=${BASH_REMATCH[3]}
+  plugin_root="${OCTO_ROOT:-${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-}}}"
+  if [[ "$plugin_root" != /* || ! -x "$plugin_root/scripts/safe-gh-comment.sh" ]]; then
+    printf '%s\n' 'Could not find the installed Octopus GitHub safety helper.' >&2
+    exit 1
+  fi
+  GH_HOST="$pr_host" "$plugin_root/scripts/safe-gh-comment.sh" --repo "$pr_repo" \
+    pr-edit "$pr_number" "$scratch/body.md" >/dev/null || exit 1
   printf 'Updated PR documentation summary.\n'
 )
 ```
