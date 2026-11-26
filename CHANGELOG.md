@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.30.2] - 2026-11-26
+
 ### Fixed
 
 - LiteLLM stays eligible for chat dispatch when the optional model-list
