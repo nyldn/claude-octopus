@@ -242,8 +242,10 @@ The helper follows a redirect only within the same scheme, host and port and
 refuses a cross-origin redirect, so the key is never sent to another origin.
 
 With `OCTOPUS_PREFLIGHT_PROBE=1`, live readiness calls `GET /v1/models` on the
-proxy. A 401 or 403 reports `auth-invalid`, 402 or 429 reports `quota`, and an
-unreachable proxy fails open as with the other probed gateways.
+proxy. HTTP 401 reports `auth-invalid`. HTTP 402 or 429 reports `quota`.
+A 403 leaves chat dispatch eligible because the proxy can restrict model
+listing separately from chat completions. An unreachable proxy also leaves
+dispatch eligible.
 
 Read-only roles disable local tools. The isolated child receives only
 `LITELLM_API_KEY` and the helper's approved runtime settings. This provider is

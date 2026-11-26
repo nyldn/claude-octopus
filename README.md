@@ -62,6 +62,11 @@ without Git history. The `octopus-security-audit` skill checks local Codex
 skills and plugin metadata in Deep mode. The Parallel migration example uses
 `/octo:parallel` in Claude Code and `$flow-parallel` in Codex.
 
+LiteLLM chat stays eligible when the optional model-list probe receives HTTP
+403. Deliver requires its validated report before marking work complete or
+posting a PR summary. Content Pipeline generates interview questions directly in
+the workflow.
+
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.30.1 — Find new Codex designs, audit local Codex skills and plugins, and use the installed Parallel migration command.**
 >
