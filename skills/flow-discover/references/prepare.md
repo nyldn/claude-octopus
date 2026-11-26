@@ -90,7 +90,6 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
-🟡 Antigravity CLI: ${agy_status}
 🧭 Antigravity CLI: ${agy_status}
 🟣 Perplexity: ${perplexity_status}
 🔵 Claude: Available ✓ (Strategic synthesis)
@@ -106,7 +105,6 @@ Provider Availability:
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
-🟡 Antigravity CLI: ${agy_status}
 🧭 Antigravity CLI: ${agy_status}
 🟣 Perplexity: ${perplexity_status}
 🔵 Claude: Available ✓ (Strategic synthesis)

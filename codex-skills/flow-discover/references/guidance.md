@@ -19,40 +19,10 @@ Analyze the user's prompt and project to determine context:
 
 **Also check**: Does the project have `package.json`, `Cargo.toml`, etc.? (suggests Dev Context)
 
-### Step 2: Output Context-Aware Banner with Task Status
+### Step 2: Show the Discover Banner
 
-**First, check task status (if available):**
-```bash
-# Get task status summary from orchestrate.sh (v2.1.12+)
-task_status=$("${OCTO_ROOT:?}/scripts/orchestrate.sh" get-task-status 2>/dev/null || echo "")
-```
-
-**For Dev Context:**
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 [Dev] Discover Phase: [Brief description of technical research]
-📋 Session: ${CLAUDE_SESSION_ID}
-📝 Tasks: ${task_status}
-
-Providers:
-🔴 Codex CLI - Technical implementation analysis
-🟡 Antigravity CLI - Ecosystem and library comparison
-🔵 Claude - Strategic synthesis
-```
-
-**For Knowledge Context:**
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 [Knowledge] Discover Phase: [Brief description of strategic research]
-📋 Session: ${CLAUDE_SESSION_ID}
-
-Providers:
-🔴 Codex CLI - Data analysis and frameworks
-🟡 Antigravity CLI - Market and competitive research
-🔵 Claude - Strategic synthesis
-```
-
-{{VISUAL_INDICATORS}}
+Follow Step 2 in `codex-skills/flow-discover/references/prepare.md` to check provider
+availability and display the Dev or Knowledge banner before dispatch.
 
 
 **Part of Double Diamond: DISCOVER** (divergent thinking)
@@ -102,22 +72,6 @@ Use discover when you need:
 - Reading files in the current project (use Read tool)
 - Questions about specific implementation details (use code review)
 - Quick factual questions Claude knows (no need for multi-provider)
-
-
-## Visual Indicators
-
-Before execution, you'll see:
-
-```
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider orchestration
-🔍 Discover Phase: Research and exploration mode
-
-Providers:
-🔴 Codex CLI - Technical analysis
-🟡 Antigravity CLI - Ecosystem research
-🟣 Perplexity - Live web search (if configured)
-🔵 Claude - Strategic synthesis
-```
 
 
 ## How It Works
@@ -277,8 +231,7 @@ After successful execution, present findings formatted for context:
 User: Research OAuth 2.0 authentication patterns for React apps
 
 Claude:
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 Discover Phase: Researching OAuth 2.0 patterns
+[Shows the Dev banner for OAuth 2.0 research]
 
 [Executes: "${OCTO_ROOT:?}/scripts/orchestrate.sh" probe "OAuth 2.0 authentication patterns for React apps"]
 
@@ -325,8 +278,7 @@ Full research saved to: <full synthesis path for this run>
 User: Compare different state management options for my React app
 
 Claude:
-🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
-🔍 Discover Phase: Comparing React state management options
+[Shows the Dev banner for the React state management comparison]
 
 [Executes probe workflow]
 

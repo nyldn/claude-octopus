@@ -128,6 +128,33 @@ else
     test_fail "Discover guidance does not consistently use SYNTHESIS_FILE in: ${guidance_failures[*]}"
 fi
 
+test_case "Discover uses one preparation banner per context"
+if python3 -I - "$PROJECT_ROOT" <<'PY_BANNERS'
+from pathlib import Path
+import re
+import sys
+
+root = Path(sys.argv[1])
+failures = []
+for tree in ('skills', 'codex-skills'):
+    references = root / tree / 'flow-discover/references'
+    prepare = (references / 'prepare.md').read_text()
+    guidance = (references / 'guidance.md').read_text()
+    examples = re.findall(r'^```[^\n]*\n(.*?)^```[ \t]*$', prepare, re.M | re.S)
+    for context in ('Dev', 'Knowledge'):
+        banners = [block for block in examples if f'[{context}] Discover Phase:' in block]
+        if len(banners) != 1 or len(re.findall(r'^.* Antigravity CLI:', banners[0], re.M)) != 1:
+            failures.append(f'{tree}: expected one Antigravity row in the {context} banner')
+    if ('{{VISUAL_INDICATORS}}' in guidance or 'CLAUDE OCTOPUS ACTIVATED' in guidance
+            or 'skills/flow-discover/references/prepare.md' not in guidance):
+        failures.append(f'{tree}: supplemental guidance must refer to the preparation banners')
+
+for failure in failures:
+    print(failure, file=sys.stderr)
+sys.exit(bool(failures))
+PY_BANNERS
+then test_pass; else test_fail "Discover preparation and guidance disagree about the banner"; fi
+
 for skill_tree in skills codex-skills; do
     test_case "$skill_tree synthesis passes its output path to a fresh shell"
     synthesis_reference="$PROJECT_ROOT/$skill_tree/flow-discover/references/synthesize.md"
