@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.30.1] - 2026-11-26
+
 ### Fixed
 
 - Deep security audits inventory local Codex skills and plugin metadata

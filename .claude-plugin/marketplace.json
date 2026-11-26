@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.30.0"
+    "version": "11.30.1"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.30.0 - Pin GPT-6.2 Sol and Astra in Codex, keep valid review verdicts, and update Doc Sync summaries. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.30.0",
+      "description": "v11.30.1 - Find new Codex designs, audit local Codex skills and plugins, and use the installed Parallel migration command. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.30.1",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
