@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.29.3] - 2026-11-25
+
 ### Fixed
 
 - Discover keeps the current report path through validation and resume, then
