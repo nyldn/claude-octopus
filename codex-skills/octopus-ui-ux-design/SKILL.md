@@ -298,21 +298,41 @@ Critique dimensions:
 For each issue found, state: what's wrong, why it matters, and what to do instead.
 ```
 
-**Three participants, run in parallel:**
+**Run optional external critiques in parallel.** Export `CRITIQUE_PROMPT` with
+the complete prompt above before running this block. It prints the provider
+and response path for each completed critique. Read only those response paths.
 
 ```bash
-# Check provider availability
-providers=()
-command -v codex >/dev/null 2>&1 && providers+=(codex)
-command -v agy >/dev/null 2>&1 && providers+=(agy)
-
-for provider in "${providers[@]}"; do
-    safe_provider=$(printf '%s' "$provider" | tr -c '[:alnum:]_-' '_')
-    "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/orchestrate.sh" spawn "$provider" \
-      "<critique prompt>" > "/tmp/design-critique-${safe_provider}.md" &
-done
-
-wait
+if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
+(
+    plugin_root="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+    source "$plugin_root/scripts/lib/provider-allowlist.sh" || exit 1
+    providers=()
+    pids=()
+    for provider in codex agy; do
+        if octo_provider_allowed "$provider" && command -v "$provider" >/dev/null 2>&1; then
+            providers+=("$provider")
+        fi
+    done
+    [[ -n "${providers[0]:-}" ]] || exit 0
+    : "${CRITIQUE_PROMPT:?Set CRITIQUE_PROMPT to the complete critique prompt}"
+    critique_dir="$(mktemp -d "${TMPDIR:-/tmp}/octo-design-critique.XXXXXX")" || exit 1
+    for provider in "${providers[@]}"; do
+        OCTOPUS_SPAWN_ROLE=advisor "$plugin_root/scripts/orchestrate.sh" \
+            spawn --response-file "$critique_dir/$provider.md" "$provider" "$CRITIQUE_PROMPT" >&2 &
+        pids+=("$!")
+    done
+    for index in "${!providers[@]}"; do
+        provider="${providers[index]}"
+        response_file="$critique_dir/$provider.md"
+        if wait "${pids[index]}" && [[ -s "$response_file" ]]; then
+            printf '%s\t%s\n' "$provider" "$response_file"
+        else
+            printf 'No completed critique from %s.\n' "$provider" >&2
+        fi
+    done
+)
+OCTO_BASH
 ```
 
 **🔵 current host model — independent design critique.** You MUST also write your own adversarial critique. Do NOT just summarize what external providers said. Approach the design direction as if you didn't create it — actively look for problems across all five dimensions. This is your independent synthesis perspective, same as in `$skill-debate`.

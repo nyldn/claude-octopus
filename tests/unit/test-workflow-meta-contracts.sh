@@ -351,6 +351,58 @@ else
     test_fail "UI/UX example or five-dimension critique contradicts its hard constraints"
 fi
 
+critique_fixture="$TEST_TMP_DIR/design critique"
+mkdir -p "$critique_fixture"/{bin,config,plugin/scripts,tmp}
+ln -s "$PROJECT_ROOT/scripts/lib" "$critique_fixture/plugin/scripts/lib"
+for provider in codex agy; do
+    ln -s /bin/true "$critique_fixture/bin/$provider"
+done
+cat > "$critique_fixture/plugin/scripts/orchestrate.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == spawn && "$2" == --response-file && "$5" == $'Design\nbrief' ]]
+[[ "$OCTOPUS_SPAWN_ROLE" == advisor ]]
+printf '%s\n' "$4" >> "$CRITIQUE_CALLS"
+printf 'response from %s\n' "$4" > "$3"
+printf 'launcher log\n'
+[[ "$4" != "$CRITIQUE_FAIL_PROVIDER" ]]
+EOF
+chmod +x "$critique_fixture/plugin/scripts/orchestrate.sh"
+printf '%s\n' codex > "$critique_fixture/config/provider-allowlist"
+printf '%s\n' agy > "$critique_fixture/config/provider-allowlist.fixture"
+
+for ui_skill in "${UI_UX_DESIGNS[@]}" "$PROJECT_ROOT/codex-skills/octopus-ui-ux-design/SKILL.md"; do
+    critique_recipe=$(sed -n '/^### STEP 5b:/,/^### /p' "$ui_skill" | extract_bash_fence)
+    for allowed in '' claude 'codex agy'; do
+        expected_calls=agy
+        case "$allowed" in
+            claude) expected_calls="" ;;
+            'codex agy') expected_calls=$'agy\ncodex' ;;
+        esac
+        calls="$critique_fixture/calls"
+        : > "$calls"
+        test_case "${ui_skill#"$PROJECT_ROOT/"} honors critique allowlist ${allowed:-from session}"
+        if result=$(PATH="$critique_fixture/bin:$PATH" TMPDIR="$critique_fixture/tmp" \
+            CLAUDE_PLUGIN_ROOT="" CODEX_PLUGIN_ROOT="$critique_fixture/plugin" \
+            OCTOPUS_CONFIG_DIR="$critique_fixture/config" CLAUDE_CODE_SESSION_ID=fixture \
+            OCTO_ALLOWED_PROVIDERS="$allowed" CRITIQUE_CALLS="$calls" \
+            CRITIQUE_PROMPT=$'Design\nbrief' CRITIQUE_FAIL_PROVIDER=codex \
+            bash -euc "$critique_recipe" 2>"$critique_fixture/stderr") &&
+           [[ "$(sort "$calls")" == "$expected_calls" ]]; then
+            if [[ -z "$expected_calls" && -z "$result" ]]; then
+                test_pass
+            elif [[ "$result" == $'agy\t'"$critique_fixture/tmp/"*'/agy.md' &&
+                    "$result" != *$'\n'* && "$(cat "${result#*$'\t'}")" == 'response from agy' ]]; then
+                test_pass
+            else
+                test_fail "Recipe did not identify exactly the completed Antigravity critique: $result"
+            fi
+        else
+            test_fail "Unexpected critique dispatch: calls=$(sort "$calls"), output=$result"
+        fi
+    done
+done
+
 test_case "UI/UX persistence atomically writes unique branch-scoped lineage"
 persistence_contract_ok=true
 for ui_skill in "${UI_UX_DESIGNS[@]}"; do
