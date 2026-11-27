@@ -55,7 +55,10 @@ The default is standard. Select it from a command:
       --intensity deep "Compare current approaches to signed webhooks"
 
 The `--breadth light|standard|exhaustive` values are aliases for `quick`,
-`standard`, and `deep`.
+`standard`, and `deep`. The dedicated research skill records the effective
+intensity in its task tracker, including when a command option overrides the
+interactive choice. Its provider banner lists Antigravity once. Discover
+shows the session ID in its provider banner.
 
 ## What is saved
 
