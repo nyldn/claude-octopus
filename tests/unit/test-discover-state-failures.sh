@@ -131,8 +131,11 @@ fi
 test_case "Discover uses one preparation banner per context"
 if python3 -I - "$PROJECT_ROOT" <<'PY_BANNERS'
 from pathlib import Path
+import os
 import re
+import subprocess
 import sys
+import tempfile
 
 root = Path(sys.argv[1])
 failures = []
@@ -145,6 +148,32 @@ for tree in ('skills', 'codex-skills'):
         banners = [block for block in examples if f'[{context}] Discover Phase:' in block]
         if len(banners) != 1 or len(re.findall(r'^.* Antigravity CLI:', banners[0], re.M)) != 1:
             failures.append(f'{tree}: expected one Antigravity row in the {context} banner')
+        elif banners[0].count('Session: ${discover_session_id}') != 1:
+            failures.append(f'{tree}: expected one resolved session ID in the {context} banner')
+    checks = [block for block in examples if 'scripts/helpers/check-providers.sh' in block]
+    if len(checks) != 1:
+        failures.append(f'{tree}: expected one provider preflight')
+    else:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            (fixture / 'scripts/lib').mkdir(parents=True)
+            (fixture / 'scripts/helpers').mkdir()
+            (fixture / 'scripts/lib/session-id.sh').symlink_to(root / 'scripts/lib/session-id.sh')
+            (fixture / 'scripts/helpers/check-providers.sh').write_text('printf "provider fixture\\n"\n')
+            cases = (
+                ({"CLAUDE_CODE_SESSION_ID": "claude-session"}, "Session: claude-session"),
+                ({"CODEX_SESSION_ID": "codex-session"}, "Session: codex-session"),
+                ({"OCTOPUS_HOST": "codex", "CODEX_TASK_ID": "codex-task",
+                  "CLAUDE_SESSION_ID": "wrong-host"}, "Session: codex-task"),
+                ({}, None),
+            )
+            for host, expected in cases:
+                result = subprocess.run(['bash', '-eu', '-c', checks[0]],
+                                        env=dict(host, PATH=os.environ['PATH'], OCTO_ROOT=directory),
+                                        text=True, capture_output=True)
+                expected_lines = ([expected] if expected else []) + ['provider fixture']
+                if result.returncode or result.stdout.splitlines() != expected_lines:
+                    failures.append(f'{tree}: unexpected session and provider preflight output for {host}')
     if ('{{VISUAL_INDICATORS}}' in guidance or 'CLAUDE OCTOPUS ACTIVATED' in guidance
             or 'skills/flow-discover/references/prepare.md' not in guidance):
         failures.append(f'{tree}: supplemental guidance must refer to the preparation banners')
