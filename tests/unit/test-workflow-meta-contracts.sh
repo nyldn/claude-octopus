@@ -351,6 +351,54 @@ else
     test_fail "UI/UX example or five-dimension critique contradicts its hard constraints"
 fi
 
+critique_fixture="$TEST_TMP_DIR/design critique"
+mkdir -p "$critique_fixture"/{bin,config,plugin/scripts,tmp}
+ln -s "$PROJECT_ROOT/scripts/lib" "$critique_fixture/plugin/scripts/lib"
+for provider in codex agy; do
+    printf '#!/bin/sh\nexit 0\n' > "$critique_fixture/bin/$provider"
+    chmod +x "$critique_fixture/bin/$provider"
+done
+cat > "$critique_fixture/plugin/scripts/orchestrate.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == spawn && "$2" == --response-file && "$5" == $'Design\nbrief' ]]
+[[ "$OCTOPUS_SPAWN_ROLE" == advisor && "$OCTOPUS_CODEX_SANDBOX" == read-only ]]
+printf '%s\n' "$4" >> "$CRITIQUE_CALLS"
+printf 'response from %s\n' "$4" > "$3"
+printf 'launcher log\n'
+[[ "$4" != "$CRITIQUE_FAIL_PROVIDER" ]]
+EOF
+chmod +x "$critique_fixture/plugin/scripts/orchestrate.sh"
+printf '%s\n' codex > "$critique_fixture/config/provider-allowlist"
+printf '%s\n' agy > "$critique_fixture/config/provider-allowlist.fixture"
+
+for ui_skill in "${UI_UX_DESIGNS[@]}" "$PROJECT_ROOT/codex-skills/octopus-ui-ux-design/SKILL.md"; do
+    critique_recipe=$(sed -n '/^### STEP 5b:/,/^### /p' "$ui_skill" | extract_bash_fence)
+    for allowed in '' claude 'codex agy'; do
+        expected_calls=agy
+        expected_result=$'\n### agy critique\n\nresponse from agy'
+        case "$allowed" in
+            claude) expected_calls="" expected_result="" ;;
+            'codex agy') expected_calls=$'agy\ncodex' ;;
+        esac
+        calls="$critique_fixture/calls"
+        : > "$calls"
+        test_case "${ui_skill#"$PROJECT_ROOT/"} honors critique allowlist ${allowed:-from session}"
+        if result=$(PATH="$critique_fixture/bin:$PATH" TMPDIR="$critique_fixture/tmp" \
+            CLAUDE_PLUGIN_ROOT="" CODEX_PLUGIN_ROOT="$critique_fixture/plugin" \
+            OCTOPUS_CONFIG_DIR="$critique_fixture/config" CLAUDE_CODE_SESSION_ID=fixture \
+            OCTO_ALLOWED_PROVIDERS="$allowed" CRITIQUE_CALLS="$calls" \
+            CRITIQUE_PROMPT=$'Design\nbrief' CRITIQUE_FAIL_PROVIDER=codex \
+            bash -euc "$critique_recipe" 2>"$critique_fixture/stderr") &&
+           [[ "$(sort "$calls")" == "$expected_calls" && "$result" == "$expected_result" ]] &&
+           [[ -z "$(find "$critique_fixture/tmp" -name 'octo-design-critique.*' -print)" ]]; then
+            test_pass
+        else
+            test_fail "Unexpected critique dispatch: calls=$(sort "$calls"), output=$result, stderr=$(cat "$critique_fixture/stderr")"
+        fi
+    done
+done
+
 test_case "UI/UX persistence atomically writes unique branch-scoped lineage"
 persistence_contract_ok=true
 for ui_skill in "${UI_UX_DESIGNS[@]}"; do

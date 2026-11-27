@@ -1569,6 +1569,7 @@ ${enhanced_prompt}"
         if [[ ${#earned_skills_ctx} -gt 1500 ]]; then
             earned_skills_ctx="${earned_skills_ctx:0:1500}..."
         fi
+        earned_skills_ctx=$(sanitize_external_content "$earned_skills_ctx" "earned-skills")
         enhanced_prompt="${enhanced_prompt}
 
 ---
