@@ -36,6 +36,7 @@ with tempfile.TemporaryDirectory(prefix="refinement-codex-launcher-") as tempora
     executable = install / "bin" / "codex"
     executable.parent.mkdir()
     executable.touch(mode=0o755)
+    executable.with_name("codex-linux-sandbox").symlink_to(executable)
     launcher = install / "codex"
     launcher.symlink_to(executable)
     with patch.dict(os.environ, {"PATH": str(install)}), patch.object(sys, "platform", "linux"):

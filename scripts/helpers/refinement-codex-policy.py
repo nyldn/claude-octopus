@@ -51,10 +51,11 @@ def linux_runtime_files():
         binary = Path(json.loads(result.stdout)).resolve(strict=True)
         if not binary.is_file() or not os.access(binary, os.X_OK):
             raise ValueError("Codex native executable not found")
-    return [str(binary)] + [str(helper.resolve(strict=True)) for helper in (
+    paths = [str(binary)] + [str(helper.resolve(strict=True)) for helper in (
         binary.with_name("codex-linux-sandbox"),
         binary.parent.parent / "codex-resources" / "codex-linux-sandbox",
     ) if helper.is_file() and os.access(helper, os.X_OK)]
+    return list(dict.fromkeys(paths))
 
 
 def flags(servers):
