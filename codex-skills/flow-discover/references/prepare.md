@@ -87,6 +87,7 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 [Dev] Discover Phase: [Brief description of technical research]
+📋 Session: ${CLAUDE_SESSION_ID}
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
@@ -102,6 +103,7 @@ Provider Availability:
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 [Knowledge] Discover Phase: [Brief description of strategic research]
+📋 Session: ${CLAUDE_SESSION_ID}
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
