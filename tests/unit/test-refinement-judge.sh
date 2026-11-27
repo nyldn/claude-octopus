@@ -16,6 +16,7 @@ import time
 import subprocess
 import sys
 import tempfile
+from unittest.mock import patch
 
 root = Path(sys.argv[1]).resolve()
 validation = r'''
@@ -30,18 +31,60 @@ spec = importlib.util.spec_from_file_location("policy", root / "scripts/helpers/
 policy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(policy)
 os.environ["OCTOPUS_REFINEMENT_INPUT_DIR"] = str(root)
-flags = policy.flags([{"name": "safe-server", "env": {"SECRET": "must-not-emit"}}])
-assert "mcp_servers.safe-server.enabled=false" in flags
-assert "must-not-emit" not in str(flags)
-assert 'default_permissions="' + policy.profile_name(root) + '"' in flags
-assert 'shell_environment_policy.exclude=["*"]' in flags
-for bad in [[{"name": "unsafe.name"}], [{"name": "server;exit"}], {"name": "not-a-list"}]:
-    try:
-        policy.flags(bad)
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("unsafe inventory accepted")
+with tempfile.TemporaryDirectory(prefix="refinement-codex-launcher-") as temporary:
+    install = Path(temporary).resolve()
+    executable = install / "bin" / "codex"
+    executable.parent.mkdir()
+    executable.touch(mode=0o755)
+    executable.with_name("codex-linux-sandbox").symlink_to(executable)
+    launcher = install / "codex"
+    launcher.symlink_to(executable)
+    with patch.dict(os.environ, {"PATH": str(install)}), patch.object(sys, "platform", "linux"):
+        flags = policy.flags([{"name": "safe-server", "env": {"SECRET": "must-not-emit"}}])
+        assert "mcp_servers.safe-server.enabled=false" in flags
+        assert "must-not-emit" not in str(flags)
+        name = policy.profile_name(root)
+        assert f'default_permissions="{name}"' in flags
+        assert 'shell_environment_policy.inherit="none"' in flags
+        assert 'shell_environment_policy.exclude=["*"]' in flags
+        assert 'shell_environment_policy.set={PATH="/usr/bin:/bin"}' in flags
+        mounts = ",".join(json.dumps(str(path)) + '="read"' for path in (":minimal", root, executable))
+        assert f"permissions.{name}={{filesystem={{{mounts}}},network={{enabled=false}}}}" in flags
+        for bad in [[{"name": "unsafe.name"}], [{"name": "server;exit"}], {"name": "not-a-list"}]:
+            try:
+                policy.flags(bad)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("unsafe inventory accepted")
+    if shutil.which("node"):
+        arch = subprocess.check_output(["node", "-p", "process.arch"], text=True).strip()
+        architecture = {"x64": "x86_64", "arm64": "aarch64"}.get(arch)
+        if architecture:
+            modules = install / "lib" / "node_modules" / "@openai"
+            wrapper = modules / "codex" / "bin" / "codex.js"
+            wrapper.parent.mkdir(parents=True)
+            wrapper.touch(mode=0o755)
+            platform_package = modules / f"codex-linux-{arch}"
+            runtime = platform_package / "vendor" / f"{architecture}-unknown-linux-musl"
+            native = runtime / "bin" / "codex"
+            helper = runtime / "codex-resources" / "codex-linux-sandbox"
+            for entry in (native, helper):
+                entry.parent.mkdir(parents=True)
+                entry.touch(mode=0o755)
+            (platform_package / "package.json").write_text("{}")
+            launcher.unlink()
+            launcher.symlink_to(wrapper)
+            with patch.dict(os.environ, {"PATH": str(install) + os.pathsep + os.environ["PATH"]}), \
+                    patch.object(sys, "platform", "linux"):
+                flags = policy.flags([])
+                mounts = ",".join(json.dumps(str(path)) + '="read"'
+                                  for path in (":minimal", root, native, helper))
+                assert f"permissions.{name}={{filesystem={{{mounts}}},network={{enabled=false}}}}" in flags
+    with patch.dict(os.environ, {"PATH": ""}), patch.object(sys, "platform", "darwin"):
+        flags = policy.flags([])
+        assert 'shell_environment_policy.set={}' in flags
+        assert str(executable) not in str(flags)
 with tempfile.TemporaryDirectory(prefix="refinement-judge-") as temporary:
     fixture = Path(temporary)
     adapter = fixture / "refinement-judge.sh"

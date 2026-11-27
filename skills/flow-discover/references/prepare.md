@@ -73,8 +73,14 @@ Analyze the user's prompt and project to determine context:
 **MANDATORY: You MUST use the native shell command tool to run this provider check BEFORE displaying the banner. Do NOT skip it. Do NOT assume availability.**
 
 ```bash
+source "${OCTO_ROOT:?}/scripts/lib/session-id.sh"
+if discover_session_id=$(octo_resolve_session_id ""); then
+  printf 'Session: %s\n' "$discover_session_id"
+fi
 bash "${OCTO_ROOT:?}/scripts/helpers/check-providers.sh"
 ```
+
+Use the resolved session ID in the banner. Omit the session line if no ID was returned.
 
 **Use the ACTUAL results below. PROHIBITED: Showing only "🔵 Claude: Available ✓" without listing all providers.**
 
@@ -87,6 +93,7 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 [Dev] Discover Phase: [Brief description of technical research]
+📋 Session: ${discover_session_id}
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
@@ -102,6 +109,7 @@ Provider Availability:
 ```
 🐙 **CLAUDE OCTOPUS ACTIVATED** - Multi-provider research mode
 🔍 [Knowledge] Discover Phase: [Brief description of strategic research]
+📋 Session: ${discover_session_id}
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
