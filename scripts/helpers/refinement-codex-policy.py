@@ -5,6 +5,7 @@ import hashlib
 import re
 import os
 import shlex
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -22,14 +23,25 @@ def flags(servers):
     directory = Path(os.environ["OCTOPUS_REFINEMENT_INPUT_DIR"]).resolve(strict=True)
     if not directory.is_dir():
         raise ValueError("missing private judge input directory")
-    profile = '{":minimal"="read",' + json.dumps(str(directory)) + '="read"}'
+    readable = [":minimal", str(directory)]
+    shell_environment = "{}"
+    if sys.platform == "linux":
+        # Codex uses PATH to locate the distro's Bubblewrap. Its inner
+        # sandbox process re-execs the CLI at its canonical path.
+        launcher = shutil.which("codex")
+        if launcher is None:
+            raise ValueError("Codex executable not found")
+        readable.append(str(Path(launcher).resolve(strict=True)))
+        shell_environment = '{PATH="/usr/bin:/bin"}'
+    profile = "{" + ",".join(json.dumps(path) + '="read"' for path in readable) + "}"
     name = profile_name(directory)
     settings = [
         'default_permissions=' + json.dumps(name),
         'permissions.' + name + '={filesystem=' + profile + ',network={enabled=false}}',
         'approval_policy="never"', 'project_doc_max_bytes=0',
         'shell_environment_policy.inherit="none"',
-        'shell_environment_policy.exclude=["*"]', 'shell_environment_policy.set={}', 'web_search="disabled"',
+        'shell_environment_policy.exclude=["*"]', 'shell_environment_policy.set=' + shell_environment,
+        'web_search="disabled"',
     ]
     settings += [f"features.{name}=false" for name in (
         "apps", "plugins", "hooks", "memories", "multi_agent", "multi_agent_v2",
