@@ -571,10 +571,14 @@ done
 # Session ID in flow banners
 for skill in flow-discover flow-define flow-develop flow-deliver; do
     skill_path="$(resolve_claude_skill_path "$skill")"
-    if [[ -f "$skill_path" ]] && grep -c 'Session: \${CLAUDE_SESSION_ID}' <<< "$(read_claude_skill_contract "$skill")" >/dev/null; then
+    session_marker='Session: ${CLAUDE_SESSION_ID}'
+    if [[ "$skill" == flow-discover ]]; then
+        session_marker='Session: ${discover_session_id}'
+    fi
+    if [[ -f "$skill_path" ]] && grep -Fq "$session_marker" <<< "$(read_claude_skill_contract "$skill")"; then
         pass "$skill.md has session ID in banner"
     else
-        fail "$skill.md session ID" "missing Session: \${CLAUDE_SESSION_ID}"
+        fail "$skill.md session ID" "missing $session_marker"
     fi
 done
 
