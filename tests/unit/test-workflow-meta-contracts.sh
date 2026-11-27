@@ -61,45 +61,117 @@ extract_bash_fence() {
         inside { print }
     '
 }
-# Status runs in a user's project. Install the real helper outside that
-# project and invoke both documented snippets in fresh shells.
-status_project="$TEST_TMP_DIR/status project"
+# Run the documented Status recipes from projects outside the installed plugin.
+status_legacy_project="$TEST_TMP_DIR/status legacy project"
+status_workflow_project="$TEST_TMP_DIR/status workflow project"
+status_empty_project="$TEST_TMP_DIR/status empty project"
+status_incomplete_project="$TEST_TMP_DIR/status incomplete project"
 status_home="$TEST_TMP_DIR/status home"
 status_plugin="$status_home/.claude-octopus/plugin"
-mkdir -p "$status_project/.octo" "$status_plugin/scripts"
-ln -s "$PROJECT_ROOT/scripts/octo-state.sh" "$status_plugin/scripts/octo-state.sh"
-cat > "$status_project/.octo/STATE.md" <<'EOF'
+status_data="$TEST_TMP_DIR/status plugin data"
+mkdir -p "$status_legacy_project/.octo" "$status_workflow_project" \
+    "$status_empty_project" "$status_incomplete_project/.octo" "$status_plugin"
+ln -s "$PROJECT_ROOT/scripts" "$status_plugin/scripts"
+ln -s "$PROJECT_ROOT/bin" "$status_plugin/bin"
+cat > "$status_legacy_project/.octo/STATE.md" <<'EOF'
 **Schema:** 1.0
 **Last Updated:** 2026-11-24T00:00:00Z
 **Current Phase:** 2
 **Current Position:** define-fixture
 **Status:** in_progress
 EOF
+printf '%s\n' '# Fixture roadmap' > "$status_legacy_project/.octo/ROADMAP.md"
+
+# An explicit project root in the caller must not select a different checkout.
+# Seed valid workflow state even in the legacy checkout to verify precedence.
+status_workflow_file=""
+for status_project in "$status_legacy_project" "$status_workflow_project"; do
+    status_workflow_file=$(
+        cd "$status_project"
+        export CLAUDE_PLUGIN_DATA="$status_data"
+        unset OCTOPUS_WORKFLOW_STATE_DIR OCTOPUS_STATE_PROJECT_ROOT
+        "$status_plugin/scripts/state-manager.sh" init_state >/dev/null
+        "$status_plugin/scripts/state-manager.sh" set_current_workflow flow-develop develop >/dev/null
+        "$status_plugin/bin/octopus" state-path
+    )
+done
+
+run_status_recipe() (
+    cd "$1" || exit 1
+    shift
+    unset OCTOPUS_WORKFLOW_STATE_DIR
+    HOME="$status_test_home" CLAUDE_PLUGIN_ROOT="$status_claude" CODEX_PLUGIN_ROOT="$status_codex" \
+        CLAUDE_PLUGIN_DATA="$status_data" OCTOPUS_STATE_PROJECT_ROOT="$status_empty_project" \
+        bash -euc "$1"
+)
+
 for status_skill in .claude/skills/skill-status skills/skill-status codex-skills/skill-status; do
     status_file="$PROJECT_ROOT/$status_skill/SKILL.md"
-    status_step=$(sed -n '/^#### Step 1: Execute octo-state.sh read_state$/,/^#### Step 2:/p' "$status_file")
-    status_example=$(sed -n '/^### 2\. Use octo-state.sh for State Reading$/,/^\*\*Poor:\*\*/p' "$status_file")
-    for status_block in "$status_step" "$status_example"; do
-        status_recipe=$(extract_bash_fence <<< "$status_block")
-        for status_source in claude codex default; do
-            test_case "$status_skill reads project state through the installed helper ($status_source)"
-            status_claude="" status_codex="" status_test_home="$TEST_TMP_DIR"
-            case "$status_source" in
-                claude) status_claude="$status_plugin" ;;
-                codex) status_codex="$status_plugin" ;;
-                default) status_test_home="$status_home" ;;
-            esac
-            if status_output=$(cd "$status_project" &&
-                HOME="$status_test_home" CLAUDE_PLUGIN_ROOT="$status_claude" CODEX_PLUGIN_ROOT="$status_codex" \
-                    bash -euc "$status_recipe" 2>&1) &&
-                grep -Fxq 'current_position=define-fixture' <<< "$status_output" &&
-                grep -Fxq 'status=in_progress' <<< "$status_output"; then
-                test_pass
-            else
-                test_fail "Installed status helper did not read project state: $status_output"
-            fi
-        done
+    status_recipe=$(sed -n '/^### Phase 1:/,/^### Phase 2:/p' "$status_file" | extract_bash_fence)
+    status_roadmap=$(sed -n '/^### Phase 2:/,/^### Phase 3:/p' "$status_file" | extract_bash_fence)
+    for status_source in claude codex default; do
+        status_claude="" status_codex="" status_test_home="$TEST_TMP_DIR"
+        case "$status_source" in
+            claude) status_claude="$status_plugin" ;;
+            codex) status_codex="$status_plugin" ;;
+            default) status_test_home="$status_home" ;;
+        esac
+
+        test_case "$status_skill prefers existing project state ($status_source)"
+        if status_output=$(run_status_recipe "$status_legacy_project" "$status_recipe" 2>&1) &&
+            grep -Fxq 'current_position=define-fixture' <<< "$status_output" &&
+            grep -Fxq 'status=in_progress' <<< "$status_output"; then
+            test_pass
+        else
+            test_fail "Installed status helper did not read project state: $status_output"
+        fi
+
+        test_case "$status_skill reads checkout workflow state without .octo ($status_source)"
+        if status_output=$(run_status_recipe "$status_workflow_project" "$status_recipe" 2>&1) &&
+            grep -Fxq 'Current Workflow: flow-develop' <<< "$status_output" &&
+            grep -Fxq 'Current Phase: develop' <<< "$status_output" &&
+            [[ ! -e "$status_workflow_project/.octo" ]]; then
+            test_pass
+        else
+            test_fail "Installed status helper did not read workflow state: $status_output"
+        fi
     done
+
+    test_case "$status_skill distinguishes missing and incomplete project state"
+    if ! status_output=$(run_status_recipe "$status_empty_project" "$status_recipe" 2>&1) &&
+        [[ "$status_output" == 'No project initialized.' ]] &&
+        ! status_output=$(run_status_recipe "$status_incomplete_project" "$status_recipe" 2>&1) &&
+        [[ "$status_output" == 'Project state is missing from .octo/STATE.md.' ]]; then
+        test_pass
+    else
+        test_fail "Unexpected status for missing or incomplete state: $status_output"
+    fi
+
+    test_case "$status_skill reads a roadmap only when available"
+    if [[ -n "$status_roadmap" ]] &&
+        status_output=$(run_status_recipe "$status_workflow_project" "$status_roadmap" 2>&1) &&
+        [[ -z "$status_output" ]] &&
+        status_output=$(run_status_recipe "$status_legacy_project" "$status_roadmap" 2>&1) &&
+        [[ "$status_output" == '# Fixture roadmap' ]]; then
+        test_pass
+    else
+        test_fail "Unexpected roadmap result: $status_output"
+    fi
+done
+
+printf '%s\n' '{broken json' > "$status_workflow_file"
+for status_skill in .claude/skills/skill-status skills/skill-status codex-skills/skill-status; do
+    status_file="$PROJECT_ROOT/$status_skill/SKILL.md"
+    status_recipe=$(sed -n '/^### Phase 1:/,/^### Phase 2:/p' "$status_file" | extract_bash_fence)
+    test_case "$status_skill fails on corrupt workflow state without classifying it as missing"
+    if ! status_output=$(run_status_recipe "$status_workflow_project" "$status_recipe" 2>&1) &&
+        [[ "$status_output" != *'No project initialized.'* ]] &&
+        [[ "$status_output" != *'Current Workflow:'* ]] &&
+        [[ $(cat "$status_workflow_file") == '{broken json' ]]; then
+        test_pass
+    else
+        test_fail "Unexpected result for corrupt workflow state: $status_output"
+    fi
 done
 
 test_case "Discovery delegates terminal writes to the recoverable run transaction"
