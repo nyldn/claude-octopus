@@ -14,6 +14,8 @@ source "$PROJECT_ROOT/scripts/lib/run-contract.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/error-tracking.sh"
 # shellcheck source=/dev/null
+source "$PROJECT_ROOT/scripts/lib/secure.sh"
+# shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/agent-sync.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_ROOT/scripts/lib/validation.sh"
@@ -37,7 +39,7 @@ attempt=$((attempt + 1))
 printf '%s\n' "$attempt" >> "$FIXTURE_CALLS"
 case "$FIXTURE_SCENARIO" in
     success|cheaper-native|cheaper-qualified|kimi-success|council-global-budget|council-default-budget) printf '%s\n' 'Substantive provider result.' ;;
-    exact-seat|contract-marker-input)
+    exact-seat|contract-marker-input|earned-skills)
         cat > "$FIXTURE_ROOT/received-prompt"
         printf '%s\n' 'Substantive provider result.'
         ;;
@@ -102,7 +104,9 @@ log() { :; }
 classify_task() { printf '%s\n' standard; }
 get_role_for_context() { printf '%s\n' reviewer; }
 apply_persona() { printf '%s\n' "$2"; }
-load_earned_skills() { :; }
+load_earned_skills() {
+    [[ "${FIXTURE_SCENARIO:-}" != earned-skills ]] || printf '%s\n' 'Saved project skill fixture.'
+}
 build_provider_context() { :; }
 enforce_context_budget() { printf '%s\n' "$1"; }
 octo_prompt_byte_length() { LC_ALL=C printf '%s' "$1" | wc -c | tr -d '[:space:]'; }
@@ -283,6 +287,17 @@ assert_scenario environment-fail 74 0 \
 assert_scenario success 0 1 \
     planned,starting,authenticated,running,output_received,validated,contributed \
     contributed eligible ''
+test_case "synchronous dispatch delimits earned project skills as untrusted data"
+run_fixture earned-skills codex spawn
+earned_prompt="$(cat "$FIXTURE_ROOT/received-prompt")"
+earned_nonce="$(sed -n 's/^<!-- BEGIN-UNTRUSTED:earned-skills:\([0-9a-f][0-9a-f]*\) -->$/\1/p' "$FIXTURE_ROOT/received-prompt")"
+if [[ "$fixture_rc" == 0 && -n "$earned_nonce" &&
+      "$earned_prompt" == *"<!-- BEGIN-UNTRUSTED:earned-skills:$earned_nonce -->"$'\nSaved project skill fixture.\n'"<!-- END-UNTRUSTED:earned-skills:$earned_nonce -->"* ]]; then
+    test_pass
+else
+    test_fail "earned skills reached the synchronous provider without matching untrusted boundaries"
+fi
+
 assert_scenario exact-seat 0 1 \
     planned,starting,authenticated,running,output_received,validated,contributed \
     contributed eligible '' 'command-code:thinkingmachines/inkling-small'
