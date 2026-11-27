@@ -67,6 +67,10 @@ Python or other creation errors stop durable writes with an infrastructure
 failure. No additional Python package is needed. Optional event logging keeps
 its existing best-effort unlocked fallback when a lock cannot be acquired.
 
+Workflow JSON state also requires `python3` on PATH. A kernel lock on the state
+directory serializes each read, modify, and write operation. Writers time out
+if the lock stays busy and publish complete state through an atomic rename.
+
 ## Claude Code
 
 Architecture, TDD, debugging, and prototype skills remain explicit-only. Routine

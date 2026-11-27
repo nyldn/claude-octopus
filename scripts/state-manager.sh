@@ -80,13 +80,36 @@ success() {
     echo -e "${GREEN}SUCCESS:${NC} $1"
 }
 
+# All JSON mutations hold the same directory lock through publication. The
+# writer's subshell owns descriptor 9, so every exit releases the lock.
+state_writer_lock() {
+    exec 9< "$STATE_DIR" || return 1
+    python3 -I - <<'LOCK'
+import fcntl
+import sys
+import time
+
+deadline = time.monotonic() + 10
+while True:
+    try:
+        fcntl.flock(9, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        break
+    except BlockingIOError:
+        if time.monotonic() >= deadline:
+            sys.exit("ERROR: Timed out waiting for the workflow state writer")
+        time.sleep(0.05)
+LOCK
+}
+
 # Initialize state file with default structure
-init_state() {
-    # Create directory if it doesn't exist
-    mkdir -p "$STATE_DIR"
-    mkdir -p "$STATE_DIR/context"
-    mkdir -p "$STATE_DIR/summaries"
-    mkdir -p "$STATE_DIR/quick"
+init_state() (
+    mkdir -p "$STATE_DIR" || return 1
+    state_writer_lock || return 1
+    if [[ ( -e "$STATE_FILE" || -L "$STATE_FILE" ) && ! -f "$STATE_FILE" ]]; then
+        printf 'ERROR: State destination is not a regular file: %s\n' "$STATE_FILE" >&2
+        return 1
+    fi
+    mkdir -p "$STATE_DIR/context" "$STATE_DIR/summaries" "$STATE_DIR/quick" || return 1
 
     # If state file already exists, validate it
     if [ -f "$STATE_FILE" ]; then
@@ -95,22 +118,27 @@ init_state() {
             return 0
         else
             warning "State file is corrupted, backing up and recreating"
-            mv "$STATE_FILE" "${STATE_FILE}.corrupt.$(date +%s)"
+            local backup_timestamp
+            backup_timestamp="$(date +%s)" || return 1
+            mv "$STATE_FILE" "${STATE_FILE}.corrupt.$backup_timestamp" || return 1
         fi
     fi
 
     # Generate a stable project ID without assuming GNU md5sum is installed.
-    local project_id
-    project_id="$(state_project_id "${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}")"
+    local project_id session_start
+    project_id="$(state_project_id "${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}")" || return 1
+    [[ -n "$project_id" ]] || return 1
+    session_start="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || return 1
 
-    # Create initial state
-    cat > "$STATE_FILE" <<EOF
+    # Prepare the JSON before publishing it so readers see a complete file.
+    local initial_state
+    initial_state="$(cat <<EOF
 {
   "version": "1.0.0",
   "project_id": "$project_id",
   "current_workflow": null,
   "current_phase": null,
-  "session_start": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "session_start": "$session_start",
   "decisions": [],
   "blockers": [],
   "context": {
@@ -131,9 +159,10 @@ init_state() {
   }
 }
 EOF
-
+)" || return 1
+    atomic_write "$initial_state" || return 1
     success "Initialized state file at $STATE_FILE"
-}
+)
 
 # Read and display current state
 read_state() {
@@ -170,32 +199,30 @@ get_current_workflow() {
 
 # Atomic write helper (prevents corruption)
 atomic_write() {
-    local content="$1"
-    local temp_file="${STATE_FILE}.tmp.$$"
-
-    # Write to temp file
-    echo "$content" > "$temp_file"
-
-    # Validate JSON
-    if ! jq empty "$temp_file" 2>/dev/null; then
+    local content="$1" temp_file
+    temp_file="$(mktemp "${STATE_FILE}.tmp.XXXXXX")" || return 1
+    if ! printf '%s\n' "$content" > "$temp_file" ||
+       ! jq -es 'length == 1 and (.[0] | type == "object")' "$temp_file" >/dev/null; then
         rm -f "$temp_file"
-        error "Generated invalid JSON, write aborted"
+        printf '%s\n' 'ERROR: Could not prepare valid workflow state JSON' >&2
+        return 1
     fi
-
-    # Backup current state
-    if [ -f "$STATE_FILE" ]; then
-        cp "$STATE_FILE" "$BACKUP_FILE"
+    if [ -f "$STATE_FILE" ] && ! cp "$STATE_FILE" "$BACKUP_FILE"; then
+        rm -f "$temp_file"
+        return 1
     fi
-
-    # Atomic move
-    mv "$temp_file" "$STATE_FILE"
+    if ! mv "$temp_file" "$STATE_FILE"; then
+        rm -f "$temp_file"
+        return 1
+    fi
 }
 
 # Set current workflow and phase
-set_current_workflow() {
+set_current_workflow() (
     local workflow="$1"
     local phase="${2:-null}"
 
+    state_writer_lock || return 1
     if [ ! -f "$STATE_FILE" ]; then
         error "State file not found. Run 'init_state' first."
     fi
@@ -203,73 +230,78 @@ set_current_workflow() {
     local updated
     updated=$(jq --arg workflow "$workflow" --arg phase "$phase" \
         '.current_workflow = $workflow | .current_phase = $phase' \
-        "$STATE_FILE")
+        "$STATE_FILE") || return 1
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Set current workflow to '$workflow', phase to '$phase'"
-}
+)
 
 # Write a decision
-write_decision() {
+write_decision() (
     local phase="$1"
     local decision="$2"
     local rationale="$3"
     local commit="${4:-$(git rev-parse HEAD 2>/dev/null || echo 'none')}"
 
+    state_writer_lock || return 1
     if [ ! -f "$STATE_FILE" ]; then
         error "State file not found. Run 'init_state' first."
     fi
 
-    local decision_obj
+    local decision_obj day
+    day="$(date -u +%Y-%m-%d)" || return 1
     decision_obj=$(jq -n \
         --arg phase "$phase" \
         --arg decision "$decision" \
         --arg rationale "$rationale" \
-        --arg date "$(date -u +%Y-%m-%d)" \
+        --arg date "$day" \
         --arg commit "$commit" \
-        '{phase: $phase, decision: $decision, rationale: $rationale, date: $date, commit: $commit}')
+        '{phase: $phase, decision: $decision, rationale: $rationale, date: $date, commit: $commit}') || return 1
 
     local updated
     updated=$(jq --argjson decision "$decision_obj" \
         '.decisions += [$decision]' \
-        "$STATE_FILE")
+        "$STATE_FILE") || return 1
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Recorded decision for phase '$phase'"
-}
+)
 
 # Write a blocker
-write_blocker() {
+write_blocker() (
     local description="$1"
     local phase="$2"
     local status="${3:-active}"
 
+    state_writer_lock || return 1
     if [ ! -f "$STATE_FILE" ]; then
         error "State file not found. Run 'init_state' first."
     fi
 
-    local blocker_obj
+    local blocker_obj day
+    day="$(date -u +%Y-%m-%d)" || return 1
     blocker_obj=$(jq -n \
         --arg description "$description" \
         --arg phase "$phase" \
         --arg status "$status" \
-        --arg created "$(date -u +%Y-%m-%d)" \
-        '{description: $description, phase: $phase, status: $status, created: $created}')
+        --arg created "$day" \
+        '{description: $description, phase: $phase, status: $status, created: $created}') || return 1
 
     local updated
     updated=$(jq --argjson blocker "$blocker_obj" \
         '.blockers += [$blocker]' \
-        "$STATE_FILE")
+        "$STATE_FILE") || return 1
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Recorded blocker for phase '$phase'"
-}
+)
 
 # Update blocker status
-update_blocker_status() {
+update_blocker_status() (
     local description="$1"
     local new_status="$2"
 
+    state_writer_lock || return 1
     if [ ! -f "$STATE_FILE" ]; then
         error "State file not found. Run 'init_state' first."
     fi
@@ -277,17 +309,18 @@ update_blocker_status() {
     local updated
     updated=$(jq --arg desc "$description" --arg status "$new_status" \
         '(.blockers[] | select(.description == $desc) | .status) = $status' \
-        "$STATE_FILE")
+        "$STATE_FILE") || return 1
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Updated blocker status to '$new_status'"
-}
+)
 
 # Update phase context
-update_context() {
+update_context() (
     local phase="$1"
     local context="$2"
 
+    state_writer_lock || return 1
     if [ ! -f "$STATE_FILE" ]; then
         error "State file not found. Run 'init_state' first."
     fi
@@ -295,11 +328,11 @@ update_context() {
     local updated
     updated=$(jq --arg phase "$phase" --arg context "$context" \
         '.context[$phase] = $context' \
-        "$STATE_FILE")
+        "$STATE_FILE") || return 1
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Updated context for phase '$phase'"
-}
+)
 
 # Get phase context
 get_context() {
@@ -314,10 +347,11 @@ get_context() {
 }
 
 # Update metrics
-update_metrics() {
+update_metrics() (
     local metric_type="$1"
     local value="$2"
 
+    state_writer_lock || return 1
     if [ ! -f "$STATE_FILE" ]; then
         error "State file not found. Run 'init_state' first."
     fi
@@ -325,27 +359,27 @@ update_metrics() {
     local updated
     case "$metric_type" in
         "phases_completed")
-            updated=$(jq '.metrics.phases_completed += 1' "$STATE_FILE")
+            updated=$(jq '.metrics.phases_completed += 1' "$STATE_FILE") || return 1
             ;;
         "execution_time")
             updated=$(jq --argjson time "$value" \
                 '.metrics.total_execution_time_minutes += $time' \
-                "$STATE_FILE")
+                "$STATE_FILE") || return 1
             ;;
         "provider")
             local provider="$value"
             updated=$(jq --arg provider "$provider" \
                 '.metrics.provider_usage[$provider] += 1' \
-                "$STATE_FILE")
+                "$STATE_FILE") || return 1
             ;;
         *)
             error "Unknown metric type: $metric_type"
             ;;
     esac
 
-    atomic_write "$updated"
+    atomic_write "$updated" || return 1
     success "Updated metric '$metric_type'"
-}
+)
 
 # Get all decisions for a phase
 get_decisions() {
