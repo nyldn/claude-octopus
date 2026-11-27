@@ -14,6 +14,8 @@
   ([#1454](https://github.com/nyldn/claude-octopus/pull/1454))
 - Research task progress shows the effective quick, standard, or deep intensity.
   ([#1455](https://github.com/nyldn/claude-octopus/pull/1455))
+- The Research provider banner lists Antigravity once on Claude Code and Codex.
+  ([#1456](https://github.com/nyldn/claude-octopus/pull/1456))
 
 These workflow fixes address parts of
 [#1304](https://github.com/nyldn/claude-octopus/issues/1304).

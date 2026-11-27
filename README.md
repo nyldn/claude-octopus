@@ -68,7 +68,7 @@ posting a PR summary. Content Pipeline generates interview questions directly in
 the workflow.
 
 Discover shows provider availability once and keeps the session ID visible.
-Research task progress reports the depth actually used. On Linux, the
+Research lists Antigravity once and reports the depth actually used. On Linux, the
 scoped Codex refinement judge can start from both native and npm installs.
 Workflow state saves report write failures and preserve concurrent updates.
 
