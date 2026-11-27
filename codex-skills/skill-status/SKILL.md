@@ -43,58 +43,44 @@ Display current project status, roadmap progress, blockers, and intelligent next
 
 ## The Process
 
-### Phase 1: Check Project Initialization
+### Phase 1: Read Current State
 
-#### Step 1: Verify .octo/ Directory Exists
+Run this read-only check from the project directory. It reads the project
+dashboard state when `.octo/STATE.md` exists, or the checkout's workflow
+state when there is no project state file.
 
 ```bash
-# Check if project is initialized
-if [[ ! -d ".octo" ]]; then
-    echo "No project initialized"
-    exit 1
+plugin_root="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
+if [[ -f .octo/STATE.md ]]; then
+    if [[ ! -r .octo/STATE.md ]]; then
+        printf '%s\n' 'Cannot read .octo/STATE.md.' >&2
+        exit 1
+    fi
+    "$plugin_root/scripts/octo-state.sh" read_state
+else
+    workflow_state=$("$plugin_root/bin/octopus" state-path) || exit 1
+    if [[ -e "$workflow_state" || -L "$workflow_state" ]]; then
+        OCTOPUS_STATE_PROJECT_ROOT="$PWD" "$plugin_root/scripts/state-manager.sh" show_summary
+    elif [[ -d .octo ]]; then
+        printf '%s\n' 'Project state is missing from .octo/STATE.md.' >&2
+        exit 1
+    else
+        printf '%s\n' 'No project initialized.' >&2
+        exit 1
+    fi
 fi
 ```
 
-**If .octo/ does not exist:**
+If the check says "No project initialized," suggest starting a workflow in
+this checkout. For any other error, report the read failure. Stop the dashboard
+on either error.
 
-```markdown
-## Project Status
+If the check returns a workflow summary, report the saved workflow, phase and
+active blocker count. Use a project roadmap only if one exists. The workflow
+summary has no project status or position fields. Recommend a next action from
+the saved phase when it supplies enough context.
 
-**Status:** Not initialized
-
-No Claude Octopus project found in this directory.
-
-### Get Started
-
-Run `/octo:embrace [your project description]` to initialize a new project and start the Double Diamond workflow.
-
-**Example:**
-```
-/octo:embrace build a user authentication system
-```
-
-This will:
-1. Create .octo/ directory structure
-2. Initialize STATE.md, PROJECT.md, ROADMAP.md
-3. Begin Discover phase (research and exploration)
-```
-
-**Stop here** - do not proceed to Phase 2.
-
-
-### Phase 2: Read Current State
-
-#### Step 1: Execute octo-state.sh read_state
-
-Run the installed helper from the project directory. If it cannot read state,
-report the error and stop before displaying a dashboard.
-
-```bash
-# Read current state from STATE.md
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" read_state
-```
-
-**Expected output format:**
+The project dashboard state uses key-value output:
 ```
 schema=1.0
 last_updated=2026-02-02T10:30:00Z
@@ -103,8 +89,6 @@ current_position=define-requirements
 status=in_progress
 ```
 
-#### Step 2: Parse State Variables
-
 Extract key-value pairs:
 - `current_phase` - Phase number (1-4)
 - `current_position` - Specific position within phase
@@ -112,16 +96,15 @@ Extract key-value pairs:
 - `last_updated` - Last state modification timestamp
 
 
-### Phase 3: Read Roadmap
+### Phase 2: Read Roadmap
 
-#### Step 1: Read ROADMAP.md
+Read `.octo/ROADMAP.md` when it exists. Otherwise, omit roadmap progress.
 
 ```bash
-# Read roadmap for phase overview
-cat .octo/ROADMAP.md
+if [[ -f .octo/ROADMAP.md ]]; then
+    cat .octo/ROADMAP.md
+fi
 ```
-
-#### Step 2: Extract Phase Information
 
 Parse ROADMAP.md to identify:
 - Phase names (Discover, Define, Develop, Deliver)
@@ -130,9 +113,12 @@ Parse ROADMAP.md to identify:
 - Dependencies between phases
 
 
-### Phase 4: Display Dashboard
+### Phase 3: Display Dashboard
 
 #### Step 1: Build Status Dashboard
+
+Use the fields that the check returned. This example shows a project with a
+saved roadmap:
 
 ```markdown
 ## Project Status
@@ -177,11 +163,12 @@ Map `current_phase` and `status` to completion markers:
 | 4 | not_started | `[ ] Phase 4: Deliver - not_started` |
 
 
-### Phase 5: Intelligent Routing
+### Phase 4: Intelligent Routing
 
 #### Step 1: Map Status to Suggestion
 
-Use this routing table:
+Use this routing table when the project state reader returns a status. For
+workflow state, use the reported phase and blockers to guide the next action.
 
 | Status | Suggestion |
 |--------|-----------|
@@ -239,16 +226,7 @@ Continue validation and delivery.
 
 **Status:** Not initialized
 
-No Claude Octopus project found in this directory.
-
-### Get Started
-
-Run `/octo:embrace [your project description]` to initialize a new project and start the Double Diamond workflow.
-
-**Example:**
-```
-/octo:embrace build a user authentication system
-```
+Start a Claude Octopus workflow in this checkout to create workflow state.
 ```
 
 
@@ -330,7 +308,7 @@ Review blockers above. Use `$skill-issues` to track and resolve issues.
 ```
 
 
-### Phase 6: Recent Activity Summary (Cross-Session)
+### Phase 5: Recent Activity Summary (Cross-Session)
 
 When the user asks "what have I been working on", "summarize recent work", or "update project memory", generate a cross-session activity summary.
 
@@ -408,44 +386,19 @@ User asks "show status"
 ### With /octo:embrace
 
 ```
-User asks "status" but no .octo/ exists
-→ skill-status suggests /octo:embrace
-→ User initializes new project
+User asks "status" and neither project nor workflow state exists
+→ skill-status suggests starting a workflow in this checkout
 ```
 
 
 ## Best Practices
 
-### 1. Always Check for .octo/ First
+### 1. Use the Installed State Readers
 
-**Good:**
-```bash
-if [[ ! -d ".octo" ]]; then
-    echo "Not initialized"
-    exit 1
-fi
-```
+Use `octo-state.sh read_state` for project state and
+`state-manager.sh show_summary` for workflow state.
 
-**Poor:**
-```bash
-# Assume .octo/ exists and fail later
-cat .octo/STATE.md
-```
-
-### 2. Use octo-state.sh for State Reading
-
-**Good:**
-```bash
-"${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}/scripts/octo-state.sh" read_state
-```
-
-**Poor:**
-```bash
-# Parse STATE.md manually
-grep "Current Phase" .octo/STATE.md
-```
-
-### 3. Provide Actionable Next Steps
+### 2. Provide Actionable Next Steps
 
 **Good:**
 ```
@@ -464,7 +417,7 @@ You're in phase 3.
 | Action | Why It's Wrong |
 |--------|----------------|
 | Modify STATE.md directly | Use octo-state.sh write_state instead |
-| Skip .octo/ existence check | Will fail with confusing errors |
+| Assume all state lives in .octo/ | Workspace-only workflows lose their dashboard |
 | Show status without next action | User doesn't know what to do |
 | Hardcode phase names | Read from ROADMAP.md for accuracy |
 | Ignore blockers | User needs to know what's blocking progress |
@@ -474,7 +427,7 @@ You're in phase 3.
 
 | User Input | Action Required |
 |------------|-----------------|
-| "status" | Check .octo/ → Read state → Display dashboard |
+| "status" | Read project or workflow state → Display available fields |
 | "what's next" | Read state → Route based on status/phase |
 | "where am I" | Display current phase and position |
 | "show progress" | Display roadmap with completion markers |
