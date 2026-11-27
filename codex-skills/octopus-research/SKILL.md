@@ -98,7 +98,6 @@ provider_status="$(bash "${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.cla
 
 Provider Availability:
 🔴 Codex CLI: ${codex_status}
-🟡 Antigravity CLI: ${agy_status}
 🧭 Antigravity CLI: ${agy_status}
 🔵 Claude: Available ✓ (Strategic synthesis)
 

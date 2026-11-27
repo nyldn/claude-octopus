@@ -54,6 +54,29 @@ else
     test_fail "expected the research skill to pass --intensity= before probe and no unparsed flags"
 fi
 
+test_case "research availability displays one Antigravity row on every host"
+if python3 - "$(resolve_claude_skill_path "skill-deep-research")" \
+    "$PROJECT_ROOT/skills/octopus-research/SKILL.md" \
+    "$PROJECT_ROOT/codex-skills/octopus-research/SKILL.md" <<'PY'
+from pathlib import Path
+import sys
+
+failures = []
+for name in sys.argv[1:]:
+    banner = Path(name).read_text(encoding='utf-8').split('Provider Availability:\n', 1)[1]
+    rows = [line for line in banner.split('\n\n', 1)[0].splitlines()
+            if 'Antigravity CLI:' in line]
+    if rows != ['🧭 Antigravity CLI: ${agy_status}']:
+        failures.append(f'{name}: {rows!r}')
+if failures:
+    raise SystemExit('\n'.join(failures))
+PY
+then
+    test_pass
+else
+    test_fail "expected a single Antigravity status row with the provider's compass marker"
+fi
+
 test_case "research tasks report the effective intensity on Claude and Codex"
 if node - "$(resolve_claude_skill_path "skill-deep-research")" \
     "$PROJECT_ROOT/skills/octopus-research/SKILL.md" \
