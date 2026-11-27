@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.30.4] - 2026-11-27
+
 ### Fixed
 
 - Define credits the provider that wrote the consensus in its report and summary.
