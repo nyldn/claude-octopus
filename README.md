@@ -72,6 +72,10 @@ Research lists Antigravity once and reports the depth actually used. On Linux, t
 scoped Codex refinement judge can start from both native and npm installs.
 Workflow state saves report write failures and preserve concurrent updates.
 
+Define names the provider that wrote its consensus. Status shows saved workflow
+progress with project persistence disabled. Debate asks an advisor to expand a
+thin answer once and checks the reply before using it in synthesis.
+
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.30.3 — Preserve workflow state, fix Linux Codex refinement startup, and clarify Discover and Research progress.**
 >
