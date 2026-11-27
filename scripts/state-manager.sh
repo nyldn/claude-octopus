@@ -82,11 +82,11 @@ success() {
 
 # Initialize state file with default structure
 init_state() {
-    # Create directory if it doesn't exist
-    mkdir -p "$STATE_DIR"
-    mkdir -p "$STATE_DIR/context"
-    mkdir -p "$STATE_DIR/summaries"
-    mkdir -p "$STATE_DIR/quick"
+    if [[ ( -e "$STATE_FILE" || -L "$STATE_FILE" ) && ! -f "$STATE_FILE" ]]; then
+        printf 'ERROR: State destination is not a regular file: %s\n' "$STATE_FILE" >&2
+        return 1
+    fi
+    mkdir -p "$STATE_DIR/context" "$STATE_DIR/summaries" "$STATE_DIR/quick" || return 1
 
     # If state file already exists, validate it
     if [ -f "$STATE_FILE" ]; then
@@ -95,22 +95,26 @@ init_state() {
             return 0
         else
             warning "State file is corrupted, backing up and recreating"
-            mv "$STATE_FILE" "${STATE_FILE}.corrupt.$(date +%s)"
+            local backup_timestamp
+            backup_timestamp="$(date +%s)" || return 1
+            mv "$STATE_FILE" "${STATE_FILE}.corrupt.$backup_timestamp" || return 1
         fi
     fi
 
     # Generate a stable project ID without assuming GNU md5sum is installed.
-    local project_id
-    project_id="$(state_project_id "${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}")"
+    local project_id session_start
+    project_id="$(state_project_id "${OCTOPUS_STATE_PROJECT_ROOT:-$PWD}")" || return 1
+    [[ -n "$project_id" ]] || return 1
+    session_start="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || return 1
 
     # Create initial state
-    cat > "$STATE_FILE" <<EOF
+    cat > "$STATE_FILE" <<EOF || return 1
 {
   "version": "1.0.0",
   "project_id": "$project_id",
   "current_workflow": null,
   "current_phase": null,
-  "session_start": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "session_start": "$session_start",
   "decisions": [],
   "blockers": [],
   "context": {

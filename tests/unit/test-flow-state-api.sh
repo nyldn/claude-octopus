@@ -277,4 +277,40 @@ finally:
 PY
 then test_pass; else test_fail "public-PID cancellation failed to preserve the roadmap"; fi
 
+
+test_case "JSON state initialization reports a blocked destination as a failure"
+blocked_state="$TEST_TMP_DIR/blocked-json-state"
+mkdir -p "$blocked_state/state.json"
+printf 'preserve me\n' > "$blocked_state/state.json/sentinel"
+rc=0
+OCTOPUS_WORKFLOW_STATE_DIR="$blocked_state" bash -c '
+    source "$1"
+    if init_state; then exit 0; else exit $?; fi
+' test "$PROJECT_ROOT/scripts/state-manager.sh" > "$TEST_TMP_DIR/blocked-state.out" 2>&1 || rc=$?
+if [[ "$rc" -ne 0 ]] &&
+   ! grep -q 'SUCCESS:' "$TEST_TMP_DIR/blocked-state.out" &&
+   grep -qx 'preserve me' "$blocked_state/state.json/sentinel"; then
+    test_pass
+else
+    test_fail "initialization claimed it wrote a blocked state file"
+fi
+
+test_case "JSON state initialization preserves corrupted data if its backup fails"
+corrupt_state="$TEST_TMP_DIR/corrupt-json-state"
+mkdir -p "$corrupt_state"
+printf 'preserve corrupt bytes\n' > "$corrupt_state/state.json"
+rc=0
+OCTOPUS_WORKFLOW_STATE_DIR="$corrupt_state" bash -c '
+    source "$1"
+    mv() { return 1; }
+    if init_state; then exit 0; else exit $?; fi
+' test "$PROJECT_ROOT/scripts/state-manager.sh" > "$TEST_TMP_DIR/corrupt-state.out" 2>&1 || rc=$?
+if [[ "$rc" -ne 0 ]] &&
+   ! grep -q 'SUCCESS:' "$TEST_TMP_DIR/corrupt-state.out" &&
+   grep -qx 'preserve corrupt bytes' "$corrupt_state/state.json"; then
+    test_pass
+else
+    test_fail "initialization rewrote corrupted state without a backup"
+fi
+
 test_summary
