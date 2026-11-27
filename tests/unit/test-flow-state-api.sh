@@ -313,4 +313,80 @@ else
     test_fail "initialization rewrote corrupted state without a backup"
 fi
 
+
+test_case "overlapping JSON state mutations preserve both increments"
+if python3 - "$PROJECT_ROOT/scripts/state-manager.sh" "$TEST_TMP_DIR" <<'PYTEST'
+import fcntl
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import time
+
+manager = Path(sys.argv[1])
+fixture = Path(sys.argv[2]) / "state-writer-lock"
+binaries = fixture / "bin"
+binaries.mkdir(parents=True)
+jq = binaries / "jq"
+jq.write_text("""#!/usr/bin/env bash
+set -e
+if [[ "${STATE_TEST_PAUSE:-0}" == 1 && "$1" == '.metrics.phases_completed += 1' ]]; then
+    "$STATE_TEST_REAL_JQ" "$@" > "$STATE_TEST_CONTROL/result"
+    touch "$STATE_TEST_CONTROL/read"
+    until [[ -e "$STATE_TEST_CONTROL/release" ]]; do sleep 0.02; done
+    cat "$STATE_TEST_CONTROL/result"
+else
+    exec "$STATE_TEST_REAL_JQ" "$@"
+fi
+""")
+jq.chmod(0o755)
+state = fixture / "state"
+env = dict(os.environ, OCTOPUS_WORKFLOW_STATE_DIR=str(state),
+           STATE_TEST_REAL_JQ=shutil.which("jq"), STATE_TEST_CONTROL=str(fixture),
+           PATH=str(binaries) + os.pathsep + os.environ["PATH"])
+subprocess.run(["bash", str(manager), "init_state"], env=env, stdout=subprocess.DEVNULL, check=True)
+command = ["bash", str(manager), "update_metrics", "phases_completed", "1"]
+first = subprocess.Popen(command, env=dict(env, STATE_TEST_PAUSE="1"), stdout=subprocess.DEVNULL)
+second = None
+try:
+    deadline = time.monotonic() + 5
+    while not (fixture / "read").exists():
+        if first.poll() is not None or time.monotonic() > deadline:
+            raise AssertionError("first writer did not pause after reading state")
+        time.sleep(0.02)
+    descriptor = os.open(state, os.O_RDONLY)
+    try:
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            held = False
+        except BlockingIOError:
+            held = True
+    finally:
+        os.close(descriptor)
+    second = subprocess.Popen(command, env=env, stdout=subprocess.DEVNULL)
+    if not held:
+        # Reproduce the lost update by publishing the second result before the
+        # first writer releases its already computed result.
+        assert second.wait(timeout=5) == 0
+    (fixture / "release").touch()
+    assert first.wait(timeout=5) == 0
+    assert second.wait(timeout=5) == 0
+    result = json.loads((state / "state.json").read_text())
+    assert result["metrics"]["phases_completed"] == 2, result["metrics"]
+    assert held, "writer did not hold the directory lock while reading state"
+finally:
+    (fixture / "release").touch()
+    for process in (first, second):
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait()
+PYTEST
+then
+    test_pass
+else
+    test_fail "JSON state mutations lost an overlapping write"
+fi
+
 test_summary
