@@ -51,10 +51,11 @@ ambient MCP. Codex uses a scoped filesystem profile admitting only that director
 and platform runtime files, disables tool network access and approval escalation,
 clears the tool-process environment, and disables MCP, apps, plugins, hooks and
 memory. On Linux, the sandbox gets a fixed system PATH so Codex can use the
-distro's Bubblewrap, and read access to the resolved Codex executable for
-sandbox startup. Before dispatch, a local Codex sandbox probe must read the
-request and reject an unrelated sentinel. Unsupported clients fail before a
-provider call.
+distro's Bubblewrap. Sandbox startup can read the resolved native Codex
+executable and its packaged sandbox helper when present. This also covers npm
+installs, where the launcher is a JavaScript wrapper. Before dispatch, a
+local Codex sandbox probe must read the request and reject an unrelated
+sentinel. Unsupported clients fail before a provider call.
 The staging directory is removed after dispatch. Provider authentication stays
 with the client; credentials are not copied into the request directory.
 

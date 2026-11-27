@@ -56,6 +56,30 @@ with tempfile.TemporaryDirectory(prefix="refinement-codex-launcher-") as tempora
                 pass
             else:
                 raise AssertionError("unsafe inventory accepted")
+    if shutil.which("node"):
+        arch = subprocess.check_output(["node", "-p", "process.arch"], text=True).strip()
+        architecture = {"x64": "x86_64", "arm64": "aarch64"}.get(arch)
+        if architecture:
+            modules = install / "lib" / "node_modules" / "@openai"
+            wrapper = modules / "codex" / "bin" / "codex.js"
+            wrapper.parent.mkdir(parents=True)
+            wrapper.touch(mode=0o755)
+            platform_package = modules / f"codex-linux-{arch}"
+            runtime = platform_package / "vendor" / f"{architecture}-unknown-linux-musl"
+            native = runtime / "bin" / "codex"
+            helper = runtime / "codex-resources" / "codex-linux-sandbox"
+            for entry in (native, helper):
+                entry.parent.mkdir(parents=True)
+                entry.touch(mode=0o755)
+            (platform_package / "package.json").write_text("{}")
+            launcher.unlink()
+            launcher.symlink_to(wrapper)
+            with patch.dict(os.environ, {"PATH": str(install) + os.pathsep + os.environ["PATH"]}), \
+                    patch.object(sys, "platform", "linux"):
+                flags = policy.flags([])
+                mounts = ",".join(json.dumps(str(path)) + '="read"'
+                                  for path in (":minimal", root, native, helper))
+                assert f"permissions.{name}={{filesystem={{{mounts}}},network={{enabled=false}}}}" in flags
     with patch.dict(os.environ, {"PATH": ""}), patch.object(sys, "platform", "darwin"):
         flags = policy.flags([])
         assert 'shell_environment_policy.set={}' in flags

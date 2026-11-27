@@ -16,6 +16,47 @@ def profile_name(directory):
     return "octopus_refine_" + hashlib.sha256(str(directory).encode()).hexdigest()[:24]
 
 
+# Match the official npm launcher's platform package lookup, including its
+# fallback to the wrapper package's own vendor directory.
+NPM_CODEX_BINARY = """
+const { existsSync } = require("node:fs");
+const { createRequire } = require("node:module");
+const path = require("node:path");
+const launcher = process.argv[1];
+const architecture = { x64: "x86_64", arm64: "aarch64" }[process.arch];
+if (!architecture) process.exit(1);
+let packageRoot = path.dirname(path.dirname(launcher));
+try {
+    const manifest = createRequire(launcher).resolve(
+        "@openai/codex-linux-" + process.arch + "/package.json");
+    packageRoot = path.dirname(manifest);
+} catch {
+    // Older releases can ship the runtime in the launcher package itself.
+}
+const target = path.join(packageRoot, "vendor", architecture + "-unknown-linux-musl");
+const binary = path.join(target, "bin", "codex");
+process.stdout.write(JSON.stringify(existsSync(binary) ? binary : path.join(target, "codex", "codex")));
+"""
+
+
+def linux_runtime_files():
+    """Identify exact executable paths needed to start the inner sandbox."""
+    command = shutil.which("codex")
+    if command is None:
+        raise ValueError("Codex executable not found")
+    binary = Path(command).resolve(strict=True)
+    if binary.parts[-4:] == ("@openai", "codex", "bin", "codex.js"):
+        result = subprocess.run(["node", "-e", NPM_CODEX_BINARY, str(binary)],
+                                capture_output=True, text=True, timeout=5, check=True)
+        binary = Path(json.loads(result.stdout)).resolve(strict=True)
+        if not binary.is_file() or not os.access(binary, os.X_OK):
+            raise ValueError("Codex native executable not found")
+    return [str(binary)] + [str(helper.resolve(strict=True)) for helper in (
+        binary.with_name("codex-linux-sandbox"),
+        binary.parent.parent / "codex-resources" / "codex-linux-sandbox",
+    ) if helper.is_file() and os.access(helper, os.X_OK)]
+
+
 def flags(servers):
     """Build disable overrides from safely named MCP inventory entries."""
     if not isinstance(servers, list):
@@ -28,10 +69,7 @@ def flags(servers):
     if sys.platform == "linux":
         # Codex uses PATH to locate the distro's Bubblewrap. Its inner
         # sandbox process re-execs the CLI at its canonical path.
-        launcher = shutil.which("codex")
-        if launcher is None:
-            raise ValueError("Codex executable not found")
-        readable.append(str(Path(launcher).resolve(strict=True)))
+        readable.extend(linux_runtime_files())
         shell_environment = '{PATH="/usr/bin:/bin"}'
     profile = "{" + ",".join(json.dumps(path) + '="read"' for path in readable) + "}"
     name = profile_name(directory)
