@@ -210,7 +210,7 @@ if errors:
 print("18 executable Debate response-order scenarios passed")
 PY_BLIND
 then test_pass; else test_fail "Debate response reading did not preserve independent analysis"; fi
-test_case "Debate scores only the selected round's advisors"
+test_case "Debate reports actionable quality findings for the selected round"
 if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_ROUND_QUALITY'
 from pathlib import Path
 import re
@@ -228,25 +228,43 @@ for tree in (".claude/skills", "skills", "codex-skills"):
     with tempfile.TemporaryDirectory(dir=tmp) as directory:
         rounds = Path(directory) / "rounds"
         rounds.mkdir()
+        plain = "reason " * 50
         for prefix, seat in (("r001", "codex"), ("r002", "agy"), ("r003", "sonnet")):
             (rounds / f"{prefix}_{seat}.md").write_text("short answer", encoding="utf-8")
+            (rounds / f"{prefix}_adequate.md").write_text(plain + "[ref]", encoding="utf-8")
+            (rounds / f"{prefix}_strong.md").write_text(plain + "[ref] ```", encoding="utf-8")
             (rounds / f"{prefix}_claude.md").write_text("moderator analysis", encoding="utf-8")
         scorer = re.sub(r"^DEBATE_DIR=.*$", lambda _: "DEBATE_DIR=" + shlex.quote(directory),
                         scorer, flags=re.M)
-        for prefix, seat in (("r001", "codex"), ("r002", "agy"), ("r003", "sonnet")):
+        def score_round(prefix, expected):
             recipe = re.sub(r"^ROUND_PREFIX=.*$", "ROUND_PREFIX=" + prefix, scorer, flags=re.M)
             result = subprocess.run(["/bin/bash", "-euo", "pipefail", "-c", recipe],
                                     capture_output=True, text=True, timeout=5)
             lines = result.stdout.splitlines()
-            if result.returncode or len(lines) != 1 or f"from {seat} (score: 0)" not in lines[0]:
+            if result.returncode or result.stderr or len(lines) != len(expected) or set(lines) != expected:
                 errors.append(f"{tree}, {prefix}: rc={result.returncode}, "
                               f"stdout={result.stdout!r}, stderr={result.stderr!r}")
+
+        for prefix, seat in (("r001", "codex"), ("r002", "agy"), ("r003", "sonnet")):
+            caution = f"{prefix} adequate: score 50/100. Flag limitations in synthesis."
+            score_round(prefix, {caution, f"{prefix} {seat}: score 0/100. Needs elaboration."})
+            retry = Path(directory) / "retries" / f"{prefix}_{seat}"
+            retry.mkdir(parents=True)
+            score_round(prefix, {caution, f"{prefix} {seat}: no completed elaboration. Quality gate failed."})
+            reply = retry / "response.md"
+            reply.write_text("", encoding="utf-8")
+            score_round(prefix, {caution, f"{prefix} {seat}: no completed elaboration. Quality gate failed."})
+            reply.write_text("another short answer", encoding="utf-8")
+            score_round(prefix, {caution, f"{prefix} {seat}: retry scored 0/100. Quality gate failed."})
+            reply.write_text(plain + "[ref]", encoding="utf-8")
+            score_round(prefix, {caution, f"{prefix} {seat}: retry scored 50/100. Use the elaboration."})
+            assert (rounds / f"{prefix}_{seat}.md").read_text(encoding="utf-8") == "short answer"
 if errors:
     print("\n".join(errors), file=sys.stderr)
     sys.exit(1)
-print("9 executable Debate round-scoring scenarios passed")
+print("45 executable Debate round-scoring and retry scenarios passed")
 PY_ROUND_QUALITY
-then test_pass; else test_fail "Debate scored a different round or included the moderator"; fi
+then test_pass; else test_fail "Debate reported an incorrect quality or retry outcome"; fi
 test_case "blinded Debate prepares every moderator note before native advisor completions"
 if python3 -I - "$PROJECT_ROOT" <<'PY_NATIVE'
 from pathlib import Path

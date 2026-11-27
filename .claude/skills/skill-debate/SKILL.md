@@ -264,7 +264,7 @@ When running debates in claude-octopus, the following enhancements are automatic
 **Quality Thresholds**:
 - **Score >= 75**: Proceed (high quality)
 - **Score 50-74**: Proceed with warning (flag in synthesis)
-- **Score < 50**: Re-prompt advisor for elaboration
+- **Score < 50**: Request one elaboration and score it before using the response
 
 ### 3. Cost Tracking & Analytics
 
@@ -606,10 +606,12 @@ OCTO_BASH
 #### 5.3: Read Advisor Responses and Record the Moderator Analysis
 
 For cross-critique, run the response-reading block after the provider minimum
-passes. Then write your own analysis to `rounds/r001_claude.md` based on the
-advisor perspectives. For blinded mode, skip this step during the rounds.
-During final synthesis, use the block for each round to read advisor responses
-alongside the saved moderator notes. Keep those notes as written.
+passes and the quality follow-ups in Step 5.4 are complete. Then write your own
+analysis to `rounds/r001_claude.md` based on the accepted advisor perspectives.
+For blinded mode, skip this step during the rounds.
+During final synthesis, keep the saved moderator notes as written.
+This block displays the original responses. Use the Step 5.4 results to
+exclude failed answers and read accepted elaborations from their retry files.
 
 Restore the run directory and use the appropriate round prefix in the block.
 
@@ -640,9 +642,26 @@ done
 ```
 
 #### 5.4: Quality Gates (Claude-Octopus Enhancement)
-In cross-critique mode, evaluate response quality after each advisor responds.
-In blinded mode, wait until Step 6 before scoring advisor responses. Set
+In cross-critique mode, run this step before writing the moderator's analysis.
+In blinded mode, wait until Step 6, after all moderator notes are saved. Set
 `ROUND_PREFIX` to the current round's prefix for each invocation.
+
+For each response marked “Needs elaboration,” create
+`${DEBATE_DIR}/retries/<round>_<advisor>/` before dispatch. Use `mkdir -p`
+for the parent and plain `mkdir` for the attempt directory. Dispatch only
+after creating that directory successfully. A resumed run can score an
+existing reply or report an incomplete retry. Request one elaboration
+using the same advisor, model, and authorized route from Step 5.1 or 5.2. Give
+the original question and ask for the missing evidence or concrete tradeoffs.
+Keep the original answer in `rounds/`. After a successful completion, write
+the new answer to a temporary sibling and rename it to `response.md` in the
+retry directory. Keep unavailable or failed retries without a response file.
+
+Run this block again after the follow-ups. Use the elaboration in synthesis
+when the block accepts it. Flag scores from 50 through 74 in synthesis. Report
+failed or unavailable follow-ups as quality-gate failures and exclude those
+answers. If fewer than two providers have accepted answers, report an
+incomplete round.
 
 ```bash
 DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
@@ -673,8 +692,22 @@ for response_file in "${DEBATE_DIR}/rounds/${ROUND_PREFIX}_"*.md; do
     [ "$advisor" = claude ] && continue
     quality_score=$(evaluate_response_quality "$response_file") || exit 1
     if (( quality_score < 50 )); then
-        echo "Low quality response from ${advisor} (score: $quality_score). Re-prompting..."
-        # Re-prompt for more detail
+        retry_dir="${DEBATE_DIR}/retries/${response_name}"
+        retry_file="${retry_dir}/response.md"
+        if [ -s "$retry_file" ] && [ -f "$retry_file" ]; then
+            retry_score=$(evaluate_response_quality "$retry_file") || exit 1
+            if (( retry_score >= 50 )); then
+                printf '%s %s: retry scored %d/100. Use the elaboration.\n' "$ROUND_PREFIX" "$advisor" "$retry_score"
+            else
+                printf '%s %s: retry scored %d/100. Quality gate failed.\n' "$ROUND_PREFIX" "$advisor" "$retry_score"
+            fi
+        elif [ -d "$retry_dir" ]; then
+            printf '%s %s: no completed elaboration. Quality gate failed.\n' "$ROUND_PREFIX" "$advisor"
+        else
+            printf '%s %s: score %d/100. Needs elaboration.\n' "$ROUND_PREFIX" "$advisor" "$quality_score"
+        fi
+    elif (( quality_score < 75 )); then
+        printf '%s %s: score %d/100. Flag limitations in synthesis.\n' "$ROUND_PREFIX" "$advisor" "$quality_score"
     fi
 done
 ```
@@ -682,9 +715,9 @@ done
 ### Step 6: Final Synthesis
 
 After all rounds complete, write a comprehensive synthesis. In blinded mode,
-use Steps 5.3 and 5.4 to read and score the advisor responses for each
-completed round. Use the same round prefix in both steps and cite the saved
-moderator analyses when comparing perspectives.
+complete the quality follow-ups in Step 5.4 before using Step 5.3. Use the
+accepted answers, the same round prefix in both steps, and the saved moderator
+analyses when comparing perspectives.
 
 ```bash
 DEBATE_DIR='[DEBATE_DIR printed by Step 4]'
@@ -834,7 +867,7 @@ Each advisor response is scored before proceeding:
 | Code Examples | 25 pts | Technical examples or code snippets |
 | Engagement | 25 pts | Addresses other advisors' specific points |
 
-Score >= 75: proceed. Score 50-74: proceed with warning. Score < 50: re-prompt for elaboration.
+Use the thresholds and retry procedure in Step 5.4.
 
 ## Cost Tracking
 
