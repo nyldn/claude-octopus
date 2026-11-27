@@ -54,6 +54,40 @@ else
     test_fail "expected the research skill to pass --intensity= before probe and no unparsed flags"
 fi
 
+test_case "research tasks report the effective intensity on Claude and Codex"
+if node - "$(resolve_claude_skill_path "skill-deep-research")" \
+    "$PROJECT_ROOT/skills/octopus-research/SKILL.md" \
+    "$PROJECT_ROOT/codex-skills/octopus-research/SKILL.md" <<'JS'
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+
+for (const skill of process.argv.slice(2)) {
+    const markdown = fs.readFileSync(skill, 'utf8');
+    const taskSection = markdown.split('## Task Management Integration')[1];
+    const recipe = taskSection.match(/```javascript\n([\s\S]*?)\n```/)[1];
+    for (const intensity of ['quick', 'standard', 'deep']) {
+        const tasks = [];
+        vm.runInNewContext(recipe, {
+            research_intensity: intensity,
+            TaskCreate: task => tasks.push(task),
+            TaskUpdate: () => {},
+        });
+        assert.equal(tasks.length, 1, skill);
+        assert.equal(tasks[0].description, `Run orchestrate.sh probe at ${intensity} intensity`, skill);
+        if (intensity !== 'deep') {
+            const task = tasks[0];
+            assert.doesNotMatch(`${task.subject} ${task.description} ${task.activeForm}`, /\bdeep\b/, skill);
+        }
+    }
+}
+JS
+then
+    test_pass
+else
+    test_fail "expected task progress to reflect quick, standard and deep dispatch"
+fi
+
 test_case "discover skill requires dynamic multi-provider fleet"
 discover_skill="$(read_claude_skill_contract flow-discover)"
 if [[ "$discover_skill" == *"build-fleet.sh"* && "$discover_skill" == *"codex, agy, copilot, qwen, opencode"* ]]; then
