@@ -4,7 +4,36 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/../helpers/test-framework.sh"
-test_suite "Define state failure boundaries"
+test_suite "Define workflow recipes"
+test_case "Define presents consensus without hard-coded Claude attribution"
+if python3 -I - "$PROJECT_ROOT" <<'PY_ATTRIBUTION'
+from pathlib import Path
+import re
+import sys
+
+root = Path(sys.argv[1])
+failures = []
+for tree in ('skills', '.claude/skills', 'codex-skills'):
+    entry = root / tree / 'flow-define/SKILL.md'
+    if not entry.exists() and tree == 'codex-skills':
+        continue
+    skill = entry.read_text(encoding='utf-8')
+    template = skill.split('### Problem Definition Format', 1)[1].split('## Example Usage', 1)[0]
+    example = skill.split('### Example 1:', 1)[1].split('### Example 2:', 1)[0]
+    presentation = skill.split('### STEP 7:', 1)[1].split('\n---\n', 1)[0]
+    banner = skill.split('Provider Availability:\n', 1)[1].split('\n\n', 1)[0]
+    for name, section in (('result template', template), ('worked example', example)):
+        if re.findall(r'^[ \t]*### ([^\n]*Synthesis[^\n]*)$', section, re.M) != ['Consensus Synthesis']:
+            failures.append(f'{tree}: wrong synthesis heading in the {name}')
+    if '`synthesizer:`' not in presentation or 'final consensus footer' not in presentation:
+        failures.append(f'{tree}: presentation does not use the synthesis source in the report')
+    if banner != '${provider_availability}':
+        failures.append(f'{tree}: the availability banner includes a fixed provider row')
+if failures:
+    raise SystemExit('\n'.join(failures))
+PY_ATTRIBUTION
+then test_pass; else test_fail "Define should use the validated report for synthesis attribution"; fi
+
 test_case "failed writes stop later operations and presentation in each host recipe"
 if python3 -I - "$PROJECT_ROOT" "$TEST_TMP_DIR" <<'PY_CONTROLS'
 import os

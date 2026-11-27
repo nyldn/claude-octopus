@@ -149,7 +149,6 @@ If `OCTO_ALLOWED_PROVIDERS` is set, treat it as the source of truth for which pr
 
 Provider Availability:
 ${provider_availability}
-🔵 Claude: Available ✓ - Consensus building and synthesis
 
 💰 Estimated Cost: 0.01-0.05 USD
 ⏱️  Estimated Time: 2-5 minutes
@@ -448,11 +447,14 @@ Read the synthesis file and present:
 - Requirements checklist
 - Next steps (usually tangle phase for implementation)
 
-**Include attribution:**
+**Include attribution:** Use the `synthesizer:` value in the validated report's
+final consensus footer. The provider that wrote the consensus can differ from
+the host presenting it.
+
 ```
 ---
 *Multi-AI Problem Definition powered by Claude Octopus*
-*Providers: available external providers + 🔵 Claude*
+*Consensus source: <provider recorded in the report>*
 *Full problem definition: $SYNTHESIS_FILE*
 ```
 
@@ -469,7 +471,7 @@ The **define** phase clarifies and scopes problems using external CLI providers:
 1. **🔴 Codex CLI** - Technical requirements analysis, edge cases, constraints
 2. **🟡 Antigravity CLI** - User needs, business requirements, context understanding
 3. **🧭 Antigravity CLI** - Additional external-model challenge
-4. **🔵 Claude (You)** - Problem synthesis and requirement definition
+4. **Consensus synthesis** - Antigravity first when available, with Claude as a fallback
 
 This is the **convergent** phase after discovery - we narrow down from broad research to specific problem definition.
 
@@ -506,8 +508,6 @@ Before execution, you'll see a banner in this shape. The provider rows below are
 Provider Availability:
 🟢 codex: Available ✓
 🧭 agy: Degraded ⚠
-🔴 agy: Missing/unavailable ✗
-🔵 Claude: Available ✓ - Consensus building and synthesis
 ```
 
 ---
@@ -522,12 +522,9 @@ Provider Availability:
 
 ### Stage B: Multi-Provider Problem Definition
 
-The orchestrate.sh script will:
-1. Call **Codex CLI** for technical requirement analysis
-2. Call **Antigravity CLI** for business/user need analysis
-3. Call **Antigravity CLI** for additional external-model challenge
-4. You (Claude) synthesize into clear problem definition
-5. Identify gaps and missing requirements
+The orchestrator gathers a problem statement, success criteria, and constraints.
+It tries Antigravity for consensus when available, then Claude if needed. The
+report records which provider synthesized the result.
 
 ### Stage C: Read Results
 
@@ -614,7 +611,7 @@ After successful execution, present problem definition with:
    ### Antigravity Analysis (Business/User)
    [User needs and business context]
 
-   ### Claude Synthesis
+   ### Consensus Synthesis
    [Integrated problem definition]
 
    ## Requirements Checklist
@@ -719,7 +716,7 @@ Claude:
 - Compliance: GDPR (data deletion), password policies
 - Analytics: Track signup conversion, failed login rates
 
-### Claude Synthesis
+### Consensus Synthesis
 - Hybrid approach: Core auth (P0) first, iterate on P1/P2
 - Security-first: All requirements validated against OWASP
 - User experience: Balance security with convenience
