@@ -302,17 +302,48 @@ printf 'preserve corrupt bytes\n' > "$corrupt_state/state.json"
 rc=0
 OCTOPUS_WORKFLOW_STATE_DIR="$corrupt_state" bash -c '
     source "$1"
-    mv() { return 1; }
+    mv() {
+        if [[ -e "$2" || -L "$2" ]]; then
+            printf "%s\n" "archive already visible at move"
+        fi
+        return 1
+    }
     if init_state; then exit 0; else exit $?; fi
 ' test "$PROJECT_ROOT/scripts/state-manager.sh" > "$TEST_TMP_DIR/corrupt-state.out" 2>&1 || rc=$?
 if [[ "$rc" -ne 0 ]] &&
    ! grep -q 'SUCCESS:' "$TEST_TMP_DIR/corrupt-state.out" &&
-   grep -qx 'preserve corrupt bytes' "$corrupt_state/state.json"; then
+   ! grep -q 'archive already visible at move' "$TEST_TMP_DIR/corrupt-state.out" &&
+   grep -qx 'preserve corrupt bytes' "$corrupt_state/state.json" &&
+   [[ -z "$(find "$corrupt_state" -name 'state.json.corrupt.*' -print)" ]]; then
     test_pass
 else
-    test_fail "initialization rewrote corrupted state without a backup"
+    test_fail "failed recovery changed the corrupt state or exposed an empty archive"
 fi
 
+test_case "two JSON recoveries in the same second retain both archives"
+repeated_state="$TEST_TMP_DIR/repeated-json-recovery"
+mkdir -p "$repeated_state"
+if OCTOPUS_WORKFLOW_STATE_DIR="$repeated_state" bash -c '
+    source "$1"
+    date() {
+        if [[ "$*" == "+%s" ]]; then
+            printf "%s\n" 1700000000
+        else
+            command date "$@"
+        fi
+    }
+    printf "%s\n" "first corrupt state" > "$STATE_FILE"
+    init_state &&
+        printf "%s\n" "second corrupt state" > "$STATE_FILE" &&
+        init_state &&
+        jq -e "type == \"object\"" "$STATE_FILE" >/dev/null
+' test "$PROJECT_ROOT/scripts/state-manager.sh" > "$TEST_TMP_DIR/repeated-state.out" 2>&1 &&
+   grep -qFx 'first corrupt state' "$repeated_state"/state.json.corrupt.* &&
+   grep -qFx 'second corrupt state' "$repeated_state"/state.json.corrupt.*; then
+    test_pass
+else
+    test_fail "recovery replaced an earlier corrupt-state archive or failed to restore valid state"
+fi
 
 test_case "overlapping JSON state mutations preserve both increments"
 if python3 - "$PROJECT_ROOT/scripts/state-manager.sh" "$TEST_TMP_DIR" <<'PYTEST'

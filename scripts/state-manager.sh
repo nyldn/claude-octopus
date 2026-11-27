@@ -118,9 +118,15 @@ init_state() (
             return 0
         else
             warning "State file is corrupted, backing up and recreating"
-            local backup_timestamp
+            local backup_timestamp recovery_file archive_number=0
             backup_timestamp="$(date +%s)" || return 1
-            mv "$STATE_FILE" "${STATE_FILE}.corrupt.$backup_timestamp" || return 1
+            recovery_file="${STATE_FILE}.corrupt.${backup_timestamp}"
+            # The state-directory lock protects name selection through the move.
+            while [[ -e "$recovery_file" || -L "$recovery_file" ]]; do
+                archive_number=$((archive_number + 1))
+                recovery_file="${STATE_FILE}.corrupt.${backup_timestamp}.${archive_number}"
+            done
+            mv "$STATE_FILE" "$recovery_file" || return 1
         fi
     fi
 
