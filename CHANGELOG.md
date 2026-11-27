@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.30.3] - 2026-11-27
+
 ### Fixed
 
 - Discover shows one provider availability banner and includes the session ID

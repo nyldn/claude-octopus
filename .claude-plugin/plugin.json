@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.30.2",
-  "description": "v11.30.2 \u2014 Keep LiteLLM chat eligible after a model-list 403, require the validated Deliver report, and fix Content Pipeline interview guidance. Run /octo:setup.",
+  "version": "11.30.3",
+  "description": "v11.30.3 \u2014 Preserve workflow state, fix Linux Codex refinement startup, and clarify Discover and Research progress. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

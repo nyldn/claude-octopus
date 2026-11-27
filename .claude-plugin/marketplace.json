@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.30.2"
+    "version": "11.30.3"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.30.2 - Keep LiteLLM chat eligible after a model-list 403, require the validated Deliver report, and fix Content Pipeline interview guidance. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.30.2",
+      "description": "v11.30.3 - Preserve workflow state, fix Linux Codex refinement startup, and clarify Discover and Research progress. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.30.3",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
