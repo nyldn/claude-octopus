@@ -67,6 +67,11 @@ LiteLLM chat stays eligible when the optional model-list probe receives HTTP
 posting a PR summary. Content Pipeline generates interview questions directly in
 the workflow.
 
+Discover shows provider availability once and keeps the session ID visible.
+Research task progress reports the depth actually used. On Linux, the
+scoped Codex refinement judge can start from both native and npm installs.
+Workflow state saves report write failures and preserve concurrent updates.
+
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.30.2 — Keep LiteLLM chat eligible after a model-list 403, require the validated Deliver report, and fix Content Pipeline interview guidance.**
 >

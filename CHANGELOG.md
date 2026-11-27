@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Discover shows one provider availability banner and includes the session ID
+  on supported hosts. ([#1452](https://github.com/nyldn/claude-octopus/pull/1452),
+  [#1454](https://github.com/nyldn/claude-octopus/pull/1454))
+- The Linux Codex refinement judge starts its scoped sandbox for native and
+  npm installs. ([#1453](https://github.com/nyldn/claude-octopus/pull/1453))
+- Workflow state saves report initialization and write failures, retain a
+  corrupt file when backup fails, and preserve concurrent metric updates.
+  ([#1454](https://github.com/nyldn/claude-octopus/pull/1454))
+- Research task progress shows the effective quick, standard, or deep intensity.
+  ([#1455](https://github.com/nyldn/claude-octopus/pull/1455))
+
+These workflow fixes address parts of
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
 ## [11.30.2] - 2026-11-26
 
 ### Fixed
