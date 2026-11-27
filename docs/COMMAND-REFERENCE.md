@@ -135,6 +135,10 @@ instruction; it is not an `orchestrate.sh` command-line flag.
 | `octopus status --run RUN_ID --json` | Read a schema-versioned v10 run manifest without provider calls |
 | `octopus explain --run RUN_ID` | Explain contribution, degradation, skip, or failure decisions from durable artifacts |
 
+Ask the Status skill for progress in the current checkout. It reads the project
+dashboard when available and falls back to the saved workflow, phase, and
+blockers when project persistence is disabled.
+
 ### Legacy aliases
 
 | Command | Description |
@@ -558,6 +562,7 @@ Definition phase — Clarify requirements and scope with multi-AI consensus.
 **What it does:**
 - Multi-AI consensus on problem definition
 - Identifies success criteria, constraints, and non-goals
+- Credits the provider that wrote the consensus in the report and summary
 - Optional multi-LLM debate gate before finalizing
 - Shows visual indicator: 🐙 🎯
 
@@ -751,6 +756,8 @@ AI Debate Hub — structured debates between Claude and available external provi
 - Claude, Antigravity CLI, and Codex CLI debate the topic
 - Claude acts as both participant and moderator
 - Anti-sycophancy gate prevents consensus from forming too easily
+- Requests one elaboration for a low-scoring answer and checks the reply before using it in synthesis
+- Reports incomplete rounds when fewer than two providers have accepted answers
 - Produces synthesis with concrete recommendation
 
 **Natural language triggers:**

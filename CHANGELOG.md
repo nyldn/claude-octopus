@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [11.30.4] - 2026-11-27
+
+### Fixed
+
+- Define credits the provider that wrote the consensus in its report and summary.
+  ([#1458](https://github.com/nyldn/claude-octopus/pull/1458))
+- Status shows the saved workflow, phase, and active blockers from the current
+  checkout even when project persistence is disabled.
+  ([#1459](https://github.com/nyldn/claude-octopus/pull/1459))
+- Debate requests one elaboration from a low-scoring advisor, checks the reply,
+  and reports failed quality gates before synthesis.
+  ([#1460](https://github.com/nyldn/claude-octopus/pull/1460))
+
+These workflow fixes address parts of
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
 ## [11.30.3] - 2026-11-27
 
 ### Fixed
