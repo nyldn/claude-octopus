@@ -189,14 +189,27 @@ prepare interrupted
     INERT_SLEEP=10 council_run_seat_pool independent-advice responses
 ) &
 runner=$!
+first_response="$COUNCIL_RUN_DIR/responses/00-one.md"
+second_response="$COUNCIL_RUN_DIR/responses/01-two.md"
+ready=false
 for attempt in {1..100}; do
-    [[ -s "$COUNCIL_RUN_DIR/responses/01-two.md.partial" ]] && break
+    if [[ -s "$first_response.partial" && -s "$second_response.partial" ]]; then
+        ready=true
+        break
+    fi
     sleep 0.05
 done
-kill -TERM "$runner"
+signal_rc=0
+kill -TERM "$runner" 2>/dev/null || signal_rc=$?
 rc=0
 wait "$runner" || rc=$?
-if [[ "$rc" == 143 && -s "$COUNCIL_RUN_DIR/responses/00-one.md.partial" && ! -e "$COUNCIL_RUN_DIR/responses/00-one.md" && -s "$COUNCIL_RUN_DIR/responses/01-two.md.pool-result" ]]; then test_pass; else test_fail "interrupted pool rc=$rc"; fi
+if [[ "$ready" != true ]]; then
+    test_fail "both workers must write partial output before interruption"
+elif [[ "$signal_rc" == 0 && "$rc" == 143 && -s "$first_response.partial" && ! -e "$first_response" && -s "$second_response.pool-result" ]]; then
+    test_pass
+else
+    test_fail "interrupted pool did not preserve unfinished evidence: signal=$signal_rc rc=$rc"
+fi
 
 test_case "interruption during seat ownership transfer retains every cancellation record"
 prepare interrupted-transfer
