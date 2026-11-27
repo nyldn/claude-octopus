@@ -160,7 +160,13 @@ fable5_banner() {
     fable5_mode_active || return 0
     [[ -n "${_OCTO_FABLE5_BANNER_SHOWN:-}" ]] && return 0
     export _OCTO_FABLE5_BANNER_SHOWN=1
-    log "INFO" "🐙 Fable 5 mode active — security passes reroute to $(fable5_fallback_model), effort clamps to high, refusal retry on $(fable5_fallback_model) (OCTOPUS_FABLE5_MODE=off to disable)"
+    local fallback_model retry_status
+    fallback_model="$(fable5_fallback_model)"
+    retry_status="SDK refusal retry can use ${fallback_model}"
+    if [[ "${OCTOPUS_FABLE5_NO_RETRY:-}" == "1" ]]; then
+        retry_status="SDK refusal retry disabled by OCTOPUS_FABLE5_NO_RETRY=1"
+    fi
+    log "INFO" "🐙 Fable 5 mode active — security passes reroute to ${fallback_model}, effort clamps to high, ${retry_status} (OCTOPUS_FABLE5_MODE=off to disable)"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
