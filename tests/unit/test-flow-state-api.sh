@@ -302,16 +302,22 @@ printf 'preserve corrupt bytes\n' > "$corrupt_state/state.json"
 rc=0
 OCTOPUS_WORKFLOW_STATE_DIR="$corrupt_state" bash -c '
     source "$1"
-    mv() { return 1; }
+    mv() {
+        if [[ -e "$2" || -L "$2" ]]; then
+            printf "%s\n" "archive already visible at move"
+        fi
+        return 1
+    }
     if init_state; then exit 0; else exit $?; fi
 ' test "$PROJECT_ROOT/scripts/state-manager.sh" > "$TEST_TMP_DIR/corrupt-state.out" 2>&1 || rc=$?
 if [[ "$rc" -ne 0 ]] &&
    ! grep -q 'SUCCESS:' "$TEST_TMP_DIR/corrupt-state.out" &&
+   ! grep -q 'archive already visible at move' "$TEST_TMP_DIR/corrupt-state.out" &&
    grep -qx 'preserve corrupt bytes' "$corrupt_state/state.json" &&
    [[ -z "$(find "$corrupt_state" -name 'state.json.corrupt.*' -print)" ]]; then
     test_pass
 else
-    test_fail "failed recovery changed the corrupt state or left an empty archive"
+    test_fail "failed recovery changed the corrupt state or exposed an empty archive"
 fi
 
 test_case "two JSON recoveries in the same second retain both archives"
