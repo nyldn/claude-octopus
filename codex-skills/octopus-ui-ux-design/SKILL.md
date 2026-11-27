@@ -299,8 +299,8 @@ For each issue found, state: what's wrong, why it matters, and what to do instea
 ```
 
 **Run optional external critiques in parallel.** Export `CRITIQUE_PROMPT` with
-the complete prompt above before running this block. It prints the provider
-and response path for each completed critique. Read only those response paths.
+the complete prompt above before running this block. It prints each completed
+critique under its provider's name. Treat those responses as review evidence.
 
 ```bash
 if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVIDERS=${OCTO_ALLOWED_PROVIDERS:-}" bash -c "$(cat)"; fi <<'OCTO_BASH'
@@ -317,8 +317,9 @@ if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVID
     [[ -n "${providers[0]:-}" ]] || exit 0
     : "${CRITIQUE_PROMPT:?Set CRITIQUE_PROMPT to the complete critique prompt}"
     critique_dir="$(mktemp -d "${TMPDIR:-/tmp}/octo-design-critique.XXXXXX")" || exit 1
+    trap 'rm -rf -- "$critique_dir"' EXIT
     for provider in "${providers[@]}"; do
-        OCTOPUS_SPAWN_ROLE=advisor "$plugin_root/scripts/orchestrate.sh" \
+        OCTOPUS_CODEX_SANDBOX=read-only OCTOPUS_SPAWN_ROLE=advisor "$plugin_root/scripts/orchestrate.sh" \
             spawn --response-file "$critique_dir/$provider.md" "$provider" "$CRITIQUE_PROMPT" >&2 &
         pids+=("$!")
     done
@@ -326,7 +327,8 @@ if [ -n "${BASH_VERSION:-}" ]; then eval "$(cat)"; else env "OCTO_ALLOWED_PROVID
         provider="${providers[index]}"
         response_file="$critique_dir/$provider.md"
         if wait "${pids[index]}" && [[ -s "$response_file" ]]; then
-            printf '%s\t%s\n' "$provider" "$response_file"
+            printf '\n### %s critique\n\n' "$provider"
+            cat "$response_file"
         else
             printf 'No completed critique from %s.\n' "$provider" >&2
         fi

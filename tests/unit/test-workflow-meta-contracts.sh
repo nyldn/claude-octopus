@@ -355,13 +355,14 @@ critique_fixture="$TEST_TMP_DIR/design critique"
 mkdir -p "$critique_fixture"/{bin,config,plugin/scripts,tmp}
 ln -s "$PROJECT_ROOT/scripts/lib" "$critique_fixture/plugin/scripts/lib"
 for provider in codex agy; do
-    ln -s /bin/true "$critique_fixture/bin/$provider"
+    printf '#!/bin/sh\nexit 0\n' > "$critique_fixture/bin/$provider"
+    chmod +x "$critique_fixture/bin/$provider"
 done
 cat > "$critique_fixture/plugin/scripts/orchestrate.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "$1" == spawn && "$2" == --response-file && "$5" == $'Design\nbrief' ]]
-[[ "$OCTOPUS_SPAWN_ROLE" == advisor ]]
+[[ "$OCTOPUS_SPAWN_ROLE" == advisor && "$OCTOPUS_CODEX_SANDBOX" == read-only ]]
 printf '%s\n' "$4" >> "$CRITIQUE_CALLS"
 printf 'response from %s\n' "$4" > "$3"
 printf 'launcher log\n'
@@ -375,8 +376,9 @@ for ui_skill in "${UI_UX_DESIGNS[@]}" "$PROJECT_ROOT/codex-skills/octopus-ui-ux-
     critique_recipe=$(sed -n '/^### STEP 5b:/,/^### /p' "$ui_skill" | extract_bash_fence)
     for allowed in '' claude 'codex agy'; do
         expected_calls=agy
+        expected_result=$'\n### agy critique\n\nresponse from agy'
         case "$allowed" in
-            claude) expected_calls="" ;;
+            claude) expected_calls="" expected_result="" ;;
             'codex agy') expected_calls=$'agy\ncodex' ;;
         esac
         calls="$critique_fixture/calls"
@@ -388,17 +390,11 @@ for ui_skill in "${UI_UX_DESIGNS[@]}" "$PROJECT_ROOT/codex-skills/octopus-ui-ux-
             OCTO_ALLOWED_PROVIDERS="$allowed" CRITIQUE_CALLS="$calls" \
             CRITIQUE_PROMPT=$'Design\nbrief' CRITIQUE_FAIL_PROVIDER=codex \
             bash -euc "$critique_recipe" 2>"$critique_fixture/stderr") &&
-           [[ "$(sort "$calls")" == "$expected_calls" ]]; then
-            if [[ -z "$expected_calls" && -z "$result" ]]; then
-                test_pass
-            elif [[ "$result" == $'agy\t'"$critique_fixture/tmp/"*'/agy.md' &&
-                    "$result" != *$'\n'* && "$(cat "${result#*$'\t'}")" == 'response from agy' ]]; then
-                test_pass
-            else
-                test_fail "Recipe did not identify exactly the completed Antigravity critique: $result"
-            fi
+           [[ "$(sort "$calls")" == "$expected_calls" && "$result" == "$expected_result" ]] &&
+           [[ -z "$(find "$critique_fixture/tmp" -name 'octo-design-critique.*' -print)" ]]; then
+            test_pass
         else
-            test_fail "Unexpected critique dispatch: calls=$(sort "$calls"), output=$result"
+            test_fail "Unexpected critique dispatch: calls=$(sort "$calls"), output=$result, stderr=$(cat "$critique_fixture/stderr")"
         fi
     done
 done
