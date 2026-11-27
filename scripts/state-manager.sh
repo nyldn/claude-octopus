@@ -118,9 +118,13 @@ init_state() (
             return 0
         else
             warning "State file is corrupted, backing up and recreating"
-            local backup_timestamp
+            local backup_timestamp recovery_file
             backup_timestamp="$(date +%s)" || return 1
-            mv "$STATE_FILE" "${STATE_FILE}.corrupt.$backup_timestamp" || return 1
+            recovery_file="$(mktemp "${STATE_FILE}.corrupt.${backup_timestamp}.XXXXXX")" || return 1
+            if ! mv "$STATE_FILE" "$recovery_file"; then
+                rm -f "$recovery_file"
+                return 1
+            fi
         fi
     fi
 
