@@ -6426,7 +6426,7 @@ EOF
 ink_deliver() {
     local prompt="$1"
     local tangle_results="${2:-}"
-    local committed_audit="${OCTOPUS_INK_COMMITTED_AUDIT:-0}"
+    local audit_mode="${3:-}"
     local task_group
     task_group=$(date +%s)
 
@@ -6460,13 +6460,13 @@ ink_deliver() {
     local checks_passed=true
 
     # A committed audit receives all of its source in the task prompt.
-    if [[ "$committed_audit" != 1 && -z "$(ls -A "$RESULTS_DIR"/*.md 2>/dev/null)" ]]; then
+    if [[ "$audit_mode" != --committed-audit && -z "$(ls -A "$RESULTS_DIR"/*.md 2>/dev/null)" ]]; then
         log ERROR "No results found. Cannot deliver."
         return 1
     fi
 
     # Check 2: No critical failures from tangle phase
-    if [[ "$committed_audit" != 1 && -n "$tangle_results" && -f "$tangle_results" ]]; then
+    if [[ "$audit_mode" != --committed-audit && -n "$tangle_results" && -f "$tangle_results" ]]; then
         if grep -q "Quality Gate: FAILED" "$tangle_results" 2>/dev/null; then
             log WARN "Development phase has failed quality gate. Proceeding with caution."
             checks_passed=false
@@ -6481,7 +6481,7 @@ ink_deliver() {
 
     local all_results="" result_count=0 simplification_source="$prompt"
     local context_policy="committed audit prompt only"
-    if [[ "$committed_audit" != 1 ]]; then
+    if [[ "$audit_mode" != --committed-audit ]]; then
         all_results=$(build_ink_delivery_context "$tangle_results")
         simplification_source="$all_results"
         result_count=$(grep -c '^## Source:' <<< "$all_results" 2>/dev/null || true)

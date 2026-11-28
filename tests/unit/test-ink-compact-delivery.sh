@@ -326,7 +326,7 @@ for audit_fixture in stale empty; do
             echo 'Completed audit stage'
         }
         rm -f "$TEST_ROOT/audit-prompts"
-        OCTOPUS_INK_COMMITTED_AUDIT=1 ink_deliver "Review the committed change in export.py" > "$TEST_ROOT/audit-output" 2>&1 &&
+        ink_deliver "Review the committed change in export.py" "" --committed-audit > "$TEST_ROOT/audit-output" 2>&1 &&
             [[ "$(grep -c 'Review the committed change in export.py' "$TEST_ROOT/audit-prompts")" == 3 ]] &&
             ! grep -q 'earlier feature' "$TEST_ROOT/audit-prompts" &&
             delivery_file="$(only_delivery_file)" &&
@@ -337,5 +337,16 @@ for audit_fixture in stale empty; do
         test_fail "committed audit did not use the committed source for all review stages"
     fi
 done
+
+test_case "ordinary deliver still requires results with an ambient audit setting"
+if (
+    reset_results
+    ! OCTOPUS_INK_COMMITTED_AUDIT=1 ink_deliver "Deliver the feature" > "$TEST_ROOT/audit-output" 2>&1 &&
+        ! compgen -G "$RESULTS_DIR/delivery-*.md" >/dev/null
+); then
+    test_pass
+else
+    test_fail "an ambient audit setting changed ordinary delivery"
+fi
 
 test_summary

@@ -2506,7 +2506,7 @@ case "$COMMAND" in
             echo "Example: $(basename "$0") deliver \"finalize and ship\""
             exit 1
         fi
-        ink_deliver "$1" "${2:-}"
+        ink_deliver "$1" "${2:-}" "${3:-}"
         ;;
     code-review)
         # Multi-LLM code review pipeline — competitor to CC Code Review
