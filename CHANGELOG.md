@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [11.30.6] - 2026-11-28
+
+### Fixed
+
+- Ship audits the committed delivery diff without including artifacts from
+  earlier workflow runs. ([#1469](https://github.com/nyldn/claude-octopus/pull/1469))
+- Spec keeps the same research run and feature selection across shell calls,
+  including when verifying the completed research.
+  ([#1470](https://github.com/nyldn/claude-octopus/pull/1470))
+- Codex users can set or query Knowledge Work mode from the installed skill.
+  Mode changes persist on older configurations, and failed writes are reported.
+  ([#1471](https://github.com/nyldn/claude-octopus/pull/1471))
+
+These fixes address parts of
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
 ## [11.30.5] - 2026-11-27
 
 ### Fixed

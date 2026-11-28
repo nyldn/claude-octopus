@@ -118,6 +118,14 @@ Quick shipping audits inspect both changed blob revisions for binary bytes,
 including bytes hidden by forced-text attributes or outside patch context.
 Changed binary content needs a separate complete review before shipping.
 
+The Ship audit gives Deliver the committed diff and the corresponding repository,
+base, and head. Deliver excludes earlier phase artifacts in this mode. Read the
+validated report and check which source the reviewers covered before shipping.
+
+Spec keeps the selected feature, runtime directory, and research run ID together
+across shell calls. When resuming a later step, restore the same assignments so
+verification selects the report from that research run.
+
 Shipping checkpoints require the repository and clean commit recorded by the
 completed audit. Later source changes require a fresh audit. The tag names that
 exact commit, and a tag failure stops finalization.

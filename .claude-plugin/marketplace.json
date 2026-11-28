@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "nyldn plugins for Claude Code workflows.",
-    "version": "11.30.5"
+    "version": "11.30.6"
   },
   "plugins": [
     {
@@ -15,8 +15,8 @@
         "source": "url",
         "url": "https://github.com/nyldn/claude-octopus.git"
       },
-      "description": "v11.30.5 - Preserve recovery backups, respect design allowlists, and report Code Review contributors and Fable settings. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
-      "version": "11.30.5",
+      "description": "v11.30.6 - Keep Ship audits on the committed diff, carry Spec research across shell calls, and persist Codex Knowledge Work mode. 31 personas, 56 commands, 64 skills. Run /octo:setup.",
+      "version": "11.30.6",
       "author": {
         "name": "nyldn",
         "url": "https://github.com/nyldn"
