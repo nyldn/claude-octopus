@@ -5380,9 +5380,9 @@ ${plan_block}"
     # receive plan content instead of an unreadable cross-workspace file path.
     local design_review_synthesis=""
     design_review_ceremony "$resolved_prompt" "$context" design_review_synthesis
-    if declare -F feature_workflow_policy_response >/dev/null 2>&1; then
-        feature_workflow_policy_response "$design_review_synthesis" || true
-        feature_workflow_gate develop "" "${file_ref:-$grasp_file}" "$reviewed_plan_digest" || return 1
+    if declare -F feature_workflow_gate >/dev/null 2>&1; then
+        feature_workflow_gate develop "" "${file_ref:-$grasp_file}" \
+            "$reviewed_plan_digest" "$design_review_synthesis" || return 1
     fi
 
     # Step 1: Decompose into validated subtasks

@@ -173,7 +173,11 @@ feature_workflow_gate() {
             feature_workflow_warning 'plan changed during design review; rerun Tangle to review the current plan'
             rc=1
         else
-            if [[ -f "${FEATURE_RUNTIME_DIR}/policy-findings.json" ]]; then
+            if [[ $# -ge 5 ]]; then
+                # Tangle's review belongs to this invocation, even when it
+                # contains no findings. Do not consult the shared legacy file.
+                feature_workflow_policy_response "$5" "$findings" || : > "$findings"
+            elif [[ -f "${FEATURE_RUNTIME_DIR}/policy-findings.json" ]]; then
                 cp "${FEATURE_RUNTIME_DIR}/policy-findings.json" "$findings"
             else
                 # An extraction error must survive into verification.
@@ -342,9 +346,12 @@ feature_workflow_plan_completed() {
 feature_workflow_policy_response() {
     local response="$1" response_file
     [[ -n "${FEATURE_POLICY_SNAPSHOT:-}" && -n "${FEATURE_RUNTIME_DIR:-}" ]] || return 0
-    response_file="$(mktemp "${FEATURE_RUNTIME_DIR}/policy-response.XXXXXX")" || return 0
-    printf '%s\n' "$response" > "$response_file"
-    python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" extract --input "$response_file" --label octopus-policy-findings > "${FEATURE_RUNTIME_DIR}/policy-findings.json" || : > "${FEATURE_RUNTIME_DIR}/policy-findings.json"
+    local findings="${2:-${FEATURE_RUNTIME_DIR}/policy-findings.json}"
+    response_file="$(mktemp "${FEATURE_RUNTIME_DIR}/policy-response.XXXXXX")" || return 1
+    if ! printf '%s\n' "$response" > "$response_file" \
+        || ! python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" extract --input "$response_file" --label octopus-policy-findings > "$findings"; then
+        : > "$findings"
+    fi
     rm -f "$response_file"
 }
 

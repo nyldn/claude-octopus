@@ -489,8 +489,11 @@ tangle_run_decomposition_fallbacks(){ printf started > "$TRIPWIRE"; return 77; }
 tangle_decomposition_json_contract_guidance(){ :; }
 tangle_decompose_agent=fixture; tangle_decompose_fallback_agent=fixture
 feature_workflow_begin develop feature false
+printf '%s\n' '[{"source":"other-run"}]' > "$FEATURE_RUNTIME_DIR/policy-findings.json"
 _tangle_develop_in_workspace "Implement plan:$PLAN" '' fixture-run ''
 echo TANGLE_RC=$?
+printf 'Shared findings: '
+cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
 '''
         env = dict(self.env, LIB=str(LIB), PLUGIN=str(REPO), PROJECT_ROOT=str(self.root), PLAN=str(plan),
                    RESPONSE=str(response), TRIPWIRE=str(tripwire), RESULTS_DIR=str(self.base / 'results'))
@@ -511,6 +514,7 @@ echo TANGLE_RC=$?
                                         env=dict(env, PLAN_UPDATE=plan_update),
                                         capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('Shared findings: [{"source":"other-run"}]', result.stdout)
                 self.assertEqual(tripwire.exists(), not diagnostic, result.stderr)
                 if diagnostic:
                     self.assertIn('TANGLE_RC=1', result.stdout)
