@@ -37,10 +37,12 @@ disable-model-invocation: true
 
 ### Codex CLI
 
-After verifying the installed plugin root and exporting `OCTO_ROOT`, run the
-command for the user's requested action. With no action, read status. The helper
-saves changes in the Octopus user workspace so later workflow calls can read
-the selected mode. Report the result from the helper's output.
+**EXECUTION CONTRACT (MANDATORY)**
+
+Verify the installed plugin root, export `OCTO_ROOT`, then run the command for
+the requested action. With no action, run the status command. Base the response
+on the helper's exit status and output. Report a failed write as an error.
+Successful changes are saved in the Octopus user workspace for later workflows.
 
 | Action | Shell command |
 | --- | --- |
