@@ -2269,39 +2269,77 @@ tangle_decomposition_json_payload() {
     printf '%s\n' "$raw" | python3 "${BASH_SOURCE[0]%/*}/../tangle-decomposition-json-payload.py"
 }
 
-tangle_decomposition_json_output_usable() {
-    local raw="${1:-}" payload
-    command -v jq >/dev/null 2>&1 || return 1
-    payload="$(tangle_decomposition_json_payload "$raw")" || return 1
-    if ! printf '%s\n' "$payload" | jq -e '
+# Prints the first schema v1 rule the payload breaks, or nothing when it
+# satisfies them all.
+tangle_decomposition_json_rejection_reason() {
+    local payload="${1:-}" reason id scope
+    if ! reason="$(printf '%s\n' "$payload" | jq -r '
       def nonempty: type == "string" and length > 0;
       def pathstr: nonempty and test("^[A-Za-z0-9_.@%+/-]+$");
       def strarr: type == "array" and all(.[]; pathstr) and ((unique|length) == length);
-      (type == "object") and
-      ((keys|sort) == (["schema_version","subtasks"]|sort)) and
-      (.schema_version == 1) and
-      (.subtasks|type == "array" and length >= 1 and length <= 6) and
-      ([.subtasks[].id] == [range(1; (.subtasks|length)+1)]) and
-      all(.subtasks[];
-        (type == "object") and
-        ((keys|sort) == (["creates","files","id","kind","reads","task","title"]|sort)) and
-        (.id|type == "number" and floor == . and . >= 1) and
-        (.kind == "coding" or .kind == "reasoning") and
-        (.title|nonempty) and (.task|nonempty) and
-        (.reads|strarr) and (.files|strarr) and (.creates|strarr) and
-        (if .kind == "coding" then ((.files|length)+(.creates|length) > 0) else ((.files|length)==0 and (.creates|length)==0) end)
-      ) and any(.subtasks[]; .kind == "coding")
-    ' >/dev/null 2>&1; then
-        return 1
+      def subtask_keys: ["creates","files","id","kind","reads","task","title"];
+      def subtask_reason($n):
+        (if type == "object" and (.id|type) == "number" then "subtask \(.id)" else "subtask #\($n)" end) as $label
+        | if type != "object" then "\($label) is not an object"
+          elif (keys|sort) != subtask_keys then
+            (subtask_keys - keys) as $missing | (keys - subtask_keys) as $unknown
+            | "\($label) " + ([
+                (if ($missing|length) > 0 then "is missing " + ($missing|join(", ")) else empty end),
+                (if ($unknown|length) > 0 then "has unknown keys " + ($unknown|join(", ")) else empty end)
+              ] | join(" and "))
+          elif (.id|type == "number" and floor == . and . >= 1) | not then "\($label) id is not a positive integer"
+          elif (.kind == "coding" or .kind == "reasoning") | not then "\($label) kind is not coding or reasoning"
+          elif (.title|nonempty) | not then "\($label) title is not a non-empty string"
+          elif (.task|nonempty) | not then "\($label) task is not a non-empty string"
+          elif (.reads|strarr) | not then "\($label) reads is not an array of unique concrete paths"
+          elif (.files|strarr) | not then "\($label) files is not an array of unique concrete paths"
+          elif (.creates|strarr) | not then "\($label) creates is not an array of unique concrete paths"
+          elif .kind == "coding" and ((.files|length) + (.creates|length)) == 0 then "\($label) is coding with no files or creates entry"
+          elif .kind == "reasoning" and ((.files|length) + (.creates|length)) > 0 then "\($label) is reasoning with files or creates entries"
+          else empty end;
+      if type != "object" then "the top level is not an object"
+      elif (keys|sort) != ["schema_version","subtasks"] then "top-level keys are not exactly schema_version and subtasks"
+      elif .schema_version != 1 then "schema_version is not 1"
+      elif (.subtasks|type == "array" and length >= 1 and length <= 6) | not then "subtasks is not an array of 1-6 items"
+      elif [.subtasks[] | if type == "object" then .id else null end] != [range(1; (.subtasks|length)+1)] then "subtask ids are not 1..N in order (got \([.subtasks[] | if type == "object" then .id else null end] | tojson | .[0:80]))"
+      else first((.subtasks | to_entries[] | .key as $i | .value | subtask_reason($i + 1)),
+                 (if any(.subtasks[]; .kind == "coding") then empty else "no subtask is coding" end))
+      end
+    ' 2>/dev/null)"; then
+        printf '%s\n' "the schema check could not run"
+        return 0
+    fi
+    if [[ -n "$reason" ]]; then
+        printf '%s\n' "$reason"
+        return 0
     fi
 
     # Apply the shared write-scope policy to JSON files and creates entries.
     # This rejects absolute paths, traversal, and protected .git paths while
     # preserving valid root-level filenames.
-    while IFS= read -r scope; do
+    while IFS=$'\t' read -r id scope; do
         [[ -n "$scope" ]] || continue
-        tangle_scope_is_safe_relative_path "$scope" || return 1
-    done < <(printf '%s\n' "$payload" | jq -r '.subtasks[] | .files[], .creates[]')
+        if ! tangle_scope_is_safe_relative_path "$scope"; then
+            printf 'subtask %s write scope %s is not a safe relative path\n' "$id" "${scope:0:120}"
+            return 0
+        fi
+    done < <(printf '%s\n' "$payload" | jq -r '.subtasks[] | .id as $id | (.files[], .creates[]) | "\($id)\t\(.)"')
+}
+
+tangle_decomposition_json_output_usable() {
+    local raw="${1:-}" payload reason
+    if ! command -v jq >/dev/null 2>&1; then
+        printf '%s\n' "Tangle decomposition JSON v1 rejected: jq is not installed" >&2
+        return 1
+    fi
+    if ! payload="$(tangle_decomposition_json_payload "$raw")"; then
+        printf '%s\n' "Tangle decomposition JSON v1 rejected: the output holds no single JSON object" >&2
+        return 1
+    fi
+    reason="$(tangle_decomposition_json_rejection_reason "$payload")"
+    [[ -z "$reason" ]] && return 0
+    printf 'Tangle decomposition JSON v1 rejected: %s\n' "$reason" >&2
+    return 1
 }
 
 tangle_render_json_decomposition_output() {
@@ -2355,7 +2393,16 @@ tangle_materialize_decomposition_output() {
 }
 
 tangle_decomposition_output_usable() {
-    tangle_materialize_decomposition_output "${1:-}" >/dev/null
+    local raw="${1:-}" json_reason
+    tangle_materialize_decomposition_output "$raw" >/dev/null && return 0
+    if json_reason="$(tangle_decomposition_json_output_usable "$raw" 2>&1 >/dev/null)"; then
+        printf '%s\n' "Tangle decomposition rejected: its JSON v1 subtasks did not render to a usable subtask list" >&2
+    elif tangle_decomposition_json_payload "$raw" >/dev/null 2>&1; then
+        printf '%s\n' "$json_reason" >&2
+    else
+        printf '%s\n' "Tangle decomposition rejected: no single JSON v1 object and no usable numbered subtask list" >&2
+    fi
+    return 1
 }
 
 tangle_run_decomposition_fallbacks() {
