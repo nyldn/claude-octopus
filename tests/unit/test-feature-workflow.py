@@ -422,7 +422,7 @@ echo TANGLE_RC=$?
     def test_gate_binds_referenced_plan_outside_root(self):
         plans = self.base / 'session-plans'
         plans.mkdir()
-        plan = plans / 'lane-plan.md'
+        plan = plans / '-lane-plan.md'
         plan.write_text('Remove the public API.\n')
         finding = self.outside_plan_finding(plan)
         response = self.base / 'review.md'
@@ -480,6 +480,10 @@ tangle_file_digest(){ shasum -a256 "$1" | cut -d ' ' -f1; }
 design_review_ceremony(){
     [[ "$1" == *'Remove the public API.'* ]] || return 90
     printf -v "$3" '%s' "$(cat "$RESPONSE")"
+    case "$PLAN_UPDATE" in
+        edit) printf '\\nAdditional notes.\\n' >> "$PLAN" ;;
+        remove) rm "$PLAN" ;;
+    esac
 }
 tangle_run_decomposition_fallbacks(){ printf started > "$TRIPWIRE"; return 77; }
 tangle_decomposition_json_contract_guidance(){ :; }
@@ -490,19 +494,29 @@ echo TANGLE_RC=$?
 '''
         env = dict(self.env, LIB=str(LIB), PLUGIN=str(REPO), PROJECT_ROOT=str(self.root), PLAN=str(plan),
                    RESPONSE=str(response), TRIPWIRE=str(tripwire), RESULTS_DIR=str(self.base / 'results'))
-        for quote, blocked in [('Keep the public API stable.', True), ('Invented rule', False)]:
-            with self.subTest(quote=quote):
+        cases = (
+            ('Keep the public API stable.', '', 'AGENTS.md:1'),
+            ('Invented rule', '', ''),
+            ('', 'edit', 'plan changed during design review'),
+            ('', 'remove', 'cannot be read inside'),
+        )
+        for quote, plan_update, diagnostic in cases:
+            with self.subTest(quote=quote, plan_update=plan_update):
                 tripwire.unlink(missing_ok=True)
+                plan.write_text('Remove the public API.\n')
                 finding['quote'] = quote
-                response.write_text('```octopus-policy-findings\n' + json.dumps([finding]) + '\n```\n')
-                result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
+                findings = [finding] if quote else []
+                response.write_text('```octopus-policy-findings\n' + json.dumps(findings) + '\n```\n')
+                result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root,
+                                        env=dict(env, PLAN_UPDATE=plan_update),
                                         capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertNotIn('policy verification unavailable', result.stderr)
-                self.assertEqual(tripwire.exists(), not blocked, result.stderr)
-                if blocked:
+                self.assertEqual(tripwire.exists(), not diagnostic, result.stderr)
+                if diagnostic:
                     self.assertIn('TANGLE_RC=1', result.stdout)
-                    self.assertIn('AGENTS.md:1', result.stderr)
+                    self.assertIn(diagnostic, result.stderr)
+                else:
+                    self.assertNotIn('policy verification unavailable', result.stderr)
 
     def test_legacy_import_persists_identity_before_parsing_tasks(self):
         (self.root / 'spec.md').write_text(self.spec.read_text())

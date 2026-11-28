@@ -5327,19 +5327,32 @@ _tangle_develop_in_workspace() {
     elif [[ -n "$raw_file_ref" ]]; then
         file_ref=$(tangle_resolve_context_file_path "$raw_file_ref" "$PWD" 2>/dev/null) || true
     fi
-    if [[ -n "$file_ref" && -f "$file_ref" ]]; then
+    local plan_input="$file_ref" plan_snapshot="" reviewed_plan_digest=""
+    if [[ -n "$file_ref" && -n "${FEATURE_POLICY_SNAPSHOT:-}" ]]; then
+        # Build the prompt and its identity from one confined read. The gate
+        # rejects a different version even when policy findings are advisory.
+        plan_snapshot=$(mktemp "${FEATURE_RUNTIME_DIR}/review-plan.XXXXXX") || return 1
+        if ! feature_workflow_snapshot_plan "$file_ref" > "$plan_snapshot" \
+            || ! reviewed_plan_digest=$(tangle_file_digest "$plan_snapshot") \
+            || [[ -z "$reviewed_plan_digest" ]]; then
+            rm -f "$plan_snapshot"
+            return 1
+        fi
+        plan_input="$plan_snapshot"
+    fi
+    if [[ -n "$file_ref" && -f "$plan_input" ]]; then
         local max_plan_bytes="${OCTOPUS_PLAN_INJECT_MAX_BYTES:-40000}"
         [[ "$max_plan_bytes" =~ ^[0-9]+$ ]] || max_plan_bytes=40000
         local file_size
-        file_size=$(wc -c < "$file_ref" 2>/dev/null || echo 0)
+        file_size=$(wc -c < "$plan_input" 2>/dev/null || echo 0)
         local file_content
         if [[ "$file_size" -gt "$max_plan_bytes" ]]; then
-            file_content="$(head -c "$max_plan_bytes" "$file_ref" 2>/dev/null)"
+            file_content="$(head -c "$max_plan_bytes" "$plan_input" 2>/dev/null)"
             file_content="${file_content}
 
 [... truncated from ${file_size} bytes to ${max_plan_bytes} bytes ...]"
         else
-            file_content=$(<"$file_ref")
+            file_content=$(<"$plan_input")
         fi
         local plan_block="--- PLAN: ${file_ref} ---
 ${file_content}
@@ -5361,6 +5374,7 @@ ${plan_block}"
         fi
         log INFO "Resolved file reference: ${file_ref} - injecting content into workflow prompt"
     fi
+    [[ -z "$plan_snapshot" ]] || rm -f "$plan_snapshot"
 
     # v8.18.0: Pre-work design review ceremony. Use resolved_prompt so reviewers
     # receive plan content instead of an unreadable cross-workspace file path.
@@ -5368,7 +5382,7 @@ ${plan_block}"
     design_review_ceremony "$resolved_prompt" "$context" design_review_synthesis
     if declare -F feature_workflow_policy_response >/dev/null 2>&1; then
         feature_workflow_policy_response "$design_review_synthesis" || true
-        feature_workflow_gate develop "" "${file_ref:-$grasp_file}" || return 1
+        feature_workflow_gate develop "" "${file_ref:-$grasp_file}" "$reviewed_plan_digest" || return 1
     fi
 
     # Step 1: Decompose into validated subtasks
