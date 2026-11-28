@@ -5308,13 +5308,6 @@ _tangle_develop_in_workspace() {
         tmux_init
     fi
 
-    # Load problem definition if available
-    local context=""
-    if [[ -n "$grasp_file" && -f "$grasp_file" ]]; then
-        context="Problem Definition:\n$(<"$grasp_file")\n\n"
-        log INFO "Using grasp context from: $grasp_file"
-    fi
-
     # Resolve a referenced Markdown plan file before both design review and
     # decomposition. Claude-based reviewers cannot read files outside the active
     # worktree unless the content is injected into the prompt.
@@ -5327,7 +5320,8 @@ _tangle_develop_in_workspace() {
     elif [[ -n "$raw_file_ref" ]]; then
         file_ref=$(tangle_resolve_context_file_path "$raw_file_ref" "$PWD" 2>/dev/null) || true
     fi
-    local plan_input="$file_ref" plan_snapshot="" reviewed_plan_digest=""
+    local plan_input="$file_ref" grasp_input="$grasp_file" plan_snapshot="" reviewed_plan_digest=""
+    local gate_plan="${file_ref:-$grasp_file}" allow_external=false
     if [[ -n "$file_ref" && -n "${FEATURE_POLICY_SNAPSHOT:-}" ]]; then
         local root_prefix="${FEATURE_SOURCE_ROOT%/}/"
         if [[ "$file_ref" != "$root_prefix"* \
@@ -5335,16 +5329,32 @@ _tangle_develop_in_workspace() {
             feature_workflow_warning 'plan reference resolves outside the project root'
             return 1
         fi
+        allow_external=true
+    fi
+    if [[ -n "${FEATURE_POLICY_SNAPSHOT:-}" && ( -n "$file_ref" || ( -n "$grasp_file" && -f "$grasp_file" ) ) ]]; then
         # Build the prompt and its identity from one confined read. The gate
         # rejects a different version even when policy findings are advisory.
         plan_snapshot=$(mktemp "${FEATURE_RUNTIME_DIR}/review-plan.XXXXXX") || return 1
-        if ! feature_workflow_snapshot_plan "$file_ref" true > "$plan_snapshot" \
+        if ! feature_workflow_snapshot_plan "$gate_plan" "$allow_external" > "$plan_snapshot" \
             || ! reviewed_plan_digest=$(tangle_file_digest "$plan_snapshot") \
             || [[ -z "$reviewed_plan_digest" ]]; then
             rm -f "$plan_snapshot"
             return 1
         fi
-        plan_input="$plan_snapshot"
+        if [[ -n "$file_ref" ]]; then
+            plan_input="$plan_snapshot"
+        else
+            grasp_input="$plan_snapshot"
+        fi
+    fi
+
+    local context=""
+    if [[ -n "$grasp_input" && -f "$grasp_input" ]]; then
+        context="Problem Definition:\n$(<"$grasp_input")\n\n"
+        if [[ "$grasp_input" == "$plan_snapshot" ]]; then
+            context="Plan SHA256: ${reviewed_plan_digest}"$'\n'"${context}"
+        fi
+        log INFO "Using grasp context from: $grasp_file"
     fi
     if [[ -n "$file_ref" && -f "$plan_input" ]]; then
         local max_plan_bytes="${OCTOPUS_PLAN_INJECT_MAX_BYTES:-40000}"
@@ -5391,7 +5401,7 @@ ${plan_block}"
     local design_review_synthesis=""
     design_review_ceremony "$resolved_prompt" "$context" design_review_synthesis
     if declare -F feature_workflow_gate >/dev/null 2>&1; then
-        feature_workflow_gate develop "" "${file_ref:-$grasp_file}" \
+        feature_workflow_gate develop "" "$gate_plan" \
             "$reviewed_plan_digest" "$design_review_synthesis" || return 1
     fi
 
