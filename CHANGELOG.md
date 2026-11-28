@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.30.5] - 2026-11-27
+
 ### Fixed
 
 - Workflow state recovery keeps every corrupt-state backup, even when two
