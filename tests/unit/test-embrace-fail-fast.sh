@@ -83,10 +83,16 @@ probe_discover() {
 grasp_define() {
     PHASE_CALLS+="grasp "
     printf '%s\n' "# grasp consensus" > "$RESULTS_DIR/grasp-consensus-test.md"
+    printf '%s\n' "# unrelated consensus" > "$RESULTS_DIR/grasp-consensus-other.md"
+    touch -t 209912310000 "$RESULTS_DIR/grasp-consensus-other.md"
+    printf -v "${3:-unused_grasp_output}" '%s' "$RESULTS_DIR/grasp-consensus-test.md"
 }
 
 tangle_develop() {
     PHASE_CALLS+="tangle "
+    if [[ "$2" != "$RESULTS_DIR/grasp-consensus-test.md" || "${3:-}" != "$RESULTS_DIR" ]]; then
+        return 9
+    fi
     if [[ "$CASE_NAME" == "tangle_fails" ]]; then
         return 7
     fi
@@ -185,6 +191,43 @@ if [[ "$EMBRACE_STATUS" -ne 0 ]] && \
 else
     test_fail "embrace did not fail when ink produced no delivery artifact"
 fi
+
+RESUME_SESSION=true
+check_resume_session() { return 0; }
+get_resume_phase() { printf '%s\n' grasp; }
+get_phase_output() {
+    case "$1" in
+        probe) printf '%s\n' "$RESULTS_DIR/probe-synthesis-test.md" ;;
+        grasp) printf '%s\n' "${SAVED_GRASP:-}" ;;
+    esac
+}
+OCTOPUS_EMBRACE_DEBATE_GATES=none
+CASE_NAME=resume
+SAVED_GRASP="$RESULTS_DIR/grasp-consensus-test.md"
+PHASE_CALLS=""
+embrace_full_workflow "Resume the requested feature" >/dev/null 2>&1
+EMBRACE_STATUS=$?
+
+test_case "resume passes the checkpointed Grasp artifact to Tangle"
+if [[ "$EMBRACE_STATUS" -eq 0 && "$PHASE_CALLS" == "tangle ink " ]]; then
+    test_pass
+else
+    test_fail "resume did not pass the saved Grasp artifact and its results root"
+fi
+
+SAVED_GRASP=""
+PHASE_CALLS=""
+CHECKPOINTS=""
+embrace_full_workflow "Resume the requested feature" >/dev/null 2>&1
+EMBRACE_STATUS=$?
+
+test_case "resume refuses a missing Grasp checkpoint even with another result present"
+if [[ "$EMBRACE_STATUS" -ne 0 && -z "$PHASE_CALLS" && "$CHECKPOINTS" == *"grasp:failed:"* ]]; then
+    test_pass
+else
+    test_fail "resume substituted an unrelated Grasp artifact for the missing checkpoint"
+fi
+RESUME_SESSION=false
 
 test_case "debate gate without a context file reads only the session results directory"
 CASE_NAME="context_free_gate"

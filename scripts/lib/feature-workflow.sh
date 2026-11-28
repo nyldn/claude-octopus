@@ -147,8 +147,9 @@ RULES
 }
 
 feature_workflow_snapshot_plan() {
-    local plan_path="$1" allow_external="${2:-false}" root="$FEATURE_SOURCE_ROOT"
-    if [[ "$allow_external" == true && "$plan_path" == /* && "$plan_path" != "${root%/}/"* ]]; then
+    local plan_path="$1" allow_external="${2:-false}" approved_root="${3:-}"
+    local root="${approved_root:-$FEATURE_SOURCE_ROOT}"
+    if [[ -z "$approved_root" && "$allow_external" == true && "$plan_path" == /* && "$plan_path" != "${root%/}/"* ]]; then
         root="$(dirname "$plan_path")"
         plan_path="$(basename "$plan_path")"
     fi
@@ -162,6 +163,7 @@ feature_workflow_gate() {
     local phase="$1" task="${2:-}" rc=0 plan findings verification
     local plan_path="${3:-${FEATURE_SELECTED:+${FEATURE_SELECTED}/}plan.md}"
     local reviewed_plan_digest="${4:-}"
+    local approved_root="${6:-}"
     [[ -n "${FEATURE_SOURCE_ROOT:-}" && -n "${FEATURE_RUNTIME_DIR:-}" ]] || return 0
     plan="$plan_path"
     [[ "$plan" == /* ]] || plan="${FEATURE_SOURCE_ROOT}/${plan}"
@@ -171,7 +173,7 @@ feature_workflow_gate() {
         local bound_plan bound_plan_digest allow_external=false
         [[ -z "$reviewed_plan_digest" ]] || allow_external=true
         bound_plan="$(mktemp "${FEATURE_RUNTIME_DIR}/bound-plan.XXXXXX")" || { rm -f "$findings" "$verification"; return 1; }
-        if ! feature_workflow_snapshot_plan "$plan_path" "$allow_external" > "$bound_plan"; then
+        if ! feature_workflow_snapshot_plan "$plan_path" "$allow_external" "$approved_root" > "$bound_plan"; then
             [[ "$phase" != develop ]] || rc=1
         elif [[ -n "$reviewed_plan_digest" ]] \
             && { ! bound_plan_digest="$(tangle_file_digest "$bound_plan")" || [[ "$bound_plan_digest" != "$reviewed_plan_digest" ]]; }; then

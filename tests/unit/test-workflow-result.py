@@ -906,13 +906,14 @@ sys.exit(m.main())
 
     def test_actual_define_writer_binds_its_invocation(self):
         source = (ROOT / 'scripts/lib/workflows.sh').read_text()
-        start = source.index('    cat > "$consensus_file" << EOF\n')
+        start = source.index('    cat > "$consensus_file" << EOF')
         end = source.index('\nEOF', start) + len('\nEOF')
         def write_report():
             environment = dict(self.env, consensus_file=str(self.results / 'grasp-consensus-actual.md'),
                                prompt='Define this', consensus='agreed', consensus_source='codex',
                                task_group='fixture')
-            subprocess.run(['bash', '-c', source[start:end]], env=environment, check=True)
+            subprocess.run(['bash', '-c', 'write_report() {\n' + source[start:end] + '\n}\nwrite_report'],
+                           env=environment, check=True)
         self.assertEqual(self.validator(write_report, 'define').returncode, 0)
         self.env['OCTOPUS_WORKFLOW_INVOCATION_ID'] = 'another-invocation'
         result = self.validator(write_report, 'define')

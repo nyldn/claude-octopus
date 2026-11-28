@@ -493,6 +493,11 @@ cmp "$LEGACY_FINDINGS" "$FEATURE_RUNTIME_DIR/policy-findings.json"
         plans.mkdir()
         plan = plans / 'lane-plan.md'
         grasp = self.root / 'grasp.md'
+        results = self.base / 'results'
+        results.mkdir()
+        generated_grasp = results / 'grasp-consensus-fixture.md'
+        linked_grasp = results / 'grasp-consensus-linked.md'
+        linked_grasp.symlink_to(grasp)
         plan.write_text('Remove the public API.\n')
         (self.root / 'linked-plans').symlink_to(plans, target_is_directory=True)
         finding = self.outside_plan_finding(plan)
@@ -526,13 +531,17 @@ tangle_decomposition_json_contract_guidance(){ :; }
 tangle_decompose_agent=fixture; tangle_decompose_fallback_agent=fixture
 feature_workflow_begin develop feature false
 printf '%s\n' '[{"source":"other-run"}]' > "$FEATURE_RUNTIME_DIR/policy-findings.json"
-_tangle_develop_in_workspace "$TANGLE_PROMPT" "$GRASP_REF" fixture-run ''
+if [[ "$EMBRACE_GRASP" == true ]]; then
+    OCTOPUS_TANGLE_RUN_WORKTREE=false tangle_develop "$TANGLE_PROMPT" "$GRASP_REF" "$RESULTS_DIR"
+else
+    _tangle_develop_in_workspace "$TANGLE_PROMPT" "$GRASP_REF" fixture-run ''
+fi
 echo TANGLE_RC=$?
 printf 'Shared findings: '
 cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
 '''
         env = dict(self.env, LIB=str(LIB), PLUGIN=str(REPO), PROJECT_ROOT=str(self.root),
-                   RESPONSE=str(response), TRIPWIRE=str(tripwire), RESULTS_DIR=str(self.base / 'results'),
+                   RESPONSE=str(response), TRIPWIRE=str(tripwire), RESULTS_DIR=str(results),
                    EXPECTED_DIGEST=finding['plan_digest'])
         cases = (
             (str(plan), 'Keep the public API stable.', '', 'AGENTS.md:1'),
@@ -556,11 +565,21 @@ cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
             ('markdown', str(plan), 'Keep the public API stable.', '', 'AGENTS.md:1'),
             ('markdown', str(plan), 'Invented rule', '', ''),
         ]
+        responses = [(*case, grasp, False) for case in responses] + [
+            ('json', '', 'Keep the public API stable.', '', 'AGENTS.md:1', generated_grasp, True),
+            ('json', '', '', '', '', generated_grasp, True),
+            ('json', '', '', 'edit', 'plan changed during design review', generated_grasp, True),
+            ('json', '', '', 'remove', 'cannot be read inside', generated_grasp, True),
+            ('json', '', '', 'outside', 'cannot be read inside', generated_grasp, False),
+            ('json', '', '', 'outside', 'cannot be read inside', plans / generated_grasp.name, True),
+            ('json', '', '', 'outside', 'cannot be read inside', linked_grasp, True),
+        ]
         plan_limits = {'truncate': '8', 'full-grasp': '8'}
-        for response_format, plan_ref, quote, plan_update, diagnostic in responses:
-            with self.subTest(response_format=response_format, plan_ref=plan_ref, quote=quote, plan_update=plan_update):
+        for response_format, plan_ref, quote, plan_update, diagnostic, grasp_ref, embrace_grasp in responses:
+            with self.subTest(response_format=response_format, plan_ref=plan_ref, quote=quote,
+                              plan_update=plan_update, grasp=grasp_ref, embrace=embrace_grasp):
                 tripwire.unlink(missing_ok=True)
-                selected = plan if plan_ref else grasp
+                selected = plan if plan_ref else grasp_ref
                 selected.write_text('Remove the public API.\n')
                 finding['quote'] = quote
                 findings = [finding] if quote else []
@@ -577,12 +596,13 @@ cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
                                         env=dict(env, PLAN=str(selected), PLAN_UPDATE=plan_update,
                                                  OCTOPUS_PLAN_INJECT_MAX_BYTES=plan_limits.get(plan_update, '40000'),
                                                  TANGLE_PROMPT=f'Implement plan:{plan_ref}' if plan_ref else 'Implement',
-                                                 GRASP_REF='' if plan_ref else str(grasp)),
+                                                 GRASP_REF='' if plan_ref else str(grasp_ref),
+                                                 EMBRACE_GRASP=str(embrace_grasp).lower()),
                                         capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('Shared findings: [{"source":"other-run"}]', result.stdout)
                 self.assertEqual(tripwire.exists(), not diagnostic, result.stderr)
-                completed_review = plan_ref in ('', str(plan)) and plan_update not in ('skip-review', 'truncate')
+                completed_review = plan_ref in ('', str(plan)) and plan_update not in ('skip-review', 'truncate', 'outside')
                 self.assertEqual('REVIEW_PROMPT_BOUND' in result.stdout, completed_review, result.stderr)
                 if diagnostic:
                     self.assertIn('TANGLE_RC=1', result.stdout)
