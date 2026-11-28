@@ -1871,7 +1871,7 @@ ${heuristic_ctx}"
                 # terminal error. Use the same matcher before considering retry.
                 _quota_fast_fail_line="$(quota_watcher_match_line "$temp_errors" "$raw_output")" || _quota_fast_fail_line=""
                 if [[ -n "$_quota_fast_fail_line" ]]; then
-                    octo_quota_mark_dead "$_provider_prefix"
+                    octo_quota_mark_dead "$_provider_prefix" "$(octo_quota_reset_ttl "$_quota_fast_fail_line")"
                     exit_code=75
                 fi
             fi

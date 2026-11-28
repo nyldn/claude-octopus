@@ -287,6 +287,102 @@ octo_quota_reset_hint() {
     [[ -z "$hint" ]] || printf '%s\n' "${hint:0:60}"
 }
 
+# octo_quota_reset_ttl <error line> [now_epoch]
+# Seconds until the window named by octo_quota_reset_hint ends, plus a 60 s
+# margin, for octo_quota_mark_dead. Prints nothing when no window parses, so
+# the mark falls back to OCTOPUS_QUOTA_DEAD_TTL. An absolute time is local
+# wall-clock time, as codex prints it; a bare clock time already past rolls
+# to the next day.
+octo_quota_reset_ttl() {
+    local hint secs=""
+    hint="$(octo_quota_reset_hint "${1:-}")"
+    case "$hint" in
+        "in "*) secs="$(_octo_quota_duration_seconds "${hint#in }")" ;;
+        "at "*) secs="$(_octo_quota_seconds_until "${hint#at }" "${2:-}")" ;;
+    esac
+    [[ "$secs" =~ ^[0-9]+$ ]] && printf '%s\n' "$(( secs + 60 ))"
+    return 0
+}
+
+_octo_quota_duration_seconds() {
+    local rest="${1:-}" total=0 n matched=false
+    local re='^[[:space:],]*(and[[:space:]]+)?([0-9]{1,6})[[:space:]]*(days?|d|hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)([^A-Za-z]|$)'
+    while [[ "$rest" =~ $re ]]; do
+        n=$(( 10#${BASH_REMATCH[2]} ))
+        case "${BASH_REMATCH[3]}" in
+            d|day|days) total=$(( total + n * 86400 )) ;;
+            h|hr|hrs|hour|hours) total=$(( total + n * 3600 )) ;;
+            m|min|mins|minute|minutes) total=$(( total + n * 60 )) ;;
+            *) total=$(( total + n )) ;;
+        esac
+        matched=true
+        rest="${rest:$(( ${#BASH_REMATCH[0]} - ${#BASH_REMATCH[4]} ))}"
+    done
+    [[ "$matched" == true ]] && printf '%s\n' "$total"
+    return 0
+}
+
+_octo_quota_seconds_until() {
+    local spec="${1:-}" now="${2:-}" month="" day=0 year=0 hour minute ampm clock delta
+    local now_y now_m now_d now_h now_min now_s
+    local re_date='^([A-Z][a-z]{2})[a-z]* ([0-9]{1,2})(st|nd|rd|th)?, ([0-9]{4}) (.+)$'
+    local re_time='^([0-9]{1,2})(:([0-9]{2}))?[[:space:]]*([AaPp][Mm])?$'
+    if [[ "$spec" =~ $re_date ]]; then
+        case "${BASH_REMATCH[1]}" in
+            Jan) month=1 ;; Feb) month=2 ;; Mar) month=3 ;; Apr) month=4 ;;
+            May) month=5 ;; Jun) month=6 ;; Jul) month=7 ;; Aug) month=8 ;;
+            Sep) month=9 ;; Oct) month=10 ;; Nov) month=11 ;; Dec) month=12 ;;
+            *) return 0 ;;
+        esac
+        day=$(( 10#${BASH_REMATCH[2]} ))
+        year=$(( 10#${BASH_REMATCH[4]} ))
+        spec="${BASH_REMATCH[5]}"
+        (( day >= 1 && day <= 31 )) || return 0
+    fi
+    [[ "$spec" =~ $re_time ]] || return 0
+    hour=$(( 10#${BASH_REMATCH[1]} ))
+    minute=$(( 10#${BASH_REMATCH[3]:-0} ))
+    ampm="${BASH_REMATCH[4]:-}"
+    (( minute <= 59 )) || return 0
+    if [[ -n "$ampm" ]]; then
+        (( hour >= 1 && hour <= 12 )) || return 0
+        (( hour == 12 )) && hour=0
+        [[ "$ampm" == [Pp][Mm] ]] && hour=$(( hour + 12 ))
+    else
+        [[ -n "${BASH_REMATCH[2]:-}" ]] || return 0
+        (( hour <= 23 )) || return 0
+    fi
+
+    [[ "$now" =~ ^[0-9]+$ ]] || now="$(date +%s 2>/dev/null)"
+    [[ "$now" =~ ^[0-9]+$ ]] || return 0
+    clock="$(date -d "@$now" '+%Y %m %d %H %M %S' 2>/dev/null)" || clock=""
+    [[ "$clock" =~ ^[0-9]{4}( [0-9]{2}){5}$ ]] || clock="$(date -r "$now" '+%Y %m %d %H %M %S' 2>/dev/null)" || clock=""
+    [[ "$clock" =~ ^[0-9]{4}( [0-9]{2}){5}$ ]] || return 0
+    read -r now_y now_m now_d now_h now_min now_s <<<"$clock"
+
+    # The clock time names a whole minute, so "now" is any second inside it.
+    delta=$(( hour * 3600 + minute * 60 - (10#$now_h * 3600 + 10#$now_min * 60 + 10#$now_s) ))
+    if [[ -n "$month" ]]; then
+        delta=$(( delta + 86400 * ( $(_octo_quota_civil_days "$year" "$month" "$day") -
+            $(_octo_quota_civil_days "$(( 10#$now_y ))" "$(( 10#$now_m ))" "$(( 10#$now_d ))") ) ))
+        (( delta > -60 )) || return 0
+    elif (( delta <= -60 )); then
+        delta=$(( delta + 86400 ))
+    fi
+    (( delta < 0 )) && delta=0
+    printf '%s\n' "$delta"
+}
+
+# Days since 1970-01-01 for a proleptic Gregorian date.
+_octo_quota_civil_days() {
+    local y="$1" m="$2" d="$3" era yoe doy
+    (( m <= 2 )) && y=$(( y - 1 ))
+    era=$(( (y >= 0 ? y : y - 399) / 400 ))
+    yoe=$(( y - era * 400 ))
+    doy=$(( (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1 ))
+    printf '%s\n' "$(( era * 146097 + yoe * 365 + yoe / 4 - yoe / 100 + doy - 719468 ))"
+}
+
 start_quota_watcher() {
     local target_pid="$1"
     local temp_err="$2"
@@ -323,7 +419,8 @@ start_quota_watcher() {
                             quota_watcher_match_line "$temp_err" "$temp_out" stream > "$fired_file" 2>/dev/null || true
                         fi
                         log "WARN" "$warning_message"
-                        octo_quota_mark_dead "$provider"
+                        octo_quota_mark_dead "$provider" "$(octo_quota_reset_ttl \
+                            "$(quota_watcher_match_line "$temp_err" "$temp_out" stream 2>/dev/null)")"
                     fi
                     _kill_attempts=$((_kill_attempts + 1))
                     if "$kill_callback" "$target_pid" "$target_identity"; then
@@ -359,9 +456,10 @@ quota_watcher_mark_after_exit() {
     local exit_code="$1" temp_err="$2" temp_out="$3" provider="${4:-}"
     [[ -n "$provider" && "$exit_code" =~ ^[0-9]+$ && "$exit_code" -ne 0 ]] || return 0
     octo_quota_is_dead "$provider" && return 0
-    quota_watcher_has_match "$temp_err" "$temp_out" || return 0
+    local line
+    line="$(quota_watcher_match_line "$temp_err" "$temp_out")" || return 0
     log "WARN" "[$provider] quota/terminal error in output after exit $exit_code; marking quota-dead for this session"
-    octo_quota_mark_dead "$provider"
+    octo_quota_mark_dead "$provider" "$(octo_quota_reset_ttl "$line")"
 }
 
 # octo_provider_probe <provider>
