@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.30.5",
-  "description": "v11.30.5 \u2014 Preserve recovery backups, respect design allowlists, and report Code Review contributors and Fable settings. Run /octo:setup.",
+  "version": "11.30.6",
+  "description": "v11.30.6 \u2014 Keep Ship audits on the committed diff, carry Spec research across shell calls, and persist Codex Knowledge Work mode. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [11.30.6] - 2026-11-28
+
 ### Fixed
 
 - Ship audits the committed delivery diff without including artifacts from
