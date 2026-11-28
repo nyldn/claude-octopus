@@ -104,11 +104,16 @@ claim.
 
 ### 5. Preserve work when filing is blocked
 
-If there is no configured tracker or it cannot accept writes, save an
-explicitly unfiled proposal in the project's existing plan location. Keep the
-slice order and dependency edges, along with any tickets already filed. Report
-the specific blocker. Provide retry commands only for the confirmed tracker
-and only for slices that still need filing.
+If no tracker was confirmed, or filing or linking fails in the confirmed
+tracker, preserve an explicitly unfiled proposal for the remaining work. Use
+the project's existing plan location. If there is no plan location, include the
+proposal in your response.
+
+Read back filed tickets and their dependencies before planning a retry. Keep
+the slice order, existing ticket IDs, and missing dependency edges. Report the
+specific blocker. Provide retry steps only for the confirmed tracker and only
+for missing tickets or links. Check the completed links before reporting
+dependent slices as ready.
 
 For a confirmed Beads workspace, retry commands can use `bd create --parent=<id>`
 and `bd dep add <issue> <depends-on>` in dependency order. If a Dolt schema
@@ -134,8 +139,8 @@ designated migrator.
 
 1. **Slice list** — title, one-line scope, and what it blocks on.
 2. **Order** — which slices are takeable now, and which wait.
-3. **Filing status** — IDs and links for filed slices, plus the proposal path
-   and reason for any unfiled slices.
+3. **Filing status** — IDs and links for filed slices, plus the remaining
+   proposal or its path and the reason filing stopped.
 4. **Left unsliced** — anything in the plan too vague to cut, stated as such
    rather than forced into a ticket.
 

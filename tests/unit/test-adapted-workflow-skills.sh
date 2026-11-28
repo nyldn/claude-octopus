@@ -164,12 +164,21 @@ for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
     fi
 
     test_case "work-slicing preserves an unfiled proposal without guessing a tracker (${entry#"$PROJECT_ROOT"/})"
-    if grep -qi 'no configured tracker' "$entry" \
+    if grep -qi 'no tracker was confirmed' "$entry" \
         && grep -qi 'explicitly unfiled' "$entry" \
         && grep -qi 'only for the confirmed tracker' "$entry"; then
         test_pass
     else
         test_fail "missing or unavailable tracking must preserve work without guessing a write destination"
+    fi
+
+    test_case "work-slicing recovers unfinished dependencies without refiling tickets (${entry#"$PROJECT_ROOT"/})"
+    if grep -qi 'missing dependency edges' "$entry" \
+        && grep -qi 'read back filed tickets and their dependencies' "$entry" \
+        && grep -qi 'if there is no plan location' "$entry"; then
+        test_pass
+    else
+        test_fail "partially filed slices must preserve ticket IDs and recover missing edges"
     fi
 done
 
