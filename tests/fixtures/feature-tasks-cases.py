@@ -65,8 +65,10 @@ snapshot_tangle_worktree_paths() { git diff --name-only; }
 snapshot_tangle_worktree_state() { git diff; }
 aggregate_results() { :; }
 feature_workflow_gate() {
-    if [[ "${FIXTURE_MUTATE_GATE_ID:-}" == "${2:-}" ]]; then printf 'user gate change\n' > "$EXEC_ROOT/src/file1.py"; fi
-    [[ "${FIXTURE_BLOCK_ID:-}" != "${2:-}" ]]
+    local task_id="${2:-}"
+    [[ -n "$task_id" ]] || return 0
+    if [[ "${FIXTURE_MUTATE_GATE_ID:-}" == "$task_id" ]]; then printf 'user gate change\n' > "$EXEC_ROOT/src/file1.py"; fi
+    [[ "${FIXTURE_BLOCK_ID:-}" != "$task_id" ]]
 }
 run_agent_sync_consultative() {
     printf '%s\n' "$2" >> "$FIXTURE_RUNTIME/reasoning-prompts"

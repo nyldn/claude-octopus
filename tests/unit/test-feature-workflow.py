@@ -426,10 +426,11 @@ echo TANGLE_RC=$?
         plan.write_text('Remove the public API.\n')
         finding = self.outside_plan_finding(plan)
         response = self.base / 'review.md'
-        script = 'source "$LIB"; feature_workflow_begin develop feature false; '
+        script = 'source "$LIB"; source "$TESTING_LIB"; feature_workflow_begin develop feature false; '
         script += 'feature_workflow_policy_response "$(cat "$RESPONSE")"; '
-        script += 'if feature_workflow_gate develop "" "$PLAN"; then echo spawned; else echo blocked; fi'
-        env = dict(self.env, LIB=str(LIB), RESPONSE=str(response), PLAN=str(plan))
+        script += 'if feature_workflow_gate develop "" "$PLAN" "$PLAN_DIGEST"; then echo spawned; else echo blocked; fi'
+        env = dict(self.env, LIB=str(LIB), TESTING_LIB=str(LIB.with_name('testing.sh')),
+                   RESPONSE=str(response), PLAN=str(plan), PLAN_DIGEST=finding['plan_digest'])
         for quote, expected in [('Keep the public API stable.', 'blocked'), ('Invented rule', 'spawned')]:
             with self.subTest(quote=quote):
                 finding['quote'] = quote
@@ -457,6 +458,17 @@ echo TANGLE_RC=$?
                 self.assertEqual(result.stdout.strip(), 'blocked', result.stderr)
                 self.assertIn('cannot be read inside ' + str(self.root), result.stderr)
                 self.assertNotIn('Outside sentinel.', result.stdout + result.stderr)
+
+    def test_gate_does_not_admit_an_unreviewed_external_fallback(self):
+        fallback = self.base / 'grasp.md'
+        fallback.write_text('Unreviewed external context.\n')
+        script = 'source "$LIB"; feature_workflow_begin develop feature false; '
+        script += 'feature_workflow_gate develop "" "$PLAN"'
+        result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root,
+                                env=dict(self.env, LIB=str(LIB), PLAN=str(fallback)),
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('cannot be read inside ' + str(self.root), result.stderr)
 
     def test_actual_tangle_binds_plan_reference_outside_root(self):
         for args in [('config', 'user.name', 'Fixture'), ('config', 'user.email', 'fixture@example.invalid'),

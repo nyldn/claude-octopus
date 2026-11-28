@@ -5338,7 +5338,7 @@ _tangle_develop_in_workspace() {
         # Build the prompt and its identity from one confined read. The gate
         # rejects a different version even when policy findings are advisory.
         plan_snapshot=$(mktemp "${FEATURE_RUNTIME_DIR}/review-plan.XXXXXX") || return 1
-        if ! feature_workflow_snapshot_plan "$file_ref" > "$plan_snapshot" \
+        if ! feature_workflow_snapshot_plan "$file_ref" true > "$plan_snapshot" \
             || ! reviewed_plan_digest=$(tangle_file_digest "$plan_snapshot") \
             || [[ -z "$reviewed_plan_digest" ]]; then
             rm -f "$plan_snapshot"
