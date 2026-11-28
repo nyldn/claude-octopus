@@ -508,6 +508,7 @@ tangle_clean_baseline_guard_enabled(){ return 1; }
 display_workflow_cost_estimate(){ return 0; }; reset_provider_lockouts(){ :; }
 tangle_file_digest(){ shasum -a256 "$1" | cut -d ' ' -f1; }
 design_review_ceremony(){
+    [[ "$PLAN_UPDATE" != skip-review ]] || return 0
     [[ "$1 $2" == *'Remove the public API.'* ]] || return 90
     [[ "$1 $2" != *"Plan SHA256: $EXPECTED_DIGEST"* ]] || echo REVIEW_PROMPT_BOUND
     [[ "$4" == *'1: Keep the public API stable.'* && "$4" == *"Plan SHA256: $EXPECTED_DIGEST"* ]] || return 91
@@ -537,11 +538,14 @@ cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
             (str(plan), 'Invented rule', '', ''),
             (str(plan), '', 'edit', 'plan changed during design review'),
             (str(plan), '', 'remove', 'cannot be read inside'),
+            (str(plan), '', 'skip-review', 'requires a completed design review'),
+            (str(plan), '', 'truncate', 'exceeds the design review input limit'),
             ('../session-plans/lane-plan.md', '', '', 'plan reference resolves outside'),
             ('linked-plans/lane-plan.md', '', '', 'plan reference resolves outside'),
             (f'{self.root}/../session-plans/lane-plan.md', '', '', 'plan reference resolves outside'),
             ('', 'Keep the public API stable.', '', 'AGENTS.md:1'),
             ('', 'Invented rule', '', ''),
+            ('', 'Keep the public API stable.', 'full-grasp', 'AGENTS.md:1'),
             ('', '', 'edit', 'plan changed during design review'),
             ('', '', 'remove', 'cannot be read inside'),
         )
@@ -549,6 +553,7 @@ cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
             ('markdown', str(plan), 'Keep the public API stable.', '', 'AGENTS.md:1'),
             ('markdown', str(plan), 'Invented rule', '', ''),
         ]
+        plan_limits = {'truncate': '8', 'full-grasp': '8'}
         for response_format, plan_ref, quote, plan_update, diagnostic in responses:
             with self.subTest(response_format=response_format, plan_ref=plan_ref, quote=quote, plan_update=plan_update):
                 tripwire.unlink(missing_ok=True)
@@ -567,13 +572,15 @@ cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
                 response.write_text(payloads[response_format])
                 result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root,
                                         env=dict(env, PLAN=str(selected), PLAN_UPDATE=plan_update,
+                                                 OCTOPUS_PLAN_INJECT_MAX_BYTES=plan_limits.get(plan_update, '40000'),
                                                  TANGLE_PROMPT=f'Implement plan:{plan_ref}' if plan_ref else 'Implement',
                                                  GRASP_REF='' if plan_ref else str(grasp)),
                                         capture_output=True, text=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('Shared findings: [{"source":"other-run"}]', result.stdout)
                 self.assertEqual(tripwire.exists(), not diagnostic, result.stderr)
-                self.assertEqual('REVIEW_PROMPT_BOUND' in result.stdout, plan_ref in ('', str(plan)), result.stderr)
+                completed_review = plan_ref in ('', str(plan)) and plan_update not in ('skip-review', 'truncate')
+                self.assertEqual('REVIEW_PROMPT_BOUND' in result.stdout, completed_review, result.stderr)
                 if diagnostic:
                     self.assertIn('TANGLE_RC=1', result.stdout)
                     self.assertIn(diagnostic, result.stderr)

@@ -5324,12 +5324,13 @@ _tangle_develop_in_workspace() {
     local gate_plan="${file_ref:-$grasp_file}" allow_external=false
     if [[ -n "$file_ref" && -n "${FEATURE_POLICY_SNAPSHOT:-}" ]]; then
         local root_prefix="${FEATURE_SOURCE_ROOT%/}/"
-        if [[ "$file_ref" != "$root_prefix"* \
-            && ( "$raw_file_ref" == "$root_prefix"* || ( "$raw_file_ref" != /* && "$raw_file_ref" != \~/* ) ) ]]; then
-            feature_workflow_warning 'plan reference resolves outside the project root'
-            return 1
+        if [[ "$file_ref" != "$root_prefix"* ]]; then
+            if [[ "$raw_file_ref" == "$root_prefix"* || ( "$raw_file_ref" != /* && "$raw_file_ref" != \~/* ) ]]; then
+                feature_workflow_warning 'plan reference resolves outside the project root'
+                return 1
+            fi
+            allow_external=true
         fi
-        allow_external=true
     fi
     if [[ -n "${FEATURE_POLICY_SNAPSHOT:-}" && ( -n "$file_ref" || ( -n "$grasp_file" && -f "$grasp_file" ) ) ]]; then
         # Build the prompt and its identity from one confined read. The gate
@@ -5355,7 +5356,13 @@ _tangle_develop_in_workspace() {
         local file_size
         file_size=$(wc -c < "$plan_input" 2>/dev/null || echo 0)
         local file_content
-        if [[ "$file_size" -gt "$max_plan_bytes" ]]; then
+        # Keep the grasp fallback intact. The injection limit is for explicit plans.
+        if [[ -n "$file_ref" && "$file_size" -gt "$max_plan_bytes" ]]; then
+            if [[ "$allow_external" == true ]]; then
+                rm -f "$plan_snapshot"
+                feature_workflow_warning 'external plan exceeds the design review input limit'
+                return 1
+            fi
             file_content="$(head -c "$max_plan_bytes" "$plan_input" 2>/dev/null)"
             file_content="${file_content}
 
@@ -5405,6 +5412,10 @@ ${plan_block}"
         fi
     fi
     design_review_ceremony "$resolved_prompt" "$context" design_review_synthesis "$review_policy"
+    if [[ "$allow_external" == true && ( -z "$review_policy" || -z "$design_review_synthesis" ) ]]; then
+        feature_workflow_warning 'external plan requires a completed design review'
+        return 1
+    fi
     if declare -F feature_workflow_gate >/dev/null 2>&1; then
         feature_workflow_gate develop "" "$gate_plan" \
             "$reviewed_plan_digest" "$design_review_synthesis" || return 1
