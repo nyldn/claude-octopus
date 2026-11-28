@@ -44,7 +44,7 @@ from pathlib import Path
 import sys
 phase = next(arg for arg in sys.argv[1:] if not arg.startswith("--"))
 if phase == "ink" and os.environ.get("FIXTURE_AUDIT_CAPTURE"):
-    Path(os.environ["FIXTURE_AUDIT_CAPTURE"]).write_text(json.dumps({"prompt": sys.argv[2], "strategy": os.environ.get("OCTOPUS_OVERSIZE_STRATEGY")}))
+    Path(os.environ["FIXTURE_AUDIT_CAPTURE"]).write_text(json.dumps({"prompt": sys.argv[2], "strategy": os.environ.get("OCTOPUS_OVERSIZE_STRATEGY"), "delivery_args": sys.argv[3:]}))
     if os.environ.get("FIXTURE_AUDIT_MUTATE"):
         Path("audit-source.txt").write_text("changed during audit\\n")
 if phase == "define" and os.environ.get("FIXTURE_RESEARCH_CAPTURE"):
@@ -131,6 +131,7 @@ sys.exit(1 if mode == "failed" else 0)
             self.assertIn(self.audit_base, request['prompt'])
             self.assertIn('+TAIL_REQUIRES_AUDIT', request['prompt'])
             self.assertEqual(request['strategy'], 'fail')
+            self.assertEqual(request['delivery_args'], ['', '--committed-audit'])
 
     def test_shipping_audit_stops_for_dirty_empty_oversized_or_changing_source(self):
         for generated in (False, True):

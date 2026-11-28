@@ -162,7 +162,7 @@ does not establish that the reviewer inspected the changed content.
 # Run Multi-AI security audit for the exact committed delivery range
 OCTO_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT:-${HOME}/.claude-octopus/plugin}}"
 bash "$OCTO_ROOT/scripts/helpers/ensure-plugin-root.sh" || exit 1
-# Bind the prompt to immutable Git objects, rather than prior workflow summaries.
+# Bind the audit to immutable Git objects.
 : "${SHIP_AUDIT_BASE:?Restore the confirmed delivery base commit}"
 AUDIT_REPO=$(git rev-parse --show-toplevel) || exit 1
 AUDIT_HEAD=$(git rev-parse --verify HEAD^{commit}) || exit 1
@@ -242,7 +242,7 @@ if [[ "$AUDIT_PROMPT_BYTES" -gt 65536 ]]; then
 fi
 RUN_MARKER=$(mktemp) || exit 1
 RUN_STATUS=0
-OCTOPUS_OVERSIZE_STRATEGY=fail OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "$OCTO_ROOT/scripts/orchestrate.sh" ink "$AUDIT_PROMPT" || RUN_STATUS=$?
+OCTOPUS_OVERSIZE_STRATEGY=fail OCTOPUS_WORKFLOW_INVOCATION_ID="${RUN_MARKER##*/}" "$OCTO_ROOT/scripts/orchestrate.sh" ink "$AUDIT_PROMPT" "" --committed-audit || RUN_STATUS=$?
 REPORT_STATUS=0
 VALIDATION_FILE=$("$OCTO_ROOT/scripts/helpers/workflow-result.sh" ink "$RUN_MARKER" "$RUN_STATUS") || REPORT_STATUS=$?
 rm -f "$RUN_MARKER"
@@ -272,7 +272,8 @@ Step 2 must exit successfully and validate a fresh `delivery-*.md` report
 whose launcher status is `COMPLETE`. A report from a previous deliver run,
 a partial report, or a failed command cannot pass this audit.
 Use the exact validated path and `AUDIT_REPO`/`AUDIT_BASE`/`AUDIT_HEAD` printed by Step 2
-for the summary. These identify the source supplied to the audit. A later source
+for the summary. These identify the source supplied to the audit. Ship gives Ink
+the committed diff without phase artifacts from earlier runs. A later source
 revision needs a fresh audit. A complete launcher report still requires reading
 the findings and confirming the actual review coverage; it does not prove that
 every requested provider inspected every changed file.
