@@ -497,7 +497,7 @@ class SpecInstructionAcceptance(unittest.TestCase):
                 ran = self.execute(self.binding() + report,
                                    'FEATURE_DIR=specs/999-stale\nSPEC_PATH=stale.md\nPOLICY_SNAPSHOT=stale.json', env)
                 self.assertEqual(ran.returncode, 0, ran.stderr)
-                lines = ran.stdout.splitlines()
+                lines = ran.stdout.splitlines()[-5:]
                 self.assertEqual(lines[:4], [feature or path, path, str(self.runtime.resolve()), 'policy='])
                 self.assertRegex(lines[4], r'^spec-[a-f0-9]{32}$')
 
@@ -526,7 +526,7 @@ class SpecInstructionAcceptance(unittest.TestCase):
                 report = '\nprintf "%s\\n" "$FEATURE_SELECTOR" "$SPEC_PATH"\n'
                 ran = self.execute(code + '\n' + self.snippet('4') + report, overrides=env)
                 self.assertEqual(ran.returncode, 0, ran.stderr)
-                self.assertEqual(ran.stdout.splitlines(), [selected or path, path])
+                self.assertEqual(ran.stdout.splitlines()[-2:], [selected or path, path])
                 self.assertTrue((project / 'dispatched').is_file())
                 self.assertFalse((project / 'null').exists())
 
@@ -544,9 +544,7 @@ class SpecInstructionAcceptance(unittest.TestCase):
         code = self.binding() + '\n' + self.snippet('4') + '\nprintf "%s\\n" "$FEATURE_CONTEXT" "$FEATURE_RUNTIME_DIR"\n'
         ran = self.execute(code, overrides=env, cwd=project)
         self.assertEqual(ran.returncode, 0, ran.stderr)
-        lines = ran.stdout.splitlines()
-        self.assertEqual(len(lines), 2, ran.stdout)
-        context, bound_runtime = lines
+        context, bound_runtime = ran.stdout.splitlines()[-2:]
         prepared = json.loads(context)
         self.assertEqual(prepared['spec_path'], 'spec.md')
         self.assertTrue(prepared['runtime_dir'].startswith('runtime/projects/'))
@@ -608,6 +606,54 @@ class SpecInstructionAcceptance(unittest.TestCase):
         ran = self.execute(code)
         self.assertEqual(ran.returncode, 0, ran.stderr)
         self.assertIn('CURRENT ACCEPTED RESEARCH', ran.stdout)
+
+    def test_research_requires_prepared_context_in_a_fresh_shell(self):
+        self.prepare_fixture(dict(feature='specs/001-example', spec_path='spec.md',
+                                  runtime_dir=str(self.runtime)))
+        for skill_root in ('skills', '.claude/skills', 'codex-skills'):
+            self.text = (REPO / skill_root / 'flow-spec/SKILL.md').read_text()
+            for name in ('FEATURE_SELECTOR', 'FEATURE_RUNTIME_DIR', 'SPEC_RESEARCH_RUN'):
+                with self.subTest(skill_root=skill_root, missing=name):
+                    marker = self.root / 'dispatched'
+                    marker.unlink(missing_ok=True)
+                    ran = self.execute(self.snippet('4'), 'unset ' + name)
+                    self.assertFalse(marker.exists(), ran.stdout + ran.stderr)
+                    self.assertNotEqual(ran.returncode, 0)
+                    self.assertIn(name, ran.stderr)
+
+    def test_prepared_binding_survives_separate_dispatch_and_verification_shells(self):
+        runtime = self.root / 'runtime with spaces'
+        runtime.mkdir()
+        feature = 'custom spec.md'
+        plugin_env = self.prepare_fixture(dict(feature='', spec_path=feature, runtime_dir=str(runtime)))
+        launcher = self.root / 'plugin/scripts/orchestrate.sh'
+        launcher.write_text(
+            'printf "%s\\n" "$OCTOPUS_FEATURE" "$FEATURE_RUNTIME_DIR" "$OCTOPUS_RESEARCH_RUN_ID" "$1"\n')
+        result = runtime / 'accepted.md'
+        result.write_text('CURRENT ACCEPTED RESEARCH\n')
+        fresh_shell = 'unset OCTO_ROOT FEATURE_SELECTOR FEATURE_RUNTIME_DIR SPEC_RESEARCH_RUN'
+        for skill_root in ('skills', '.claude/skills', 'codex-skills'):
+            with self.subTest(skill_root=skill_root):
+                self.text = (REPO / skill_root / 'flow-spec/SKILL.md').read_text()
+                prepared = self.execute(self.binding(), overrides=plugin_env)
+                self.assertEqual(prepared.returncode, 0, prepared.stderr)
+                assignments = fresh_shell + '\n' + prepared.stdout
+                dispatched = self.execute(self.snippet('4'), assignments)
+                self.assertEqual(dispatched.returncode, 0, dispatched.stderr)
+                selected, bound_runtime, run_id, command = dispatched.stdout.splitlines()
+                self.assertEqual((selected, bound_runtime, command), (feature, str(runtime.resolve()), 'probe'))
+                self.assertRegex(run_id, r'^spec-[a-f0-9]{32}$')
+                receipt = runtime / 'last-research.json'
+                for receipt_run in ('unrelated-run', run_id):
+                    receipt.write_text(json.dumps(dict(run_id=receipt_run, degraded=False, result=str(result))))
+                    verified = self.execute(self.snippet('5'), assignments)
+                    self.assertEqual(verified.returncode == 0, receipt_run == run_id, verified.stderr)
+                    self.assertEqual('CURRENT ACCEPTED RESEARCH' in verified.stdout, receipt_run == run_id)
+                for name in ('FEATURE_RUNTIME_DIR', 'SPEC_RESEARCH_RUN'):
+                    missing = self.execute(self.snippet('5'), assignments + '\nunset ' + name)
+                    self.assertNotEqual(missing.returncode, 0)
+                    self.assertIn(name, missing.stderr)
+                    self.assertNotIn('CURRENT ACCEPTED RESEARCH', missing.stdout)
 
     def test_no_external_provider_skips_dispatch_and_keeps_empty_answer(self):
         code = self.snippet('6.5')
