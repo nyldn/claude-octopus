@@ -1023,8 +1023,10 @@ $mode_line
             sed -i "$edit" "$USER_CONFIG_FILE"
         fi
     else
-        # No config exists - create minimal config with just knowledge mode
-        cat > "$USER_CONFIG_FILE" << EOF
+        # Publish a complete config without writing through an empty link.
+        local initial_config
+        initial_config=$(mktemp "${USER_CONFIG_FILE}.XXXXXX") || return 1
+        if ! cat > "$initial_config" << EOF
 version: "1.1"
 created_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
 updated_at: "$(date -Iseconds 2>/dev/null || date +%Y-%m-%dT%H:%M:%S)"
@@ -1052,6 +1054,16 @@ settings:
   prefer_agy_for_analysis: false
   max_parallel_agents: 3
 EOF
+        then
+            rm -f "$initial_config"
+            return 1
+        fi
+        local -a move_options=(-fT)
+        [[ "$OCTOPUS_PLATFORM" != Darwin ]] || move_options=(-fh)
+        if ! mv "${move_options[@]}" -- "$initial_config" "$USER_CONFIG_FILE"; then
+            rm -f "$initial_config"
+            return 1
+        fi
     fi
 }
 
