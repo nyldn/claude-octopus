@@ -117,11 +117,21 @@ Report the specific blocker. Retry only missing tickets, links, or blocker-body
 updates in the confirmed tracker. Verify each update before reporting dependent
 slices as ready.
 
+If a create returned no ticket ID, look up the slice in the confirmed tracker.
+Check its title, parent if present, and acceptance criteria. Reuse a matching
+ticket and record its ID. Retry the create only if the lookup confirms there
+is no match. If the lookup fails or is inconclusive, report the unresolved
+create and leave the retry pending.
+
 For a missing link, use the confirmed tracker's dependency operation on the
 existing tickets. If the operation needs to happen in the tracker's UI,
 provide manual recovery steps with both ticket IDs and the direction of the
 link. If the tracker lacks dependency links, update the existing ticket body
 with the missing blockers and preserve its other content.
+
+On GitHub, open the dependent issue in the confirmed repository, use
+**Relationships → Mark as blocked by**, and select the blocker issue.
+See [GitHub's issue dependency instructions](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/creating-issue-dependencies).
 
 If Beads is selected and its workspace confirmed, retry commands can use
 `bd create --parent=<id>` and `bd dep add <issue> <depends-on>` in dependency

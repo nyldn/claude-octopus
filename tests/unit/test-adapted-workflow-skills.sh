@@ -176,6 +176,7 @@ for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
     if grep -qi 'missing dependency edges' "$entry" \
         && grep -qi 'read back filed tickets' "$entry" \
         && grep -qi 'manual recovery steps with both ticket IDs' "$entry" \
+        && grep -Fq 'Relationships → Mark as blocked by' "$entry" \
         && grep -qi 'no plan location, include' "$entry"; then
         test_pass
     else
@@ -189,6 +190,16 @@ for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
         test_pass
     else
         test_fail "trackers without dependency links must recover missing blocker text without refiling tickets"
+    fi
+
+    test_case "work-slicing reconciles a create with no ticket ID (${entry#"$PROJECT_ROOT"/})"
+    if grep -qi 'create returned no ticket ID, look up the slice' "$entry" \
+        && grep -qi 'reuse a matching' "$entry" \
+        && grep -qi 'retry the create only if the lookup confirms there' "$entry" \
+        && grep -qi 'lookup fails or is inconclusive' "$entry"; then
+        test_pass
+    else
+        test_fail "an ambiguous create must be reconciled in the confirmed tracker before retrying"
     fi
 done
 
