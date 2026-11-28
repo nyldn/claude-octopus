@@ -156,7 +156,7 @@ for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
     if grep -q '^### 3[.] Select the project tracker$' "$entry" \
         && grep -q '^### 4[.] File the slices$' "$entry" \
         && grep -qi 'confirm the target repository' "$entry" \
-        && grep -qi 'Beads if the project uses it or the user selects it' "$entry" \
+        && grep -q '^- If Beads is the selected tracker,' "$entry" \
         && ! grep -qi '^This repo has two trackers' "$entry"; then
         test_pass
     else
@@ -166,7 +166,7 @@ for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
     test_case "work-slicing preserves an unfiled proposal without guessing a tracker (${entry#"$PROJECT_ROOT"/})"
     if grep -qi 'no tracker was confirmed' "$entry" \
         && grep -qi 'explicitly unfiled' "$entry" \
-        && grep -qi 'only for the confirmed tracker' "$entry"; then
+        && grep -qi 'same confirmed tracker for filing and recovery' "$entry"; then
         test_pass
     else
         test_fail "missing or unavailable tracking must preserve work without guessing a write destination"
@@ -174,12 +174,21 @@ for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
 
     test_case "work-slicing recovers unfinished dependencies without refiling tickets (${entry#"$PROJECT_ROOT"/})"
     if grep -qi 'missing dependency edges' "$entry" \
-        && grep -qi 'read back filed tickets and their dependencies' "$entry" \
+        && grep -qi 'read back filed tickets' "$entry" \
         && grep -qi 'manual recovery steps with both ticket IDs' "$entry" \
-        && grep -qi 'if there is no plan location' "$entry"; then
+        && grep -qi 'no plan location, include' "$entry"; then
         test_pass
     else
         test_fail "partially filed slices must preserve ticket IDs and recover missing edges"
+    fi
+
+    test_case "work-slicing retries missing blocker text in place (${entry#"$PROJECT_ROOT"/})"
+    if grep -qi 'retry only missing tickets, links, or blocker-body' "$entry" \
+        && grep -qi 'read back existing ticket bodies or' "$entry" \
+        && grep -qi 'with the missing blockers and preserve its other content' "$entry"; then
+        test_pass
+    else
+        test_fail "trackers without dependency links must recover missing blocker text without refiling tickets"
     fi
 done
 

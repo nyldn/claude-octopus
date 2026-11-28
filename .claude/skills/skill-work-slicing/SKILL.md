@@ -69,18 +69,19 @@ Cycles mean the slicing is wrong, not that the tracker needs a workaround. Recut
 
 ### 3. Select the project tracker
 
-Use the user's explicit tracker choice or the current project's documented
-tracker. Check the project root and its configuration with read-only commands.
-When more than one tracker is configured, follow the project's rules for this
-kind of work. If those rules leave the destination ambiguous, ask before filing.
+Use the user's explicit tracker choice if given. Otherwise use the current
+project's documented tracker for this kind of work. Check the project root and
+its configuration with read-only commands. If the destination is ambiguous, ask
+before filing. Use the same confirmed tracker for filing and recovery.
 
-- Use Beads if the project uses it or the user selects it. Confirm the exact
-  workspace the command will target before using `bd` for this project.
+- If Beads is the selected tracker, confirm the exact workspace `bd` will
+  target before writing.
 - For GitHub Issues, confirm the target repository and that issues are enabled.
   Pass `--repo OWNER/REPO` to `gh issue` so a fork or CLI default cannot choose
   the destination.
-- For another configured tracker, use its supported ticket and dependency
-  operations. If it has no dependency links, list blockers in the ticket body.
+- For any other selected tracker, confirm the write destination and use the
+  tracker's supported ticket and dependency operations. If it has no dependency
+  links, list blockers in the ticket body.
 
 ### 4. File the slices
 
@@ -94,26 +95,28 @@ claim.
 
 ### 5. Preserve work when filing is blocked
 
-If no tracker was confirmed, or filing or linking fails in the confirmed
-tracker, preserve an explicitly unfiled proposal for the remaining work. Use
-the project's existing plan location. If there is no plan location, include the
-proposal in your response.
+If no tracker was confirmed, or a ticket, dependency link, or blocker-body
+update fails in the confirmed tracker, preserve an explicitly unfiled proposal
+for the remaining work. Use the project's existing plan location. If there is
+no plan location, include the proposal in your response.
 
-Read back filed tickets and their dependencies before planning a retry. Keep
-the slice order, existing ticket IDs, and missing dependency edges. Report the
-specific blocker. Provide retry steps only for the confirmed tracker and only
-for missing tickets or links. Check the completed links before reporting
-dependent slices as ready.
+Before retrying, read back filed tickets. Read back existing ticket bodies or
+dependency links according to how the confirmed tracker records blockers.
+Keep the slice order, existing ticket IDs, and missing dependency edges.
+Report the specific blocker. Retry only missing tickets, links, or blocker-body
+updates in the confirmed tracker. Verify each update before reporting dependent
+slices as ready.
 
 For a missing link, use the confirmed tracker's dependency operation on the
 existing tickets. If the operation needs to happen in the tracker's UI,
 provide manual recovery steps with both ticket IDs and the direction of the
-link.
+link. If the tracker lacks dependency links, update the existing ticket body
+with the missing blockers and preserve its other content.
 
-For a confirmed Beads workspace, retry commands can use `bd create --parent=<id>`
-and `bd dep add <issue> <depends-on>` in dependency order. If a Dolt schema
-migration blocks writes, do not run the migration. Leave it to the project's
-designated migrator.
+If Beads is selected and its workspace confirmed, retry commands can use
+`bd create --parent=<id>` and `bd dep add <issue> <depends-on>` in dependency
+order. If a Dolt migration blocks writes, do not run the migration. Leave it
+to the project's designated migrator.
 
 ## Provider Or Data Priority
 
