@@ -98,6 +98,11 @@ before filing. Use the same confirmed tracker for filing and recovery.
 Put the detail in the ticket body, not in the parent. The parent indexes; the
 ticket holds.
 
+Before creating tickets, record a unique reference for each slice in the
+approved proposal. Keep that reference across retries. If the tracker supports
+idempotent creates, save the key for each slice before sending the request.
+Include the slice reference in the ticket body so it can be found later.
+
 Use the tracker's atomic claim operation and read ownership back before editing a
 slice. If the tracker cannot claim atomically, use one integrator and do not treat
 an assignee read followed by a write as a lock. Never overwrite another owner's
@@ -117,11 +122,12 @@ Report the specific blocker. Retry only missing tickets, links, or blocker-body
 updates in the confirmed tracker. Verify each update before reporting dependent
 slices as ready.
 
-If a create returned no ticket ID, look up the slice in the confirmed tracker.
-Check its title, parent if present, and acceptance criteria. Reuse a matching
-ticket and record its ID. Retry the create only if the lookup confirms there
-is no match. If the lookup fails or is inconclusive, report the unresolved
-create and leave the retry pending.
+If a create returned no ticket ID, look up the slice by its unique reference in
+the confirmed tracker. Reuse the ID only after verifying that it identifies an
+open ticket from this filing attempt. Retry the same request with the same
+idempotency key while the tracker guarantees deduplication, or after the tracker
+confirms that the original request did not create a ticket. Otherwise leave the
+retry pending, including when search returns no match.
 
 For a missing link, use the confirmed tracker's dependency operation on the
 existing tickets. If the operation needs to happen in the tracker's UI,

@@ -194,9 +194,11 @@ for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
 
     test_case "work-slicing reconciles a create with no ticket ID (${entry#"$PROJECT_ROOT"/})"
     if grep -qi 'create returned no ticket ID, look up the slice' "$entry" \
-        && grep -qi 'reuse a matching' "$entry" \
-        && grep -qi 'retry the create only if the lookup confirms there' "$entry" \
-        && grep -qi 'lookup fails or is inconclusive' "$entry"; then
+        && grep -qi 'record a unique reference for each slice' "$entry" \
+        && grep -qi 'open ticket from this filing attempt' "$entry" \
+        && grep -qi 'idempotency key while the tracker guarantees deduplication' "$entry" \
+        && grep -qi 'original request did not create a ticket' "$entry" \
+        && grep -qi 'including when search returns no match' "$entry"; then
         test_pass
     else
         test_fail "an ambiguous create must be reconciled in the confirmed tracker before retrying"
