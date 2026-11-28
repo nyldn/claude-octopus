@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import json, re, sys
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 
 def extract(raw: str):
     raw=raw.strip()
@@ -33,8 +35,39 @@ def schema_version_valid(v): return not isinstance(v,bool) and isinstance(v,(int
 def seat_valid(o):
     return isinstance(o,dict) and set(o)=={"schema_version","approach","dependencies","risks","testing","integration"} and schema_version_valid(o["schema_version"]) and strarr(o["approach"],1,5) and strarr(o["dependencies"]) and risks(o["risks"]) and strarr(o["testing"]) and strarr(o["integration"])
 def synthesis_valid(o):
-    return isinstance(o,dict) and set(o)=={"schema_version","conflicts","gaps","resolution","risks","decisions"} and schema_version_valid(o["schema_version"]) and strarr(o["conflicts"]) and strarr(o["gaps"]) and nonempty(o["resolution"]) and risks(o["risks"]) and strarr(o["decisions"])
+    required = {"schema_version", "conflicts", "gaps", "resolution", "risks", "decisions"}
+    if not isinstance(o, dict) or set(o) - {"policy_findings"} != required:
+        return False
+    findings = o.get("policy_findings", [])
+    return (
+        schema_version_valid(o["schema_version"])
+        and strarr(o["conflicts"]) and strarr(o["gaps"]) and nonempty(o["resolution"])
+        and risks(o["risks"]) and strarr(o["decisions"])
+        and isinstance(findings, list) and len(findings) <= 100
+        and all(isinstance(finding, dict) for finding in findings)
+    )
 def compact(s): return re.sub(r"\s+"," ",s.strip())
+
+def wrap_synthesis(raw):
+    text = compact(raw)
+    if not text:
+        raise ValueError("empty legacy synthesis")
+    synthesis = {
+        "schema_version": 1, "conflicts": [], "gaps": [],
+        "resolution": text, "risks": [], "decisions": [],
+    }
+    label = "octopus-policy-findings"
+    if label in raw:
+        helper_path = Path(__file__).resolve().parent / "helpers" / "feature-workflow.py"
+        spec = spec_from_file_location("feature_workflow", helper_path)
+        helper = module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        # The parser needs the original line breaks to recognize the fence.
+        findings = helper.extract_findings(raw, label)
+        if findings:
+            synthesis["policy_findings"] = findings
+    return synthesis
+
 def canonical(o):
     if isinstance(o,dict) and "schema_version" in o:
         o=dict(o)
@@ -48,9 +81,12 @@ def main():
         if not text: raise SystemExit(1)
         print(canonical({"schema_version":1,"approach":[text],"dependencies":[],"risks":[],"testing":[],"integration":[]})); return
     if mode=="wrap-synthesis":
-        text=compact(raw)
-        if not text: raise SystemExit(1)
-        print(canonical({"schema_version":1,"conflicts":[],"gaps":[],"resolution":text,"risks":[],"decisions":[]})); return
+        try:
+            synthesis = wrap_synthesis(raw)
+        except ValueError:
+            raise SystemExit(1) from None
+        print(canonical(synthesis))
+        return
     obj=extract(raw)
     if obj is None: raise SystemExit(1)
     if mode=="seat":

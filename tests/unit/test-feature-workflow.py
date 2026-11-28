@@ -96,12 +96,7 @@ Then an artifact exists.
             'blocking_reason': 'The user must select the supported exports.'}]) + '\n```\n')
         self.adapter('save', 'spec', str(self.spec), 'claude', 'unknown', 'boundary-run', context['feature'])
         plan = self.root / context['feature'] / 'plan.md'
-        plan.write_text('Remove the public API.\n')
-        policy = json.loads(Path(context['policy_snapshot']).read_text())
-        findings = [{'source': 'AGENTS.md', 'digest': policy['digest'], 'line_start': 1, 'line_end': 1,
-                     'quote': 'Keep the public API stable.', 'plan_digest': hashlib.sha256(plan.read_bytes()).hexdigest(),
-                     'plan_line_start': 1, 'plan_line_end': 1, 'plan_action': 'Remove the public API.'}]
-        Path(context['runtime_dir'], 'policy-findings.json').write_text(json.dumps(findings))
+        plan.write_text('Remove the public API.\n```octopus-policy-findings\n[{"score": 1e999}]\n```\n')
         result = self.adapter('boundary', 'develop', context['feature'], success=False)
         self.assertTrue(result['feature_context'])
         self.assertEqual(len(result['batch']), 1)
@@ -273,17 +268,18 @@ if feature_workflow_gate develop T002; then printf independent; fi
         findings = [{'source': 'AGENTS.md', 'digest': policy['digest'], 'line_start': 1, 'line_end': 1,
                      'quote': 'Keep the public API stable.', 'plan_digest': hashlib.sha256(plan.read_bytes()).hexdigest(),
                      'plan_line_start': 1, 'plan_line_end': 1, 'plan_action': 'Remove the public API.'}]
-        runtime = Path(context['runtime_dir'])
-        (runtime / 'policy-findings.json').write_text(json.dumps(findings))
-        script = 'source "$LIB"; feature_workflow_begin develop feature false; if feature_workflow_gate develop; then echo spawned; else echo blocked; fi'
-        env = dict(self.env, LIB=str(LIB), OCTOPUS_FEATURE=context['feature'])
+        response = self.base / 'review.md'
+        response.write_text('```octopus-policy-findings\n' + json.dumps(findings) + '\n```\n')
+        script = 'source "$LIB"; feature_workflow_begin develop feature false; '
+        script += 'if feature_workflow_gate develop "" "" "" "$(cat "$RESPONSE")"; then echo spawned; else echo blocked; fi'
+        env = dict(self.env, LIB=str(LIB), RESPONSE=str(response), OCTOPUS_FEATURE=context['feature'])
         p = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env, capture_output=True, text=True)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(p.stdout.strip(), 'blocked')
         self.assertIn('Keep the public API stable.', p.stderr)
         self.assertIn('Remove the public API.', p.stderr)
         findings[0]['quote'] = 'Invented rule'
-        (runtime / 'policy-findings.json').write_text(json.dumps(findings))
+        response.write_text('```octopus-policy-findings\n' + json.dumps(findings) + '\n```\n')
         p = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env, capture_output=True, text=True)
         self.assertEqual(p.stdout.strip(), 'spawned')
 
@@ -297,23 +293,19 @@ if feature_workflow_gate develop T002; then printf independent; fi
                    'quote': 'Keep the public API stable.', 'plan_digest': hashlib.sha256(plan.read_bytes()).hexdigest(),
                    'plan_line_start': 1, 'plan_line_end': 1, 'plan_action': 'Remove the public API.'}
         response = self.base / 'review.md'
-        runtime_findings = Path(context['runtime_dir']) / 'policy-findings.json'
         env = dict(self.env, LIB=str(LIB), RESPONSE=str(response), OCTOPUS_FEATURE=context['feature'])
-        for route in ('response', 'runtime', 'plan'):
+        for route in ('response', 'plan'):
             for number in ('1e999', '-1e999'):
                 with self.subTest(route=route, number=number):
                     body = '[' + json.dumps(finding) + ', {"score": ' + number + '}]'
                     response.write_text('```octopus-policy-findings\n' + body + '\n```\n')
-                    runtime_findings.unlink(missing_ok=True)
-                    setup = ''
+                    gate = 'feature_workflow_gate develop'
                     if route == 'response':
-                        setup = 'feature_workflow_policy_response "$(cat "$RESPONSE")"; '
-                    elif route == 'runtime':
-                        runtime_findings.write_text(body)
+                        gate += ' "" "" "" "$(cat "$RESPONSE")"'
                     else:
                         plan.write_text('Remove the public API.\n' + response.read_text())
-                    script = 'source "$LIB"; feature_workflow_begin develop feature false; ' + setup
-                    script += 'if feature_workflow_gate develop; then echo spawned; else echo blocked; fi'
+                    script = 'source "$LIB"; feature_workflow_begin develop feature false; '
+                    script += f'if {gate}; then echo spawned; else echo blocked; fi'
                     result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
                                             capture_output=True, text=True, timeout=20)
                     self.assertEqual(result.returncode, 0, result.stderr)
@@ -332,9 +324,8 @@ if feature_workflow_gate develop T002; then printf independent; fi
         script = '''source "$LIB"
 feature_workflow_begin develop feature false
 test "$FEATURE_ACTIVE" = false || exit 8
-feature_workflow_policy_response "$(cat "$RESPONSE")"
 if feature_workflow_preimplement; then echo preimplement-allowed; else echo preimplement-blocked; fi
-if feature_workflow_gate develop; then echo design-allowed; else echo design-blocked; fi
+if feature_workflow_gate develop "" "" "" "$(cat "$RESPONSE")"; then echo design-allowed; else echo design-blocked; fi
 '''
         env = dict(self.env, LIB=str(LIB), RESPONSE=str(response))
         for quote, expected in [('Keep the public API stable.', 'blocked'), ('Invented rule', 'allowed')]:
@@ -343,7 +334,7 @@ if feature_workflow_gate develop; then echo design-allowed; else echo design-blo
             result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.splitlines(), ['preimplement-' + expected, 'design-' + expected])
+            self.assertEqual(result.stdout.splitlines(), ['preimplement-allowed', 'design-' + expected])
             if expected == 'blocked':
                 self.assertIn('AGENTS.md:1', result.stderr)
                 self.assertIn('Keep the public API stable.', result.stderr)
@@ -411,6 +402,213 @@ echo TANGLE_RC=$?
             self.assertNotIn('Outside sentinel.', result.stdout + result.stderr)
             if accepted:
                 self.assertEqual(result.stdout, plan.read_text())
+
+    def outside_plan_finding(self, plan):
+        return {'source': 'AGENTS.md',
+                'digest': hashlib.sha256((self.root / 'AGENTS.md').read_bytes()).hexdigest(),
+                'line_start': 1, 'line_end': 1, 'quote': 'Keep the public API stable.',
+                'plan_digest': hashlib.sha256(plan.read_bytes()).hexdigest(),
+                'plan_line_start': 1, 'plan_line_end': 1, 'plan_action': 'Remove the public API.'}
+
+    def test_gate_binds_referenced_plan_outside_root(self):
+        plans = self.base / 'session-plans'
+        plans.mkdir()
+        plan = plans / '-lane-plan.md'
+        plan.write_text('Remove the public API.\n')
+        finding = self.outside_plan_finding(plan)
+        response = self.base / 'review.md'
+        script = 'source "$LIB"; source "$TESTING_LIB"; feature_workflow_begin develop feature false; '
+        script += 'if feature_workflow_gate develop "" "$PLAN" "$PLAN_DIGEST" "$(cat "$RESPONSE")"; then echo spawned; else echo blocked; fi'
+        env = dict(self.env, LIB=str(LIB), TESTING_LIB=str(LIB.with_name('testing.sh')),
+                   RESPONSE=str(response), PLAN=str(plan), PLAN_DIGEST=finding['plan_digest'])
+        for quote, expected in [('Keep the public API stable.', 'blocked'), ('Invented rule', 'spawned')]:
+            with self.subTest(quote=quote):
+                finding['quote'] = quote
+                response.write_text('```octopus-policy-findings\n' + json.dumps([finding]) + '\n```\n')
+                result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
+                                        capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), expected, result.stderr)
+                self.assertNotIn('policy verification unavailable', result.stderr)
+                if expected == 'blocked':
+                    self.assertIn('AGENTS.md:1', result.stderr)
+
+    def test_gate_keeps_escaping_plan_paths_confined(self):
+        outside = self.base / 'outside.md'
+        outside.write_text('Outside sentinel.\n')
+        (self.root / 'linked.md').symlink_to(outside)
+        script = 'source "$LIB"; feature_workflow_begin develop feature false; '
+        script += 'if feature_workflow_gate develop "" "$PLAN"; then echo spawned; else echo blocked; fi'
+        for plan in (str(self.root) + '/../outside.md', str(self.root / 'linked.md'), 'linked.md'):
+            with self.subTest(plan=plan):
+                env = dict(self.env, LIB=str(LIB), PLAN=plan)
+                result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
+                                        capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), 'blocked', result.stderr)
+                self.assertIn('cannot be read inside ' + str(self.root), result.stderr)
+                self.assertNotIn('Outside sentinel.', result.stdout + result.stderr)
+
+    def test_gate_does_not_admit_an_unreviewed_external_fallback(self):
+        fallback = self.base / 'grasp.md'
+        fallback.write_text('Unreviewed external context.\n')
+        script = 'source "$LIB"; feature_workflow_begin develop feature false; '
+        script += 'feature_workflow_gate develop "" "$PLAN"'
+        result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root,
+                                env=dict(self.env, LIB=str(LIB), PLAN=str(fallback)),
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('cannot be read inside ' + str(self.root), result.stderr)
+
+    def test_develop_gates_ignore_shared_findings_from_an_older_review(self):
+        default_plan = self.root / 'plan.md'
+        default_plan.write_text('Remove the public API.\n')
+        alternate = self.base / 'alternate.md'
+        alternate.write_text('Document the public API.\n')
+        findings = self.base / 'legacy.json'
+        findings.write_text(json.dumps([self.outside_plan_finding(default_plan)]))
+        script = '''source "$LIB"
+source "$TESTING_LIB"
+feature_workflow_begin develop feature false
+cp "$LEGACY_FINDINGS" "$FEATURE_RUNTIME_DIR/policy-findings.json" || exit 1
+feature_workflow_preimplement && echo preimplement-allowed
+feature_workflow_gate develop "" "$ALTERNATE" "$ALTERNATE_DIGEST" "" && echo review-allowed
+feature_workflow_gate develop T001 && echo task-allowed
+cmp "$LEGACY_FINDINGS" "$FEATURE_RUNTIME_DIR/policy-findings.json"
+'''
+        env = dict(self.env, LIB=str(LIB), TESTING_LIB=str(LIB.with_name('testing.sh')),
+                   LEGACY_FINDINGS=str(findings), ALTERNATE=str(alternate),
+                   ALTERNATE_DIGEST=hashlib.sha256(alternate.read_bytes()).hexdigest())
+        result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['preimplement-allowed', 'review-allowed', 'task-allowed'],
+                         result.stderr)
+
+    def test_actual_tangle_binds_reviewed_plan(self):
+        for args in [('config', 'user.name', 'Fixture'), ('config', 'user.email', 'fixture@example.invalid'),
+                     ('add', '.'), ('commit', '-qm', 'fixture')]:
+            subprocess.run(['git', '-C', str(self.root), *args], check=True)
+        plans = self.base / 'session-plans'
+        plans.mkdir()
+        plan = plans / 'lane-plan.md'
+        grasp = self.root / 'grasp.md'
+        results = self.base / 'results'
+        results.mkdir()
+        generated_grasp = results / 'grasp-consensus-fixture.md'
+        linked_grasp = results / 'grasp-consensus-linked.md'
+        linked_grasp.symlink_to(grasp)
+        plan.write_text('Remove the public API.\n')
+        (self.root / 'linked-plans').symlink_to(plans, target_is_directory=True)
+        finding = self.outside_plan_finding(plan)
+        response = self.base / 'design-response.md'
+        tripwire = self.base / 'decomposition-started'
+        script = '''source "$PLUGIN/scripts/lib/workflows.sh"
+source "$PLUGIN/scripts/lib/quality.sh"
+source "$LIB"
+DRY_RUN=false; TMUX_MODE=false; SUPPORTS_PARALLEL_FILE_SAFETY=false; MAGENTA=; CYAN=; NC=
+log(){ :; }; octopus_phase_banner(){ :; }
+review_kill_process_tree_frozen(){ :; }; review_kill_descendants_frozen(){ :; }
+tangle_clean_baseline_guard_enabled(){ return 1; }
+display_workflow_cost_estimate(){ return 0; }; reset_provider_lockouts(){ :; }
+tangle_file_digest(){ shasum -a256 "$1" | cut -d ' ' -f1; }
+design_review_ceremony(){
+    [[ "$PLAN_UPDATE" != skip-review ]] || return 0
+    [[ "$1 $2" == *'Remove the public API.'* ]] || return 90
+    [[ "$1 $2" != *"Plan SHA256: $EXPECTED_DIGEST"* ]] || echo REVIEW_PROMPT_BOUND
+    [[ "$4" == *'1: Keep the public API stable.'* && "$4" == *"Plan SHA256: $EXPECTED_DIGEST"* ]] || return 91
+    [[ "$PLAN_UPDATE" != fail-review ]] || return 1
+    local canonical
+    canonical="$(design_review_materialize_synthesis "$(cat "$RESPONSE")")" || return 92
+    printf -v "$3" '%s' "$canonical"
+    case "$PLAN_UPDATE" in
+        edit) printf '\\nAdditional notes.\\n' >> "$PLAN" ;;
+        remove) rm "$PLAN" ;;
+    esac
+}
+tangle_run_decomposition_fallbacks(){ printf started > "$TRIPWIRE"; return 77; }
+tangle_decomposition_json_contract_guidance(){ :; }
+tangle_decompose_agent=fixture; tangle_decompose_fallback_agent=fixture
+feature_workflow_begin develop feature false
+printf '%s\n' '[{"source":"other-run"}]' > "$FEATURE_RUNTIME_DIR/policy-findings.json"
+if [[ "$EMBRACE_GRASP" == true ]]; then
+    OCTOPUS_TANGLE_RUN_WORKTREE=false tangle_develop "$TANGLE_PROMPT" "$GRASP_REF" "$RESULTS_DIR"
+else
+    _tangle_develop_in_workspace "$TANGLE_PROMPT" "$GRASP_REF" fixture-run ''
+fi
+echo TANGLE_RC=$?
+printf 'Shared findings: '
+cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
+'''
+        env = dict(self.env, LIB=str(LIB), PLUGIN=str(REPO), PROJECT_ROOT=str(self.root),
+                   RESPONSE=str(response), TRIPWIRE=str(tripwire), RESULTS_DIR=str(results),
+                   EXPECTED_DIGEST=finding['plan_digest'])
+        cases = (
+            (str(plan), 'Keep the public API stable.', '', 'AGENTS.md:1'),
+            (str(plan), 'Invented rule', '', ''),
+            (str(plan), '', 'edit', 'plan changed during design review'),
+            (str(plan), '', 'remove', 'cannot be read inside'),
+            (str(plan), '', 'skip-review', 'requires a completed design review'),
+            (str(plan), '', 'truncate', 'exceeds the design review input limit'),
+            ('../session-plans/lane-plan.md', '', '', 'plan reference resolves outside'),
+            ('linked-plans/lane-plan.md', '', '', 'plan reference resolves outside'),
+            (f'{self.root}/../session-plans/lane-plan.md', '', '', 'plan reference resolves outside'),
+            ('', 'Keep the public API stable.', '', 'AGENTS.md:1'),
+            ('', 'Invented rule', '', ''),
+            ('', '', 'fail-review', 'design review failed; deferring implementation'),
+            ('', '', 'skip-review', ''),
+            ('', 'Keep the public API stable.', 'full-grasp', 'AGENTS.md:1'),
+            ('', '', 'edit', 'plan changed during design review'),
+            ('', '', 'remove', 'cannot be read inside'),
+        )
+        responses = [('json', *case) for case in cases] + [
+            ('markdown', str(plan), 'Keep the public API stable.', '', 'AGENTS.md:1'),
+            ('markdown', str(plan), 'Invented rule', '', ''),
+        ]
+        responses = [(*case, grasp, False) for case in responses] + [
+            ('json', '', 'Keep the public API stable.', '', 'AGENTS.md:1', generated_grasp, True),
+            ('json', '', '', '', '', generated_grasp, True),
+            ('json', '', '', 'edit', 'plan changed during design review', generated_grasp, True),
+            ('json', '', '', 'remove', 'cannot be read inside', generated_grasp, True),
+            ('json', '', '', 'outside', 'cannot be read inside', generated_grasp, False),
+            ('json', '', '', 'outside', 'cannot be read inside', plans / generated_grasp.name, True),
+            ('json', '', '', 'outside', 'cannot be read inside', linked_grasp, True),
+        ]
+        plan_limits = {'truncate': '8', 'full-grasp': '8'}
+        for response_format, plan_ref, quote, plan_update, diagnostic, grasp_ref, embrace_grasp in responses:
+            with self.subTest(response_format=response_format, plan_ref=plan_ref, quote=quote,
+                              plan_update=plan_update, grasp=grasp_ref, embrace=embrace_grasp):
+                tripwire.unlink(missing_ok=True)
+                selected = plan if plan_ref else grasp_ref
+                selected.write_text('Remove the public API.\n')
+                finding['quote'] = quote
+                findings = [finding] if quote else []
+                payloads = {
+                    'json': json.dumps(dict(schema_version=1, conflicts=[], gaps=[], resolution='Review complete.',
+                                            risks=[], decisions=[], policy_findings=findings)),
+                    'markdown': 'CONFLICTS: The reviewers differ on how to migrate downstream callers.\n'
+                                'GAPS: Compatibility coverage needs a representative caller fixture.\n'
+                                'RESOLUTION: Verify the public interface before continuing with implementation.\n\n'
+                                '```octopus-policy-findings\n' + json.dumps(findings) + '\n```\n',
+                }
+                response.write_text(payloads[response_format])
+                result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root,
+                                        env=dict(env, PLAN=str(selected), PLAN_UPDATE=plan_update,
+                                                 OCTOPUS_PLAN_INJECT_MAX_BYTES=plan_limits.get(plan_update, '40000'),
+                                                 TANGLE_PROMPT=f'Implement plan:{plan_ref}' if plan_ref else 'Implement',
+                                                 GRASP_REF='' if plan_ref else str(grasp_ref),
+                                                 EMBRACE_GRASP=str(embrace_grasp).lower()),
+                                        capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('Shared findings: [{"source":"other-run"}]', result.stdout)
+                self.assertEqual(tripwire.exists(), not diagnostic, result.stderr)
+                completed_review = plan_ref in ('', str(plan)) and plan_update not in ('skip-review', 'truncate', 'outside')
+                self.assertEqual('REVIEW_PROMPT_BOUND' in result.stdout, completed_review, result.stderr)
+                if diagnostic:
+                    self.assertIn('TANGLE_RC=1', result.stdout)
+                    self.assertIn(diagnostic, result.stderr)
+                else:
+                    self.assertNotIn('policy verification unavailable', result.stderr)
 
     def test_legacy_import_persists_identity_before_parsing_tasks(self):
         (self.root / 'spec.md').write_text(self.spec.read_text())

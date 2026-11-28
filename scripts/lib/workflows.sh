@@ -1389,8 +1389,7 @@ _grasp_agy_usable() {
 grasp_define() {
     local prompt="$1"
     local probe_results="${2:-}"
-    local task_group
-    task_group=$(date +%s)
+    local consensus_out_var="${3:-}"
 
     echo ""
     octopus_phase_banner "DEFINE (Phase 2/4)" "Consensus Building" "$MAGENTA"
@@ -1462,7 +1461,9 @@ grasp_define() {
     fi
 
     # Build consensus
-    local consensus_file="${RESULTS_DIR}/grasp-consensus-${task_group}.md"
+    local task_group
+    task_group=$(tangle_next_run_id) || return 1
+    local consensus_file="${RESULTS_DIR%/}/grasp-consensus-${task_group}.md"
 
     log INFO "Building consensus from perspectives..."
 
@@ -1514,7 +1515,7 @@ Constraints: $def3"
         fi
     fi
 
-    cat > "$consensus_file" << EOF
+    cat > "$consensus_file" << EOF || return 1
 # GRASP Phase - Problem Definition Consensus
 <!-- octopus-workflow-invocation: ${OCTOPUS_WORKFLOW_INVOCATION_ID:-} -->
 ## Task: $prompt
@@ -1529,6 +1530,9 @@ EOF
     log INFO "Consensus document: $consensus_file"
     if [[ -n "$consensus_source" ]] && declare -F feature_workflow_plan_completed >/dev/null 2>&1; then
         feature_workflow_plan_completed "$consensus_file" "$consensus_source" "$task_group" || true
+    fi
+    if [[ -n "$consensus_out_var" ]]; then
+        printf -v "$consensus_out_var" '%s' "$consensus_file"
     fi
     echo ""
     echo -e "${GREEN}✓${NC} Problem definition saved to: $consensus_file"
@@ -5139,6 +5143,7 @@ tangle_rerun_dead_provider_subtasks() {
 tangle_develop() {
     local prompt="$1"
     local grasp_file="${2:-}"
+    local grasp_results_root="${3:-}"
     local task_group original_project_root original_pwd resolved_grasp_file resolved_plan_file rc
 
     # Dry runs retain their historical side-effect-free behavior and do not
@@ -5161,7 +5166,7 @@ tangle_develop() {
     # repo-contained untracked input can be safely read and injected into the
     # isolated run without admitting any unrelated dirty path.
     if tangle_run_worktree_enabled; then
-        if [[ -n "$grasp_file" ]]; then
+        if [[ -n "$grasp_file" && -z "$grasp_results_root" ]]; then
             resolved_grasp_file=$(tangle_resolve_context_file_path "$grasp_file" "$original_pwd" 2>/dev/null) \
                 || resolved_grasp_file="$grasp_file"
         fi
@@ -5179,7 +5184,7 @@ tangle_develop() {
     fi
 
     if ! tangle_run_worktree_enabled; then
-        _tangle_develop_in_workspace "$prompt" "$grasp_file"
+        _tangle_develop_in_workspace "$prompt" "$grasp_file" "" "" "$grasp_results_root"
         return $?
     fi
 
@@ -5204,7 +5209,7 @@ tangle_develop() {
         return 1
     }
 
-    _tangle_develop_in_workspace "$prompt" "$resolved_grasp_file" "$task_group" "$resolved_plan_file" || rc=$?
+    _tangle_develop_in_workspace "$prompt" "$resolved_grasp_file" "$task_group" "$resolved_plan_file" "$grasp_results_root" || rc=$?
 
     cd "$original_pwd" 2>/dev/null || true
     PROJECT_ROOT="$original_project_root"
@@ -5223,6 +5228,7 @@ _tangle_develop_in_workspace() {
     local grasp_file="${2:-}"
     local task_group="${3:-$(date +%s)}"
     local pre_resolved_plan_file="${4:-}"
+    local grasp_results_root="${5:-}"
 
     echo ""
     octopus_phase_banner "DEVELOP (Phase 3/4)" "Implementation" "$MAGENTA"
@@ -5237,7 +5243,7 @@ _tangle_develop_in_workspace() {
     fi
 
     if [[ -n "${FEATURE_TASK_CONTRACT:-}" && "${OCTOPUS_FEATURE_WAVE_ACTIVE:-false}" != true ]]; then
-        feature_tasks_tangle_execute "$prompt" "$grasp_file" "$task_group" "$pre_resolved_plan_file"
+        feature_tasks_tangle_execute "$prompt" "$grasp_file" "$task_group" "$pre_resolved_plan_file" "$grasp_results_root"
         return $?
     fi
 
@@ -5308,13 +5314,6 @@ _tangle_develop_in_workspace() {
         tmux_init
     fi
 
-    # Load problem definition if available
-    local context=""
-    if [[ -n "$grasp_file" && -f "$grasp_file" ]]; then
-        context="Problem Definition:\n$(<"$grasp_file")\n\n"
-        log INFO "Using grasp context from: $grasp_file"
-    fi
-
     # Resolve a referenced Markdown plan file before both design review and
     # decomposition. Claude-based reviewers cannot read files outside the active
     # worktree unless the content is injected into the prompt.
@@ -5327,28 +5326,88 @@ _tangle_develop_in_workspace() {
     elif [[ -n "$raw_file_ref" ]]; then
         file_ref=$(tangle_resolve_context_file_path "$raw_file_ref" "$PWD" 2>/dev/null) || true
     fi
-    if [[ -n "$file_ref" && -f "$file_ref" ]]; then
+    local plan_input="$file_ref" plan_snapshot="" reviewed_plan_digest=""
+    local gate_plan="${file_ref:-$grasp_file}" allow_external=false approved_root=""
+    # Only Embrace supplies the results root for its generated or checkpointed Grasp file.
+    if [[ -n "$grasp_results_root" && -n "${FEATURE_POLICY_SNAPSHOT:-}" ]]; then
+        local grasp_name="${grasp_file##*/}"
+        if [[ "$grasp_results_root" != /* || "$grasp_file" != "${grasp_results_root%/}/$grasp_name" ||
+              "$grasp_name" != grasp-consensus-?*.md ]]; then
+            feature_workflow_warning "Grasp consensus cannot be read inside ${grasp_results_root}; deferring implementation"
+            return 1
+        fi
+        [[ -n "$file_ref" ]] || approved_root="$grasp_results_root"
+    fi
+    if [[ -n "$file_ref" && -n "${FEATURE_POLICY_SNAPSHOT:-}" ]]; then
+        local root_prefix="${FEATURE_SOURCE_ROOT%/}/"
+        if [[ "$file_ref" != "$root_prefix"* ]]; then
+            if [[ "$raw_file_ref" == "$root_prefix"* || ( "$raw_file_ref" != /* && "$raw_file_ref" != \~/* ) ]]; then
+                feature_workflow_warning 'plan reference resolves outside the project root'
+                return 1
+            fi
+            allow_external=true
+        fi
+    fi
+    if [[ -n "${FEATURE_POLICY_SNAPSHOT:-}" && ( -n "$file_ref" || -n "$approved_root" || ( -n "$grasp_file" && -f "$grasp_file" ) ) ]]; then
+        # Build the prompt and its identity from one confined read. The gate
+        # rejects a different version even when policy findings are advisory.
+        plan_snapshot=$(mktemp "${FEATURE_RUNTIME_DIR}/review-plan.XXXXXX") || return 1
+        if ! feature_workflow_snapshot_plan "$gate_plan" "$allow_external" "$approved_root" > "$plan_snapshot" \
+            || ! reviewed_plan_digest=$(tangle_file_digest "$plan_snapshot") \
+            || [[ -z "$reviewed_plan_digest" ]]; then
+            rm -f "$plan_snapshot"
+            return 1
+        fi
+        plan_input="$plan_snapshot"
+    fi
+
+    local context="" reviewed_plan_block=""
+    if [[ -n "$file_ref" && -n "$grasp_results_root" && -n "${FEATURE_POLICY_SNAPSHOT:-}" ]]; then
+        local grasp_content
+        grasp_content="$(feature_workflow_snapshot_plan "$grasp_file" false "$grasp_results_root")" || {
+            rm -f "$plan_snapshot"
+            return 1
+        }
+        context="Problem Definition:\\n${grasp_content}\\n\\n"
+    elif [[ -n "$grasp_file" && -f "$grasp_file" && ( -n "$file_ref" || -z "$plan_snapshot" ) ]]; then
+        context="Problem Definition:\n$(<"$grasp_file")\n\n"
+        log INFO "Using grasp context from: $grasp_file"
+    fi
+    if [[ -n "$plan_input" && -f "$plan_input" ]]; then
         local max_plan_bytes="${OCTOPUS_PLAN_INJECT_MAX_BYTES:-40000}"
         [[ "$max_plan_bytes" =~ ^[0-9]+$ ]] || max_plan_bytes=40000
         local file_size
-        file_size=$(wc -c < "$file_ref" 2>/dev/null || echo 0)
+        file_size=$(wc -c < "$plan_input" 2>/dev/null || echo 0)
         local file_content
-        if [[ "$file_size" -gt "$max_plan_bytes" ]]; then
-            file_content="$(head -c "$max_plan_bytes" "$file_ref" 2>/dev/null)"
+        # Keep the grasp fallback intact. The injection limit is for explicit plans.
+        if [[ -n "$file_ref" && "$file_size" -gt "$max_plan_bytes" ]]; then
+            if [[ "$allow_external" == true ]]; then
+                rm -f "$plan_snapshot"
+                feature_workflow_warning 'external plan exceeds the design review input limit'
+                return 1
+            fi
+            file_content="$(head -c "$max_plan_bytes" "$plan_input" 2>/dev/null)"
             file_content="${file_content}
 
 [... truncated from ${file_size} bytes to ${max_plan_bytes} bytes ...]"
         else
-            file_content=$(<"$file_ref")
+            file_content=$(<"$plan_input")
         fi
-        local plan_block="--- PLAN: ${file_ref} ---
+        local plan_block="--- PLAN: ${gate_plan} ---
 ${file_content}
 --- END PLAN ---"
+        if [[ -n "$reviewed_plan_digest" ]]; then
+            plan_block="Plan SHA256: ${reviewed_plan_digest}
+${plan_block}"
+            reviewed_plan_block="$plan_block"
+        fi
         local trimmed_prompt="$prompt"
         trimmed_prompt="${trimmed_prompt#"${trimmed_prompt%%[![:space:]]*}"}"
         trimmed_prompt="${trimmed_prompt%"${trimmed_prompt##*[![:space:]]}"}"
 
-        if [[ "$trimmed_prompt" == "$raw_file_ref" || "$trimmed_prompt" == "$file_ref" ]]; then
+        if [[ -z "$file_ref" ]]; then
+            context="$plan_block"
+        elif [[ "$trimmed_prompt" == "$raw_file_ref" || "$trimmed_prompt" == "$file_ref" ]]; then
             resolved_prompt="Implement the code changes described in the following plan. Do NOT modify the plan file itself (${file_ref}).
 
 ${plan_block}"
@@ -5359,16 +5418,35 @@ The following referenced plan file has been resolved. Use it as implementation c
 
 ${plan_block}"
         fi
-        log INFO "Resolved file reference: ${file_ref} - injecting content into workflow prompt"
+        log INFO "Resolved file reference: ${gate_plan} - injecting content into workflow review"
     fi
+    [[ -z "$plan_snapshot" ]] || rm -f "$plan_snapshot"
 
     # v8.18.0: Pre-work design review ceremony. Use resolved_prompt so reviewers
     # receive plan content instead of an unreadable cross-workspace file path.
-    local design_review_synthesis=""
-    design_review_ceremony "$resolved_prompt" "$context" design_review_synthesis
-    if declare -F feature_workflow_policy_response >/dev/null 2>&1; then
-        feature_workflow_policy_response "$design_review_synthesis" || true
-        feature_workflow_gate develop "" "${file_ref:-$grasp_file}" || return 1
+    local design_review_synthesis="" review_policy=""
+    if [[ -n "$reviewed_plan_block" ]]; then
+        review_policy="$(feature_workflow_policy_passages)" || review_policy=""
+    fi
+    if [[ -n "$review_policy" ]]; then
+        review_policy+=$'\n\n'"$reviewed_plan_block"
+        if declare -F sanitize_external_content >/dev/null 2>&1; then
+            review_policy="$(sanitize_external_content "$review_policy" feature-policy)"
+        fi
+    fi
+    local design_review_rc=0
+    design_review_ceremony "$resolved_prompt" "$context" design_review_synthesis "$review_policy" || design_review_rc=$?
+    if [[ -n "$reviewed_plan_digest" && "$design_review_rc" -ne 0 ]]; then
+        feature_workflow_warning 'design review failed; deferring implementation'
+        return 1
+    fi
+    if [[ "$allow_external" == true && ( -z "$review_policy" || -z "$design_review_synthesis" ) ]]; then
+        feature_workflow_warning 'external plan requires a completed design review'
+        return 1
+    fi
+    if declare -F feature_workflow_gate >/dev/null 2>&1; then
+        feature_workflow_gate develop "" "$gate_plan" \
+            "$reviewed_plan_digest" "$design_review_synthesis" "$approved_root" || return 1
     fi
 
     # Step 1: Decompose into validated subtasks
@@ -7229,7 +7307,8 @@ ${obs_ctx}"
     # ═══════════════════════════════════════════════════════════════════════════
     # HARDCODED PHASE LOGIC (fallback when YAML runtime not available)
     # ═══════════════════════════════════════════════════════════════════════════
-    local probe_synthesis grasp_consensus tangle_validation
+    local probe_synthesis grasp_consensus="" tangle_validation
+    local grasp_results_root="$RESULTS_DIR"
     local define_gate_output="" develop_gate_output=""
 
     # Phase 1: PROBE (Discover)
@@ -7279,12 +7358,11 @@ ${obs_ctx}"
         echo ""
         echo -e "${CYAN}[2/4] Starting GRASP phase (Define)...${NC}"
         echo ""
-        if ! grasp_define "$prompt" "$probe_synthesis"; then
+        if ! grasp_define "$prompt" "$probe_synthesis" grasp_consensus; then
             _abort_embrace_phase "grasp" "grasp_define returned non-zero" "$probe_synthesis"
             return 1
         fi
-        grasp_consensus=$(_latest_embrace_output "$RESULTS_DIR"/grasp-consensus-*.md)
-        if [[ -z "$grasp_consensus" ]]; then
+        if [[ -z "${grasp_consensus:-}" || ! -f "$grasp_consensus" ]]; then
             _abort_embrace_phase "grasp" "missing grasp consensus artifact (expected grasp-consensus-*.md)" "$probe_synthesis"
             return 1
         fi
@@ -7299,14 +7377,17 @@ ${obs_ctx}"
 
         OCTOPUS_COMPLETED_PHASES=2
         _write_embrace_session_state "grasp" "completed"
-        save_session_checkpoint "grasp" "completed" "$grasp_consensus"
+        save_session_checkpoint "grasp" "completed" "$grasp_consensus" "$grasp_results_root"
         handle_autonomy_checkpoint "grasp" "completed"
         sleep 1
     else
-        grasp_consensus=$(get_phase_output "grasp")
-        [[ -z "$grasp_consensus" ]] && grasp_consensus=$(_latest_embrace_output "$RESULTS_DIR"/grasp-consensus-*.md)
+        local grasp_checkpoint saved_results_root
+        grasp_checkpoint=$(get_phase_checkpoint "grasp") || grasp_checkpoint=""
+        grasp_consensus=$(jq -r '.output | strings' <<< "$grasp_checkpoint") || grasp_consensus=""
+        saved_results_root=$(jq -r '.results_root | strings' <<< "$grasp_checkpoint") || saved_results_root=""
+        grasp_results_root="${saved_results_root:-$grasp_results_root}"
         if [[ -z "$grasp_consensus" || ! -f "$grasp_consensus" ]]; then
-            _abort_embrace_phase "grasp" "resume requested but grasp consensus artifact is missing" "$probe_synthesis"
+            _abort_embrace_phase "grasp" "resume requested but the saved Grasp consensus is missing; rerun Embrace from the start" "$probe_synthesis"
             return 1
         fi
         log INFO "Skipping grasp phase (resuming)"
@@ -7339,7 +7420,7 @@ ${obs_ctx}"
         echo ""
         echo -e "${CYAN}[3/4] Starting TANGLE phase (Develop)...${NC}"
         echo ""
-        if ! tangle_develop "$prompt" "$grasp_consensus"; then
+        if ! tangle_develop "$prompt" "$grasp_consensus" "$grasp_results_root"; then
             tangle_validation=$(_latest_embrace_output "$RESULTS_DIR"/tangle-validation-*.md)
             _abort_embrace_phase "tangle" "tangle_develop returned non-zero" "$tangle_validation"
             return 1

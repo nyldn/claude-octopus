@@ -178,6 +178,7 @@ _feature_tasks_parallel_wave() {
 
 _feature_tasks_execute() {
     local mode="$1" prompt="$2" grasp_file="$3" task_group="$4" plan_file="$5" source_tasks="${6:-}"
+    local grasp_results_root="${7:-}"
     local total wave_number=0 wave_file wave_seal gate_subset task tid wave_rc=0 remaining selected_count
     local FEATURE_TASK_SCHEDULER_DIR FEATURE_TASK_WAVE_LIMIT FEATURE_TASK_COMPLETION FEATURE_TASK_REPORT FEATURE_TASK_CONTRACT_SEAL
     FEATURE_TASK_SCHEDULER_DIR="${FEATURE_RUNTIME_DIR:-${WORKSPACE_DIR:-${HOME}/.claude-octopus}/features}/task-runs/${task_group}"
@@ -246,7 +247,7 @@ Original feature intent: $prompt"
         if [[ "$(jq -r '.decomposition == null' "$wave_file")" == true ]]; then
             _feature_tasks_reasoning_wave "$wave_file" "$run_group" "$wave_prompt" || wave_rc=$?
         elif [[ "$mode" == tangle ]]; then
-            _tangle_develop_in_workspace "$wave_prompt" "$grasp_file" "$run_group" "$plan_file" || wave_rc=$?
+            _tangle_develop_in_workspace "$wave_prompt" "$grasp_file" "$run_group" "$plan_file" "$grasp_results_root" || wave_rc=$?
         else
             _feature_tasks_parallel_wave "$wave_file" "$run_group" "$source_tasks" "$wave_prompt" || wave_rc=$?
         fi
@@ -271,7 +272,7 @@ Original feature intent: $prompt"
 }
 
 feature_tasks_tangle_execute() {
-    _feature_tasks_execute tangle "$1" "${2:-}" "$3" "${4:-}"
+    _feature_tasks_execute tangle "$1" "${2:-}" "$3" "${4:-}" "" "${5:-}"
 }
 
 feature_tasks_parallel_execute() {

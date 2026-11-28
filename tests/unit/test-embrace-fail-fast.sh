@@ -83,10 +83,17 @@ probe_discover() {
 grasp_define() {
     PHASE_CALLS+="grasp "
     printf '%s\n' "# grasp consensus" > "$RESULTS_DIR/grasp-consensus-test.md"
+    printf '%s\n' "# unrelated consensus" > "$RESULTS_DIR/grasp-consensus-other.md"
+    touch -t 209912310000 "$RESULTS_DIR/grasp-consensus-other.md"
+    printf -v "${3:-unused_grasp_output}" '%s' "$RESULTS_DIR/grasp-consensus-test.md"
 }
 
 tangle_develop() {
     PHASE_CALLS+="tangle "
+    local expected_root="${EXPECTED_GRASP_ROOT:-$RESULTS_DIR}"
+    if [[ "$2" != "$expected_root/grasp-consensus-test.md" || "${3:-}" != "$expected_root" ]]; then
+        return 9
+    fi
     if [[ "$CASE_NAME" == "tangle_fails" ]]; then
         return 7
     fi
@@ -184,6 +191,72 @@ if [[ "$EMBRACE_STATUS" -ne 0 ]] && \
     test_pass
 else
     test_fail "embrace did not fail when ink produced no delivery artifact"
+fi
+
+RESUME_SESSION=true
+check_resume_session() { return 0; }
+get_resume_phase() { printf '%s\n' grasp; }
+get_phase_output() { printf '%s\n' "$RESULTS_DIR/probe-synthesis-test.md"; }
+get_phase_checkpoint() { jq -nc --arg output "$SAVED_GRASP" '{output:$output}'; }
+OCTOPUS_EMBRACE_DEBATE_GATES=none
+CASE_NAME=resume
+SAVED_GRASP="$RESULTS_DIR/grasp-consensus-test.md"
+PHASE_CALLS=""
+embrace_full_workflow "Resume the requested feature" >/dev/null 2>&1
+EMBRACE_STATUS=$?
+
+test_case "same-session resume supports older Grasp checkpoints without a results root"
+if [[ "$EMBRACE_STATUS" -eq 0 && "$PHASE_CALLS" == "tangle ink " ]]; then
+    test_pass
+else
+    test_fail "resume did not pass the saved Grasp artifact and its results root"
+fi
+
+SAVED_GRASP=""
+PHASE_CALLS=""
+CHECKPOINTS=""
+embrace_full_workflow "Resume the requested feature" >/dev/null 2>&1
+EMBRACE_STATUS=$?
+
+test_case "resume refuses a missing Grasp checkpoint even with another result present"
+if [[ "$EMBRACE_STATUS" -ne 0 && -z "$PHASE_CALLS" && "$CHECKPOINTS" == *"grasp:failed:"* ]]; then
+    test_pass
+else
+    test_fail "resume substituted an unrelated Grasp artifact for the missing checkpoint"
+fi
+RESUME_SESSION=false
+
+test_case "resume uses the results root recorded with Grasp in the prior session"
+if (
+    # Use the live checkpoint writer and reader. Stop the first process at
+    # the completed Grasp checkpoint, before Tangle can write a later one.
+    source "$PROJECT_ROOT/scripts/lib/session.sh"
+    SESSION_FILE="$TEST_TMP_DIR/embrace-checkpoint.json"
+    init_session() { printf '%s\n' '{"status":"in_progress","phases":{}}' > "$SESSION_FILE"; }
+    check_resume_session() { return 0; }
+    memory_available() { printf '%s\n' false; }
+    handle_autonomy_checkpoint() {
+        if [[ "$1:$2" == grasp:completed ]]; then
+            exit 0
+        fi
+    }
+    FEATURE_POLICY_SNAPSHOT="$TEST_TMP_DIR/policy.json"
+    original_results="$TEST_TMP_DIR/old session"
+    RESULTS_DIR="$original_results"
+    mkdir -p "$RESULTS_DIR" "$TEST_TMP_DIR/new session"
+    (embrace_full_workflow "Implement the requested feature") >/dev/null 2>&1 || exit 1
+    jq -e --arg root "$original_results" '.phases.grasp.results_root == $root' "$SESSION_FILE" >/dev/null || exit 1
+    RESULTS_DIR="$TEST_TMP_DIR/new session"
+    RESUME_SESSION=true
+    EXPECTED_GRASP_ROOT="$original_results"
+    PHASE_CALLS=""
+    embrace_full_workflow "Resume the requested feature" >/dev/null 2>&1 &&
+        [[ "$PHASE_CALLS" == "tangle ink " ]] &&
+        [[ -f "$RESULTS_DIR/delivery-test.md" ]]
+); then
+    test_pass
+else
+    test_fail "resume did not pass the original results root to Tangle"
 fi
 
 test_case "debate gate without a context file reads only the session results directory"

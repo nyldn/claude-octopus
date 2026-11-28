@@ -111,6 +111,26 @@ else
   test_fail "caller did not receive design-review synthesis: ${returned_synthesis:0:160}"
 fi
 
+test_case "design review supplies bound policy evidence to its synthesizer"
+POLICY_PROMPT="$TMP_HOME/design-review-policy-prompt"
+run_agent_sync_consultative() {
+  if [[ "$4" == design-synthesizer ]]; then
+    printf '%s\n' "$2" > "$POLICY_PROMPT"
+    printf '%s\n' '{"schema_version":1,"conflicts":[],"gaps":[],"resolution":"Keep the API.","risks":[],"decisions":[],"policy_findings":[{"source":"AGENTS.md"}]}'
+  else
+    printf '%s\n' '{"schema_version":1,"approach":["Review the API."],"dependencies":[],"risks":[],"testing":[],"integration":[]}'
+  fi
+}
+returned_synthesis=""
+design_review_ceremony "test" "" returned_synthesis $'Policy source: AGENTS.md\nPlan SHA256: fixture-plan' >/dev/null
+if grep -Fq '"policy_findings":[]' "$POLICY_PROMPT" &&
+    grep -Fq 'Plan SHA256: fixture-plan' "$POLICY_PROMPT" &&
+    jq -e '.policy_findings == [{"source":"AGENTS.md"}]' <<< "$returned_synthesis" >/dev/null; then
+  test_pass
+else
+  test_fail "policy evidence or the structured findings were dropped at the synthesis boundary"
+fi
+
 test_case "explicit design-review override cannot bypass the provider allowlist"
 : > "$CAPTURE"
 override_rc=0
@@ -121,6 +141,21 @@ if [[ "$override_rc" -ne 0 && ! -s "$CAPTURE" ]]; then
   test_pass
 else
   test_fail "disallowed override was dispatched or ceremony did not fail closed: rc=$override_rc calls=$(tr '\n' ';' < "$CAPTURE")"
+fi
+
+test_case "exhausted policy synthesis reports failure while a skipped ceremony succeeds"
+run_agent_sync_consultative() {
+  [[ "$4" != design-synthesizer ]] || return 1
+  printf '%s\n' '{"schema_version":1,"approach":["Review the API."],"dependencies":[],"risks":[],"testing":[],"integration":[]}'
+}
+returned_synthesis=""
+if design_review_ceremony "test" "" returned_synthesis 'Policy evidence' >/dev/null ||
+    [[ -n "$returned_synthesis" ]]; then
+  test_fail "exhausted synthesis was reported as a successful policy review"
+elif ! OCTOPUS_CEREMONIES=false design_review_ceremony "test" "" returned_synthesis 'Policy evidence' >/dev/null; then
+  test_fail "a deliberately skipped ceremony reported a review failure"
+else
+  test_pass
 fi
 
 test_case "provider-local model keeps provider identity separate from role model"

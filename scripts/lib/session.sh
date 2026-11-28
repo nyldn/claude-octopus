@@ -489,6 +489,7 @@ save_session_checkpoint() {
     local phase="$1"
     local status="$2"
     local output_file="$3"
+    local results_root="${4:-}"
 
     if [[ ! -f "$SESSION_FILE" ]] || ! command -v jq &> /dev/null; then
         return 0
@@ -502,8 +503,11 @@ save_session_checkpoint() {
     if ! jq --arg phase "$phase" \
        --arg status "$status" \
        --arg output "$output_file" \
+       --arg results_root "$results_root" \
        --arg time "$timestamp" \
-       '.phases[$phase] = {status: $status, output: $output, timestamp: $time} | .last_checkpoint = $time | .current_phase = $phase' \
+       '.phases[$phase] = ({status: $status, output: $output, timestamp: $time}
+          + (if $results_root == "" then {} else {results_root: $results_root} end))
+        | .last_checkpoint = $time | .current_phase = $phase' \
        "$SESSION_FILE" > "$session_tmp" || ! mv "$session_tmp" "$SESSION_FILE"; then
         rm -f "$session_tmp"
         return 1
@@ -581,6 +585,14 @@ get_phase_output() {
         # "debate-${gate_slug}"` was unreadable. Splicing a phase name into a jq
         # program is also an injection vector; the writer already used --arg.
         jq -r --arg phase "$phase" '.phases[$phase].output // ""' "$SESSION_FILE"
+    fi
+}
+
+# Read an artifact and its provenance from the same checkpoint.
+get_phase_checkpoint() {
+    local phase="$1"
+    if [[ -f "$SESSION_FILE" ]] && command -v jq &> /dev/null; then
+        jq -c --arg phase "$phase" '.phases[$phase] // {}' "$SESSION_FILE"
     fi
 }
 
