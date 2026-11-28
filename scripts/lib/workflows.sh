@@ -5331,7 +5331,7 @@ _tangle_develop_in_workspace() {
     if [[ -n "$file_ref" && -n "${FEATURE_POLICY_SNAPSHOT:-}" ]]; then
         local root_prefix="${FEATURE_SOURCE_ROOT%/}/"
         if [[ "$file_ref" != "$root_prefix"* \
-            && ( "$raw_file_ref" == "$root_prefix"* || ( "$raw_file_ref" != /* && "$raw_file_ref" != "~/"* ) ) ]]; then
+            && ( "$raw_file_ref" == "$root_prefix"* || ( "$raw_file_ref" != /* && "$raw_file_ref" != \~/* ) ) ]]; then
             feature_workflow_warning 'plan reference resolves outside the project root'
             return 1
         fi
