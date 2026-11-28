@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import json, re, sys
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 
 def extract(raw: str):
     raw=raw.strip()
@@ -45,6 +47,27 @@ def synthesis_valid(o):
         and all(isinstance(finding, dict) for finding in findings)
     )
 def compact(s): return re.sub(r"\s+"," ",s.strip())
+
+def wrap_synthesis(raw):
+    text = compact(raw)
+    if not text:
+        raise ValueError("empty legacy synthesis")
+    synthesis = {
+        "schema_version": 1, "conflicts": [], "gaps": [],
+        "resolution": text, "risks": [], "decisions": [],
+    }
+    label = "octopus-policy-findings"
+    if label in raw:
+        helper_path = Path(__file__).resolve().parent / "helpers" / "feature-workflow.py"
+        spec = spec_from_file_location("feature_workflow", helper_path)
+        helper = module_from_spec(spec)
+        spec.loader.exec_module(helper)
+        # The parser needs the original line breaks to recognize the fence.
+        findings = helper.extract_findings(raw, label)
+        if findings:
+            synthesis["policy_findings"] = findings
+    return synthesis
+
 def canonical(o):
     if isinstance(o,dict) and "schema_version" in o:
         o=dict(o)
@@ -58,9 +81,12 @@ def main():
         if not text: raise SystemExit(1)
         print(canonical({"schema_version":1,"approach":[text],"dependencies":[],"risks":[],"testing":[],"integration":[]})); return
     if mode=="wrap-synthesis":
-        text=compact(raw)
-        if not text: raise SystemExit(1)
-        print(canonical({"schema_version":1,"conflicts":[],"gaps":[],"resolution":text,"risks":[],"decisions":[]})); return
+        try:
+            synthesis = wrap_synthesis(raw)
+        except ValueError:
+            raise SystemExit(1) from None
+        print(canonical(synthesis))
+        return
     obj=extract(raw)
     if obj is None: raise SystemExit(1)
     if mode=="seat":

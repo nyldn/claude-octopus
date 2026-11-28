@@ -545,15 +545,26 @@ cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
             ('', '', 'edit', 'plan changed during design review'),
             ('', '', 'remove', 'cannot be read inside'),
         )
-        for plan_ref, quote, plan_update, diagnostic in cases:
-            with self.subTest(plan_ref=plan_ref, quote=quote, plan_update=plan_update):
+        responses = [('json', *case) for case in cases] + [
+            ('markdown', str(plan), 'Keep the public API stable.', '', 'AGENTS.md:1'),
+            ('markdown', str(plan), 'Invented rule', '', ''),
+        ]
+        for response_format, plan_ref, quote, plan_update, diagnostic in responses:
+            with self.subTest(response_format=response_format, plan_ref=plan_ref, quote=quote, plan_update=plan_update):
                 tripwire.unlink(missing_ok=True)
                 selected = plan if plan_ref else grasp
                 selected.write_text('Remove the public API.\n')
                 finding['quote'] = quote
                 findings = [finding] if quote else []
-                response.write_text(json.dumps(dict(schema_version=1, conflicts=[], gaps=[], resolution='Review complete.',
-                                                    risks=[], decisions=[], policy_findings=findings)))
+                payloads = {
+                    'json': json.dumps(dict(schema_version=1, conflicts=[], gaps=[], resolution='Review complete.',
+                                            risks=[], decisions=[], policy_findings=findings)),
+                    'markdown': 'CONFLICTS: The reviewers differ on how to migrate downstream callers.\n'
+                                'GAPS: Compatibility coverage needs a representative caller fixture.\n'
+                                'RESOLUTION: Verify the public interface before continuing with implementation.\n\n'
+                                '```octopus-policy-findings\n' + json.dumps(findings) + '\n```\n',
+                }
+                response.write_text(payloads[response_format])
                 result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root,
                                         env=dict(env, PLAN=str(selected), PLAN_UPDATE=plan_update,
                                                  TANGLE_PROMPT=f'Implement plan:{plan_ref}' if plan_ref else 'Implement',
