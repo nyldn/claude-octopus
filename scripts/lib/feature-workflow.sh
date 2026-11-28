@@ -115,15 +115,19 @@ feature_workflow_begin() {
 
 }
 
+feature_workflow_policy_passages() {
+    local snapshot="${FEATURE_POLICY_SNAPSHOT:-}"
+    [[ -n "$snapshot" && -f "$snapshot" ]] || return 1
+    jq -r '"Policy source: " + (.source // "none") + "\nPolicy SHA256: " + (.digest // "none") + "\n" + ([.passages[]? | (.line|tostring) + ": " + .text] | join("\n"))' "$snapshot"
+}
+
 feature_workflow_prompt() {
-    local phase="${1:-}" prompt="${2:-}" context="" snapshot="${FEATURE_POLICY_SNAPSHOT:-}"
+    local phase="${1:-}" prompt="${2:-}" context=""
     if [[ "$prompt" == *'[Octopus bound feature context]'* ]]; then
         printf '%s' "$prompt"
         return 0
     fi
-    if [[ -n "$snapshot" && -f "$snapshot" ]]; then
-        context="$(jq -r '"Policy source: " + (.source // "none") + "\nPolicy SHA256: " + (.digest // "none") + "\n" + ([.passages[]? | (.line|tostring) + ": " + .text] | join("\n"))' "$snapshot")" || context=""
-    fi
+    context="$(feature_workflow_policy_passages)" || context=""
     if [[ "${FEATURE_ACTIVE:-false}" == true ]]; then
         local recovery
         recovery="$(feature_contract_resume "$FEATURE_SOURCE_ROOT" "${FEATURE_SELECTED:-${FEATURE_SPEC_PATH:-}}")" || recovery='{}'
@@ -345,6 +349,10 @@ feature_workflow_plan_completed() {
 feature_workflow_policy_response() {
     local response="$1" findings="$2" response_file
     [[ -n "${FEATURE_POLICY_SNAPSHOT:-}" && -n "${FEATURE_RUNTIME_DIR:-}" ]] || return 0
+    if [[ "$response" == \{* ]]; then
+        jq -ce 'if has("policy_findings") then .policy_findings else [] end' <<< "$response" > "$findings" || : > "$findings"
+        return
+    fi
     response_file="$(mktemp "${FEATURE_RUNTIME_DIR}/policy-response.XXXXXX")" || return 1
     if ! printf '%s\n' "$response" > "$response_file" \
         || ! python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" extract --input "$response_file" --label octopus-policy-findings > "$findings"; then

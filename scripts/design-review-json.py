@@ -33,7 +33,17 @@ def schema_version_valid(v): return not isinstance(v,bool) and isinstance(v,(int
 def seat_valid(o):
     return isinstance(o,dict) and set(o)=={"schema_version","approach","dependencies","risks","testing","integration"} and schema_version_valid(o["schema_version"]) and strarr(o["approach"],1,5) and strarr(o["dependencies"]) and risks(o["risks"]) and strarr(o["testing"]) and strarr(o["integration"])
 def synthesis_valid(o):
-    return isinstance(o,dict) and set(o)=={"schema_version","conflicts","gaps","resolution","risks","decisions"} and schema_version_valid(o["schema_version"]) and strarr(o["conflicts"]) and strarr(o["gaps"]) and nonempty(o["resolution"]) and risks(o["risks"]) and strarr(o["decisions"])
+    required = {"schema_version", "conflicts", "gaps", "resolution", "risks", "decisions"}
+    if not isinstance(o, dict) or set(o) - {"policy_findings"} != required:
+        return False
+    findings = o.get("policy_findings", [])
+    return (
+        schema_version_valid(o["schema_version"])
+        and strarr(o["conflicts"]) and strarr(o["gaps"]) and nonempty(o["resolution"])
+        and risks(o["risks"]) and strarr(o["decisions"])
+        and isinstance(findings, list) and len(findings) <= 100
+        and all(isinstance(finding, dict) for finding in findings)
+    )
 def compact(s): return re.sub(r"\s+"," ",s.strip())
 def canonical(o):
     if isinstance(o,dict) and "schema_version" in o:

@@ -499,6 +499,7 @@ cmp "$LEGACY_FINDINGS" "$FEATURE_RUNTIME_DIR/policy-findings.json"
         response = self.base / 'design-response.md'
         tripwire = self.base / 'decomposition-started'
         script = '''source "$PLUGIN/scripts/lib/workflows.sh"
+source "$PLUGIN/scripts/lib/quality.sh"
 source "$LIB"
 DRY_RUN=false; TMUX_MODE=false; SUPPORTS_PARALLEL_FILE_SAFETY=false; MAGENTA=; CYAN=; NC=
 log(){ :; }; octopus_phase_banner(){ :; }
@@ -509,7 +510,10 @@ tangle_file_digest(){ shasum -a256 "$1" | cut -d ' ' -f1; }
 design_review_ceremony(){
     [[ "$1 $2" == *'Remove the public API.'* ]] || return 90
     [[ "$1 $2" != *"Plan SHA256: $EXPECTED_DIGEST"* ]] || echo REVIEW_PROMPT_BOUND
-    printf -v "$3" '%s' "$(cat "$RESPONSE")"
+    [[ "$4" == *'1: Keep the public API stable.'* && "$4" == *"Plan SHA256: $EXPECTED_DIGEST"* ]] || return 91
+    local canonical
+    canonical="$(design_review_materialize_synthesis "$(cat "$RESPONSE")")" || return 92
+    printf -v "$3" '%s' "$canonical"
     case "$PLAN_UPDATE" in
         edit) printf '\\nAdditional notes.\\n' >> "$PLAN" ;;
         remove) rm "$PLAN" ;;
@@ -548,7 +552,8 @@ cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
                 selected.write_text('Remove the public API.\n')
                 finding['quote'] = quote
                 findings = [finding] if quote else []
-                response.write_text('```octopus-policy-findings\n' + json.dumps(findings) + '\n```\n')
+                response.write_text(json.dumps(dict(schema_version=1, conflicts=[], gaps=[], resolution='Review complete.',
+                                                    risks=[], decisions=[], policy_findings=findings)))
                 result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root,
                                         env=dict(env, PLAN=str(selected), PLAN_UPDATE=plan_update,
                                                  TANGLE_PROMPT=f'Implement plan:{plan_ref}' if plan_ref else 'Implement',

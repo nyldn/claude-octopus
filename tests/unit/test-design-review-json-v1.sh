@@ -23,6 +23,15 @@ test_case "valid synthesis JSON materializes canonically"
 materialized_s="$(design_review_materialize_synthesis "$synthesis")"
 if jq -e '((.schema_version>=1)) and ((.resolution|length)>0)' <<<"$materialized_s" >/dev/null && [[ "$(design_review_synthesis_source_format "$synthesis")" == json-v1 ]]; then test_pass; else test_fail "synthesis JSON not canonical"; fi
 
+test_case "canonical synthesis retains structured policy findings"
+with_findings="$(jq -c '.policy_findings = [{"source":"AGENTS.md","quote":"Keep the public API stable."}]' <<< "$synthesis")"
+if materialized_s="$(design_review_materialize_synthesis "$with_findings")" &&
+    jq -e '.policy_findings == [{"source":"AGENTS.md","quote":"Keep the public API stable."}]' <<< "$materialized_s" >/dev/null; then
+    test_pass
+else
+    test_fail "policy findings did not survive synthesis validation"
+fi
+
 test_case "boolean schema_version is rejected"
 bool_seat='''{"schema_version":true,"approach":["Keep boundaries explicit."],"dependencies":[],"risks":[],"testing":[],"integration":[]}'''
 if design_review_approach_valid "$bool_seat"; then test_fail "boolean schema_version accepted"; else test_pass; fi

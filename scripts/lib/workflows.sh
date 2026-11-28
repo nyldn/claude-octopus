@@ -5320,7 +5320,7 @@ _tangle_develop_in_workspace() {
     elif [[ -n "$raw_file_ref" ]]; then
         file_ref=$(tangle_resolve_context_file_path "$raw_file_ref" "$PWD" 2>/dev/null) || true
     fi
-    local plan_input="$file_ref" grasp_input="$grasp_file" plan_snapshot="" reviewed_plan_digest=""
+    local plan_input="$file_ref" plan_snapshot="" reviewed_plan_digest=""
     local gate_plan="${file_ref:-$grasp_file}" allow_external=false
     if [[ -n "$file_ref" && -n "${FEATURE_POLICY_SNAPSHOT:-}" ]]; then
         local root_prefix="${FEATURE_SOURCE_ROOT%/}/"
@@ -5341,22 +5341,15 @@ _tangle_develop_in_workspace() {
             rm -f "$plan_snapshot"
             return 1
         fi
-        if [[ -n "$file_ref" ]]; then
-            plan_input="$plan_snapshot"
-        else
-            grasp_input="$plan_snapshot"
-        fi
+        plan_input="$plan_snapshot"
     fi
 
-    local context=""
-    if [[ -n "$grasp_input" && -f "$grasp_input" ]]; then
-        context="Problem Definition:\n$(<"$grasp_input")\n\n"
-        if [[ "$grasp_input" == "$plan_snapshot" ]]; then
-            context="Plan SHA256: ${reviewed_plan_digest}"$'\n'"${context}"
-        fi
+    local context="" reviewed_plan_block=""
+    if [[ -n "$grasp_file" && -f "$grasp_file" && ( -n "$file_ref" || -z "$plan_snapshot" ) ]]; then
+        context="Problem Definition:\n$(<"$grasp_file")\n\n"
         log INFO "Using grasp context from: $grasp_file"
     fi
-    if [[ -n "$file_ref" && -f "$plan_input" ]]; then
+    if [[ -n "$plan_input" && -f "$plan_input" ]]; then
         local max_plan_bytes="${OCTOPUS_PLAN_INJECT_MAX_BYTES:-40000}"
         [[ "$max_plan_bytes" =~ ^[0-9]+$ ]] || max_plan_bytes=40000
         local file_size
@@ -5370,18 +5363,21 @@ _tangle_develop_in_workspace() {
         else
             file_content=$(<"$plan_input")
         fi
-        local plan_block="--- PLAN: ${file_ref} ---
+        local plan_block="--- PLAN: ${gate_plan} ---
 ${file_content}
 --- END PLAN ---"
         if [[ -n "$reviewed_plan_digest" ]]; then
             plan_block="Plan SHA256: ${reviewed_plan_digest}
 ${plan_block}"
+            reviewed_plan_block="$plan_block"
         fi
         local trimmed_prompt="$prompt"
         trimmed_prompt="${trimmed_prompt#"${trimmed_prompt%%[![:space:]]*}"}"
         trimmed_prompt="${trimmed_prompt%"${trimmed_prompt##*[![:space:]]}"}"
 
-        if [[ "$trimmed_prompt" == "$raw_file_ref" || "$trimmed_prompt" == "$file_ref" ]]; then
+        if [[ -z "$file_ref" ]]; then
+            context="$plan_block"
+        elif [[ "$trimmed_prompt" == "$raw_file_ref" || "$trimmed_prompt" == "$file_ref" ]]; then
             resolved_prompt="Implement the code changes described in the following plan. Do NOT modify the plan file itself (${file_ref}).
 
 ${plan_block}"
@@ -5392,14 +5388,23 @@ The following referenced plan file has been resolved. Use it as implementation c
 
 ${plan_block}"
         fi
-        log INFO "Resolved file reference: ${file_ref} - injecting content into workflow prompt"
+        log INFO "Resolved file reference: ${gate_plan} - injecting content into workflow review"
     fi
     [[ -z "$plan_snapshot" ]] || rm -f "$plan_snapshot"
 
     # v8.18.0: Pre-work design review ceremony. Use resolved_prompt so reviewers
     # receive plan content instead of an unreadable cross-workspace file path.
-    local design_review_synthesis=""
-    design_review_ceremony "$resolved_prompt" "$context" design_review_synthesis
+    local design_review_synthesis="" review_policy=""
+    if [[ -n "$reviewed_plan_block" ]]; then
+        review_policy="$(feature_workflow_policy_passages)" || review_policy=""
+    fi
+    if [[ -n "$review_policy" ]]; then
+        review_policy+=$'\n\n'"$reviewed_plan_block"
+        if declare -F sanitize_external_content >/dev/null 2>&1; then
+            review_policy="$(sanitize_external_content "$review_policy" feature-policy)"
+        fi
+    fi
+    design_review_ceremony "$resolved_prompt" "$context" design_review_synthesis "$review_policy"
     if declare -F feature_workflow_gate >/dev/null 2>&1; then
         feature_workflow_gate develop "" "$gate_plan" \
             "$reviewed_plan_digest" "$design_review_synthesis" || return 1
