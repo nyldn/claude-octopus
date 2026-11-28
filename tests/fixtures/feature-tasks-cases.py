@@ -110,10 +110,22 @@ if [[ -n "${FIXTURE_REQUIREMENT_GATE_PLUGIN:-}" ]]; then
     mkdir -p "$FEATURE_RUNTIME_DIR"
     cp "$FIXTURE_REQUIREMENT_MARKERS" "$FEATURE_RUNTIME_DIR/clarifications.json"
 fi
+grasp_file=""; grasp_results_root=""
+if [[ -n "${FIXTURE_GRASP_ROUTE:-}" ]]; then
+    source "$PLUGIN/scripts/lib/feature-workflow.sh"
+    FEATURE_SOURCE_ROOT="$(pwd -P)"
+    RESULTS_DIR="$(cd "$RESULTS_DIR" && pwd -P)"
+    FEATURE_POLICY_SNAPSHOT="$FIXTURE_RUNTIME/policy.json"
+    feature_policy_bind "$FEATURE_SOURCE_ROOT" > "$FEATURE_POLICY_SNAPSHOT" || exit 1
+    grasp_file="$RESULTS_DIR/grasp-consensus-fixture.md"
+    printf '%s\n' 'Implement the portable fixture task.' > "$grasp_file"
+    [[ "$FIXTURE_GRASP_ROUTE" != embrace ]] || grasp_results_root="$RESULTS_DIR"
+    design_review_ceremony() { printf '%s\n' "$4" > "$FIXTURE_RUNTIME/grasp-review-input"; }
+fi
 feature_workflow_tasks_completed() { cp "$1" "$FIXTURE_RUNTIME/published-completion.json"; }
 rc=0
 if [[ "$EXEC_MODE" == tangle ]]; then
-    _tangle_develop_in_workspace 'Implement portable fixture tasks' '' runtime-fixture || rc=$?
+    _tangle_develop_in_workspace 'Implement portable fixture tasks' "$grasp_file" runtime-fixture "" "$grasp_results_root" || rc=$?
 else
     parallel_execute "${FIXTURE_PASSED_CONTRACT:-$FEATURE_TASK_CONTRACT}" || rc=$?
 fi
@@ -832,6 +844,25 @@ printf 'inactive-safe\\n'
         gates = (runtime / "gates").read_text()
         for gate in ("adequacy", "boundary", "validation", "contextual"):
             self.assertIn(gate, gates)
+
+    def test_actual_tangle_wave_preserves_embrace_consensus_root(self):
+        (self.root / "AGENTS.md").write_text("Keep the public API stable.\n")
+        self.git("add", "AGENTS.md")
+        self.git("commit", "-qm", "fixture policy")
+        contract = self.contract(self.task(1))
+        result, runtime, events = self.run_dispatcher(contract, FIXTURE_GRASP_ROUTE="ordinary")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"cannot be read inside", result.stderr)
+        self.assertFalse((runtime / "grasp-review-input").exists())
+        self.assertEqual(events, [])
+
+        result, runtime, events = self.run_dispatcher(contract, FIXTURE_GRASP_ROUTE="embrace")
+        self.assertEqual(result.returncode, 0, (result.stdout + result.stderr).decode())
+        review = (runtime / "grasp-review-input").read_text()
+        self.assertIn("Plan SHA256:", review)
+        self.assertIn("Implement the portable fixture task.", review)
+        self.assertEqual([event["id"] for event in events if event["event"] == "start"],
+                         ["tangle-runtime-fixture-wave-1-T001"])
 
     def test_actual_tangle_overlap_is_serial_and_failed_predecessor_never_runs(self):
         contract = self.contract(self.task(1), self.task(2, files=["src/file1.py"]))

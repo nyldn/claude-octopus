@@ -5243,7 +5243,7 @@ _tangle_develop_in_workspace() {
     fi
 
     if [[ -n "${FEATURE_TASK_CONTRACT:-}" && "${OCTOPUS_FEATURE_WAVE_ACTIVE:-false}" != true ]]; then
-        feature_tasks_tangle_execute "$prompt" "$grasp_file" "$task_group" "$pre_resolved_plan_file"
+        feature_tasks_tangle_execute "$prompt" "$grasp_file" "$task_group" "$pre_resolved_plan_file" "$grasp_results_root"
         return $?
     fi
 
