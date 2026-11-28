@@ -143,6 +143,21 @@ else
   test_fail "disallowed override was dispatched or ceremony did not fail closed: rc=$override_rc calls=$(tr '\n' ';' < "$CAPTURE")"
 fi
 
+test_case "exhausted policy synthesis reports failure while a skipped ceremony succeeds"
+run_agent_sync_consultative() {
+  [[ "$4" != design-synthesizer ]] || return 1
+  printf '%s\n' '{"schema_version":1,"approach":["Review the API."],"dependencies":[],"risks":[],"testing":[],"integration":[]}'
+}
+returned_synthesis=""
+if design_review_ceremony "test" "" returned_synthesis 'Policy evidence' >/dev/null ||
+    [[ -n "$returned_synthesis" ]]; then
+  test_fail "exhausted synthesis was reported as a successful policy review"
+elif ! OCTOPUS_CEREMONIES=false design_review_ceremony "test" "" returned_synthesis 'Policy evidence' >/dev/null; then
+  test_fail "a deliberately skipped ceremony reported a review failure"
+else
+  test_pass
+fi
+
 test_case "provider-local model keeps provider identity separate from role model"
 log() { :; }
 export OCTOPUS_PLATFORM=Linux

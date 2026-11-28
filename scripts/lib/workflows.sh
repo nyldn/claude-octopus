@@ -5411,7 +5411,12 @@ ${plan_block}"
             review_policy="$(sanitize_external_content "$review_policy" feature-policy)"
         fi
     fi
-    design_review_ceremony "$resolved_prompt" "$context" design_review_synthesis "$review_policy"
+    local design_review_rc=0
+    design_review_ceremony "$resolved_prompt" "$context" design_review_synthesis "$review_policy" || design_review_rc=$?
+    if [[ -n "$reviewed_plan_digest" && "$design_review_rc" -ne 0 ]]; then
+        feature_workflow_warning 'design review failed; deferring implementation'
+        return 1
+    fi
     if [[ "$allow_external" == true && ( -z "$review_policy" || -z "$design_review_synthesis" ) ]]; then
         feature_workflow_warning 'external plan requires a completed design review'
         return 1

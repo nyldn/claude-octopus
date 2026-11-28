@@ -888,6 +888,9 @@ EOF
             bytes="${#synthesis}" elapsed_s="$_synth_elapsed" || true
     fi
 
+    if [[ -z "$synthesis" && -n "$policy_evidence" ]]; then
+        return 1
+    fi
     if [[ -n "$synthesis" ]]; then
         if [[ -n "$synthesis_out_var" ]]; then
             printf -v "$synthesis_out_var" '%s' "$synthesis"

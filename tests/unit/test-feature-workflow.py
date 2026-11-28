@@ -512,6 +512,7 @@ design_review_ceremony(){
     [[ "$1 $2" == *'Remove the public API.'* ]] || return 90
     [[ "$1 $2" != *"Plan SHA256: $EXPECTED_DIGEST"* ]] || echo REVIEW_PROMPT_BOUND
     [[ "$4" == *'1: Keep the public API stable.'* && "$4" == *"Plan SHA256: $EXPECTED_DIGEST"* ]] || return 91
+    [[ "$PLAN_UPDATE" != fail-review ]] || return 1
     local canonical
     canonical="$(design_review_materialize_synthesis "$(cat "$RESPONSE")")" || return 92
     printf -v "$3" '%s' "$canonical"
@@ -545,6 +546,8 @@ cat "$FEATURE_RUNTIME_DIR/policy-findings.json"
             (f'{self.root}/../session-plans/lane-plan.md', '', '', 'plan reference resolves outside'),
             ('', 'Keep the public API stable.', '', 'AGENTS.md:1'),
             ('', 'Invented rule', '', ''),
+            ('', '', 'fail-review', 'design review failed; deferring implementation'),
+            ('', '', 'skip-review', ''),
             ('', 'Keep the public API stable.', 'full-grasp', 'AGENTS.md:1'),
             ('', '', 'edit', 'plan changed during design review'),
             ('', '', 'remove', 'cannot be read inside'),
