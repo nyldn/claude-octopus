@@ -411,6 +411,21 @@ else
     test_fail "shipped Fable guidance can send a retry after an opt-out or an SDK retry"
 fi
 
+for setting in '' xhigh max invalid; do
+    test_case "terminal banner reports the effective effort ceiling with retries disabled (${setting:-default})"
+    expected_ceiling="$setting"
+    case "$setting" in ''|invalid) expected_ceiling=high ;; esac
+    banner=$(OCTOPUS_FABLE5_MODE=auto OCTOPUS_OPUS_MODEL=claude-fable-5-1 \
+        OCTOPUS_FABLE5_NO_RETRY=1 OCTOPUS_FABLE5_MAX_EFFORT="$setting" bash -c \
+        'log() { printf "%s\n" "$2"; }; source "$1/scripts/lib/fable5.sh"; unset _OCTO_FABLE5_BANNER_SHOWN; fable5_banner' \
+        _ "$PROJECT_ROOT")
+    if [[ "$banner" == *"Fable effort ceiling: ${expected_ceiling},"*"SDK refusal retry disabled"* ]]; then
+        test_pass
+    else
+        test_fail "expected effort ceiling $expected_ceiling with retries disabled, got '$banner'"
+    fi
+done
+
 test_case "hook stays silent with OCTOPUS_FABLE5_MODE=off"
 out=$(OCTOPUS_FABLE5_MODE=off OCTOPUS_OPUS_MODEL=claude-fable-5 bash "$PROJECT_ROOT/hooks/fable5-inject.sh" 2>/dev/null)
 if [[ -z "$out" ]]; then

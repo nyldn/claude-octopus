@@ -56,6 +56,14 @@ fable5_fallback_model() {
     printf '%s\n' "$fallback_model"
 }
 
+fable5_effort_ceiling() {
+    local ceiling="${OCTOPUS_FABLE5_MAX_EFFORT:-high}"
+    case "$ceiling" in
+        high|xhigh|max) printf '%s\n' "$ceiling" ;;
+        *) printf '%s\n' high ;;
+    esac
+}
+
 fable5_opus_pinned() {
     fable5_is_model "${OCTOPUS_OPUS_MODEL:-}"
 }
@@ -166,7 +174,7 @@ fable5_banner() {
     if [[ "${OCTOPUS_FABLE5_NO_RETRY:-}" == "1" ]]; then
         retry_status="SDK refusal retry disabled by OCTOPUS_FABLE5_NO_RETRY=1"
     fi
-    log "INFO" "🐙 Fable 5 mode active — security passes reroute to ${fallback_model}, effort clamps to high, ${retry_status} (OCTOPUS_FABLE5_MODE=off to disable)"
+    log "INFO" "🐙 Fable 5 mode active — security passes reroute to ${fallback_model}, Fable effort ceiling: $(fable5_effort_ceiling), ${retry_status} (OCTOPUS_FABLE5_MODE=off to disable)"
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -425,16 +433,11 @@ fable5_clamp_effort_for_model() {
         return 0
     fi
 
-    local cap="${OCTOPUS_FABLE5_MAX_EFFORT:-high}" resolved="$effort"
-    case "$cap" in
-        high|xhigh|max) ;;
-        *)
-            if declare -f log >/dev/null 2>&1; then
-                log "WARN" "Invalid OCTOPUS_FABLE5_MAX_EFFORT=${cap}; using high"
-            fi
-            cap="high"
-            ;;
-    esac
+    local requested_cap="${OCTOPUS_FABLE5_MAX_EFFORT:-high}" cap resolved="$effort"
+    cap="$(fable5_effort_ceiling)"
+    if [[ "$cap" != "$requested_cap" ]] && declare -F log >/dev/null; then
+        log "WARN" "Invalid OCTOPUS_FABLE5_MAX_EFFORT=${requested_cap}; using high"
+    fi
     case "$cap:$effort" in
         high:xhigh|high:max) resolved="high" ;;
         xhigh:max) resolved="xhigh" ;;
