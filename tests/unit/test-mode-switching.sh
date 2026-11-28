@@ -227,10 +227,61 @@ EOF
     cleanup_test_config
 }
 
+test_codex_knowledge_mode_recipe() {
+    local skill="$PROJECT_ROOT/codex-skills/skill-knowledge-work/SKILL.md"
+    local env_dir="$TEST_TMP_DIR/codex-knowledge-mode" action mode recipe output
+    local config="$env_dir/.user-config"
+    local -a mode_env=(env -i "PATH=$PATH" "HOME=$env_dir"
+        "CODEX_SESSION_ID=fixture" "CLAUDE_OCTOPUS_WORKSPACE=$env_dir"
+        "OCTO_ROOT=$PROJECT_ROOT" "CODEX_PLUGIN_ROOT=$PROJECT_ROOT"
+        "CLAUDE_PLUGIN_ROOT=$PROJECT_ROOT")
+    mkdir -p "$env_dir"
+    printf '%s\n' 'version: "1.0"' 'resource_tier: "standard"' > "$config"
+
+    while read -r action mode; do
+        test_case "Codex knowledge work recipe runs km $action against the installed helper"
+        recipe=$(awk -F '`' -v action="$action" '$2 ~ /^bash / && $2 ~ (" km " action "$") {print $2; exit}' "$skill")
+        if [[ -z "$recipe" ]]; then
+            test_fail "No generated Codex shell recipe for km $action"
+            continue
+        fi
+        if ! output=$(cd "$env_dir" && "${mode_env[@]}" bash -c "$recipe" 2>&1); then
+            test_fail "Installed helper failed: $output"
+            continue
+        fi
+        if grep -Fxq 'resource_tier: "standard"' "$config" &&
+            [[ "$(grep '^knowledge_work_mode:' "$config")" == "knowledge_work_mode: \"$mode\"" ]] &&
+            { [[ "$action" != status ]] || [[ "$output" == *"Auto-Detect Mode"* ]]; }; then
+            test_pass
+        else
+            test_fail "km $action did not preserve and report the expected mode $mode"
+        fi
+    done <<'MODES'
+on true
+off false
+auto auto
+status auto
+MODES
+
+    test_case "initializing an empty linked config leaves the backing file untouched"
+    local backing_file="$env_dir/empty-config"
+    rm "$config"
+    touch "$backing_file"
+    ln -s "$backing_file" "$config"
+    if output=$(cd "$env_dir" && "${mode_env[@]}" bash "$PROJECT_ROOT/scripts/orchestrate.sh" km on 2>&1) &&
+        [[ ! -L "$config" && ! -s "$backing_file" ]] &&
+        grep -Fxq 'knowledge_work_mode: "true"' "$config"; then
+        test_pass
+    else
+        test_fail "Mode initialization did not safely replace the empty config path: $output"
+    fi
+}
+
 # Run all tests
 test_dev_command_disables_knowledge_mode
 test_km_on_enables_knowledge_mode
 test_mode_persists_across_sessions
 test_backward_compatibility_old_config
+test_codex_knowledge_mode_recipe
 
 test_summary
