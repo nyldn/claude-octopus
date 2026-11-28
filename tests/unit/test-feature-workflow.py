@@ -96,12 +96,7 @@ Then an artifact exists.
             'blocking_reason': 'The user must select the supported exports.'}]) + '\n```\n')
         self.adapter('save', 'spec', str(self.spec), 'claude', 'unknown', 'boundary-run', context['feature'])
         plan = self.root / context['feature'] / 'plan.md'
-        plan.write_text('Remove the public API.\n')
-        policy = json.loads(Path(context['policy_snapshot']).read_text())
-        findings = [{'source': 'AGENTS.md', 'digest': policy['digest'], 'line_start': 1, 'line_end': 1,
-                     'quote': 'Keep the public API stable.', 'plan_digest': hashlib.sha256(plan.read_bytes()).hexdigest(),
-                     'plan_line_start': 1, 'plan_line_end': 1, 'plan_action': 'Remove the public API.'}]
-        Path(context['runtime_dir'], 'policy-findings.json').write_text(json.dumps(findings))
+        plan.write_text('Remove the public API.\n```octopus-policy-findings\n[{"score": 1e999}]\n```\n')
         result = self.adapter('boundary', 'develop', context['feature'], success=False)
         self.assertTrue(result['feature_context'])
         self.assertEqual(len(result['batch']), 1)
@@ -273,17 +268,18 @@ if feature_workflow_gate develop T002; then printf independent; fi
         findings = [{'source': 'AGENTS.md', 'digest': policy['digest'], 'line_start': 1, 'line_end': 1,
                      'quote': 'Keep the public API stable.', 'plan_digest': hashlib.sha256(plan.read_bytes()).hexdigest(),
                      'plan_line_start': 1, 'plan_line_end': 1, 'plan_action': 'Remove the public API.'}]
-        runtime = Path(context['runtime_dir'])
-        (runtime / 'policy-findings.json').write_text(json.dumps(findings))
-        script = 'source "$LIB"; feature_workflow_begin develop feature false; if feature_workflow_gate develop; then echo spawned; else echo blocked; fi'
-        env = dict(self.env, LIB=str(LIB), OCTOPUS_FEATURE=context['feature'])
+        response = self.base / 'review.md'
+        response.write_text('```octopus-policy-findings\n' + json.dumps(findings) + '\n```\n')
+        script = 'source "$LIB"; feature_workflow_begin develop feature false; '
+        script += 'if feature_workflow_gate develop "" "" "" "$(cat "$RESPONSE")"; then echo spawned; else echo blocked; fi'
+        env = dict(self.env, LIB=str(LIB), RESPONSE=str(response), OCTOPUS_FEATURE=context['feature'])
         p = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env, capture_output=True, text=True)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(p.stdout.strip(), 'blocked')
         self.assertIn('Keep the public API stable.', p.stderr)
         self.assertIn('Remove the public API.', p.stderr)
         findings[0]['quote'] = 'Invented rule'
-        (runtime / 'policy-findings.json').write_text(json.dumps(findings))
+        response.write_text('```octopus-policy-findings\n' + json.dumps(findings) + '\n```\n')
         p = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env, capture_output=True, text=True)
         self.assertEqual(p.stdout.strip(), 'spawned')
 
@@ -297,23 +293,19 @@ if feature_workflow_gate develop T002; then printf independent; fi
                    'quote': 'Keep the public API stable.', 'plan_digest': hashlib.sha256(plan.read_bytes()).hexdigest(),
                    'plan_line_start': 1, 'plan_line_end': 1, 'plan_action': 'Remove the public API.'}
         response = self.base / 'review.md'
-        runtime_findings = Path(context['runtime_dir']) / 'policy-findings.json'
         env = dict(self.env, LIB=str(LIB), RESPONSE=str(response), OCTOPUS_FEATURE=context['feature'])
-        for route in ('response', 'runtime', 'plan'):
+        for route in ('response', 'plan'):
             for number in ('1e999', '-1e999'):
                 with self.subTest(route=route, number=number):
                     body = '[' + json.dumps(finding) + ', {"score": ' + number + '}]'
                     response.write_text('```octopus-policy-findings\n' + body + '\n```\n')
-                    runtime_findings.unlink(missing_ok=True)
-                    setup = ''
+                    gate = 'feature_workflow_gate develop'
                     if route == 'response':
-                        setup = 'feature_workflow_policy_response "$(cat "$RESPONSE")"; '
-                    elif route == 'runtime':
-                        runtime_findings.write_text(body)
+                        gate += ' "" "" "" "$(cat "$RESPONSE")"'
                     else:
                         plan.write_text('Remove the public API.\n' + response.read_text())
-                    script = 'source "$LIB"; feature_workflow_begin develop feature false; ' + setup
-                    script += 'if feature_workflow_gate develop; then echo spawned; else echo blocked; fi'
+                    script = 'source "$LIB"; feature_workflow_begin develop feature false; '
+                    script += f'if {gate}; then echo spawned; else echo blocked; fi'
                     result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
                                             capture_output=True, text=True, timeout=20)
                     self.assertEqual(result.returncode, 0, result.stderr)
@@ -332,9 +324,8 @@ if feature_workflow_gate develop T002; then printf independent; fi
         script = '''source "$LIB"
 feature_workflow_begin develop feature false
 test "$FEATURE_ACTIVE" = false || exit 8
-feature_workflow_policy_response "$(cat "$RESPONSE")"
 if feature_workflow_preimplement; then echo preimplement-allowed; else echo preimplement-blocked; fi
-if feature_workflow_gate develop; then echo design-allowed; else echo design-blocked; fi
+if feature_workflow_gate develop "" "" "" "$(cat "$RESPONSE")"; then echo design-allowed; else echo design-blocked; fi
 '''
         env = dict(self.env, LIB=str(LIB), RESPONSE=str(response))
         for quote, expected in [('Keep the public API stable.', 'blocked'), ('Invented rule', 'allowed')]:
@@ -343,7 +334,7 @@ if feature_workflow_gate develop; then echo design-allowed; else echo design-blo
             result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.splitlines(), ['preimplement-' + expected, 'design-' + expected])
+            self.assertEqual(result.stdout.splitlines(), ['preimplement-allowed', 'design-' + expected])
             if expected == 'blocked':
                 self.assertIn('AGENTS.md:1', result.stderr)
                 self.assertIn('Keep the public API stable.', result.stderr)
@@ -427,8 +418,7 @@ echo TANGLE_RC=$?
         finding = self.outside_plan_finding(plan)
         response = self.base / 'review.md'
         script = 'source "$LIB"; source "$TESTING_LIB"; feature_workflow_begin develop feature false; '
-        script += 'feature_workflow_policy_response "$(cat "$RESPONSE")"; '
-        script += 'if feature_workflow_gate develop "" "$PLAN" "$PLAN_DIGEST"; then echo spawned; else echo blocked; fi'
+        script += 'if feature_workflow_gate develop "" "$PLAN" "$PLAN_DIGEST" "$(cat "$RESPONSE")"; then echo spawned; else echo blocked; fi'
         env = dict(self.env, LIB=str(LIB), TESTING_LIB=str(LIB.with_name('testing.sh')),
                    RESPONSE=str(response), PLAN=str(plan), PLAN_DIGEST=finding['plan_digest'])
         for quote, expected in [('Keep the public API stable.', 'blocked'), ('Invented rule', 'spawned')]:
@@ -469,6 +459,31 @@ echo TANGLE_RC=$?
                                 capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('cannot be read inside ' + str(self.root), result.stderr)
+
+    def test_develop_gates_ignore_shared_findings_from_an_older_review(self):
+        default_plan = self.root / 'plan.md'
+        default_plan.write_text('Remove the public API.\n')
+        alternate = self.base / 'alternate.md'
+        alternate.write_text('Document the public API.\n')
+        findings = self.base / 'legacy.json'
+        findings.write_text(json.dumps([self.outside_plan_finding(default_plan)]))
+        script = '''source "$LIB"
+source "$TESTING_LIB"
+feature_workflow_begin develop feature false
+cp "$LEGACY_FINDINGS" "$FEATURE_RUNTIME_DIR/policy-findings.json" || exit 1
+feature_workflow_preimplement && echo preimplement-allowed
+feature_workflow_gate develop "" "$ALTERNATE" "$ALTERNATE_DIGEST" "" && echo review-allowed
+feature_workflow_gate develop T001 && echo task-allowed
+cmp "$LEGACY_FINDINGS" "$FEATURE_RUNTIME_DIR/policy-findings.json"
+'''
+        env = dict(self.env, LIB=str(LIB), TESTING_LIB=str(LIB.with_name('testing.sh')),
+                   LEGACY_FINDINGS=str(findings), ALTERNATE=str(alternate),
+                   ALTERNATE_DIGEST=hashlib.sha256(alternate.read_bytes()).hexdigest())
+        result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ['preimplement-allowed', 'review-allowed', 'task-allowed'],
+                         result.stderr)
 
     def test_actual_tangle_binds_plan_reference_outside_root(self):
         for args in [('config', 'user.name', 'Fixture'), ('config', 'user.email', 'fixture@example.invalid'),

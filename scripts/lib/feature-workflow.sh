@@ -178,8 +178,6 @@ feature_workflow_gate() {
                 # Tangle's review belongs to this invocation, even when it
                 # contains no findings. Do not consult the shared legacy file.
                 feature_workflow_policy_response "$5" "$findings" || : > "$findings"
-            elif [[ -f "${FEATURE_RUNTIME_DIR}/policy-findings.json" ]]; then
-                cp "${FEATURE_RUNTIME_DIR}/policy-findings.json" "$findings"
             else
                 # An extraction error must survive into verification.
                 python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" extract --input "$bound_plan" --label octopus-policy-findings > "$findings" || : > "$findings"
@@ -345,9 +343,8 @@ feature_workflow_plan_completed() {
 }
 
 feature_workflow_policy_response() {
-    local response="$1" response_file
+    local response="$1" findings="$2" response_file
     [[ -n "${FEATURE_POLICY_SNAPSHOT:-}" && -n "${FEATURE_RUNTIME_DIR:-}" ]] || return 0
-    local findings="${2:-${FEATURE_RUNTIME_DIR}/policy-findings.json}"
     response_file="$(mktemp "${FEATURE_RUNTIME_DIR}/policy-response.XXXXXX")" || return 1
     if ! printf '%s\n' "$response" > "$response_file" \
         || ! python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" extract --input "$response_file" --label octopus-policy-findings > "$findings"; then
