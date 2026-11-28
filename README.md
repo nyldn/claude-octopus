@@ -76,6 +76,11 @@ Define names the provider that wrote its consensus. Status shows saved workflow
 progress with project persistence disabled. Debate asks an advisor to expand a
 thin answer once and checks the reply before using it in synthesis.
 
+Workflow state recovery keeps separate backups when multiple recoveries happen
+in the same second. Design critiques respect your provider allowlist. Code Review
+uses the selected reviewer route and credits only providers that contributed.
+Fable reports whether retries are enabled and shows the effective effort ceiling.
+
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.30.4 — Fix Define attribution, show saved Status, and verify Debate follow-ups.**
 >

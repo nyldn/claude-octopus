@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Workflow state recovery keeps every corrupt-state backup, even when two
+  recoveries occur in the same second.
+  ([#1462](https://github.com/nyldn/claude-octopus/pull/1462))
+- Design critiques use the project's provider allowlist. When no external
+  reviewer is eligible, the design workflow can continue with the host review.
+  ([#1463](https://github.com/nyldn/claude-octopus/pull/1463))
+- Code Review uses the selected host and reviewer route and credits only
+  providers that returned a usable review in its PR comments.
+  ([#1467](https://github.com/nyldn/claude-octopus/pull/1467))
+- Fable workflow guidance respects the Claude SDK retry opt-out. The terminal
+  banner shows whether retries are enabled and displays the effective effort
+  ceiling.
+  ([#1465](https://github.com/nyldn/claude-octopus/pull/1465))
+
+These fixes address parts of
+[#1304](https://github.com/nyldn/claude-octopus/issues/1304).
+
+### Tests
+
+- Wait for both Council workers to start before testing interruption cleanup.
+  ([#1464](https://github.com/nyldn/claude-octopus/pull/1464))
+
 ## [11.30.4] - 2026-11-27
 
 ### Fixed
