@@ -82,6 +82,35 @@ test_case "root-level JSON write scopes remain valid"
 valid_root='{"schema_version":1,"subtasks":[{"id":1,"kind":"coding","title":"Update README","reads":[],"files":["README.md"],"creates":[],"task":"Update the root README."}]}'
 if tangle_decomposition_json_output_usable "$valid_root"; then test_pass; else test_fail "root-level write scope rejected"; fi
 
+test_case "an omitted empty scope array is read as []"
+omitted="$(cat "$ROOT/tests/fixtures/tangle-decomposition-omitted-creates.json")"
+omitted_wire="$(tangle_render_json_decomposition_output "$omitted" || true)"
+if tangle_decomposition_json_output_usable "$omitted" && \
+   [[ "$(tangle_decomposition_source_format "$omitted")" == json-v1 ]] && \
+   [[ "$(tangle_parseable_subtask_count "$omitted_wire")" == 4 ]] && \
+   [[ "$(printf '%s\n' "$omitted_wire" | sed -n 2p)" == "2. [CODING] "*" — Files: .docs/current/query/resolve-structure-cache.md, .docs/current/query/resolve-and-caching.md — Task: "* ]]; then
+  test_pass
+else
+  test_fail "decomposition with an omitted creates array rejected: $omitted_wire"
+fi
+
+test_case "an omitted key with no default still fails closed"
+bad="$(printf '%s\n' "$omitted" | jq -c 'del(.subtasks[1].task)')"
+tangle_decomposition_json_output_usable "$bad" && test_fail "omitted task accepted" || test_pass
+
+test_case "a coding subtask that omits both files and creates still fails closed"
+bad="$(printf '%s\n' "$omitted" | jq -c 'del(.subtasks[1].files)')"
+tangle_decomposition_json_output_usable "$bad" && test_fail "coding subtask without write scope accepted" || test_pass
+
+test_case "a null or unknown scope key still fails closed"
+null_scope="$(printf '%s\n' "$omitted" | jq -c '.subtasks[1].creates = null')"
+unknown_key="$(printf '%s\n' "$omitted" | jq -c '.subtasks[1].writes = []')"
+if tangle_decomposition_json_output_usable "$null_scope" || tangle_decomposition_json_output_usable "$unknown_key"; then
+  test_fail "null creates or unknown key accepted"
+else
+  test_pass
+fi
+
 test_case "legacy wire is classified deprecated"
 legacy='1. [CODING] Legacy — Files: src/a.ts — Task: edit it'
 [[ "$(tangle_decomposition_source_format "$legacy")" == legacy-wire ]] && test_pass || test_fail "legacy wire classification wrong"

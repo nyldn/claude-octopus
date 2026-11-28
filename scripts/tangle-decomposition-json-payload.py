@@ -10,9 +10,26 @@ if raw.startswith("```"):
         raw = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:]).strip()
 
 
+SCOPE_KEYS = ("reads", "files", "creates")
+
+
+def default_omitted_scopes(obj):
+    # Providers sometimes drop an empty scope array. Restore it here so every
+    # consumer sees the same subtask; other keys and types stay strict.
+    subtasks = obj.get("subtasks")
+    if not isinstance(subtasks, list):
+        return obj
+    for subtask in subtasks:
+        if isinstance(subtask, dict):
+            for key in SCOPE_KEYS:
+                subtask.setdefault(key, [])
+    return obj
+
+
 def emit(obj):
     if not isinstance(obj, dict):
         raise SystemExit(1)
+    obj = default_omitted_scopes(obj)
     sys.stdout.write(json.dumps(obj, ensure_ascii=False, separators=(",", ":")) + "\n")
 
 
