@@ -135,7 +135,7 @@ if [[ -f "$WS" ]] && grep -qi "block" "$WS"; then test_pass; else test_fail "sli
 # migrating from a non-designated clone. The skill must degrade honestly rather
 # than appear to file work it cannot file.
 test_case "work-slicing: handles the bd write block without pretending to file"
-if [[ -f "$WS" ]] && grep -q "bd" "$WS" && grep -qiE "write-blocked|writes are blocked|cannot write|ready-to-run" "$WS"; then
+if [[ -f "$WS" ]] && grep -q 'bd create' "$WS" && grep -q 'bd dep add' "$WS" && grep -qi 'migration blocks writes' "$WS"; then
     test_pass
 else
     test_fail "must state what happens when bd writes are unavailable and emit ready-to-run commands instead"
@@ -147,6 +147,31 @@ if [[ -f "$WS" ]] && grep -qiE "do not run the migration|single.designated migra
 else
     test_fail "the repo rule is that only the designated migrator migrates; the skill must not invite a second clone to do it"
 fi
+
+# This guidance is consumed as a prompt by both hosts. Check the published
+# entries as well as the authored contract.
+for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
+    "$PROJECT_ROOT/codex-skills/skill-work-slicing/SKILL.md"; do
+    test_case "work-slicing selects and verifies the target project's tracker (${entry#"$PROJECT_ROOT"/})"
+    if grep -q '^### 3[.] Select the project tracker$' "$entry" \
+        && grep -q '^### 4[.] File the slices$' "$entry" \
+        && grep -qi 'confirm the target repository' "$entry" \
+        && grep -qi 'Beads.*only when the current project uses it' "$entry" \
+        && ! grep -qi '^This repo has two trackers' "$entry"; then
+        test_pass
+    else
+        test_fail "the installed skill must establish the current project's tracker before filing"
+    fi
+
+    test_case "work-slicing preserves an unfiled proposal without guessing a tracker (${entry#"$PROJECT_ROOT"/})"
+    if grep -qi 'no configured tracker' "$entry" \
+        && grep -qi 'explicitly unfiled' "$entry" \
+        && grep -qi 'only for the confirmed tracker' "$entry"; then
+        test_pass
+    else
+        test_fail "missing or unavailable tracking must preserve work without guessing a write destination"
+    fi
+done
 
 # ── skill-intake ─────────────────────────────────────────────────────────────
 test_case "intake: treats a PR as an issue with attached code"
