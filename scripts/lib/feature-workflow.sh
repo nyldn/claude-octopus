@@ -158,10 +158,16 @@ feature_workflow_gate() {
             # becoming an apparently successful empty findings list.
             python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" extract --input "$plan" --label octopus-policy-findings > "$findings" || : > "$findings"
         fi
-        local bound_plan
+        local bound_plan snapshot_root="$FEATURE_SOURCE_ROOT" snapshot_path="$plan_path"
+        if [[ "$plan_path" == /* && "$plan" != "${FEATURE_SOURCE_ROOT%/}/"* ]]; then
+            snapshot_root="$(dirname "$plan")"
+            snapshot_path="$(basename "$plan")"
+        fi
         bound_plan="$(mktemp "${FEATURE_RUNTIME_DIR}/bound-plan.XXXXXX")" || return 1
-        if python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" snapshot --root "$FEATURE_SOURCE_ROOT" --path "$plan_path" > "$bound_plan" \
-            && feature_policy_verify "$FEATURE_POLICY_SNAPSHOT" "$bound_plan" "$findings" > "$verification"; then
+        if ! python3 "${_octo_feature_lib}/../helpers/feature-workflow.py" snapshot --root "$snapshot_root" --path "$snapshot_path" > "$bound_plan"; then
+            feature_workflow_warning "policy verification unavailable: plan ${plan} cannot be read inside ${snapshot_root}; deferring implementation"
+            [[ "$phase" != develop ]] || rc=1
+        elif feature_policy_verify "$FEATURE_POLICY_SNAPSHOT" "$bound_plan" "$findings" > "$verification"; then
             jq -r '.unsupported_observations[]? | "Unverified policy observation: " + .reason' "$verification" >&2
             if [[ "$phase" == develop ]] && jq -e '.verified_violations | length > 0' "$verification" >/dev/null; then
                 jq -r '.verified_violations[] | "Policy conflict before implementation: " + .source + ":" + (.line_start|tostring) + "\nPolicy: " + .quote + "\nPlan action: " + .plan_action' "$verification" >&2

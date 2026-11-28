@@ -412,6 +412,98 @@ echo TANGLE_RC=$?
             if accepted:
                 self.assertEqual(result.stdout, plan.read_text())
 
+    def outside_plan_finding(self, plan):
+        return {'source': 'AGENTS.md',
+                'digest': hashlib.sha256((self.root / 'AGENTS.md').read_bytes()).hexdigest(),
+                'line_start': 1, 'line_end': 1, 'quote': 'Keep the public API stable.',
+                'plan_digest': hashlib.sha256(plan.read_bytes()).hexdigest(),
+                'plan_line_start': 1, 'plan_line_end': 1, 'plan_action': 'Remove the public API.'}
+
+    def test_gate_binds_referenced_plan_outside_root(self):
+        plans = self.base / 'session-plans'
+        plans.mkdir()
+        plan = plans / 'lane-plan.md'
+        plan.write_text('Remove the public API.\n')
+        finding = self.outside_plan_finding(plan)
+        response = self.base / 'review.md'
+        script = 'source "$LIB"; feature_workflow_begin develop feature false; '
+        script += 'feature_workflow_policy_response "$(cat "$RESPONSE")"; '
+        script += 'if feature_workflow_gate develop "" "$PLAN"; then echo spawned; else echo blocked; fi'
+        env = dict(self.env, LIB=str(LIB), RESPONSE=str(response), PLAN=str(plan))
+        for quote, expected in [('Keep the public API stable.', 'blocked'), ('Invented rule', 'spawned')]:
+            with self.subTest(quote=quote):
+                finding['quote'] = quote
+                response.write_text('```octopus-policy-findings\n' + json.dumps([finding]) + '\n```\n')
+                result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
+                                        capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), expected, result.stderr)
+                self.assertNotIn('policy verification unavailable', result.stderr)
+                if expected == 'blocked':
+                    self.assertIn('AGENTS.md:1', result.stderr)
+
+    def test_gate_keeps_escaping_plan_paths_confined(self):
+        outside = self.base / 'outside.md'
+        outside.write_text('Outside sentinel.\n')
+        (self.root / 'linked.md').symlink_to(outside)
+        script = 'source "$LIB"; feature_workflow_begin develop feature false; '
+        script += 'if feature_workflow_gate develop "" "$PLAN"; then echo spawned; else echo blocked; fi'
+        for plan in (str(self.root) + '/../outside.md', str(self.root / 'linked.md'), 'linked.md'):
+            with self.subTest(plan=plan):
+                env = dict(self.env, LIB=str(LIB), PLAN=plan)
+                result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
+                                        capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), 'blocked', result.stderr)
+                self.assertIn('cannot be read inside ' + str(self.root), result.stderr)
+                self.assertNotIn('Outside sentinel.', result.stdout + result.stderr)
+
+    def test_actual_tangle_binds_plan_reference_outside_root(self):
+        for args in [('config', 'user.name', 'Fixture'), ('config', 'user.email', 'fixture@example.invalid'),
+                     ('add', '.'), ('commit', '-qm', 'fixture')]:
+            subprocess.run(['git', '-C', str(self.root), *args], check=True)
+        plans = self.base / 'session-plans'
+        plans.mkdir()
+        plan = plans / 'lane-plan.md'
+        plan.write_text('Remove the public API.\n')
+        finding = self.outside_plan_finding(plan)
+        response = self.base / 'design-response.md'
+        tripwire = self.base / 'decomposition-started'
+        script = '''source "$PLUGIN/scripts/lib/workflows.sh"
+source "$LIB"
+DRY_RUN=false; TMUX_MODE=false; SUPPORTS_PARALLEL_FILE_SAFETY=false; MAGENTA=; CYAN=; NC=
+log(){ :; }; octopus_phase_banner(){ :; }
+review_kill_process_tree_frozen(){ :; }; review_kill_descendants_frozen(){ :; }
+tangle_clean_baseline_guard_enabled(){ return 1; }
+display_workflow_cost_estimate(){ return 0; }; reset_provider_lockouts(){ :; }
+tangle_file_digest(){ shasum -a256 "$1" | cut -d ' ' -f1; }
+design_review_ceremony(){
+    [[ "$1" == *'Remove the public API.'* ]] || return 90
+    printf -v "$3" '%s' "$(cat "$RESPONSE")"
+}
+tangle_run_decomposition_fallbacks(){ printf started > "$TRIPWIRE"; return 77; }
+tangle_decomposition_json_contract_guidance(){ :; }
+tangle_decompose_agent=fixture; tangle_decompose_fallback_agent=fixture
+feature_workflow_begin develop feature false
+_tangle_develop_in_workspace "Implement plan:$PLAN" '' fixture-run ''
+echo TANGLE_RC=$?
+'''
+        env = dict(self.env, LIB=str(LIB), PLUGIN=str(REPO), PROJECT_ROOT=str(self.root), PLAN=str(plan),
+                   RESPONSE=str(response), TRIPWIRE=str(tripwire), RESULTS_DIR=str(self.base / 'results'))
+        for quote, blocked in [('Keep the public API stable.', True), ('Invented rule', False)]:
+            with self.subTest(quote=quote):
+                tripwire.unlink(missing_ok=True)
+                finding['quote'] = quote
+                response.write_text('```octopus-policy-findings\n' + json.dumps([finding]) + '\n```\n')
+                result = subprocess.run(['/bin/bash', '-c', script], cwd=self.root, env=env,
+                                        capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertNotIn('policy verification unavailable', result.stderr)
+                self.assertEqual(tripwire.exists(), not blocked, result.stderr)
+                if blocked:
+                    self.assertIn('TANGLE_RC=1', result.stdout)
+                    self.assertIn('AGENTS.md:1', result.stderr)
+
     def test_legacy_import_persists_identity_before_parsing_tasks(self):
         (self.root / 'spec.md').write_text(self.spec.read_text())
         (self.root / 'tasks.md').write_text('- [ ] T001 [P] [FR-001] Implement `src/export.py`\n')
