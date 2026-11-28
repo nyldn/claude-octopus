@@ -5329,6 +5329,12 @@ _tangle_develop_in_workspace() {
     fi
     local plan_input="$file_ref" plan_snapshot="" reviewed_plan_digest=""
     if [[ -n "$file_ref" && -n "${FEATURE_POLICY_SNAPSHOT:-}" ]]; then
+        local root_prefix="${FEATURE_SOURCE_ROOT%/}/"
+        if [[ "$file_ref" != "$root_prefix"* \
+            && ( "$raw_file_ref" == "$root_prefix"* || ( "$raw_file_ref" != /* && "$raw_file_ref" != "~/"* ) ) ]]; then
+            feature_workflow_warning 'plan reference resolves outside the project root'
+            return 1
+        fi
         # Build the prompt and its identity from one confined read. The gate
         # rejects a different version even when policy findings are advisory.
         plan_snapshot=$(mktemp "${FEATURE_RUNTIME_DIR}/review-plan.XXXXXX") || return 1
@@ -5357,6 +5363,10 @@ _tangle_develop_in_workspace() {
         local plan_block="--- PLAN: ${file_ref} ---
 ${file_content}
 --- END PLAN ---"
+        if [[ -n "$reviewed_plan_digest" ]]; then
+            plan_block="Plan SHA256: ${reviewed_plan_digest}
+${plan_block}"
+        fi
         local trimmed_prompt="$prompt"
         trimmed_prompt="${trimmed_prompt#"${trimmed_prompt%%[![:space:]]*}"}"
         trimmed_prompt="${trimmed_prompt%"${trimmed_prompt##*[![:space:]]}"}"
