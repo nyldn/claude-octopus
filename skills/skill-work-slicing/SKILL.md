@@ -74,8 +74,8 @@ tracker. Check the project root and its configuration with read-only commands.
 When more than one tracker is configured, follow the project's rules for this
 kind of work. If those rules leave the destination ambiguous, ask before filing.
 
-- Use Beads only when the current project uses it. Verify the active Beads
-  workspace from the project root before using `bd`.
+- Use Beads if the project uses it or the user selects it. Confirm the exact
+  workspace the command will target before using `bd` for this project.
 - For GitHub Issues, confirm the target repository and that issues are enabled.
   Pass `--repo OWNER/REPO` to `gh issue` so a fork or CLI default cannot choose
   the destination.
@@ -104,6 +104,11 @@ the slice order, existing ticket IDs, and missing dependency edges. Report the
 specific blocker. Provide retry steps only for the confirmed tracker and only
 for missing tickets or links. Check the completed links before reporting
 dependent slices as ready.
+
+For a missing link, use the confirmed tracker's dependency operation on the
+existing tickets. If the operation needs to happen in the tracker's UI,
+provide manual recovery steps with both ticket IDs and the direction of the
+link.
 
 For a confirmed Beads workspace, retry commands can use `bd create --parent=<id>`
 and `bd dep add <issue> <depends-on>` in dependency order. If a Dolt schema

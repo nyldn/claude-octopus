@@ -156,7 +156,7 @@ for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
     if grep -q '^### 3[.] Select the project tracker$' "$entry" \
         && grep -q '^### 4[.] File the slices$' "$entry" \
         && grep -qi 'confirm the target repository' "$entry" \
-        && grep -qi 'Beads.*only when the current project uses it' "$entry" \
+        && grep -qi 'Beads if the project uses it or the user selects it' "$entry" \
         && ! grep -qi '^This repo has two trackers' "$entry"; then
         test_pass
     else
@@ -175,6 +175,7 @@ for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
     test_case "work-slicing recovers unfinished dependencies without refiling tickets (${entry#"$PROJECT_ROOT"/})"
     if grep -qi 'missing dependency edges' "$entry" \
         && grep -qi 'read back filed tickets and their dependencies' "$entry" \
+        && grep -qi 'manual recovery steps with both ticket IDs' "$entry" \
         && grep -qi 'if there is no plan location' "$entry"; then
         test_pass
     else
