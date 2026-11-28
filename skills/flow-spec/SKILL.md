@@ -168,7 +168,14 @@ fi
 FEATURE_SELECTOR="${FEATURE_DIR:-$SPEC_PATH}"
 POLICY_SNAPSHOT=$(jq -r '.policy_snapshot // empty' <<< "$FEATURE_CONTEXT")
 SPEC_RESEARCH_RUN="spec-$(python3 -c 'import uuid; print(uuid.uuid4().hex)')" || exit 1
+printf 'OCTO_ROOT=%q\nFEATURE_SELECTOR=%q\nFEATURE_RUNTIME_DIR=%q\nSPEC_RESEARCH_RUN=%q\nPOLICY_SNAPSHOT=%q\n' \
+  "$OCTO_ROOT" "$FEATURE_SELECTOR" "$FEATURE_RUNTIME_DIR" "$SPEC_RESEARCH_RUN" "$POLICY_SNAPSHOT"
 ```
+
+Save these Bash assignments in the current task handoff. Restore the exact
+assignments at the start of every new Bash call that uses them, including
+research, verification, challenge and publication. A retry of a later step
+uses the same feature selection and run ID.
 
 Pass the selected policy's numbered passages and digest to synthesis and challenge seats. Report the source and passed-over candidates. A missing source warns and proceeds. Do not create a constitution. A policy observation needs exact source and action quotations before it can be a verified conflict.
 
@@ -184,9 +191,13 @@ A legacy selection can continue when it includes usable spec and runtime paths. 
 
 ### STEP 4: Execute orchestrate.sh probe (MANDATORY - Use Bash Tool)
 
-**You MUST execute this command via the Bash tool:**
+Restore the Step 3 assignments in this Bash call before executing the probe.
 
 ```bash
+: "${OCTO_ROOT:?Restore the plugin root from Step 3}" \
+  "${FEATURE_SELECTOR:?Restore the selected feature from Step 3}" \
+  "${FEATURE_RUNTIME_DIR:?Restore the feature runtime directory from Step 3}" \
+  "${SPEC_RESEARCH_RUN:?Restore the spec research run ID from Step 3}"
 OCTOPUS_FEATURE="$FEATURE_SELECTOR" FEATURE_RUNTIME_DIR="$FEATURE_RUNTIME_DIR" OCTOPUS_RESEARCH_RUN_ID="$SPEC_RESEARCH_RUN" OCTOPUS_RESEARCH_EVIDENCE=true bash "$OCTO_ROOT/scripts/orchestrate.sh" probe "specification research for: <project description>. Key areas: actors (<actors>), constraints (<constraints>), complexity (<complexity class>)"
 ```
 
@@ -205,9 +216,12 @@ Incorporate the user's answers from Step 1 into the probe query to focus the res
 
 ### STEP 5: Verify Probe Synthesis (MANDATORY - Validation Gate)
 
-**After orchestrate.sh completes, verify it succeeded:**
+After the probe exits successfully, restore the same Step 3 assignments in
+the verification shell.
 
 ```bash
+: "${FEATURE_RUNTIME_DIR:?Restore the feature runtime directory from Step 3}" \
+  "${SPEC_RESEARCH_RUN:?Restore the spec research run ID from Step 3}"
 # Select the accepted output from this exact run, never a recent-file search.
 RESEARCH_RECEIPT="$FEATURE_RUNTIME_DIR/last-research.json"
 if ! jq -e --arg run "$SPEC_RESEARCH_RUN" '.run_id == $run and .degraded == false' "$RESEARCH_RECEIPT" >/dev/null; then
