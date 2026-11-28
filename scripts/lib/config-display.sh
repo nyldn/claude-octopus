@@ -222,7 +222,10 @@ toggle_knowledge_work_mode() {
         return 0
     fi
 
-    update_knowledge_mode_config "$new_mode"
+    if ! update_knowledge_mode_config "$new_mode"; then
+        printf '%s\n' 'Could not save the knowledge work mode.' >&2
+        return 1
+    fi
     KNOWLEDGE_WORK_MODE="$new_mode"
 
     echo ""
@@ -990,25 +993,34 @@ check_codex_auth_freshness() {
 update_knowledge_mode_config() {
     local new_mode="$1"
 
-    mkdir -p "$(dirname "$USER_CONFIG_FILE")"
+    mkdir -p "$(dirname "$USER_CONFIG_FILE")" || return 1
+    if [[ ( -e "$USER_CONFIG_FILE" || -L "$USER_CONFIG_FILE" ) && ! -f "$USER_CONFIG_FILE" ]]; then
+        return 1
+    fi
 
-    # If config exists, update only the knowledge_work_mode line (fast)
-    if [[ -f "$USER_CONFIG_FILE" ]]; then
-        # Use sed to update in-place (BSD sed compatible)
+    if [[ -s "$USER_CONFIG_FILE" ]]; then
+        local mode_line="knowledge_work_mode: \"$new_mode\"" edit
+        # Keep a matching line in sed's hold space. If a legacy config has
+        # no matching line, append the setting in the same in-place edit.
+        edit="
+/^knowledge_work_mode:/ {
+    s/.*/$mode_line/
+    h
+}
+\$ {
+    x
+    /^knowledge_work_mode:/ {
+        x
+        b
+    }
+    x
+    a\\
+$mode_line
+}"
         if [[ "$OCTOPUS_PLATFORM" == "Darwin" ]]; then
-            # macOS
-            sed -i '' "s/^knowledge_work_mode:.*$/knowledge_work_mode: \"$new_mode\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
-                # If sed fails, regenerate the file
-                load_user_config || true
-                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "${USER_RESOURCE_TIER:-standard}" "$new_mode"
-            }
+            sed -i '' "$edit" "$USER_CONFIG_FILE"
         else
-            # Linux
-            sed -i "s/^knowledge_work_mode:.*$/knowledge_work_mode: \"$new_mode\"/" "$USER_CONFIG_FILE" 2>/dev/null || {
-                # If sed fails, regenerate the file
-                load_user_config || true
-                save_user_config "${USER_INTENT_PRIMARY:-general}" "${USER_INTENT_ALL:-general}" "${USER_RESOURCE_TIER:-standard}" "$new_mode"
-            }
+            sed -i "$edit" "$USER_CONFIG_FILE"
         fi
     else
         # No config exists - create minimal config with just knowledge mode

@@ -35,25 +35,43 @@ disable-model-invocation: true
 
 ## Override Commands
 
-### Force Knowledge Context
+### Codex CLI
+
+After verifying the installed plugin root and exporting `OCTO_ROOT`, run the
+command for the user's requested action. With no action, read status. The helper
+saves changes in the Octopus user workspace so later workflow calls can read
+the selected mode. Report the result from the helper's output.
+
+| Action | Shell command |
+| --- | --- |
+| Force Knowledge Context | `bash "${OCTO_ROOT:?}/scripts/orchestrate.sh" km on` |
+| Force Dev Context | `bash "${OCTO_ROOT:?}/scripts/orchestrate.sh" km off` |
+| Return to Auto-Detection | `bash "${OCTO_ROOT:?}/scripts/orchestrate.sh" km auto` |
+| Check current status | `bash "${OCTO_ROOT:?}/scripts/orchestrate.sh" km status` |
+
+### Claude Code
+
+The slash-command examples below are for Claude Code.
+
+#### Force Knowledge Context
 ```bash
 /octo:km on
 ```
 All subsequent workflows will use Knowledge Context until reset.
 
-### Force Dev Context
+#### Force Dev Context
 ```bash
 /octo:km off
 ```
 All subsequent workflows will use Dev Context until reset.
 
-### Return to Auto-Detection
+#### Return to Auto-Detection
 ```bash
 /octo:km auto
 ```
 Context detection returns to automatic mode.
 
-### Check Current Status
+#### Check Current Status
 ```bash
 /octo:km
 ```
