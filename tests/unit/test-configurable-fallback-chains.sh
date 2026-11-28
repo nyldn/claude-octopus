@@ -426,4 +426,73 @@ else
     test_fail "standalone fallback admitted Claude SDK under a Claude-only allowlist"
 fi
 
+test_case "a semantic-invalid rejection logs the validator reason and saves the candidate"
+if (
+    REJECT_LOG="$TMP_ROOT/reject.log"
+    export RESULTS_DIR="$TMP_ROOT/reject-results"
+    : > "$REJECT_LOG"
+    log() { printf '%s %s\n' "$1" "$2" >> "$REJECT_LOG"; }
+    octo_fallback_chain_agent_specs() { printf '%s\n' claude:claude-opus-4.8; }
+    rejected='{"schema_version":1,"subtasks":[{"id":1,"kind":"reasoning","title":"Audit","reads":[],"files":[],"creates":[],"task":"Audit."},{"id":2,"kind":"coding","title":"Fix","reads":[],"files":[],"creates":[],"task":"Fix it"}]}'
+    run_agent_sync() {
+        case "$1" in
+            codex:gpt-5.6-luna) printf '%s\n' "$rejected" ;;
+            *) printf '%s\n' '{"schema_version":1,"subtasks":[{"id":1,"kind":"coding","title":"Fix","reads":[],"files":["src/a.sh"],"creates":[],"task":"Fix it"}]}' ;;
+        esac
+    }
+    out=$(run_agent_sync_fallback_chain codex:gpt-5.6-luna 'plan it' 30 researcher tangle tangle_decomposition_output_usable default)
+    warn=$(grep '^WARN ' "$REJECT_LOG")
+    saved=$(printf '%s\n' "$warn" | sed -nE 's/.*; output saved to ([^)]*)\).*/\1/p')
+    [[ "$out" == *'"src/a.sh"'* ]] && \
+        [[ "$warn" == "WARN Fallback chain 'default': codex:gpt-5.6-luna failed (semantic-invalid: Tangle decomposition JSON v1 rejected: subtask 2 is coding with no files or creates entry; output saved to "*"); trying next candidate" ]] && \
+        [[ "$saved" == "$RESULTS_DIR"/fallback-rejected-*-codex_gpt-5.6-luna.md && -f "$saved" ]] && \
+        [[ "$(cat "$saved")" == "$rejected" ]] && \
+        [[ "$(stat -f %Lp "$saved" 2>/dev/null || stat -c %a "$saved")" == 600 ]]
+); then
+    test_pass
+else
+    test_fail "rejection reason or saved candidate missing: log=[$(cat "$TMP_ROOT/reject.log")]"
+fi
+
+test_case "a long rejection reason is bounded and the saved candidate is capped"
+if (
+    REJECT_LOG="$TMP_ROOT/reject-long.log"
+    export RESULTS_DIR="$TMP_ROOT/reject-long-results"
+    export OCTOPUS_AGENT_MAX_OUTPUT_BYTES=64
+    : > "$REJECT_LOG"
+    log() { printf '%s %s\n' "$1" "$2" >> "$REJECT_LOG"; }
+    octo_fallback_chain_agent_specs() { :; }
+    noisy_validator() { printf 'line one\n%s\n' "$(printf '%2000s' '' | tr ' ' x)" >&2; return 1; }
+    run_agent_sync() { printf '%4000s\n' '' | tr ' ' y; }
+    rc=0
+    run_agent_sync_fallback_chain codex:gpt-5.6-luna 'plan it' 30 researcher tangle noisy_validator default >/dev/null || rc=$?
+    warn=$(grep '^WARN ' "$REJECT_LOG")
+    detail=$(printf '%s\n' "$warn" | sed -nE 's/.*\(semantic-invalid: (.*); output saved to .*/\1/p')
+    saved=$(printf '%s\n' "$warn" | sed -nE 's/.*; output saved to ([^)]*)\).*/\1/p')
+    [[ "$rc" -ne 0 && "$(printf '%s\n' "$warn" | wc -l | tr -d ' ')" == 1 ]] && \
+        [[ "$detail" == "line one xxx"*"..." && "${#detail}" -le 303 ]] && \
+        [[ -f "$saved" && "$(wc -c < "$saved" | tr -d ' ')" == 64 ]]
+); then
+    test_pass
+else
+    test_fail "unbounded rejection reason or candidate: log=[$(cat "$TMP_ROOT/reject-long.log")]"
+fi
+
+test_case "an empty candidate is reported as empty and not saved"
+if (
+    REJECT_LOG="$TMP_ROOT/reject-empty.log"
+    export RESULTS_DIR="$TMP_ROOT/reject-empty-results"
+    : > "$REJECT_LOG"
+    log() { printf '%s %s\n' "$1" "$2" >> "$REJECT_LOG"; }
+    octo_fallback_chain_agent_specs() { :; }
+    run_agent_sync() { printf '   \n'; }
+    run_agent_sync_fallback_chain codex:gpt-5.6-luna 'plan it' 30 researcher tangle validate_protocol default >/dev/null || true
+    grep -qxF "WARN Fallback chain 'default': codex:gpt-5.6-luna failed (semantic-invalid: empty output); trying next candidate" "$REJECT_LOG" && \
+        [[ -z "$(ls -A "$RESULTS_DIR" 2>/dev/null)" ]]
+); then
+    test_pass
+else
+    test_fail "empty candidate misreported: log=[$(cat "$TMP_ROOT/reject-empty.log")]"
+fi
+
 test_summary

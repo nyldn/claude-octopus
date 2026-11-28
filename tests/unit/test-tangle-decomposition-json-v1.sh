@@ -99,4 +99,27 @@ run_agent_sync_fallback_chain() { local validator="${6:-}"; if "$validator" "$va
 out="$(tangle_run_decomposition_fallbacks primary fallback prompt 0)"
 if [[ ! -e "$marker" ]] && tangle_decomposition_wire_output_usable "$out"; then test_pass; else test_fail "JSON contract did not stop fallback"; fi
 
+test_case "a rejected decomposition names the rule and subtask on stderr"
+reason_of() { { tangle_decomposition_output_usable "$1" >/dev/null; } 2>&1 || true; }
+missing_task='{"schema_version":1,"subtasks":[{"id":1,"kind":"coding","title":"Bad","reads":[],"files":["src/a.ts"],"creates":[]}]}'
+unknown_key='{"schema_version":1,"subtasks":[{"id":1,"kind":"coding","title":"Ok","reads":[],"files":["src/a.ts"],"creates":[],"task":"Edit."},{"id":2,"kind":"coding","title":"Bad","reads":[],"files":["src/b.ts"],"creates":[],"writes":[],"task":"Edit."}]}'
+no_scope='{"schema_version":1,"subtasks":[{"id":1,"kind":"reasoning","title":"Audit","reads":[],"files":[],"creates":[],"task":"Audit."},{"id":2,"kind":"coding","title":"Bad","reads":[],"files":[],"creates":[],"task":"Edit."}]}'
+unsafe='{"schema_version":1,"subtasks":[{"id":1,"kind":"coding","title":"Bad","reads":[],"files":["../out.ts"],"creates":[],"task":"Edit."}]}'
+r_missing="$(reason_of "$missing_task")"
+r_unknown="$(reason_of "$unknown_key")"
+r_scope="$(reason_of "$no_scope")"
+r_unsafe="$(reason_of "$unsafe")"
+r_prose="$(reason_of "I will look at the repository first.")"
+r_valid="$({ tangle_decomposition_output_usable "$valid" >/dev/null; } 2>&1)"
+if [[ "$r_missing" == "Tangle decomposition JSON v1 rejected: subtask 1 is missing task" && \
+      "$r_unknown" == "Tangle decomposition JSON v1 rejected: subtask 2 has unknown keys writes" && \
+      "$r_scope" == "Tangle decomposition JSON v1 rejected: subtask 2 is coding with no files or creates entry" && \
+      "$r_unsafe" == "Tangle decomposition JSON v1 rejected: subtask 1 write scope ../out.ts is not a safe relative path" && \
+      "$r_prose" == "Tangle decomposition rejected: no single JSON v1 object"* && \
+      -z "$r_valid" ]]; then
+  test_pass
+else
+  test_fail "unexpected reasons: missing=[$r_missing] unknown=[$r_unknown] scope=[$r_scope] unsafe=[$r_unsafe] prose=[$r_prose] valid=[$r_valid]"
+fi
+
 test_summary

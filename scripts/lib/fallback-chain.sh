@@ -367,21 +367,74 @@ octo_fallback_first_available() {
     return 1
 }
 
+# Sets OCTO_FALLBACK_REJECTION to why the output was refused: "empty output",
+# or the validator's stderr. A validator that accepts keeps its stderr.
 octo_fallback_output_usable() {
-    local output="${1:-}" validator="${2:-}"
-    [[ -n "${output//[[:space:]]/}" ]] || return 1
+    local output="${1:-}" validator="${2:-}" err_file="" rc=0
+    OCTO_FALLBACK_REJECTION=""
+    if [[ -z "${output//[[:space:]]/}" ]]; then
+        OCTO_FALLBACK_REJECTION="empty output"
+        return 1
+    fi
     if [[ -n "$validator" ]]; then
-        declare -F "$validator" >/dev/null 2>&1 || return 2
-        "$validator" "$output" >/dev/null
-        return $?
+        if ! declare -F "$validator" >/dev/null 2>&1; then
+            OCTO_FALLBACK_REJECTION="validator $validator is not defined"
+            return 2
+        fi
+        err_file="$(mktemp "${TMPDIR:-/tmp}/octo-fallback-validator.XXXXXX" 2>/dev/null)" || err_file=""
+        if [[ -z "$err_file" ]]; then
+            "$validator" "$output" >/dev/null
+            return $?
+        fi
+        "$validator" "$output" >/dev/null 2>"$err_file" || rc=$?
+        if [[ "$rc" -eq 0 ]]; then
+            cat "$err_file" >&2 2>/dev/null || true
+        else
+            OCTO_FALLBACK_REJECTION="$(head -c 4096 "$err_file" 2>/dev/null)"
+        fi
+        rm -f "$err_file" 2>/dev/null || true
+        return "$rc"
     fi
     return 0
+}
+
+octo_fallback_rejection_summary() {
+    local text="${1:-}" max="${2:-300}"
+    text="$(printf '%s' "$text" | LC_ALL=C tr -s '[:space:]' ' ' | LC_ALL=C tr -d '[:cntrl:]')"
+    text="${text# }"
+    text="${text% }"
+    if [[ "${#text}" -gt "$max" ]]; then
+        text="${text:0:$max}..."
+    fi
+    printf '%s\n' "$text"
+}
+
+octo_fallback_save_rejected_output() {
+    local spec="${1:-unknown}" output="${2:-}" dir="${RESULTS_DIR:-}" slug tmp path
+    local max_bytes="${OCTOPUS_AGENT_MAX_OUTPUT_BYTES:-262144}"
+    [[ -n "$dir" ]] || return 1
+    [[ "$max_bytes" =~ ^[0-9]+$ && "$max_bytes" -gt 0 ]] || max_bytes=262144
+    mkdir -p "$dir" 2>/dev/null || return 1
+    if declare -F octo_agent_spec_slug >/dev/null 2>&1; then
+        slug="$(octo_agent_spec_slug "$spec")"
+    else
+        slug="$(printf '%s' "$spec" | sed -E 's/[^A-Za-z0-9._-]+/_/g; s/^_+//; s/_+$//')"
+    fi
+    tmp="$(mktemp "${dir}/.fallback-rejected.XXXXXX" 2>/dev/null)" || return 1
+    path="${dir}/fallback-rejected-$(date +%s)-${tmp##*.}-${slug:-unknown}.md"
+    if ! (umask 077; printf '%s' "$output" | head -c "$max_bytes" > "$tmp") 2>/dev/null || \
+       ! mv "$tmp" "$path" 2>/dev/null; then
+        rm -f "$tmp" 2>/dev/null || true
+        return 1
+    fi
+    printf '%s\n' "$path"
 }
 
 run_agent_sync_fallback_chain() {
     local primary_agent="$1" prompt="$2" timeout_secs="${3:-120}" semantic_role="${4:-}" phase="${5:-}"
     local validator="${6:-}" chain_name="${7:-default}" preferred_fallback="${8:-}" escalation_grant="${9:-}"
     local spec raw_spec output="" rc=0 reason="" candidates="" fallback_specs="" seen="|"
+    local detail="" rejected_file=""
 
     fallback_specs="$(octo_fallback_chain_agent_specs "$chain_name" "$phase" "$escalation_grant")" || return $?
     if [[ -n "$primary_agent" ]]; then
@@ -421,6 +474,12 @@ run_agent_sync_fallback_chain() {
                 return 0
             fi
             reason="semantic-invalid"
+            detail="$(octo_fallback_rejection_summary "${OCTO_FALLBACK_REJECTION:-}")"
+            [[ -n "$detail" ]] && reason+=": $detail"
+            if [[ -n "${output//[[:space:]]/}" ]] && \
+               rejected_file="$(octo_fallback_save_rejected_output "$spec" "$output")"; then
+                reason+="; output saved to $rejected_file"
+            fi
         else
             rc=$?
             reason="process-error:$rc"
