@@ -83,10 +83,13 @@ test_watcher_records_the_line_it_fast_failed_on() {
     kill "$target" 2>/dev/null || true
     wait "$target" 2>/dev/null || true
     stop_quota_watcher "$wpid"
-    if [[ "$(cat "$fired" 2>/dev/null)" == "ERROR: You've hit your usage limit. Try again at 10:32 PM." ]]; then
+    local ttl
+    ttl="$(grep "^firedprov	" "$(octo_quota_dead_meta_file)" 2>/dev/null | cut -f3)" || ttl=""
+    if [[ "$(cat "$fired" 2>/dev/null)" == "ERROR: You've hit your usage limit. Try again at 10:32 PM." ]] && \
+       [[ "$ttl" =~ ^[0-9]+$ ]] && (( ttl >= 60 && ttl <= 86460 )); then
         test_pass
     else
-        test_fail "fired file holds '$(cat "$fired" 2>/dev/null)'"
+        test_fail "fired file holds '$(cat "$fired" 2>/dev/null)', ttl '$ttl'"
     fi
 }
 
@@ -103,6 +106,59 @@ test_reset_hint_reads_provider_windows() {
         test_pass
     else
         test_fail "codex='$codex' agy='$agy' days='$days' none='$none' hostile='$hostile'"
+    fi
+}
+
+test_reset_ttl_counts_to_the_named_reset() {
+    test_case "reset TTL counts to the named reset time plus a minute"
+    local now=1795865280 got_ttls=() want_ttls=() line i
+    local -a lines=(
+        "ERROR: You've hit your usage limit. Upgrade to Pro or try again at 11:39 AM."
+        "ERROR: You've hit your usage limit. Try again at 10:32 PM."
+        "ERROR: You've hit your usage limit. Try again at 11:27 AM."
+        "ERROR: You've hit your usage limit. Try again at 12:15 AM."
+        "ERROR: You've hit your usage limit. Try again at 1 PM."
+        "ERROR: You've hit your usage limit. Try again at 23:05."
+        "ERROR: You've hit your usage limit. Try again at Nov 30th, 2026 9:05 AM."
+        "ERROR: You've hit your usage limit. Try again in 2h13m."
+        "Error: Individual quota reached. Resets in 156h9m1s."
+        "ERROR: You've hit your usage limit. Try again at Nov 27th, 2026 9:05 AM."
+        "ERROR: You've hit your usage limit. Try again later."
+        "HTTP 401 Unauthorized"
+    )
+    want_ttls=(720 39900 86400 46080 5580 41880 164280 8040 562201 "" "" "")
+    for line in "${lines[@]}"; do
+        got_ttls+=("$(TZ=UTC octo_quota_reset_ttl "$line" "$now")")
+    done
+    got_ttls+=("$(TZ=UTC octo_quota_reset_ttl "ERROR: You've hit your usage limit. Try again at 11:28 AM." "$(( now + 30 ))")")
+    want_ttls+=(60)
+    for i in "${!want_ttls[@]}"; do
+        if [[ "${got_ttls[$i]}" != "${want_ttls[$i]}" ]]; then
+            test_fail "case $i: expected '${want_ttls[$i]}', got '${got_ttls[$i]}'"
+            return
+        fi
+    done
+    test_pass
+}
+
+test_mark_after_exit_uses_the_reset_window() {
+    test_case "a quota mark after exit expires with the named window, else the default"
+    local errf="$FIXTURE/x-err.txt" outf="$FIXTURE/x-out.txt" meta ttl_relative ttl_none
+    meta="$(octo_quota_dead_meta_file)"
+    : > "$outf"
+    octo_quota_clear_dead relprov
+    printf '%s\n' "ERROR: You've hit your usage limit. Try again in 2h13m." > "$errf"
+    quota_watcher_mark_after_exit 1 "$errf" "$outf" relprov
+    ttl_relative="$(grep "^relprov	" "$meta" 2>/dev/null | cut -f3)" || ttl_relative=""
+    octo_quota_clear_dead nohintprov
+    printf '%s\n' "ERROR: You've hit your usage limit." > "$errf"
+    quota_watcher_mark_after_exit 1 "$errf" "$outf" nohintprov
+    ttl_none="$(grep -c "^nohintprov	" "$meta" 2>/dev/null)" || true
+    if [[ "$ttl_relative" == 8040 && "$ttl_none" == 0 ]] && \
+       octo_quota_is_dead relprov && octo_quota_is_dead nohintprov; then
+        test_pass
+    else
+        test_fail "relative ttl='$ttl_relative' no-hint meta lines='$ttl_none'"
     fi
 }
 
@@ -505,6 +561,8 @@ test_pattern_matches_terminal_errors
 test_watcher_marks_dead_on_match
 test_watcher_records_the_line_it_fast_failed_on
 test_reset_hint_reads_provider_windows
+test_reset_ttl_counts_to_the_named_reset
+test_mark_after_exit_uses_the_reset_window
 test_is_agent_available_skips_dead
 test_retired_gemini_timeout_override_absent
 test_pattern_matches_agy_and_gemini_terminal_errors
