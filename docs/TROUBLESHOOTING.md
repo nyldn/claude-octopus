@@ -71,7 +71,11 @@ budget.
 
 **Config changes not taking effect** — settings are re-read when the ConfigChange hook fires; if in doubt, check for the reload log line ("ConfigChange detected") or restart the session.
 
-**Fable dispatch refused or empty** — possible for security-audit phrasing on `claude-fable-5-1` or preserved `claude-fable-5` pins; the plugin reroutes security passes and retries refused claude-sdk dispatches once on Opus 5 by default. Set `OCTOPUS_FABLE5_FALLBACK_MODEL` to replace that fallback target. Details: `skills/blocks/fable5-prompting.md`. Disable the guards with `OCTOPUS_FABLE5_MODE=off`.
+**Fable dispatch refused or empty** — possible for security-audit phrasing on `claude-fable-5-1` or preserved `claude-fable-5` pins; the plugin reroutes security passes and retries refused claude-sdk dispatches once on Opus 5 by default. Set `OCTOPUS_FABLE5_FALLBACK_MODEL` to choose the fallback. Set
+`OCTOPUS_FABLE5_NO_RETRY=1` to report a refusal without another SDK dispatch.
+The banner shows the retry setting and effective effort ceiling. See
+`skills/blocks/fable5-prompting.md` for details. To disable all Fable guards,
+set `OCTOPUS_FABLE5_MODE=off`.
 
 **Empty results from a dispatch that "succeeded"** — check `~/.claude-octopus/results/` for the raw artifact and `~/.claude-octopus/logs/` for the dispatch log. `--verbose` on the next run shows the constructed command.
 
@@ -83,6 +87,13 @@ answer keep stderr inline. If the private writer rejects the path or the
 transcript exceeds its 1 MiB limit, full stderr also stays inline. Expiring a
 per-agent result removes its transcript; retained synthesis reports and recent
 results keep theirs.
+
+## Workflow state recovery
+
+If workflow initialization finds a corrupt JSON state document, it saves
+the original beside `state.json` as `state.json.corrupt.<timestamp>` before
+creating fresh state. Recoveries in the same second use numbered suffixes so
+earlier copies remain available for inspection.
 
 ## Learned file hints and provider history
 

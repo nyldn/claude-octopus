@@ -1,7 +1,7 @@
 {
   "name": "octo",
-  "version": "11.30.4",
-  "description": "v11.30.4 \u2014 Fix Define attribution, show saved Status, and verify Debate follow-ups. Run /octo:setup.",
+  "version": "11.30.5",
+  "description": "v11.30.5 \u2014 Preserve recovery backups, respect design allowlists, and report Code Review contributors and Fable settings. Run /octo:setup.",
   "author": {
     "name": "nyldn",
     "url": "https://github.com/nyldn"
