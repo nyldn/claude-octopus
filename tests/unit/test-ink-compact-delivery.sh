@@ -311,4 +311,31 @@ for review_status in 1 42; do
     done
 done
 
+for audit_fixture in stale empty; do
+    test_case "committed audit uses the source prompt with $audit_fixture phase artifacts"
+    if (
+        reset_results
+        if [[ "$audit_fixture" == stale ]]; then
+            printf '%s\n' 'Summary for an earlier feature' > "$RESULTS_DIR/probe-synthesis-old.md"
+        fi
+        SUPPORTS_BATCH_COMMAND=true
+        octo_provider_allowed() { return 0; }
+        _aggregate_pick_synth_agent() { echo claude-sonnet; }
+        run_agent_sync() {
+            printf '%s\n' "$2" >> "$TEST_ROOT/audit-prompts"
+            echo 'Completed audit stage'
+        }
+        rm -f "$TEST_ROOT/audit-prompts"
+        OCTOPUS_INK_COMMITTED_AUDIT=1 ink_deliver "Review the committed change in export.py" > "$TEST_ROOT/audit-output" 2>&1 &&
+            [[ "$(grep -c 'Review the committed change in export.py' "$TEST_ROOT/audit-prompts")" == 3 ]] &&
+            ! grep -q 'earlier feature' "$TEST_ROOT/audit-prompts" &&
+            delivery_file="$(only_delivery_file)" &&
+            grep -q 'Context policy: committed audit prompt only' "$delivery_file"
+    ); then
+        test_pass
+    else
+        test_fail "committed audit did not use the committed source for all review stages"
+    fi
+done
+
 test_summary
