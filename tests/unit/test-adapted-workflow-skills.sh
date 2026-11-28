@@ -135,7 +135,7 @@ if [[ -f "$WS" ]] && grep -qi "block" "$WS"; then test_pass; else test_fail "sli
 # migrating from a non-designated clone. The skill must degrade honestly rather
 # than appear to file work it cannot file.
 test_case "work-slicing: handles the bd write block without pretending to file"
-if [[ -f "$WS" ]] && grep -q "bd" "$WS" && grep -qiE "write-blocked|writes are blocked|cannot write|ready-to-run" "$WS"; then
+if [[ -f "$WS" ]] && grep -q 'bd create' "$WS" && grep -q 'bd dep add' "$WS" && grep -qi 'migration blocks writes' "$WS"; then
     test_pass
 else
     test_fail "must state what happens when bd writes are unavailable and emit ready-to-run commands instead"
@@ -147,6 +147,63 @@ if [[ -f "$WS" ]] && grep -qiE "do not run the migration|single.designated migra
 else
     test_fail "the repo rule is that only the designated migrator migrates; the skill must not invite a second clone to do it"
 fi
+
+# This guidance is consumed as a prompt by both hosts. Check the published
+# entries as well as the authored contract.
+for entry in "$WS" "$PROJECT_ROOT/skills/skill-work-slicing/SKILL.md" \
+    "$PROJECT_ROOT/codex-skills/skill-work-slicing/SKILL.md"; do
+    test_case "work-slicing selects and verifies the target project's tracker (${entry#"$PROJECT_ROOT"/})"
+    if grep -q '^### 3[.] Select the project tracker$' "$entry" \
+        && grep -q '^### 4[.] File the slices$' "$entry" \
+        && grep -qi 'confirm the target repository' "$entry" \
+        && grep -q '^- If Beads is the selected tracker,' "$entry" \
+        && ! grep -qi '^This repo has two trackers' "$entry"; then
+        test_pass
+    else
+        test_fail "the installed skill must establish the current project's tracker before filing"
+    fi
+
+    test_case "work-slicing preserves an unfiled proposal without guessing a tracker (${entry#"$PROJECT_ROOT"/})"
+    if grep -qi 'no tracker was confirmed' "$entry" \
+        && grep -qi 'explicitly unfiled' "$entry" \
+        && grep -qi 'same confirmed tracker for filing and recovery' "$entry"; then
+        test_pass
+    else
+        test_fail "missing or unavailable tracking must preserve work without guessing a write destination"
+    fi
+
+    test_case "work-slicing recovers unfinished dependencies without refiling tickets (${entry#"$PROJECT_ROOT"/})"
+    if grep -qi 'missing dependency edges' "$entry" \
+        && grep -qi 'read back filed tickets' "$entry" \
+        && grep -qi 'manual recovery steps with both ticket IDs' "$entry" \
+        && grep -Fq 'Relationships → Mark as blocked by' "$entry" \
+        && grep -qi 'no plan location, include' "$entry"; then
+        test_pass
+    else
+        test_fail "partially filed slices must preserve ticket IDs and recover missing edges"
+    fi
+
+    test_case "work-slicing retries missing blocker text in place (${entry#"$PROJECT_ROOT"/})"
+    if grep -qi 'retry only missing tickets, links, or blocker-body' "$entry" \
+        && grep -qi 'read back existing ticket bodies or' "$entry" \
+        && grep -qi 'with the missing blockers and preserve its other content' "$entry"; then
+        test_pass
+    else
+        test_fail "trackers without dependency links must recover missing blocker text without refiling tickets"
+    fi
+
+    test_case "work-slicing reconciles a create with no ticket ID (${entry#"$PROJECT_ROOT"/})"
+    if grep -qi 'create returned no ticket ID, look up the slice' "$entry" \
+        && grep -qi 'record a unique reference for each slice' "$entry" \
+        && grep -qi 'open ticket from this filing attempt' "$entry" \
+        && grep -qi 'idempotency key while the tracker guarantees deduplication' "$entry" \
+        && grep -qi 'original request did not create a ticket' "$entry" \
+        && grep -qi 'including when search returns no match' "$entry"; then
+        test_pass
+    else
+        test_fail "an ambiguous create must be reconciled in the confirmed tracker before retrying"
+    fi
+done
 
 # ── skill-intake ─────────────────────────────────────────────────────────────
 test_case "intake: treats a PR as an issue with attached code"
