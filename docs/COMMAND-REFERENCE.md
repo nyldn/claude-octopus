@@ -1274,7 +1274,10 @@ Full UI/UX design workflow with BM25 design intelligence and optional Figma inte
 - 🎨 Figma MCP — Design context when a Figma URL is provided
 - 🧩 shadcn MCP — Component suggestions when available
 
-**Multi-LLM adversarial design critique** (v8.43.0+): Between Define and Develop phases, Claude plus available external providers review the proposed design direction independently, issues are triaged, and fixes are applied before tokens/components are generated.
+**Multi-LLM design critique**: Between Define and Develop, the host and any
+available external reviewers allowed by the current provider allowlist review
+the proposed design. If no external reviewer is eligible, the host can do the
+review alone. Address the findings before generating tokens or components.
 
 ---
 
