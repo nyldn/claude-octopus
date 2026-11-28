@@ -7308,6 +7308,7 @@ ${obs_ctx}"
     # HARDCODED PHASE LOGIC (fallback when YAML runtime not available)
     # ═══════════════════════════════════════════════════════════════════════════
     local probe_synthesis grasp_consensus="" tangle_validation
+    local grasp_results_root="$RESULTS_DIR"
     local define_gate_output="" develop_gate_output=""
 
     # Phase 1: PROBE (Discover)
@@ -7376,11 +7377,15 @@ ${obs_ctx}"
 
         OCTOPUS_COMPLETED_PHASES=2
         _write_embrace_session_state "grasp" "completed"
-        save_session_checkpoint "grasp" "completed" "$grasp_consensus"
+        save_session_checkpoint "grasp" "completed" "$grasp_consensus" "$grasp_results_root"
         handle_autonomy_checkpoint "grasp" "completed"
         sleep 1
     else
-        grasp_consensus=$(get_phase_output "grasp")
+        local grasp_checkpoint saved_results_root
+        grasp_checkpoint=$(get_phase_checkpoint "grasp") || grasp_checkpoint=""
+        grasp_consensus=$(jq -r '.output | strings' <<< "$grasp_checkpoint") || grasp_consensus=""
+        saved_results_root=$(jq -r '.results_root | strings' <<< "$grasp_checkpoint") || saved_results_root=""
+        grasp_results_root="${saved_results_root:-$grasp_results_root}"
         if [[ -z "$grasp_consensus" || ! -f "$grasp_consensus" ]]; then
             _abort_embrace_phase "grasp" "resume requested but the saved Grasp consensus is missing; rerun Embrace from the start" "$probe_synthesis"
             return 1
@@ -7415,7 +7420,7 @@ ${obs_ctx}"
         echo ""
         echo -e "${CYAN}[3/4] Starting TANGLE phase (Develop)...${NC}"
         echo ""
-        if ! tangle_develop "$prompt" "$grasp_consensus" "$RESULTS_DIR"; then
+        if ! tangle_develop "$prompt" "$grasp_consensus" "$grasp_results_root"; then
             tangle_validation=$(_latest_embrace_output "$RESULTS_DIR"/tangle-validation-*.md)
             _abort_embrace_phase "tangle" "tangle_develop returned non-zero" "$tangle_validation"
             return 1
