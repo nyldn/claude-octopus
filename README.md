@@ -81,6 +81,10 @@ in the same second. Design critiques respect your provider allowlist. Code Revie
 uses the selected reviewer route and credits only providers that contributed.
 Fable reports whether retries are enabled and shows the effective effort ceiling.
 
+Ship reviews the committed delivery diff. Spec carries the same research run
+across shell calls, and Codex Knowledge Work mode saves overrides on older
+configurations.
+
 <!-- BEGIN CURRENT RELEASE -->
 > 🆕 **v11.30.5 — Preserve recovery backups, respect design allowlists, and report Code Review contributors and Fable settings.**
 >

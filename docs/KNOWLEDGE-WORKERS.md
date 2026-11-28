@@ -29,6 +29,13 @@ For most Claude Code users, knowledge work should start from the plugin commands
 
 When Knowledge Work mode is enabled, router-driven requests bias toward research, synthesis, and strategy analysis instead of code generation. Switch back with `/octo:dev`.
 
+### Codex CLI
+
+Invoke `$skill-knowledge-work` with `on`, `off`, `auto`, or `status`. With
+no action, the skill reads the current mode. Changes are saved in the Octopus
+user workspace for later runs. If the helper reports a write failure, check
+the workspace settings before relying on the new mode.
+
 ### Advanced Direct CLI Commands
 If you are automating outside the plugin, `orchestrate.sh` also exposes knowledge-specific entry points:
 
